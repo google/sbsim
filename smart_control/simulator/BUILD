@@ -1,0 +1,622 @@
+#     Copyright 2023 Google LLC
+#
+#     Licensed under the Apache License, Version 2.0 (the "License");
+#     you may not use this file except in compliance with the License.
+#     You may obtain a copy of the License at
+#
+#         https://www.apache.org/licenses/LICENSE-2.0
+#
+#     Unless required by applicable law or agreed to in writing, software
+#     distributed under the License is distributed on an "AS IS" BASIS,
+#     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#     See the License for the specific language governing permissions and
+#     limitations under the License.
+#
+#     BUILD file for simulator package.
+load("//devtools/python/blaze:pytype.bzl", "pytype_strict_library")
+load("//devtools/python/blaze:strict.bzl", "py_strict_test")
+
+package(
+    default_applicable_licenses = ["//third_party/py/smart_buildings:license"],
+    default_visibility = ["//visibility:public"],
+)
+
+py_strict_test(
+    name = "air_handler_test",
+    srcs = ["air_handler_test.py"],
+    python_version = "PY3",
+    deps = [
+        ":air_handler",
+        ":weather_controller",
+        "//third_party/py/absl/testing:absltest",
+        "//third_party/py/absl/testing:parameterized",
+        "//third_party/py/google/protobuf:use_fast_cpp_protos",  # Automatically added go/proto_python_upb_flip
+        "//third_party/py/pandas",
+        "//third_party/py/smart_buildings/smart_control/utils:constants",
+    ],
+)
+
+py_strict_test(
+    name = "boiler_test",
+    srcs = ["boiler_test.py"],
+    python_version = "PY3",
+    deps = [
+        ":boiler",
+        "//third_party/py/absl/testing:absltest",
+        "//third_party/py/absl/testing:parameterized",
+        "//third_party/py/google/protobuf:use_fast_cpp_protos",  # Automatically added go/proto_python_upb_flip
+        "//third_party/py/pandas",
+        "//third_party/py/smart_buildings/smart_control/proto:smart_control_building_py_pb2",
+        "//third_party/py/smart_buildings/smart_control/utils:constants",
+    ],
+)
+
+py_strict_test(
+    name = "building_test",
+    srcs = ["building_test.py"],
+    python_version = "PY3",
+    deps = [
+        ":building",
+        ":building_utils",
+        ":constants",
+        ":stochastic_convection_simulator",
+        "//third_party/py/absl/testing:absltest",
+        "//third_party/py/absl/testing:parameterized",
+        "//third_party/py/google/protobuf:use_fast_cpp_protos",  # Automatically added go/proto_python_upb_flip
+        "//third_party/py/numpy",
+    ],
+)
+
+py_strict_test(
+    name = "building_utils_test",
+    srcs = ["building_utils_test.py"],
+    deps = [
+        ":building_utils",
+        "//third_party/py/absl/testing:absltest",
+        "//third_party/py/absl/testing:parameterized",
+        "//third_party/py/google/protobuf:use_fast_cpp_protos",  # Automatically added go/proto_python_upb_flip
+        "//third_party/py/numpy",
+    ],
+)
+
+py_strict_test(
+    name = "hvac_floorplan_based_test",
+    srcs = ["hvac_floorplan_based_test.py"],
+    deps = [
+        ":air_handler",
+        ":boiler",
+        ":hvac_floorplan_based",
+        ":setpoint_schedule",
+        "//third_party/py/absl/testing:absltest",
+        "//third_party/py/google/protobuf:use_fast_cpp_protos",  # Automatically added go/proto_python_upb_flip
+        "//third_party/py/pandas",
+        "//third_party/py/smart_buildings/smart_control/utils:conversion_utils",
+    ],
+)
+
+py_strict_test(
+    name = "hvac_test",
+    srcs = ["hvac_test.py"],
+    python_version = "PY3",
+    deps = [
+        ":air_handler",
+        ":boiler",
+        ":hvac",
+        ":setpoint_schedule",
+        "//third_party/py/absl/testing:absltest",
+        "//third_party/py/google/protobuf:use_fast_cpp_protos",  # Automatically added go/proto_python_upb_flip
+        "//third_party/py/pandas",
+        "//third_party/py/smart_buildings/smart_control/utils:conversion_utils",
+    ],
+)
+
+py_strict_test(
+    name = "randomized_arrival_departure_occupancy_test",
+    srcs = ["randomized_arrival_departure_occupancy_test.py"],
+    python_version = "PY3",
+    deps = [
+        ":randomized_arrival_departure_occupancy",
+        "//third_party/py/absl/testing:absltest",
+        "//third_party/py/absl/testing:parameterized",
+        "//third_party/py/google/protobuf:use_fast_cpp_protos",  # Automatically added go/proto_python_upb_flip
+        "//third_party/py/numpy",
+        "//third_party/py/pandas",
+    ],
+)
+
+py_strict_test(
+    name = "rejection_simulator_building_test",
+    srcs = ["rejection_simulator_building_test.py"],
+    python_version = "PY3",
+    deps = [
+        ":rejection_simulator_building",
+        ":simulator_building",
+        ":simulator_building_test_lib",
+        "//third_party/py/absl/testing:absltest",
+        "//third_party/py/absl/testing:parameterized",
+        "//third_party/py/google/protobuf:use_fast_cpp_protos",  # Automatically added go/proto_python_upb_flip
+        "//third_party/py/smart_buildings/smart_control/proto:smart_control_building_py_pb2",
+    ],
+)
+
+py_strict_test(
+    name = "setpoint_schedule_test",
+    srcs = ["setpoint_schedule_test.py"],
+    python_version = "PY3",
+    deps = [
+        ":setpoint_schedule",
+        "//third_party/py/absl/testing:absltest",
+        "//third_party/py/absl/testing:parameterized",
+        "//third_party/py/google/protobuf:use_fast_cpp_protos",  # Automatically added go/proto_python_upb_flip
+        "//third_party/py/pandas",
+        "//third_party/py/pytz",
+    ],
+)
+
+py_strict_test(
+    name = "simulator_building_test",
+    srcs = ["simulator_building_test.py"],
+    python_version = "PY3",
+    deps = [
+        ":simulator_building",
+        ":simulator_building_test_lib",
+        "//third_party/py/absl/testing:absltest",
+        "//third_party/py/google/protobuf:use_fast_cpp_protos",  # Automatically added go/proto_python_upb_flip
+    ],
+)
+
+py_strict_test(
+    name = "simulator_flexible_floor_plan_test",
+    srcs = ["simulator_flexible_floor_plan_test.py"],
+    deps = [
+        ":air_handler",
+        ":boiler",
+        ":building",
+        ":hvac_floorplan_based",
+        ":setpoint_schedule",
+        ":simulator_flexible_floor_plan",
+        ":step_function_occupancy",
+        ":weather_controller",
+        "//third_party/py/absl/testing:absltest",
+        "//third_party/py/absl/testing:parameterized",
+        "//third_party/py/google/protobuf:use_fast_cpp_protos",  # Automatically added go/proto_python_upb_flip
+        "//third_party/py/numpy",
+        "//third_party/py/pandas",
+        "//third_party/py/smart_buildings/smart_control/proto:smart_control_reward_py_pb2",
+        "//third_party/py/smart_buildings/smart_control/utils:conversion_utils",
+    ],
+)
+
+py_strict_test(
+    name = "simulator_test",
+    srcs = ["simulator_test.py"],
+    python_version = "PY3",
+    deps = [
+        ":air_handler",
+        ":boiler",
+        ":building",
+        ":hvac",
+        ":setpoint_schedule",
+        ":simulator",
+        ":step_function_occupancy",
+        ":weather_controller",
+        "//third_party/py/absl/testing:absltest",
+        "//third_party/py/absl/testing:parameterized",
+        "//third_party/py/google/protobuf:use_fast_cpp_protos",  # Automatically added go/proto_python_upb_flip
+        "//third_party/py/pandas",
+        "//third_party/py/smart_buildings/smart_control/proto:smart_control_reward_py_pb2",
+        "//third_party/py/smart_buildings/smart_control/utils:conversion_utils",
+    ],
+)
+
+py_strict_test(
+    name = "smart_device_test",
+    srcs = ["smart_device_test.py"],
+    python_version = "PY3",
+    deps = [
+        ":smart_device",
+        "//third_party/py/absl/testing:absltest",
+        "//third_party/py/google/protobuf:use_fast_cpp_protos",  # Automatically added go/proto_python_upb_flip
+        "//third_party/py/pandas",
+        "//third_party/py/smart_buildings/smart_control/proto:smart_control_building_py_pb2",
+    ],
+)
+
+py_strict_test(
+    name = "step_function_occupancy_test",
+    srcs = ["step_function_occupancy_test.py"],
+    python_version = "PY3",
+    deps = [
+        ":step_function_occupancy",
+        "//third_party/py/absl/testing:absltest",
+        "//third_party/py/absl/testing:parameterized",
+        "//third_party/py/google/protobuf:use_fast_cpp_protos",  # Automatically added go/proto_python_upb_flip
+        "//third_party/py/pandas",
+    ],
+)
+
+py_strict_test(
+    name = "thermal_diffuser_utils_test",
+    srcs = ["thermal_diffuser_utils_test.py"],
+    deps = [
+        ":thermal_diffuser_utils",
+        "//third_party/py/absl/testing:absltest",
+        "//third_party/py/absl/testing:parameterized",
+        "//third_party/py/google/protobuf:use_fast_cpp_protos",  # Automatically added go/proto_python_upb_flip
+        "//third_party/py/numpy",
+    ],
+)
+
+py_strict_test(
+    name = "thermostat_test",
+    srcs = ["thermostat_test.py"],
+    python_version = "PY3",
+    deps = [
+        ":setpoint_schedule",
+        ":thermostat",
+        "//third_party/py/absl/testing:absltest",
+        "//third_party/py/google/protobuf:use_fast_cpp_protos",  # Automatically added go/proto_python_upb_flip
+        "//third_party/py/pandas",
+    ],
+)
+
+pytype_strict_library(
+    name = "air_handler",
+    srcs = ["air_handler.py"],
+    srcs_version = "PY3",
+    deps = [
+        ":smart_device",
+        ":weather_controller",
+        "//third_party/py/gin",
+        "//third_party/py/smart_buildings/smart_control/proto:smart_control_building_py_pb2",
+        "//third_party/py/smart_buildings/smart_control/utils:constants",
+    ],
+)
+
+pytype_strict_library(
+    name = "boiler",
+    srcs = ["boiler.py"],
+    srcs_version = "PY3",
+    deps = [
+        ":smart_device",
+        "//third_party/py/gin",
+        "//third_party/py/numpy",
+        "//third_party/py/pandas",
+        "//third_party/py/smart_buildings/smart_control/proto:smart_control_building_py_pb2",
+        "//third_party/py/smart_buildings/smart_control/utils:constants",
+    ],
+)
+
+pytype_strict_library(
+    name = "building",
+    srcs = ["building.py"],
+    srcs_version = "PY3",
+    deps = [
+        ":base_convection_simulator",
+        ":building_utils",
+        ":constants",
+        ":thermal_diffuser_utils",
+        "//third_party/py/gin",
+        "//third_party/py/numpy",
+    ],
+)
+
+pytype_strict_library(
+    name = "building_utils",
+    srcs = ["building_utils.py"],
+    deps = [
+        ":constants",
+        "//third_party/py/cv2",
+        "//third_party/py/matplotlib",
+        "//third_party/py/numpy",
+        "//third_party/py/scipy",
+    ],
+)
+
+pytype_strict_library(
+    name = "constants",
+    srcs = ["constants.py"],
+)
+
+pytype_strict_library(
+    name = "hvac",
+    srcs = ["hvac.py"],
+    srcs_version = "PY3",
+    deps = [
+        ":air_handler",
+        ":boiler",
+        ":setpoint_schedule",
+        ":thermostat",
+        ":vav",
+        "//third_party/py/gin",
+        "//third_party/py/pandas",
+        "//third_party/py/smart_buildings/smart_control/proto:smart_control_building_py_pb2",
+        "//third_party/py/smart_buildings/smart_control/utils:conversion_utils",
+    ],
+)
+
+pytype_strict_library(
+    name = "hvac_floorplan_based",
+    srcs = ["hvac_floorplan_based.py"],
+    deps = [
+        ":air_handler",
+        ":boiler",
+        ":constants",
+        ":setpoint_schedule",
+        ":thermostat",
+        ":vav",
+        "//third_party/py/gin",
+        "//third_party/py/pandas",
+        "//third_party/py/smart_buildings/smart_control/proto:smart_control_building_py_pb2",
+        "//third_party/py/smart_buildings/smart_control/utils:conversion_utils",
+    ],
+)
+
+pytype_strict_library(
+    name = "randomized_arrival_departure_occupancy",
+    srcs = ["randomized_arrival_departure_occupancy.py"],
+    srcs_version = "PY3",
+    deps = [
+        "//third_party/py/gin",
+        "//third_party/py/numpy",
+        "//third_party/py/pandas",
+        "//third_party/py/smart_buildings/smart_control/models:base_occupancy",
+        "//third_party/py/smart_buildings/smart_control/utils:conversion_utils",
+    ],
+)
+
+pytype_strict_library(
+    name = "rejection_simulator_building",
+    srcs = ["rejection_simulator_building.py"],
+    srcs_version = "PY3",
+    deps = [
+        "//third_party/py/gin",
+        "//third_party/py/pandas",
+        "//third_party/py/smart_buildings/smart_control/models:base_building",
+        "//third_party/py/smart_buildings/smart_control/proto:smart_control_building_py_pb2",
+        "//third_party/py/smart_buildings/smart_control/proto:smart_control_reward_py_pb2",
+    ],
+)
+
+pytype_strict_library(
+    name = "setpoint_schedule",
+    srcs = ["setpoint_schedule.py"],
+    srcs_version = "PY3",
+    deps = [
+        "//third_party/py/gin",
+        "//third_party/py/pandas",
+        "//third_party/py/pytz",
+    ],
+)
+
+pytype_strict_library(
+    name = "simulator",
+    srcs = ["simulator.py"],
+    srcs_version = "PY3",
+    deps = [
+        ":building",
+        ":hvac",
+        ":weather_controller",
+        "//third_party/py/absl/logging",
+        "//third_party/py/gin",
+        "//third_party/py/numpy",
+        "//third_party/py/pandas",
+        "//third_party/py/smart_buildings/smart_control/models:base_occupancy",
+        "//third_party/py/smart_buildings/smart_control/proto:smart_control_reward_py_pb2",
+        "//third_party/py/smart_buildings/smart_control/utils:conversion_utils",
+    ],
+)
+
+pytype_strict_library(
+    name = "tf_simulator",
+    srcs = ["tf_simulator.py"],
+    srcs_version = "PY3",
+    deps = [
+        ":building",
+        ":hvac_floorplan_based",
+        ":simulator_flexible_floor_plan",
+        ":weather_controller",
+        "//third_party/py/absl/logging",
+        "//third_party/py/gin",
+        "//third_party/py/numpy",
+        "//third_party/py/pandas",
+        "//third_party/py/tensorflow",
+    ],
+)
+
+py_strict_test(
+    name = "tf_simulator_test",
+    srcs = ["tf_simulator_test.py"],
+    python_version = "PY3",
+    deps = [
+        "tf_simulator",
+        ":air_handler",
+        ":boiler",
+        ":building",
+        ":hvac_floorplan_based",
+        ":setpoint_schedule",
+        ":weather_controller",
+        "//third_party/py/absl/testing:absltest",
+        "//third_party/py/google/protobuf:use_fast_cpp_protos",  # Automatically added go/proto_python_upb_flip
+        "//third_party/py/numpy",
+        "//third_party/py/pandas",
+        "//third_party/py/tensorflow:tensorflow_no_contrib",
+    ],
+)
+
+pytype_strict_library(
+    name = "simulator_building",
+    srcs = ["simulator_building.py"],
+    srcs_version = "PY3",
+    deps = [
+        ":simulator",
+        ":simulator_flexible_floor_plan",
+        ":smart_device",
+        ":tf_simulator",
+        "//third_party/py/absl/logging",
+        "//third_party/py/gin",
+        "//third_party/py/pandas",
+        "//third_party/py/smart_buildings/smart_control/models:base_building",
+        "//third_party/py/smart_buildings/smart_control/models:base_occupancy",
+        "//third_party/py/smart_buildings/smart_control/proto:smart_control_building_py_pb2",
+        "//third_party/py/smart_buildings/smart_control/proto:smart_control_reward_py_pb2",
+        "//third_party/py/smart_buildings/smart_control/utils:conversion_utils",
+    ],
+)
+
+pytype_strict_library(
+    name = "simulator_building_test_lib",
+    srcs = ["simulator_building_test_lib.py"],
+    srcs_version = "PY3",
+    deps = [
+        ":air_handler",
+        ":boiler",
+        ":building",
+        ":hvac",
+        ":setpoint_schedule",
+        ":simulator",
+        ":simulator_building",
+        ":step_function_occupancy",
+        ":weather_controller",
+        "//third_party/py/absl/testing:parameterized",
+        "//third_party/py/pandas",
+        "//third_party/py/smart_buildings/smart_control/proto:smart_control_building_py_pb2",
+    ],
+)
+
+pytype_strict_library(
+    name = "simulator_flexible_floor_plan",
+    srcs = ["simulator_flexible_floor_plan.py"],
+    deps = [
+        ":building",
+        ":constants",
+        ":hvac_floorplan_based",
+        ":simulator",
+        ":weather_controller",
+        "//third_party/py/absl/logging",
+        "//third_party/py/gin",
+        "//third_party/py/numpy",
+        "//third_party/py/pandas",
+        "//third_party/py/smart_buildings/smart_control/models:base_occupancy",
+        "//third_party/py/smart_buildings/smart_control/proto:smart_control_reward_py_pb2",
+        "//third_party/py/smart_buildings/smart_control/utils:building_renderer",
+        "//third_party/py/smart_buildings/smart_control/utils:conversion_utils",
+        "//third_party/py/smart_buildings/smart_control/utils:visual_logger",
+    ],
+)
+
+pytype_strict_library(
+    name = "smart_device",
+    srcs = ["smart_device.py"],
+    srcs_version = "PY3",
+    deps = [
+        "//third_party/py/pandas",
+        "//third_party/py/smart_buildings/smart_control/proto:smart_control_building_py_pb2",
+    ],
+)
+
+pytype_strict_library(
+    name = "step_function_occupancy",
+    srcs = ["step_function_occupancy.py"],
+    srcs_version = "PY3",
+    deps = [
+        "//third_party/py/gin",
+        "//third_party/py/pandas",
+        "//third_party/py/smart_buildings/smart_control/models:base_occupancy",
+        "//third_party/py/smart_buildings/smart_control/utils:conversion_utils",
+    ],
+)
+
+pytype_strict_library(
+    name = "thermal_diffuser_utils",
+    srcs = ["thermal_diffuser_utils.py"],
+    deps = [
+        ":building_utils",
+        "//third_party/py/absl/logging",
+        "//third_party/py/cv2",
+        "//third_party/py/numpy",
+    ],
+)
+
+pytype_strict_library(
+    name = "thermostat",
+    srcs = ["thermostat.py"],
+    srcs_version = "PY3",
+    deps = [
+        ":setpoint_schedule",
+        "//third_party/py/pandas",
+    ],
+)
+
+pytype_strict_library(
+    name = "vav",
+    srcs = ["vav.py"],
+    srcs_version = "PY3",
+    deps = [
+        ":boiler",
+        ":smart_device",
+        ":thermostat",
+        "//third_party/py/pandas",
+        "//third_party/py/smart_buildings/smart_control/proto:smart_control_building_py_pb2",
+        "//third_party/py/smart_buildings/smart_control/utils:constants",
+    ],
+)
+
+pytype_strict_library(
+    name = "weather_controller",
+    srcs = ["weather_controller.py"],
+    srcs_version = "PY3",
+    deps = [
+        "//third_party/py/gin",
+        "//third_party/py/numpy",
+        "//third_party/py/pandas",
+        "//third_party/py/smart_buildings/smart_control/proto:smart_control_building_py_pb2",
+        "//third_party/py/smart_buildings/smart_control/utils:conversion_utils",
+    ],
+)
+
+pytype_strict_library(
+    name = "stochastic_convection_simulator",
+    srcs = ["stochastic_convection_simulator.py"],
+    deps = [
+        ":base_convection_simulator",
+        "//third_party/py/gin",
+        "//third_party/py/numpy",
+    ],
+)
+
+pytype_strict_library(
+    name = "base_convection_simulator",
+    srcs = ["base_convection_simulator.py"],
+    deps = ["//third_party/py/numpy"],
+)
+
+py_strict_test(
+    name = "vav_test",
+    srcs = ["vav_test.py"],
+    python_version = "PY3",
+    deps = [
+        ":boiler",
+        ":setpoint_schedule",
+        ":thermostat",
+        ":vav",
+        "//third_party/py/absl/testing:absltest",
+        "//third_party/py/absl/testing:parameterized",
+        "//third_party/py/google/protobuf:use_fast_cpp_protos",  # Automatically added go/proto_python_upb_flip
+        "//third_party/py/pandas",
+        "//third_party/py/smart_buildings/smart_control/utils:constants",
+    ],
+)
+
+py_strict_test(
+    name = "weather_controller_test",
+    srcs = ["weather_controller_test.py"],
+    data = ["local_weather_test_data.csv"],
+    deps = [
+        ":weather_controller",
+        "//third_party/py/absl/logging",
+        "//third_party/py/absl/testing:absltest",
+        "//third_party/py/absl/testing:parameterized",
+        "//third_party/py/pandas",
+    ],
+)

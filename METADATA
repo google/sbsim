@@ -1,0 +1,82 @@
+# Format: google3/devtools/metadata/metadata.proto (go/google3metadata)
+
+name: "sb-sim"
+language: PYTHON
+description: "Smart Buildings Control Environment"
+
+third_party {
+  identifier {
+    type: "Piper"
+    value: "http://google3/third_party/py/smart_buildings"
+    primary_source: true
+  }
+
+  identifier {
+    type: "PyPI"
+    omission_reason: "Package doesn't have an upstream repo."
+  }
+}
+
+presubmit: {
+  path_expression: "//depot/google3/third_party/py/smart_buildings/..."
+
+  check_description: {
+    failure_message:
+      "\n"
+      "CL descriptions for changes to third_party/py/smart_buildings\n"
+      "must contain one or more sections delimited as follows:\n"
+      "\n"
+      "BEGIN_PUBLIC\n"
+      "...text exposed to open source public git repo...\n"
+      "END_PUBLIC\n"
+      "\n"
+      "If your change affects only files that you know are not "
+      "opensourced, you may write something like 'Internal "
+      "change'. You may not leave the section empty. \n"
+
+    required_regexp:
+      "(^|\\n)\\s*BEGIN_PUBLIC\\s*?\\n"
+      "(.*\\n)*"
+      "\\s*\\S+.*(\\n.*)*\\n"
+      "\\s*END_PUBLIC\\s*?\\n"
+    required_for_cleanup: true
+  }
+}
+
+presubmit: {
+  path_expression: "//depot/google3/third_party/py/smart_buildings/..."
+
+  check_do_not_submit: {
+    failure_status: ERROR
+  }
+  check_tabs: {
+    failure_status: ERROR
+  }
+  check_trailing_whitespace: {
+    failure_status: ERROR
+  }
+  check_lint: {
+    action: REVIEW
+    failure_status: WARNING
+  }
+  check_lint: {
+    action: SUBMIT
+    failure_status: ERROR
+  }
+}
+
+presubmit: {
+  include_presubmit: "//depot/google3/corp/ml/smart_buildings/METADATA"
+}
+
+exported {
+  copybara {
+    config_path: "//depot/google3/third_party/py/smart_buildings/copy.bara.sky"
+  }
+  owning_team_email: "ce-ml-team@google.com"
+  path_expression: "//depot/google3/third_party/py/smart_buildings/..."
+  request_url: "https://launch.corp.google.com/launch/4284362"
+  remote_location: "https://github.com/google/sbsim"
+  reason: OPEN_SOURCE
+  description: "Open sourcing the Smart Buildings Control Simulation, Reward Function, and Custom Environment for training RL agents."
+}

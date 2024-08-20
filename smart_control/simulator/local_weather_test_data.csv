@@ -1,0 +1,12 @@
+,Time,StationName,Location,TempC,DewPointC,BarometerMbar,Rain,RainTotal,WindspeedKmph,WindDirection,SkyCoverage,VisibilityKm,Humidity,TempF
+0,20230701-0000,Mountain View Moffett Field Naval Air Station,"Mountain View, California, US",20.0,15.0,-9999.0,-9999.0,-9999.0,9.360000000000001,350,0,-9999.0,75.0,68.0
+1,20230701-0100,Mountain View Moffett Field Naval Air Station,"Mountain View, California, US",21.0,15.0,-9999.0,-9999.0,-9999.0,12.959999999999999,350,0,-9999.0,70.0,69.8
+2,20230701-0200,Mountain View Moffett Field Naval Air Station,"Mountain View, California, US",22.0,15.0,-9999.0,-9999.0,-9999.0,14.76,350,0,-9999.0,65.0,71.6
+3,20230701-0300,Mountain View Moffett Field Naval Air Station,"Mountain View, California, US",25.0,15.0,-9999.0,-9999.0,-9999.0,12.959999999999999,340,0,-9999.0,50.0,77.0
+4,20230701-0400,Mountain View Moffett Field Naval Air Station,"Mountain View, California, US",25.0,15.0,-9999.0,-9999.0,-9999.0,16.56,350,0,-9999.0,50.0,77.0
+5,20230701-0500,Mountain View Moffett Field Naval Air Station,"Mountain View, California, US",25.0,15.0,-9999.0,-9999.0,-9999.0,18.36,350,0,-9999.0,50.0,77.0
+6,20230701-0600,Mountain View Moffett Field Naval Air Station,"Mountain View, California, US",26.0,14.0,-9999.0,-9999.0,-9999.0,12.959999999999999,330,0,-9999.0,40.0,78.8
+7,20230701-0700,Mountain View Moffett Field Naval Air Station,"Mountain View, California, US",24.0,14.0,-9999.0,-9999.0,-9999.0,16.56,340,0,-9999.0,50.0,75.2
+8,20230701-0800,Mountain View Moffett Field Naval Air Station,"Mountain View, California, US",23.0,13.0,-9999.0,-9999.0,-9999.0,16.56,330,0,-9999.0,50.0,73.4
+9,20230701-0900,Mountain View Moffett Field Naval Air Station,"Mountain View, California, US",22.0,14.0,-9999.0,-9999.0,-9999.0,14.76,330,0,-9999.0,60.0,71.6
+10,20230701-1000,Mountain View Moffett Field Naval Air Station,"Mountain View, California, US",21.0,14.0,-9999.0,-9999.0,-9999.0,7.5600000000000005,300,0,-9999.0,65.0,69.8
