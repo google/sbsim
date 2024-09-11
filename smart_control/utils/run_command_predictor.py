@@ -39,9 +39,9 @@ import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import classification_report
 from sklearn.model_selection import train_test_split
-from smart_buildings.smart_control.proto import smart_control_building_pb2
-from smart_buildings.smart_control.utils import conversion_utils
-from smart_buildings.smart_control.utils import reader_lib
+from smart_control.proto import smart_control_building_pb2
+from smart_control.utils import conversion_utils
+from smart_control.utils import reader_lib
 
 
 _SEED = 191

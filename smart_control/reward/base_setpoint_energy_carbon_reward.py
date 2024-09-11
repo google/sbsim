@@ -19,9 +19,9 @@ from typing import Tuple
 
 import gin
 import numpy as np
-from smart_buildings.smart_control.models.base_reward_function import BaseRewardFunction
-from smart_buildings.smart_control.proto import smart_control_reward_pb2
-from smart_buildings.smart_control.utils import conversion_utils
+from smart_control.models.base_reward_function import BaseRewardFunction
+from smart_control.proto import smart_control_reward_pb2
+from smart_control.utils import conversion_utils
 
 
 @gin.configurable()

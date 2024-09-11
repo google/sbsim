@@ -29,8 +29,8 @@ from typing import Tuple
 
 import gin
 import pandas as pd
-from smart_buildings.smart_control.models.base_occupancy import BaseOccupancy
-from smart_buildings.smart_control.utils import conversion_utils
+from smart_control.models.base_occupancy import BaseOccupancy
+from smart_control.utils import conversion_utils
 
 
 @gin.configurable

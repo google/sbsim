@@ -17,7 +17,7 @@ limitations under the License.
 """
 
 import numpy as np
-from smart_buildings.smart_control.models import base_normalizer
+from smart_control.models import base_normalizer
 from tf_agents import specs
 # Due to floating point precision errors, it's possible that values will be
 # above/under the max/min thresholds by a small amount. ACTION_TOLERANCE

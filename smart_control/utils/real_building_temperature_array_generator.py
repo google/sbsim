@@ -20,8 +20,8 @@ from typing import Mapping, Sequence
 
 import numpy as np
 import pandas as pd
-from smart_buildings.smart_control.proto import smart_control_building_pb2
-from smart_buildings.smart_control.utils import conversion_utils as utils
+from smart_control.proto import smart_control_building_pb2
+from smart_control.utils import conversion_utils as utils
 
 Room = Sequence[tuple[int, int]]
 

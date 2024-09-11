@@ -20,13 +20,13 @@ from unittest import mock
 from absl.testing import absltest
 import numpy as np
 import pandas as pd
-from smart_buildings.smart_control.simulator import air_handler as air_handler_py
-from smart_buildings.smart_control.simulator import boiler as boiler_py
-from smart_buildings.smart_control.simulator import building as building_py
-from smart_buildings.smart_control.simulator import hvac_floorplan_based as floorplan_hvac_py
-from smart_buildings.smart_control.simulator import setpoint_schedule
-from smart_buildings.smart_control.simulator import tf_simulator as tf_simulator_py
-from smart_buildings.smart_control.simulator import weather_controller as weather_controller_py
+from smart_control.simulator import air_handler as air_handler_py
+from smart_control.simulator import boiler as boiler_py
+from smart_control.simulator import building as building_py
+from smart_control.simulator import hvac_floorplan_based as floorplan_hvac_py
+from smart_control.simulator import setpoint_schedule
+from smart_control.simulator import tf_simulator as tf_simulator_py
+from smart_control.simulator import weather_controller as weather_controller_py
 import tensorflow as tf
 
 

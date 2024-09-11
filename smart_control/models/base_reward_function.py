@@ -16,7 +16,7 @@
 """
 
 import abc
-from smart_buildings.smart_control.proto import smart_control_reward_pb2
+from smart_control.proto import smart_control_reward_pb2
 
 
 class BaseRewardFunction(metaclass=abc.ABCMeta):

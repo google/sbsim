@@ -18,9 +18,9 @@ limitations under the License.
 from absl.testing import absltest
 from absl.testing import parameterized
 import pandas as pd
-from smart_buildings.smart_control.simulator import air_handler
-from smart_buildings.smart_control.simulator import weather_controller
-from smart_buildings.smart_control.utils import constants
+from smart_control.simulator import air_handler
+from smart_control.simulator import weather_controller
+from smart_control.utils import constants
 
 
 class AirHandlerTest(parameterized.TestCase):

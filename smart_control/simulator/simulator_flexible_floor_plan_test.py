@@ -22,16 +22,16 @@ from absl.testing import absltest
 from absl.testing import parameterized
 import numpy as np
 import pandas as pd
-from smart_buildings.smart_control.proto import smart_control_reward_pb2
-from smart_buildings.smart_control.simulator import air_handler as air_handler_py
-from smart_buildings.smart_control.simulator import boiler as boiler_py
-from smart_buildings.smart_control.simulator import building as building_py
-from smart_buildings.smart_control.simulator import hvac_floorplan_based as floorplan_hvac_py
-from smart_buildings.smart_control.simulator import setpoint_schedule
-from smart_buildings.smart_control.simulator import simulator_flexible_floor_plan as simulator_py
-from smart_buildings.smart_control.simulator import step_function_occupancy
-from smart_buildings.smart_control.simulator import weather_controller as weather_controller_py
-from smart_buildings.smart_control.utils import conversion_utils
+from smart_control.proto import smart_control_reward_pb2
+from smart_control.simulator import air_handler as air_handler_py
+from smart_control.simulator import boiler as boiler_py
+from smart_control.simulator import building as building_py
+from smart_control.simulator import hvac_floorplan_based as floorplan_hvac_py
+from smart_control.simulator import setpoint_schedule
+from smart_control.simulator import simulator_flexible_floor_plan as simulator_py
+from smart_control.simulator import step_function_occupancy
+from smart_control.simulator import weather_controller as weather_controller_py
+from smart_control.utils import conversion_utils
 
 
 class FlexibleFloorplanSimulatorTest(parameterized.TestCase):

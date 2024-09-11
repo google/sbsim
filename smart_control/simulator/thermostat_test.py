@@ -17,8 +17,8 @@ limitations under the License.
 
 from absl.testing import absltest
 import pandas as pd
-from smart_buildings.smart_control.simulator import setpoint_schedule
-from smart_buildings.smart_control.simulator import thermostat
+from smart_control.simulator import setpoint_schedule
+from smart_control.simulator import thermostat
 
 
 def get_mock_schedule():

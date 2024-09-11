@@ -81,10 +81,10 @@ deadband. Productivity decays smoothly on a logistic curve outside the deadband.
 """
 
 import gin
-from smart_buildings.smart_control.models.base_energy_cost import BaseEnergyCost
-from smart_buildings.smart_control.proto import smart_control_reward_pb2
-from smart_buildings.smart_control.reward.base_setpoint_energy_carbon_reward import BaseSetpointEnergyCarbonRewardFunction
-from smart_buildings.smart_control.utils import conversion_utils
+from smart_control.models.base_energy_cost import BaseEnergyCost
+from smart_control.proto import smart_control_reward_pb2
+from smart_control.reward.base_setpoint_energy_carbon_reward import BaseSetpointEnergyCarbonRewardFunction
+from smart_control.utils import conversion_utils
 
 _HOUR_SEC = 3600.0
 

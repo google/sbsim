@@ -18,13 +18,13 @@
 from typing import Sequence, Tuple
 
 import pandas as pd
-from smart_buildings.smart_control.environment.environment import ActionConfig
-from smart_buildings.smart_control.proto import smart_control_building_pb2
-from smart_buildings.smart_control.proto import smart_control_reward_pb2
-from smart_buildings.smart_control.simulator import setpoint_schedule
-from smart_buildings.smart_control.utils import conversion_utils
-from smart_buildings.smart_control.utils.bounded_action_normalizer import BoundedActionNormalizer
-from smart_buildings.smart_control.utils.reader_lib import BaseReader
+from smart_control.environment.environment import ActionConfig
+from smart_control.proto import smart_control_building_pb2
+from smart_control.proto import smart_control_reward_pb2
+from smart_control.simulator import setpoint_schedule
+from smart_control.utils import conversion_utils
+from smart_control.utils.bounded_action_normalizer import BoundedActionNormalizer
+from smart_control.utils.reader_lib import BaseReader
 
 
 def get_test_setpoint_schedule() -> setpoint_schedule.SetpointSchedule:

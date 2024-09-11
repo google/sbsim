@@ -26,9 +26,9 @@ from typing import Mapping, Tuple
 import holidays
 import numpy as np
 import pandas as pd
-from smart_buildings.smart_control.proto import smart_control_reward_pb2
+from smart_control.proto import smart_control_reward_pb2
 
-from google3.google.protobuf import timestamp_pb2
+from google.protobuf import timestamp_pb2
 
 _COUNTRY = 'US'
 _SECONDS_IN_DAY = 24 * 3600

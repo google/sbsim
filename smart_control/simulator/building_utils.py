@@ -25,7 +25,7 @@ import cv2
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy import ndimage
-from smart_buildings.smart_control.simulator import constants
+from smart_control.simulator import constants
 
 
 Coordinates2D = Tuple[int, int]

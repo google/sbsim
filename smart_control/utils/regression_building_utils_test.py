@@ -18,12 +18,12 @@ limitations under the License.
 
 from absl.testing import absltest
 import pandas as pd
-from smart_buildings.smart_control.models.base_occupancy import BaseOccupancy
-from smart_buildings.smart_control.proto import smart_control_building_pb2
-from smart_buildings.smart_control.proto import smart_control_reward_pb2
-from smart_buildings.smart_control.simulator.setpoint_schedule import SetpointSchedule
-from smart_buildings.smart_control.utils import conversion_utils
-from smart_buildings.smart_control.utils import regression_building_utils
+from smart_control.models.base_occupancy import BaseOccupancy
+from smart_control.proto import smart_control_building_pb2
+from smart_control.proto import smart_control_reward_pb2
+from smart_control.simulator.setpoint_schedule import SetpointSchedule
+from smart_control.utils import conversion_utils
+from smart_control.utils import regression_building_utils
 
 
 class RegressionBuildingUtilsTest(absltest.TestCase):

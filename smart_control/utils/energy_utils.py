@@ -17,7 +17,7 @@ limitations under the License.
 
 from typing import Optional, Sequence
 import numpy as np
-from smart_buildings.smart_control.utils import constants
+from smart_control.utils import constants
 
 # Source: Thermodynamik, (1992), Hans Dieter Baehr, 8. Auflage, Springer Verlag
 # Tabelle 5.4, p. 213

@@ -22,8 +22,8 @@ from absl import logging
 import gin
 import numpy as np
 import pandas as pd
-from smart_buildings.smart_control.models.base_energy_cost import BaseEnergyCost
-from smart_buildings.smart_control.utils import constants
+from smart_control.models.base_energy_cost import BaseEnergyCost
+from smart_control.utils import constants
 
 
 # Source: https://www.eia.gov/dnav/ng/hist/n3035ca3m.htm

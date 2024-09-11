@@ -19,7 +19,7 @@ from typing import Optional
 
 import numpy as np
 import pandas as pd
-from smart_buildings.smart_control.utils import building_renderer
+from smart_control.utils import building_renderer
 
 
 class VisualLogger:
