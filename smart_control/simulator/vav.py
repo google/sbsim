@@ -19,11 +19,11 @@ from typing import Optional, Tuple
 import uuid
 
 import pandas as pd
-from smart_buildings.smart_control.proto import smart_control_building_pb2
-from smart_buildings.smart_control.simulator import boiler as boiler_py
-from smart_buildings.smart_control.simulator import smart_device
-from smart_buildings.smart_control.simulator import thermostat
-from smart_buildings.smart_control.utils import constants
+from smart_control.proto import smart_control_building_pb2
+from smart_control.simulator import boiler as boiler_py
+from smart_control.simulator import smart_device
+from smart_control.simulator import thermostat
+from smart_control.utils import constants
 
 
 class Vav(smart_device.SmartDevice):

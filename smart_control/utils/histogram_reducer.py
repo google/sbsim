@@ -48,10 +48,10 @@ from absl import logging
 import gin
 import numpy as np
 import pandas as pd
-from smart_buildings.smart_control.proto import smart_control_building_pb2
-from smart_buildings.smart_control.utils import reader_lib
-from smart_buildings.smart_control.utils.reducer import BaseReducedSequence
-from smart_buildings.smart_control.utils.reducer import BaseReducer
+from smart_control.proto import smart_control_building_pb2
+from smart_control.utils import reader_lib
+from smart_control.utils.reducer import BaseReducedSequence
+from smart_control.utils.reducer import BaseReducer
 
 Feature = str  # Measurement name
 Device = str  # Device Identity

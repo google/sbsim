@@ -29,8 +29,8 @@ from typing import Optional, Union
 import gin
 import numpy as np
 import pandas as pd
-from smart_buildings.smart_control.models.base_occupancy import BaseOccupancy
-from smart_buildings.smart_control.utils import conversion_utils
+from smart_control.models.base_occupancy import BaseOccupancy
+from smart_control.utils import conversion_utils
 
 
 class OccupancyStateEnum(enum.Enum):

@@ -20,8 +20,8 @@
 import abc
 from typing import Sequence
 import pandas as pd
-from smart_buildings.smart_control.proto import smart_control_building_pb2
-from smart_buildings.smart_control.proto import smart_control_reward_pb2
+from smart_control.proto import smart_control_building_pb2
+from smart_control.proto import smart_control_reward_pb2
 
 
 class BaseBuilding(metaclass=abc.ABCMeta):

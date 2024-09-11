@@ -17,11 +17,11 @@ limitations under the License.
 
 from absl.testing import absltest
 import pandas as pd
-from smart_buildings.smart_control.simulator import air_handler
-from smart_buildings.smart_control.simulator import boiler
-from smart_buildings.smart_control.simulator import hvac
-from smart_buildings.smart_control.simulator import setpoint_schedule
-from smart_buildings.smart_control.utils import conversion_utils
+from smart_control.simulator import air_handler
+from smart_control.simulator import boiler
+from smart_control.simulator import hvac
+from smart_control.simulator import setpoint_schedule
+from smart_control.utils import conversion_utils
 
 
 def _get_default_boiler():

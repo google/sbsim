@@ -19,9 +19,9 @@ from typing import Sequence
 
 import gin
 import pandas as pd
-from smart_buildings.smart_control.models.base_building import BaseBuilding
-from smart_buildings.smart_control.proto import smart_control_building_pb2
-from smart_buildings.smart_control.proto import smart_control_reward_pb2
+from smart_control.models.base_building import BaseBuilding
+from smart_control.proto import smart_control_building_pb2
+from smart_control.proto import smart_control_reward_pb2
 
 
 _ValueType = smart_control_building_pb2.DeviceInfo.ValueType

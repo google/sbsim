@@ -28,7 +28,7 @@ from typing import MutableSequence, Optional
 
 import gin
 import numpy as np
-from smart_buildings.smart_control.simulator import base_convection_simulator
+from smart_control.simulator import base_convection_simulator
 
 
 @gin.configurable

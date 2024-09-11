@@ -22,14 +22,14 @@ from typing import List, Mapping, Optional
 
 import gin
 import pandas as pd
-from smart_buildings.smart_control.proto import smart_control_building_pb2
-from smart_buildings.smart_control.simulator import air_handler as air_handler_py
-from smart_buildings.smart_control.simulator import boiler as boiler_py
-from smart_buildings.smart_control.simulator import constants
-from smart_buildings.smart_control.simulator import setpoint_schedule
-from smart_buildings.smart_control.simulator import thermostat
-from smart_buildings.smart_control.simulator import vav
-from smart_buildings.smart_control.utils import conversion_utils
+from smart_control.proto import smart_control_building_pb2
+from smart_control.simulator import air_handler as air_handler_py
+from smart_control.simulator import boiler as boiler_py
+from smart_control.simulator import constants
+from smart_control.simulator import setpoint_schedule
+from smart_control.simulator import thermostat
+from smart_control.simulator import vav
+from smart_control.utils import conversion_utils
 
 
 @gin.configurable

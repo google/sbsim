@@ -17,7 +17,7 @@ limitations under the License.
 
 from absl.testing import absltest
 from absl.testing import parameterized
-from smart_buildings.smart_control.utils import energy_utils
+from smart_control.utils import energy_utils
 
 
 class EnergyUtilsTest(parameterized.TestCase):

@@ -19,8 +19,8 @@ limitations under the License.
 from absl.testing import absltest
 from absl.testing import parameterized
 import pandas as pd
-from smart_buildings.smart_control.reward import natural_gas_energy_cost
-from smart_buildings.smart_control.utils import constants
+from smart_control.reward import natural_gas_energy_cost
+from smart_control.utils import constants
 
 
 class NaturalGasEnergyCostTest(parameterized.TestCase):

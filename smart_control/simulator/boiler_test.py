@@ -18,9 +18,9 @@ limitations under the License.
 from absl.testing import absltest
 from absl.testing import parameterized
 import pandas as pd
-from smart_buildings.smart_control.proto import smart_control_building_pb2
-from smart_buildings.smart_control.simulator import boiler
-from smart_buildings.smart_control.utils import constants
+from smart_control.proto import smart_control_building_pb2
+from smart_control.simulator import boiler
+from smart_control.utils import constants
 
 
 class BoilerTest(parameterized.TestCase):

@@ -19,10 +19,10 @@ limitations under the License.
 from absl.testing import absltest
 from absl.testing import parameterized
 import pandas as pd
-from smart_buildings.smart_control.models.base_energy_cost import BaseEnergyCost
-from smart_buildings.smart_control.proto import smart_control_reward_pb2
-from smart_buildings.smart_control.reward import setpoint_energy_carbon_regret
-from smart_buildings.smart_control.utils import conversion_utils
+from smart_control.models.base_energy_cost import BaseEnergyCost
+from smart_control.proto import smart_control_reward_pb2
+from smart_control.reward import setpoint_energy_carbon_regret
+from smart_control.utils import conversion_utils
 
 
 class SetpointEnergyCarbonRegretTest(parameterized.TestCase):

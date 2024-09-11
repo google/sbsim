@@ -27,10 +27,10 @@ from absl import logging
 import gin
 import numpy as np
 import pandas as pd
-from smart_buildings.smart_control.simulator import building as building_py
-from smart_buildings.smart_control.simulator import hvac_floorplan_based as hvac_py
-from smart_buildings.smart_control.simulator import simulator_flexible_floor_plan as simulator
-from smart_buildings.smart_control.simulator import weather_controller as weather_controller_py
+from smart_control.simulator import building as building_py
+from smart_control.simulator import hvac_floorplan_based as hvac_py
+from smart_control.simulator import simulator_flexible_floor_plan as simulator
+from smart_control.simulator import weather_controller as weather_controller_py
 import tensorflow as tf
 
 # List of neighbors for a specific CV.

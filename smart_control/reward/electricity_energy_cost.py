@@ -23,8 +23,8 @@ import gin
 import numpy as np
 import pandas as pd
 import pint
-from smart_buildings.smart_control.models.base_energy_cost import BaseEnergyCost
-from smart_buildings.smart_control.utils import conversion_utils
+from smart_control.models.base_energy_cost import BaseEnergyCost
+from smart_control.utils import conversion_utils
 
 UNIT = pint.UnitRegistry()
 UNIT.define("cents_per_kWh = cents / kWh")
