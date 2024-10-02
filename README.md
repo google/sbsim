@@ -14,7 +14,7 @@ available in notebooks/SAC_Demo.ipynb
 
 This will walk you through:
 
-1. Creating an RL (gym compatible) envronment
+1. Creating an RL (gym compatible) environment
 
 2. Visualizing the env
 
