@@ -30,7 +30,7 @@ Follow these steps to setup locally before you run the `notebooks/SAC_Demo.ipynb
 
 2. Ensure you have `protoc` and `ffmpeg` installed, as well as `python >=3.10.12 and <3.12`. You can install these running `sudo apt install -y protobuf-compiler` and `sudo apt install -y ffmpeg`
 
-3. Create a virtual environment by running `python -m venv .venv`. Then, install poetry with `pip install poetry`
+3. Create a virtual environment by running `python -m venv .venv`. Activate the environment `source .venv/bin/activate`. Then, install poetry with `pip install poetry`
 
 4. Install the dependencies by running `poetry install`
 
