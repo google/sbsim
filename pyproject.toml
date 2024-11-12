@@ -26,6 +26,8 @@ scikit-learn = "^1.5.1"
 ipykernel = "^6.29.5"
 typing-extensions = "^4.12.2"
 ipython = "^8.27.0"
+mctspy = "^0.1.1"
+tqdm = "^4.67.0"
 
 
 [build-system]
