@@ -1,3 +1,4 @@
+from collections import defaultdict
 import numpy as np
 import json
 from smart_control.mcts.execute_policy_utils import compute_avg_return, load_environment
@@ -76,9 +77,13 @@ class SbsimMonteCarloTreeSearchNode(MonteCarloTreeSearchNode):
     
 
     @ staticmethod
-    def run_expansion(node_environment_state, policy):
-        env = SbSimMonteCarloTreeSearch.get_node_environment(node_environment_state) # get the environment at this node
-        return_val, _ = compute_avg_return(env, policy, time_zone="US/Pacific", render_interval_steps=1e30, trajectory_observers=None, num_steps=1)
+    def run_expansion(env, node_environment_state, policy, num_steps=1):
+        return_val, _ = compute_avg_return(env,
+                                           policy,
+                                           time_zone="US/Pacific",
+                                           render_interval_steps=1e30,
+                                           trajectory_observers=None,
+                                           num_steps=num_steps)
 
         new_node_environment_state = NodeEnvironmentState(
             node_temps=env.building._simulator._building.temp,
@@ -131,6 +136,7 @@ class SbsimMonteCarloTreeSearchNode(MonteCarloTreeSearchNode):
                     baseline_return_by_timestamp, # baseline return value by timestamp (obtained using the baseline policy)
                     rollout_steps # number of steps to rollout
                     ):
+        
         return_val, _ = compute_avg_return(env, rollout_policy, render_interval_steps=1e30, num_steps=rollout_steps)
 
         rollout_return = node_environment_state.node_state_return + return_val
@@ -139,7 +145,7 @@ class SbsimMonteCarloTreeSearchNode(MonteCarloTreeSearchNode):
         env.reset()
         episode_start_timestamp = env.current_simulation_timestamp
 
-        return_delta = (baseline_return_by_timestamp[rollout_timestamp] - rollout_return)
+        return_delta = (rollout_return - baseline_return_by_timestamp[rollout_timestamp])
         number_of_hours = (rollout_timestamp - episode_start_timestamp).total_seconds() / SECONDS_IN_AN_HOUR
         
         return return_delta, number_of_hours
@@ -150,6 +156,7 @@ class SbsimMonteCarloTreeSearchNode(MonteCarloTreeSearchNode):
     
 
     def best_child(self):
+        """
         best_child, best_score = None, -1e30
 
         for key in self.children:
@@ -161,6 +168,8 @@ class SbsimMonteCarloTreeSearchNode(MonteCarloTreeSearchNode):
                 best_score = score
         
         return best_child
+        """
+        pass
     
 
     """
@@ -196,6 +205,17 @@ class SbsimMonteCarloTreeSearchNode(MonteCarloTreeSearchNode):
         if not self.children:
             return 1
         return 1 + max([child.depth() for child in self.children.values()])
+    
+    def size(self):
+        if not self.children:
+            return 1
+        return 1 + sum([child.size() for child in self.children.values()])
+    
+    def get_returns_by_timestamp(self, result):
+        result[str(self.node_environment_state.node_timestamp)].append(self.node_environment_state.node_state_return)
+        for child in self.children.values():
+            child.get_returns_by_timestamp(result)
+        return result
 
     
 class SbSimMonteCarloTreeSearch(MonteCarloTreeSearch):
@@ -242,7 +262,7 @@ class SbSimMonteCarloTreeSearch(MonteCarloTreeSearch):
                 nodes_for_expansion.append((root, action))
             
             nodes = [root.children[key] for key in root.children.keys()]
-            nodes.sort(key=lambda x: -(x.q / x._cumulative_number_of_hours) - c_param * np.sqrt((2 * np.log(root.n) / x.n)))
+            nodes.sort(key=lambda x: x.calculate_score(c_param=c_param), reverse=True)
             for node in nodes:
                 recur(node)
         
@@ -285,4 +305,11 @@ class SbSimMonteCarloTreeSearch(MonteCarloTreeSearch):
     
     def get_tree_depth(self):
         return self.root.depth()
+    
+    def get_tree_size(self):
+        return self.root.size()
+    
+    def get_returns_by_timestamp(self):
+        result = defaultdict(lambda: [])
+        return self.root.get_returns_by_timestamp(result)
     

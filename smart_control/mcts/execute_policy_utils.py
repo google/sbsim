@@ -824,7 +824,6 @@ def load_environment(gin_config_file: str):
     with gin.unlock_config():
         gin.clear_config()
         gin.parse_config_file(gin_config_file)
-        print("Parsed config file")
         return Environment()  # pylint: disable=no-value-for-parameter
 
 
