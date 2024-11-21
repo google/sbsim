@@ -20,6 +20,7 @@ import operator
 import os
 
 from absl.testing import absltest
+from absl import flags
 import pandas as pd
 from smart_control.proto import smart_control_building_pb2
 from smart_control.proto import smart_control_normalization_pb2
@@ -27,6 +28,9 @@ from smart_control.proto import smart_control_reward_pb2
 from smart_control.utils import controller_reader
 from smart_control.utils import controller_writer
 from smart_control.utils import conversion_utils
+
+
+flags.FLAGS([""]) # Required to avoid error with create_tempdir
 
 
 class ControllerReadWriteTest(absltest.TestCase):
