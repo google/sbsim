@@ -218,10 +218,10 @@ def enlarge_exterior_walls(
       + interior_walls_binary
       + exterior_walls_binary
   )
-  exterior_walls_augmented = np.uint8(
+  exterior_walls_augmented = np.int16(
       walls_or_expanded >= constants.WALLS_AND_EXPANDED_BOOLS
   ) * (constants.EXTERIOR_WALL_VALUE_IN_FUNCTION)
-  interior_walls_shrunk = np.uint8(
+  interior_walls_shrunk = np.int16(
       interior_walls + exterior_walls_augmented
       == constants.INTERIOR_WALL_VALUE_IN_FUNCTION
   ) * (constants.INTERIOR_WALL_VALUE_IN_FUNCTION)
