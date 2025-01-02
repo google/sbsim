@@ -30,17 +30,19 @@ Follow these steps to setup locally before you run the `notebooks/SAC_Demo.ipynb
 
 2. Ensure you have `protoc` and `ffmpeg` installed, as well as `python >=3.10.12 and <3.12`. You can install these running `sudo apt install -y protobuf-compiler` and `sudo apt install -y ffmpeg`
 
-3. Create a virtual environment by running `python -m venv .venv`. Then, install poetry with `pip install poetry`
+3. Create a virtual environment by running `python -m venv .venv` and then activate it by running `source .venv/bin/activate`. 
 
-4. Install the dependencies by running `poetry install`
+4. Then, install poetry with `pip install poetry`
 
-5. Build the `.proto` files at `smart_control/proto`into python files by running `cd smart_control/proto && protoc --python_out=. smart_control_building.proto smart_control_normalization.proto smart_control_reward.proto && cd ../..`  
+5. Install the dependencies by running `poetry install`
 
-6. Modify the value of `VIDEO_PATH_ROOT` at `smart_control/simulator/constants.py`. This is the path where simulation videos will be stored
+6. Build the `.proto` files at `smart_control/proto`into python files by running `cd smart_control/proto && protoc --python_out=. smart_control_building.proto smart_control_normalization.proto smart_control_reward.proto && cd ../..`  
 
-7. Now in the `notebooks/SAC_Demo.ipynb` notebook, modify the values of `data_path`, `metrics_path`, `output_data_path` and `root_dir`. In particular, `data_path` should point to the `sim_config.gin` file at `smart_control/configs/sim_config.gin`
+7. Modify the value of `VIDEO_PATH_ROOT` at `smart_control/simulator/constants.py`. This is the path where simulation videos will be stored
 
-8. Now you are ready to run the `notebooks/SAC_Demo.ipynb` notebook 
+8. Now in the `notebooks/SAC_Demo.ipynb` notebook, modify the values of `data_path`, `metrics_path`, `output_data_path` and `root_dir`. In particular, `data_path` should point to the `sim_config.gin` file at `smart_control/configs/sim_config.gin`
+
+9. Now you are ready to run the `notebooks/SAC_Demo.ipynb` notebook 
 
 ## Real World Data
 
