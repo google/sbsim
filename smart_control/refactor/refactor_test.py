@@ -3,14 +3,13 @@ import logging
 import tensorflow as tf
 from tf_agents.environments import tf_py_environment
 from tf_agents.trajectories import time_step as ts
-from tf_agents.drivers import dynamic_step_driver
-from tf_agents.replay_buffers import tf_uniform_replay_buffer
+from tf_agents.train import actor
 
 
 from smart_control.refactor.agents import create_sac_agent
 from smart_control.refactor.observers import (RenderingObserver, PrintStatusObserver, CompositeObserver)
 from smart_control.refactor.utils.metrics import compute_avg_return
-from smart_control.refactor.utils.config import CONFIG_PATH, METRICS_PATH, DATA_PATH, OUTPUT_DATA_PATH, ROOT_DIR
+from smart_control.refactor.utils.config import CONFIG_PATH, METRICS_PATH, OUTPUT_DATA_PATH
 from smart_control.learning.reinforcement_learning.sac.learning_utils import load_environment
 from smart_control.refactor.replay_buffer.replay_buffer import ReplayBufferManager
 
@@ -40,7 +39,7 @@ eval_scenario_config = os.path.join(CONFIG_PATH, "sim_config_4_day.gin")
 eval_env = load_environment(collect_scenario_config)
 eval_env._metrics_path = METRICS_PATH
 eval_env._occupancy_normalization_constant = 125.0
-# the collect_env is of type PyEnvironment. Let's wrap it in a TFPyEnvironment
+# the eval_env is of type PyEnvironment. Let's wrap it in a TFPyEnvironment
 eval_tf_env = tf_py_environment.TFPyEnvironment(eval_env)
 
 
@@ -76,9 +75,9 @@ time_step_spec = ts.time_step_spec(observation_spec)
 # Create the replay buffer
 # Initialize the manager with your agent's data spec
 replay_manager = ReplayBufferManager(
-    data_spec=agent.collect_data_spec,
-    capacity=50000,
-    checkpoint_dir=f"{OUTPUT_DATA_PATH}/reverb_checkpoint",
+    agent.collect_data_spec,
+    50000,
+    f"{OUTPUT_DATA_PATH}/refactor_test_collect_buffer",
     sequence_length=2
 )
 
@@ -124,35 +123,28 @@ observers = CompositeObserver([render_observer, print_observer, replay_buffer_ob
 eval_observers = CompositeObserver([eval_render_observer, eval_print_observer])
 
 
-# Setup collect driver
-logger.info("Setting up the collect driver...")
+from tf_agents.policies import py_tf_eager_policy
 
-collect_driver = dynamic_step_driver.DynamicStepDriver(
-    collect_tf_env,
-    agent.collect_policy,
-    observers=[observers],
-    num_steps=1
-)  # Collect one step at a time
+# Setup collect actor
+logger.info("Setting up the collect actor...")
 
-
-# Run a short collect loop
-logger.info("Running a short collect loop...")
-
-# Reset the environment
-time_step = collect_tf_env.reset()
-
-# Collect a few steps of experience
-logger.info("Collecting experience...")
-for _ in range(20):  # Collect 20 steps of experience
-    collect_driver.run(time_step)
-    time_step = collect_tf_env.current_time_step()
-
+collect_actor = actor.Actor(
+    collect_tf_env.pyenv.envs[0],  # Have to use the underlying pyenv because the actor doesn't support TFEnvironments yet
+    py_tf_eager_policy.PyTFEagerPolicy(agent.collect_policy),  # Have to wrap it like this because using underlying pyenv instead of tf env
+    steps_per_run=10,
+    train_step=agent.train_step_counter,
+    observers=[observers]
+)
+collect_actor.run()
+logger.info("Collect actor has run, now running checkpoint...")
+replay_buffer.py_client.checkpoint()
+logger.info("Replay buffer num frames: {}".format(replay_buffer.num_frames()))
 
 # Let's test the training loop
 logger.info("Running test training...")
-logger.warning("Replay buffer num frames: {}".format(replay_buffer.num_frames()))
 
-if replay_buffer.num_frames() > 0:
+if replay_buffer.num_frames() > 0:    
+    
     # Sample a batch
     dataset = replay_buffer.as_dataset(
         num_parallel_calls=3,
@@ -171,7 +163,6 @@ if replay_buffer.num_frames() > 0:
 
 # Now, run an evaluation with the trained agent policy
 logger.info("Running evaluation...")
-logger.warning(f"Metrics path: {eval_tf_env.pyenv.envs[0]._metrics_path}")
 compute_avg_return(
     environment=eval_tf_env,
     policy=agent.policy,

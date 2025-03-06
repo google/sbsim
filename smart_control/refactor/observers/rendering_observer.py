@@ -74,8 +74,6 @@ class RenderingObserver(Observer):
         self._start_time = None
         self._save_path = save_path
         
-        logger.warning(f"Created RenderingObserver with metrics path: {self._environment.pyenv.envs[0]._metrics_path}")
-        
         # Create save directory if it doesn't exist
         os.makedirs(self._save_path, exist_ok=True)
         
@@ -519,8 +517,6 @@ class RenderingObserver(Observer):
             mean_execution_time = execution_time.total_seconds() / self._counter
             
             logger.info(f"Step {self._counter}: Cumulative reward = {float(self._cumulative_reward):.2f}, Mean execution time = {mean_execution_time:.2f}s")
-            
-            logger.warning(f"Metrics path: {self._environment.pyenv.envs[0]._metrics_path}")
             
             if self._environment.pyenv.envs[0]._metrics_path is not None:
                 logger.warning("Plotting timeseries charts...")

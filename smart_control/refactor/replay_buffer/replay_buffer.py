@@ -1,14 +1,14 @@
 import os
 import logging
-from typing import Optional, Tuple, List, Dict, Any
+from typing import Optional, Tuple
 
-import numpy as np
 import tensorflow as tf
 import reverb
 from tf_agents.replay_buffers import reverb_replay_buffer
 from tf_agents.replay_buffers import reverb_utils
 
-from smart_control.refactor.utils.config import OUTPUT_DATA_PATH
+
+logger = logging.getLogger(__name__)
 
 
 class ReplayBufferManager:
@@ -19,88 +19,50 @@ class ReplayBufferManager:
     buffer, add data, sample from the buffer, and save/restore buffer state.
     """
     
-    def __init__(self, 
-                 data_spec: Any,
-                 capacity: int = 50000,
-                 checkpoint_dir: str = f"{OUTPUT_DATA_PATH}/reverb_checkpoint",
-                 table_name: str = 'uniform_table',
-                 sequence_length: int = 2,
-                 port: Optional[int] = None,
-                 min_size_to_sample: int = 1,
-                 stride_length: int = 1):
-        """Initialize the ReplayBufferManager.
-        
-        Args:
-            data_spec: The data specification for items stored in the buffer.
-            capacity: Maximum number of items stored in the buffer.
-            checkpoint_dir: Directory path for saving checkpoints.
-            table_name: Name of the reverb table.
-            sequence_length: Length of sequences sampled from the buffer.
-            port: Port for the reverb server. If None, a port is automatically chosen.
-            min_size_to_sample: Minimum number of items in buffer before sampling.
-            stride_length: Stride length for adding trajectories to buffer.
-        """
+    def __init__(self, data_spec, capacity, checkpoint_dir, sequence_length=2):
         self.data_spec = data_spec
         self.capacity = capacity
         self.checkpoint_dir = checkpoint_dir
-        self.table_name = table_name
         self.sequence_length = sequence_length
-        self.port = port
-        self.min_size_to_sample = min_size_to_sample
-        self.stride_length = stride_length
+        self.table_name = 'uniform_table'
         
-        # Initialize as None, to be created in create_replay_buffer
-        self.server = None
-        self.replay_buffer = None
-        self.observer = None
-        self._is_initialized = False
-    
-    def create_replay_buffer(self) -> Tuple[reverb_replay_buffer.ReverbReplayBuffer, reverb_utils.ReverbAddTrajectoryObserver]:
-        """Create and initialize the replay buffer.
-        
-        Returns:
-            A tuple of (replay_buffer, observer) for interacting with the buffer.
-        """
+    def create_replay_buffer(self):
         # Create the table
         table = reverb.Table(
-            name=self.table_name,
+            self.table_name,
             max_size=self.capacity,
             sampler=reverb.selectors.Uniform(),
             remover=reverb.selectors.Fifo(),
-            rate_limiter=reverb.rate_limiters.MinSize(self.min_size_to_sample),
+            rate_limiter=reverb.rate_limiters.MinSize(1),
         )
         
-        # Set up checkpointing
-        os.makedirs(self.checkpoint_dir, exist_ok=True)
-        checkpointer = reverb.platform.checkpointers_lib.DefaultCheckpointer(path=self.checkpoint_dir)
+        # Create the checkpointer
+        reverb_checkpointer = reverb.platform.checkpointers_lib.DefaultCheckpointer(
+            path=self.checkpoint_dir
+        )
         
         # Create the server
-        self.server = reverb.Server(
-            tables=[table], 
-            port=self.port, 
-            checkpointer=checkpointer
+        reverb_server = reverb.Server(
+            [table], port=None, checkpointer=reverb_checkpointer
         )
         
         # Create the replay buffer
-        self.replay_buffer = reverb_replay_buffer.ReverbReplayBuffer(
-            data_spec=self.data_spec,
+        replay_buffer = reverb_replay_buffer.ReverbReplayBuffer(
+            self.data_spec,
             sequence_length=self.sequence_length,
             table_name=self.table_name,
-            local_server=self.server,
+            local_server=reverb_server,
         )
         
-        # Create the observer to add data to the buffer
-        self.observer = reverb_utils.ReverbAddTrajectoryObserver(
-            py_client=self.replay_buffer.py_client, 
-            table_name=self.table_name, 
-            sequence_length=self.sequence_length, 
-            stride_length=self.stride_length
+        # Create the observer that adds trajectories to the buffer
+        observer = reverb_utils.ReverbAddTrajectoryObserver(
+            replay_buffer.py_client, 
+            self.table_name,
+            sequence_length=self.sequence_length,
+            stride_length=1
         )
         
-        self._is_initialized = True
-        logging.info(f"Replay buffer created with server running on port {self.server.port}")
-        
-        return self.replay_buffer, self.observer
+        return replay_buffer, observer
     
     def get_replay_buffer_and_observer(self) -> Tuple[reverb_replay_buffer.ReverbReplayBuffer, reverb_utils.ReverbAddTrajectoryObserver]:
         """Get the replay buffer and observer. Creates them if not already initialized.
