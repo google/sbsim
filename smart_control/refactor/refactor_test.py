@@ -74,6 +74,7 @@ time_step_spec = ts.time_step_spec(observation_spec)
 
 # Create the replay buffer
 # Initialize the manager with your agent's data spec
+logger.critical(f"Agent collect_data_spec: {agent.collect_data_spec}")
 replay_manager = ReplayBufferManager(
     agent.collect_data_spec,
     50000,
@@ -99,7 +100,9 @@ def plot_metrics(environment, time_zone):
 render_observer = RenderingObserver(
     render_interval_steps=5,
     environment=collect_tf_env,
-    render_fn=render_env, plot_fn=plot_metrics, time_zone='US/Pacific'
+    render_fn=render_env,
+    plot_fn=plot_metrics,
+    time_zone='US/Pacific'
 )
 print_observer = PrintStatusObserver(
     status_interval_steps=1,

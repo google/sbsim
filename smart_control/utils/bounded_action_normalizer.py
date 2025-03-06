@@ -15,6 +15,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 
 """
+import logging
 
 import numpy as np
 from smart_control.models import base_normalizer
@@ -23,6 +24,8 @@ from tf_agents import specs
 # above/under the max/min thresholds by a small amount. ACTION_TOLERANCE
 # allows the action values to range within a narrow range.
 ACTION_TOLERANCE = 0.00001
+
+logger = logging.getLogger(__name__)
 
 
 class BoundedActionNormalizer(base_normalizer.BaseActionNormalizer):
@@ -103,10 +106,14 @@ class BoundedActionNormalizer(base_normalizer.BaseActionNormalizer):
     Args:
       setpoint_value: Value in native units.
     """
+    logger.debug(f"setpoint_value: {setpoint_value}")
+    logger.debug(f"max_native_value: {self._max_native_value}")
+    logger.debug(f"min_native_value: {self._min_native_value}")
     if (
         setpoint_value > self._max_native_value
         or setpoint_value < self._min_native_value
     ):
+      logger.exception("setpoint_value is out of bounds")
       raise ValueError(
           f'setpoint_value {setpoint_value} not within bounds'
           f' [{self._min_native_value}, {self._max_native_value}]'

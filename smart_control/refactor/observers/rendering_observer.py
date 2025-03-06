@@ -9,9 +9,7 @@ import logging
 import pytz
 import pandas as pd
 from typing import Optional, Callable
-from IPython.display import clear_output
 
-import mediapy as media
 from tf_agents.trajectories import trajectory as trajectory_lib
 from matplotlib.ticker import MaxNLocator
 import matplotlib.pyplot as plt
@@ -23,6 +21,8 @@ from smart_control.utils import building_renderer
 from smart_control.refactor.utils.data_processing import get_latest_episode_reader, get_action_timeseries, \
                                                          get_reward_timeseries, get_outside_air_temperature_timeseries, \
                                                          get_zone_timeseries, get_energy_timeseries
+from smart_control.refactor.utils.config import RENDERS_PATH
+from smart_control.refactor.utils.constants import DEFAULT_TIME_ZONE
 
 
 logger = logging.getLogger(__name__)
@@ -45,8 +45,8 @@ class RenderingObserver(Observer):
         render_fn: Optional[Callable] = None,
         plot_fn: Optional[Callable] = None,
         clear_output_before_render: bool = True,
-        time_zone: str = 'US/Pacific',
-        save_path: str = './renders',
+        time_zone: str = DEFAULT_TIME_ZONE,
+        save_path: str = RENDERS_PATH,
     ):
         """Initialize the observer.
         

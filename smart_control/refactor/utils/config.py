@@ -9,6 +9,7 @@ from smart_control.refactor.utils.constants import (
     DEFAULT_METRICS_PATH,
     DEFAULT_OUTPUT_DATA_PATH,
     DEFAULT_ROOT_DIR,
+    DEFAULT_RENDERS_PATH
 )
 from smart_control.utils import histogram_reducer
 from smart_control.utils import controller_reader
@@ -19,6 +20,7 @@ CONFIG_PATH = DEFAULT_CONFIG_PATH
 METRICS_PATH = DEFAULT_METRICS_PATH
 OUTPUT_DATA_PATH = DEFAULT_OUTPUT_DATA_PATH
 ROOT_DIR = DEFAULT_ROOT_DIR
+RENDERS_PATH = DEFAULT_RENDERS_PATH
 
 
 def set_global_paths(
