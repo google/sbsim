@@ -18,3 +18,5 @@ DEFAULT_METRICS_PATH = "/home/gabriel-user/projects/sbsim/smart_control/refactor
 DEFAULT_RENDERS_PATH = "/home/gabriel-user/projects/sbsim/smart_control/refactor/experiment_results/renders"
 DEFAULT_OUTPUT_DATA_PATH = "/home/gabriel-user/projects/sbsim/smart_control/refactor/data/starter_buffers"
 DEFAULT_ROOT_DIR = "/home/gabriel-user/projects/sbsim/smart_control/refactor/"
+
+DEFAULT_OCCUPANCY_NORMALIZATION_CONSTANT = 125.0

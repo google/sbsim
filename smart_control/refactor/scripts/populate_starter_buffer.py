@@ -16,7 +16,7 @@ from tf_agents.train.utils import spec_utils
 
 from smart_control.refactor.observers import (PrintStatusObserver, CompositeObserver)
 from smart_control.refactor.utils.config import CONFIG_PATH, OUTPUT_DATA_PATH
-from smart_control.learning.reinforcement_learning.sac.learning_utils import load_environment
+from smart_control.refactor.utils.environment import create_and_setup_environment
 from smart_control.refactor.replay_buffer.replay_buffer import ReplayBufferManager
 from smart_control.refactor.policies.schedule_policy import create_baseline_schedule_policy
 
@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 
 def populate_replay_buffer(
     buffer_capacity=50000,
-    buffer_path=None,
+    buffer_name=None,
     steps_per_run=100,
     num_runs=100
 ):
@@ -38,27 +38,26 @@ def populate_replay_buffer(
     
     Args:
         buffer_capacity: Maximum size of the replay buffer
-        buffer_path: Directory to save the replay buffer
+        buffer_name: Name with which to safe replay buffer. Buffer will be at
+                     smart_control/refactor/data/starter_buffers/{buffer_name}
         steps_per_run: Number of steps per actor run
         num_runs: Number of actor runs to perform
-        use_random_policy: Whether to use a random policy for exploration (True) 
-                          or create a SAC agent (False)
     """
-    # Use the standard config file
     scenario_config_path = os.path.join(CONFIG_PATH, "sim_config_4_day.gin")
     
-    # Default buffer path if not provided
-    if buffer_path is None:
-        buffer_path = os.path.join(OUTPUT_DATA_PATH, "initial_replay_buffer")
+    buffer_path = os.path.join(OUTPUT_DATA_PATH, buffer_name)
     
     # Create directory if it doesn't exist
-    os.makedirs(os.path.dirname(buffer_path), exist_ok=True)
+    try:
+        os.makedirs(os.path.dirname(buffer_path), exist_ok=False)
+    except FileExistsError:
+        logger.exception("This buffer path already exists. This would override the existing buffer. \
+                          Please use another name")
+        raise FileExistsError("Buffer name already exists, would be overriden")
     
     # Load environment
     logger.info("Loading environment from standard config")
-    collect_env = load_environment(scenario_config_path)
-    collect_env._metrics_path = None  # Collection env doesn't need metrics
-    collect_env._occupancy_normalization_constant = 125.0
+    collect_env = create_and_setup_environment(scenario_config_path, metrics_path=None)
     
     # Wrap in TF environment
     collect_tf_env = tf_py_environment.TFPyEnvironment(collect_env)
@@ -131,7 +130,7 @@ if __name__ == "__main__":
     
     parser = argparse.ArgumentParser(description='Populate a replay buffer with initial exploration data')
     parser.add_argument('--capacity', type=int, default=50000, help='Replay buffer capacity')
-    parser.add_argument('--buffer-path', type=str, default=None, help='Path to save the replay buffer')
+    parser.add_argument('--buffer-name', type=str, required=True, help='Name to identify the saved replay buffer')
     parser.add_argument('--steps-per-run', type=int, default=10, help='Number of steps per actor run')
     parser.add_argument('--num-runs', type=int, default=2, help='Number of actor runs to perform')
     
@@ -139,7 +138,7 @@ if __name__ == "__main__":
     
     populate_replay_buffer(
         buffer_capacity=args.capacity,
-        buffer_path=args.buffer_path,
+        buffer_name=args.buffer_name,
         steps_per_run=args.steps_per_run,
         num_runs=args.num_runs
     )

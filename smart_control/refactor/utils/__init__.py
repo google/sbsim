@@ -1,14 +1,3 @@
-from smart_control.refactor.utils.config import (
-    load_environment,
-    get_histogram_reducer,
-    get_reset_temp_values,
-    get_histogram_path,
-    get_zone_path,
-    get_metrics_path,
-    get_weather_path,
-    remap_filepath,
-)
-
 from smart_control.refactor.utils.metrics import (
     compute_avg_return,
 )
