@@ -31,9 +31,8 @@ class PrintStatusObserver(Observer):
         self._time_zone = time_zone
 
         self._start_time = None
-        if self._environment is not None:
-            self._num_timesteps_in_episode = (self._environment.pyenv.envs[0]._num_timesteps_in_episode)
-            self._environment.pyenv.envs[0]._end_timestamp
+        self._num_timesteps_in_episode = (self._environment.pyenv.envs[0]._num_timesteps_in_episode)
+        self._environment.pyenv.envs[0]._end_timestamp
     
     def __call__(self, trajectory: trajectory_lib.Trajectory) -> None:
         reward = trajectory.reward
