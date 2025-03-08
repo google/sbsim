@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Script to populate an initial replay buffer for RL training.
 This creates a starter buffer with exploration data that can be used
@@ -13,6 +12,7 @@ from tf_agents.environments import tf_py_environment
 from tf_agents.train import actor
 from tf_agents.policies import py_tf_eager_policy
 from tf_agents.train.utils import spec_utils
+from tf_agents.trajectories import trajectory
 
 from smart_control.refactor.observers import (PrintStatusObserver, CompositeObserver)
 from smart_control.refactor.utils.config import CONFIG_PATH, OUTPUT_DATA_PATH
@@ -43,13 +43,15 @@ def populate_replay_buffer(
         steps_per_run: Number of steps per actor run
         num_runs: Number of actor runs to perform
     """
-    scenario_config_path = os.path.join(CONFIG_PATH, "sim_config_4_day.gin")
+    scenario_config_path = os.path.join(CONFIG_PATH, "sim_config_1_day.gin")
     
     buffer_path = os.path.join(OUTPUT_DATA_PATH, buffer_name)
+    logger.info("Buffer path: %s", buffer_path)
     
     # Create directory if it doesn't exist
     try:
-        os.makedirs(os.path.dirname(buffer_path), exist_ok=False)
+        os.makedirs(os.path.dirname(buffer_path + '/anything-here'), exist_ok=False) # added '/anything-here' such that
+                                                                                     # the path is a directory
     except FileExistsError:
         logger.exception("This buffer path already exists. This would override the existing buffer. \
                           Please use another name")
@@ -64,7 +66,7 @@ def populate_replay_buffer(
     
     # Create policy for collection
     train_step = tf.Variable(0, trainable=False, dtype=tf.int64)
-    _, __, time_step_spec = spec_utils.get_tensor_specs(collect_tf_env)
+    observation_spec, action_spec, time_step_spec = spec_utils.get_tensor_specs(collect_tf_env)
 
     collection_policy = create_baseline_schedule_policy(collect_tf_env)
     
@@ -72,9 +74,23 @@ def populate_replay_buffer(
     logger.info(f"Creating replay buffer at: {buffer_path}")
     logger.info(f"Buffer capacity: {buffer_capacity}, Sequence length: 2")
     
-    # Always use sequence_length of 2
+    # Get the policy's info spec
+    policy_info_spec = collection_policy.info_spec
+
+    # Create a trajectory spec properly
+    collect_data_spec = trajectory.Trajectory(
+        step_type=time_step_spec.step_type,
+        observation=time_step_spec.observation,
+        action=action_spec,
+        policy_info=policy_info_spec,
+        next_step_type=time_step_spec.step_type,
+        reward=time_step_spec.reward,
+        discount=time_step_spec.discount
+    )
+
+    # Use this data spec when creating the replay buffer
     replay_manager = ReplayBufferManager(
-        time_step_spec,
+        collect_data_spec,  # Use the complete data spec
         buffer_capacity,
         buffer_path,
         sequence_length=2

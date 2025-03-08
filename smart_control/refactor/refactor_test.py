@@ -101,8 +101,7 @@ render_observer = RenderingObserver(
     render_interval_steps=5,
     environment=collect_tf_env,
     render_fn=render_env,
-    plot_fn=plot_metrics,
-    time_zone='US/Pacific'
+    plot_fn=plot_metrics
 )
 print_observer = PrintStatusObserver(
     status_interval_steps=1,

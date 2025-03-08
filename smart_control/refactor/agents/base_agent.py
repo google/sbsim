@@ -87,7 +87,7 @@ class TFAgentWrapper(BaseAgent):
         """
         loss_info = self._agent.train(experience)
         
-        result = {'loss': loss_info.loss.numpy()}
+        result = {'loss': loss_info.loss}
         
         # Handle different types of extra info that might be returned by different agents
         if hasattr(loss_info, 'extra'):
@@ -110,6 +110,11 @@ class TFAgentWrapper(BaseAgent):
             result['extra'] = extra_dict
         
         return result
+    
+    # Expose the underlying agent directly for checkpointing
+    @property
+    def agent(self):
+        return self._agent
     
     @property
     def policy(self) -> tf_policy.TFPolicy:

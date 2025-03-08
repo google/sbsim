@@ -25,6 +25,10 @@ class ReplayBufferManager:
         self.checkpoint_dir = checkpoint_dir
         self.sequence_length = sequence_length
         self.table_name = 'uniform_table'
+        self._is_initialized = False
+        self.server = None
+        self.replay_buffer = None
+        self.observer = None
         
     def create_replay_buffer(self):
         # Create the table
@@ -62,6 +66,64 @@ class ReplayBufferManager:
             stride_length=1
         )
         
+        # Save as attributes and mark as initialized
+        self.server = reverb_server
+        self.replay_buffer = replay_buffer
+        self.observer = observer
+        self._is_initialized = True
+        
+        return replay_buffer, observer
+    
+    def load_replay_buffer(self) -> Tuple[reverb_replay_buffer.ReverbReplayBuffer, reverb_utils.ReverbAddTrajectoryObserver]:
+        """Load an existing replay buffer from a saved checkpoint.
+        
+        This method reconstructs the replay buffer, server, and observer based on the
+        saved state in the checkpoint directory.
+        
+        Returns:
+            A tuple of (replay_buffer, observer).
+        """
+        # Create the table with the same parameters as before
+        table = reverb.Table(
+            self.table_name,
+            max_size=self.capacity,
+            sampler=reverb.selectors.Uniform(),
+            remover=reverb.selectors.Fifo(),
+            rate_limiter=reverb.rate_limiters.MinSize(1),
+        )
+        
+        # Create the checkpointer pointing to the checkpoint directory
+        reverb_checkpointer = reverb.platform.checkpointers_lib.DefaultCheckpointer(
+            path=self.checkpoint_dir
+        )
+        
+        # Create the server with the existing table and checkpointer.
+        reverb_server = reverb.Server(
+            [table], port=None, checkpointer=reverb_checkpointer
+        )
+        
+        # Create the replay buffer and observer using the restored server.
+        replay_buffer = reverb_replay_buffer.ReverbReplayBuffer(
+            self.data_spec,
+            sequence_length=self.sequence_length,
+            table_name=self.table_name,
+            local_server=reverb_server,
+        )
+        
+        observer = reverb_utils.ReverbAddTrajectoryObserver(
+            replay_buffer.py_client,
+            self.table_name,
+            sequence_length=self.sequence_length,
+            stride_length=1
+        )
+        
+        # Save as attributes and mark as initialized.
+        self.server = reverb_server
+        self.replay_buffer = replay_buffer
+        self.observer = observer
+        self._is_initialized = True
+        
+        logging.info("Replay buffer loaded from checkpoint")
         return replay_buffer, observer
     
     def get_replay_buffer_and_observer(self) -> Tuple[reverb_replay_buffer.ReverbReplayBuffer, reverb_utils.ReverbAddTrajectoryObserver]:
@@ -86,7 +148,7 @@ class ReplayBufferManager:
             A TensorFlow dataset that samples from the replay buffer.
         """
         if not self._is_initialized:
-            raise RuntimeError("Replay buffer not initialized. Call create_replay_buffer first.")
+            raise RuntimeError("Replay buffer not initialized. Call create_replay_buffer or load_replay_buffer first.")
         
         if num_steps is None:
             num_steps = self.sequence_length
