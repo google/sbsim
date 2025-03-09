@@ -205,7 +205,7 @@ def train_agent(
     # Main training loop
     for i in range(train_iterations):
         # Evaluate periodically
-        if (i % eval_interval == 2):
+        if (i % eval_interval == 0):
             logger.info(f"Evaluating at iteration {i}")
             eval_actor.run()
         
@@ -240,17 +240,17 @@ if __name__ == "__main__":
     parser.add_argument('--starter-buffer-path', type=str, required=True, help='Path to the starter replay buffer')
     parser.add_argument('--agent-type', type=str, default='sac', choices=['sac', 'td3'],
                         help='Type of agent to train (sac or td3)')
-    parser.add_argument('--train-iterations', type=int, default=100000, help='Number of training iterations')
-    parser.add_argument('--collect-steps-per-training-iteration', type=int, default=20, help='Number of collection steps per iteration')
+    parser.add_argument('--train-iterations', type=int, default=100, help='Number of training iterations')
+    parser.add_argument('--collect-steps-per-training-iteration', type=int, default=50, help='Number of collection steps per iteration')
     parser.add_argument('--batch-size', type=int, default=256, help='Batch size for training (each gradient update uses \
                                                                      this many elements from the replay buffer batched)')
     
-    parser.add_argument('--eval-interval', type=int, default=1000, help='Interval for evaluating the agent')
+    parser.add_argument('--eval-interval', type=int, default=10, help='Interval for evaluating the agent')
     parser.add_argument('--num-eval-episodes', type=int, default=1, help='Number of episodes for evaluation')
-    parser.add_argument('--log-interval', type=int, default=100, help='Interval for logging training metrics')
+    parser.add_argument('--log-interval', type=int, default=1, help='Interval for logging training metrics')
     parser.add_argument('--experiment-name', type=str, required=True, help='Name of the experiment. This be used to \
                                                                             save TensorBoard summaries')
-    parser.add_argument('--checkpoint-interval', type=int, default=1000, help='Interval for checkpointing the replay buffer')
+    parser.add_argument('--checkpoint-interval', type=int, default=10, help='Interval for checkpointing the replay buffer')
     parser.add_argument('--learner-iterations', type=int, default=200, help='Number of iterations (gradient updates) \
                                                                              to run the agent learner per training loop')
     

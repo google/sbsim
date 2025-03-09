@@ -32,7 +32,8 @@ def populate_replay_buffer(
     buffer_name=None,
     steps_per_run=100,
     num_runs=100,
-    sequence_length=2
+    sequence_length=2,
+    env_gin_config_file_path='/home/gabriel-user/projects/sbsim/smart_control/configs/resources/sb1/train_sim_configs/sim_config_1_day.gin'
 ):
     """
     Populates a replay buffer with initial exploration data.
@@ -44,7 +45,6 @@ def populate_replay_buffer(
         steps_per_run: Number of steps per actor run
         num_runs: Number of actor runs to perform
     """
-    scenario_config_path = os.path.join(CONFIG_PATH, "sim_config_1_day.gin")
     
     buffer_path = os.path.join(OUTPUT_DATA_PATH, f'{buffer_name}_seqlen{sequence_length}_exp{num_runs*steps_per_run}')
     logger.info("Buffer path: %s", buffer_path)
@@ -60,7 +60,7 @@ def populate_replay_buffer(
     
     # Load environment
     logger.info("Loading environment from standard config")
-    collect_env = create_and_setup_environment(scenario_config_path, metrics_path=None)
+    collect_env = create_and_setup_environment(env_gin_config_file_path, metrics_path=None)
     
     # Wrap in TF environment
     collect_tf_env = tf_py_environment.TFPyEnvironment(collect_env)
@@ -151,6 +151,7 @@ if __name__ == "__main__":
     parser.add_argument('--steps-per-run', type=int, default=100, help='Number of steps per actor run')
     parser.add_argument('--num-runs', type=int, default=5, help='Number of actor runs to perform')
     parser.add_argument('--sequence-length', type=int, default=2, help='Sequence length for the replay buffer')
+    parser.add_argument('--env-gin-config-file_path', type=str, default='/home/gabriel-user/projects/sbsim/smart_control/configs/resources/sb1/train_sim_configs/sim_config_1_day.gin', help='Environment config file')
     
     args = parser.parse_args()
     
@@ -159,5 +160,6 @@ if __name__ == "__main__":
         buffer_name=args.buffer_name,
         steps_per_run=args.steps_per_run,
         num_runs=args.num_runs,
-        sequence_length=args.sequence_length
+        sequence_length=args.sequence_length,
+        env_gin_config_file_path=args.env_gin_config_file_path
     )
