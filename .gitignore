@@ -9,3 +9,7 @@ smart_control/refactor/data/
 smart_control/refactor/experiment_results/
 smart_control/learning/
 .vscode/
+smart_control/old/
+smart_control/configs/resources/sb1/generated_configs/
+smart_control/reinforcement_learning/data/
+smart_control/reinforcement_learning/experiment_results/
