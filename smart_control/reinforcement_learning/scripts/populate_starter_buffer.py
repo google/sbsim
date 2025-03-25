@@ -14,22 +14,17 @@ from tf_agents.train import actor
 from tf_agents.train.utils import spec_utils
 from tf_agents.trajectories import trajectory
 
-from smart_control.reinforcement_learning.observers.composite_observer import (
-    CompositeObserver,
-)
-from smart_control.reinforcement_learning.observers.print_status_observer import (
-    PrintStatusObserver,
-)
-from smart_control.reinforcement_learning.policies.schedule_policy import (
-    create_baseline_schedule_policy,
-)
-from smart_control.reinforcement_learning.replay_buffer.replay_buffer import (
-    ReplayBufferManager,
-)
+from smart_control.reinforcement_learning.observers.composite_observer import \
+    CompositeObserver
+from smart_control.reinforcement_learning.observers.print_status_observer import \
+    PrintStatusObserver
+from smart_control.reinforcement_learning.policies.schedule_policy import \
+    create_baseline_schedule_policy
+from smart_control.reinforcement_learning.replay_buffer.replay_buffer import \
+    ReplayBufferManager
 from smart_control.reinforcement_learning.utils.config import OUTPUT_DATA_PATH
-from smart_control.reinforcement_learning.utils.environment import (
-    create_and_setup_environment,
-)
+from smart_control.reinforcement_learning.utils.environment import \
+    create_and_setup_environment
 
 # Configure logging
 logging.basicConfig(
@@ -161,11 +156,11 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Populate a replay buffer with initial exploration data')
     parser.add_argument('--buffer-name', type=str, required=True, help='Name to identify the saved replay buffer')
     parser.add_argument('--capacity', type=int, default=50000, help='Replay buffer capacity')
-    parser.add_argument('--steps-per-run', type=int, default=100, help='Number of steps per actor run')
-    parser.add_argument('--num-runs', type=int, default=5, help='Number of actor runs to perform')
+    parser.add_argument('--steps-per-run', type=int, default=672, help='Number of steps per actor run')
+    parser.add_argument('--num-runs', type=int, default=10, help='Number of actor runs to perform')
     parser.add_argument('--sequence-length', type=int, default=2, help='Sequence length for the replay buffer')
     parser.add_argument('--env-gin-config-file-path', type=str, 
-                        default='/home/gabriel-user/projects/sbsim/smart_control/configs/resources/sb1/train_sim_configs/sim_config_1_day.gin', 
+                        default='/home/gabriel-user/projects/sbsim/smart_control/configs/resources/sb1/generated_configs/config_timestepsec-900_numdaysinepisode-14_starttimestamp-2023-07-06.gin', 
                         help='Environment config file')
     
     args = parser.parse_args()
