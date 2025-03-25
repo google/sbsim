@@ -46,7 +46,7 @@ class PrintStatusObserver(Observer):
             mean_execution_time = execution_time.total_seconds() / self._counter
 
             sim_time = self._environment.pyenv.envs[0].current_simulation_timestamp.tz_convert(self._time_zone)
-            percent_complete = int(100.0 * (self._counter / self._num_timesteps_in_episode))
+            percent_complete = int(100.0 * (self._environment.pyenv.envs[0]._step_count / self._num_timesteps_in_episode))
 
             rb_string = ""
             if self._replay_buffer is not None:
