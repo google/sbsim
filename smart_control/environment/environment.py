@@ -20,34 +20,30 @@ limitations under the License.
 
 import collections
 import copy
+import logging as log
 import os
 import time
-from typing import Final, Mapping, NewType, Optional, Sequence, Tuple
+from typing import Final, Mapping, NewType, Optional, Sequence, Tuple, Union
 
-from absl import logging
 import bidict
 import gin
 import numpy as np
 import pandas as pd
-from smart_control.models import base_building
-from smart_control.models import base_normalizer
-from smart_control.models import base_reward_function
-from smart_control.proto import smart_control_building_pb2
-from smart_control.proto import smart_control_reward_pb2
-from smart_control.utils import building_image_generator
-from smart_control.utils import constants
-from smart_control.utils import conversion_utils
-from smart_control.utils import histogram_reducer
-from smart_control.utils import plot_utils
-from smart_control.utils import regression_building_utils
-from smart_control.utils import run_command_predictor
-from smart_control.utils import writer_lib
 import tensorflow as tf
+from absl import logging
 from tf_agents.environments import py_environment
 from tf_agents.specs import array_spec
 from tf_agents.trajectories import time_step as ts
 from tf_agents.typing import types
 
+from smart_control.models import (base_building, base_normalizer,
+                                  base_reward_function)
+from smart_control.proto import (smart_control_building_pb2,
+                                 smart_control_reward_pb2)
+from smart_control.utils import (building_image_generator, constants,
+                                 conversion_utils, histogram_reducer,
+                                 plot_utils, regression_building_utils,
+                                 run_command_predictor, writer_lib)
 
 ACTION_REJECTION_REWARD: Final[float] = -np.inf
 
@@ -77,6 +73,8 @@ Setpoint = str
 MeasurementName = str
 DeviceActionTuple = Tuple[DeviceCode, Setpoint]
 DeviceMeasurementTuple = Tuple[DeviceCode, MeasurementName]
+
+logger = log.getLogger(__name__)
 
 
 def all_actions_accepted(
@@ -378,7 +376,6 @@ class Environment(py_environment.PyEnvironment):
       image_generator: (
           building_image_generator.BuildingImageGenerator | None
       ) = None,
-      step_interval: pd.Timedelta = pd.Timedelta(5, unit="minutes"),
       writer_factory: writer_lib.BaseWriterFactory | None = None,
   ) -> None:
     """Environment constructor.
@@ -429,10 +426,12 @@ class Environment(py_environment.PyEnvironment):
     self._end_timestamp: pd.Timestamp = self._start_timestamp + pd.Timedelta(
         num_days_in_episode, unit="days"
     )
-    self._step_interval = step_interval
+    self._step_interval = pd.Timedelta(self.building.time_step_sec, unit="s")
+    logger.info("Step Interval: %s", self._step_interval)
     self._num_timesteps_in_episode = int(
         (self._end_timestamp - self._start_timestamp) / self._step_interval
     )
+    logger.info("Num Timesteps in Episode: %s", self._num_timesteps_in_episode)
     self._metrics = plot_utils.init_metrics()
     logging.info(
         "Episode starts at %s and ends at %s; % d timesteps.",
