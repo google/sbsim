@@ -6,6 +6,8 @@ This script loads a saved policy and evaluates it on a configured environment.
 import json
 import logging
 import os
+import shutil
+import tempfile
 from datetime import datetime
 
 import tensorflow as tf
@@ -35,6 +37,91 @@ logging.basicConfig(
     format='[%(levelname)s] [%(filename)s:%(lineno)d] [%(message)s]'
 )
 logger = logging.getLogger(__name__)
+
+def find_latest_checkpoint(policy_dir):
+    """
+    Find the latest policy checkpoint in a directory.
+    
+    Args:
+        policy_dir: Path to the directory containing checkpoints
+        
+    Returns:
+        Path to the latest checkpoint or None if no checkpoints found
+    """
+    # Check if there's a checkpoints directory
+    checkpoints_dir = os.path.join(policy_dir, 'checkpoints')
+    if os.path.exists(checkpoints_dir):
+        # Look for checkpoint directories
+        checkpoint_dirs = [d for d in os.listdir(checkpoints_dir) 
+                          if d.startswith('policy_checkpoint_')]
+        
+        if checkpoint_dirs:
+            # Sort by checkpoint number and get the latest
+            latest_checkpoint = sorted(
+                checkpoint_dirs, 
+                key=lambda x: int(x.split('_')[-1])
+            )[-1]
+            
+            return os.path.join(checkpoints_dir, latest_checkpoint)
+    
+    # If we're here, either there's no checkpoints dir or no checkpoints in it
+    return None
+
+def create_merged_saved_model(policy_dir):
+    """
+    Create a temporary directory with a complete SavedModel by merging:
+    1. Model structure from policy_dir
+    2. Variables from the latest checkpoint
+    
+    Args:
+        policy_dir: Base directory containing policies and checkpoints
+        
+    Returns:
+        Path to temporary directory with complete model
+    """
+    # First check for greedy_policy (preferred) or policy directories
+    model_structure_dir = None
+    if os.path.exists(os.path.join(policy_dir, 'greedy_policy')):
+        model_structure_dir = os.path.join(policy_dir, 'greedy_policy')
+        logger.info("Using model structure from greedy_policy directory")
+    else:
+        raise ValueError(f"No policy structure directories found in {policy_dir}")
+    
+    # Find latest checkpoint for variables
+    latest_checkpoint = find_latest_checkpoint(policy_dir)
+    if not latest_checkpoint:
+        logger.warning("No checkpoints found, using original model structure only")
+        return model_structure_dir
+    
+    logger.info(f"Found latest checkpoint at: {latest_checkpoint}")
+    
+    # Create temporary directory for merged model
+    temp_dir = tempfile.mkdtemp(prefix="merged_policy_")
+    logger.info(f"Created temporary directory for merged model: {temp_dir}")
+    
+    # Copy model structure files (everything except 'variables' directory)
+    for item in os.listdir(model_structure_dir):
+        if item != 'variables':
+            source = os.path.join(model_structure_dir, item)
+            dest = os.path.join(temp_dir, item)
+            if os.path.isdir(source):
+                shutil.copytree(source, dest)
+            else:
+                shutil.copy2(source, dest)
+    
+    # Create variables directory
+    variables_dir = os.path.join(temp_dir, 'variables')
+    os.makedirs(variables_dir, exist_ok=True)
+    
+    # Copy latest checkpoint variables
+    checkpoint_vars_dir = os.path.join(latest_checkpoint, 'variables')
+    for item in os.listdir(checkpoint_vars_dir):
+        source = os.path.join(checkpoint_vars_dir, item)
+        dest = os.path.join(variables_dir, item)
+        shutil.copy2(source, dest)
+    
+    logger.info(f"Successfully created merged model at {temp_dir}")
+    return temp_dir
 
 def evaluate_policy(
     policy_dir,
@@ -84,81 +171,91 @@ def evaluate_policy(
     eval_step = tf.Variable(0, trainable=False, dtype=tf.int64)
     
     # Create policy based on the type
-    if policy_dir == 'schedule':
-        logger.info("Using schedule policy")
-        policy = create_baseline_schedule_policy(eval_tf_env)
-    else:
-        # Use SavedModelPolicy for saved model
-        logger.info(f"Loading saved model from {policy_dir}")
-        policy_path = os.path.join(policy_dir, "greedy_policy")
-        policy = SavedModelPolicy(
-            policy_path,
-            eval_tf_env.time_step_spec(),
-            eval_tf_env.action_spec()
-        )
-        logger.info("Saved model policy created")
-    
-    # Set up metrics
-    eval_metrics = [
-        tf_metrics.AverageReturnMetric(buffer_size=num_eval_episodes),
-        tf_metrics.AverageEpisodeLengthMetric(buffer_size=num_eval_episodes),
-        tf_metrics.MaxReturnMetric(buffer_size=num_eval_episodes),
-        tf_metrics.MinReturnMetric(buffer_size=num_eval_episodes),
-        tf_metrics.NumberOfEpisodes(),
-        tf_metrics.EnvironmentSteps()
-    ]
-    
-    observers_list = []
-    
-    print_observer = PrintStatusObserver(
-        status_interval_steps=1,
-        environment=eval_tf_env,
-        replay_buffer=None
-    )
-    
-    observers_list.append(print_observer)
-    
-    # Record trajectory observer
-    trajectory_dir = None
-    if save_trajectory:
-        trajectory_dir = os.path.join(results_dir, 'trajectories')
-        os.makedirs(trajectory_dir, exist_ok=True)
+    temp_dir = None
+    try:
+        if policy_dir == 'schedule':
+            logger.info("Using schedule policy")
+            policy = create_baseline_schedule_policy(eval_tf_env)
+        else:
+            # Create a merged saved model with structure from policy dir and variables from latest checkpoint
+            temp_dir = create_merged_saved_model(policy_dir)
+            
+            # Use SavedModelPolicy for saved model
+            logger.info(f"Loading saved model from {temp_dir}")
+            policy = SavedModelPolicy(
+                temp_dir,
+                eval_tf_env.time_step_spec(),
+                eval_tf_env.action_spec()
+            )
+            logger.info("Saved model policy created")
         
-    if save_trajectory and trajectory_dir:
-        trajectory_observer = TrajectoryRecorderObserver(
-            save_dir=trajectory_dir,
-            environment=eval_tf_env
+        # Set up metrics
+        eval_metrics = [
+            tf_metrics.AverageReturnMetric(buffer_size=num_eval_episodes),
+            tf_metrics.AverageEpisodeLengthMetric(buffer_size=num_eval_episodes),
+            tf_metrics.MaxReturnMetric(buffer_size=num_eval_episodes),
+            tf_metrics.MinReturnMetric(buffer_size=num_eval_episodes),
+            tf_metrics.NumberOfEpisodes(),
+            tf_metrics.EnvironmentSteps()
+        ]
+        
+        observers_list = []
+        
+        print_observer = PrintStatusObserver(
+            status_interval_steps=1,
+            environment=eval_tf_env,
+            replay_buffer=None
         )
-        observers_list.append(trajectory_observer)
+        
+        observers_list.append(print_observer)
+        
+        # Record trajectory observer
+        trajectory_dir = None
+        if save_trajectory:
+            trajectory_dir = os.path.join(results_dir, 'trajectories')
+            os.makedirs(trajectory_dir, exist_ok=True)
+            
+        if save_trajectory and trajectory_dir:
+            trajectory_observer = TrajectoryRecorderObserver(
+                save_dir=trajectory_dir,
+                environment=eval_tf_env
+            )
+            observers_list.append(trajectory_observer)
+        
+        observers = CompositeObserver(observers_list)
+        
+        # Create eval actor with observers
+        logger.info("Creating evaluation actor")
+        eval_actor = actor.Actor(
+            eval_env,
+            py_tf_eager_policy.PyTFEagerPolicy(policy),
+            eval_step,
+            episodes_per_run=num_eval_episodes,
+            metrics=actor.eval_metrics(num_eval_episodes),
+            observers=[observers],
+            summary_dir=os.path.join(results_dir, 'eval'),
+            summary_interval=1
+        )
+        
+        # Run evaluation
+        logger.info(f"Starting evaluation for {num_eval_episodes} episodes")
+        eval_actor.run()
+        
+        # Write evaluation summaries
+        with eval_actor.summary_writer.as_default():
+            for m in eval_metrics:
+                tf.summary.scalar(m.name, m.result(), step=eval_step.numpy())
+                logger.info(f"Eval {m.name}: {m.result()}")
+            eval_actor.summary_writer.flush()
+        
+        logger.info(f"Evaluation completed. Saved results in {results_dir}")
+        return
     
-    observers = CompositeObserver(observers_list)
-    
-    # Create eval actor with observers
-    logger.info("Creating evaluation actor")
-    eval_actor = actor.Actor(
-        eval_env,
-        py_tf_eager_policy.PyTFEagerPolicy(policy),
-        eval_step,
-        episodes_per_run=num_eval_episodes,
-        metrics=actor.eval_metrics(num_eval_episodes),
-        observers=[observers],
-        summary_dir=os.path.join(results_dir, 'eval'),
-        summary_interval=1
-    )
-    
-    # Run evaluation
-    logger.info(f"Starting evaluation for {num_eval_episodes} episodes")
-    eval_actor.run()
-    
-    # Write evaluation summaries
-    with eval_actor.summary_writer.as_default():
-        for m in eval_metrics:
-            tf.summary.scalar(m.name, m.result(), step=eval_step.numpy())
-            logger.info(f"Eval {m.name}: {m.result()}")
-        eval_actor.summary_writer.flush()
-    
-    logger.info(f"Evaluation completed. Saved results in {results_dir}")
-    return
+    finally:
+        # Clean up temporary directory if created
+        if temp_dir and os.path.exists(temp_dir):
+            logger.info(f"Cleaning up temporary directory: {temp_dir}")
+            shutil.rmtree(temp_dir)
 
 if __name__ == "__main__":
     import argparse
