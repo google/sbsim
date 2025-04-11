@@ -372,7 +372,7 @@ if __name__ == "__main__":
     parser.add_argument('--learner-iterations', type=int, default=200, help='Number of iterations (gradient updates) \
                                                                              to run the agent learner per training loop')
     parser.add_argument('--scenario-config-path', type=str, default=os.path.join(ROOT_DIR, "smart_control", "configs", "resources",
-                                                                                 "sb1", "generated_configs", "config_timestepsec-900_numdaysinepisode-14_starttimestamp-2023-07-06.gin"), help='Path to the scenario config file. \
+                                                                                 "sb1", "generated_configs", "config_timestepsec-900_numdaysinepisode-7_starttimestamp-2023-07-06.gin"), help='Path to the scenario config file. \
                                                                               Default is sim_config_1_day.gin')
     
     args = parser.parse_args()

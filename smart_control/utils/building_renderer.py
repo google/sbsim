@@ -282,7 +282,6 @@ class BuildingRenderer:
       grid: boolean flag. If False, walls are solid, if True, a grid pattern
       timestamps: optional list of timestamps to render
     """
-    return
     with media.VideoWriter(
         file_path, shape=(self._mask.size[1], self._mask.size[0]), fps=fps
     ) as w:
