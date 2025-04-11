@@ -171,8 +171,8 @@ def create_td3_agent(
     critic_network_2: Optional[network.Network] = None,
     
     # Optimizer parameters
-    actor_learning_rate: float = 3e-4,
-    critic_learning_rate: float = 3e-4,
+    actor_learning_rate: float = 1e-4,
+    critic_learning_rate: float = 1e-4,
     
     # TD3 specific parameters
     exploration_noise_std: float = 0.1,

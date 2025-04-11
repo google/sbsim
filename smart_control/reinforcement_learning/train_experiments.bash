@@ -1,0 +1,3 @@
+python scripts/train.py --starter-buffer-path data/starter_buffers/default_starter_buffer_seqlen2_exp6720 --experiment-name=sac_train_run-july-6th --agent-type sac
+python scripts/train.py --starter-buffer-path data/starter_buffers/default_starter_buffer_seqlen2_exp6720 --experiment-name=ddpg_train_run-july-6th --agent-type ddpg
+python scripts/train.py --starter-buffer-path data/starter_buffers/default_starter_buffer_seqlen2_exp6720 --experiment-name=td3_train_run-july-6th --agent-type td3
