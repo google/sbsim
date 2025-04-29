@@ -1,29 +1,32 @@
-"""Tests for controller_reader and controller_writer."""
+"""Tests for controller_reader and controller_writer.
+
+Copyright 2024 Google LLC
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    https://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+"""
 
 import operator
 import os
 
 from absl.testing import absltest
 import pandas as pd
-
-from smart_control.proto import smart_control_building_pb2
-from smart_control.proto import smart_control_normalization_pb2
-from smart_control.proto import smart_control_reward_pb2
-from smart_control.utils import controller_reader
-from smart_control.utils import controller_writer
-from smart_control.utils import conversion_utils
-
-DeviceInfo = smart_control_building_pb2.DeviceInfo
-ZoneInfo = smart_control_building_pb2.ZoneInfo
-
-ActionRequest = smart_control_building_pb2.ActionRequest
-ActionResponse = smart_control_building_pb2.ActionResponse
-ObservationRequest = smart_control_building_pb2.ObservationRequest
-ObservationResponse = smart_control_building_pb2.ObservationResponse
-SingleActionRequest = smart_control_building_pb2.SingleActionRequest
-SingleActionResponse = smart_control_building_pb2.SingleActionResponse
-SingleObservationRequest = smart_control_building_pb2.SingleObservationRequest
-SingleObservationResponse = smart_control_building_pb2.SingleObservationResponse
+from smart_buildings.smart_control.proto import smart_control_building_pb2
+from smart_buildings.smart_control.proto import smart_control_normalization_pb2
+from smart_buildings.smart_control.proto import smart_control_reward_pb2
+from smart_buildings.smart_control.utils import controller_reader
+from smart_buildings.smart_control.utils import controller_writer
+from smart_buildings.smart_control.utils import conversion_utils
 
 
 class ControllerReadWriteTest(absltest.TestCase):
@@ -38,7 +41,7 @@ class ControllerReadWriteTest(absltest.TestCase):
                 'water_valve',
                 100.0,
                 pd.Timestamp('2021-05-25 19:01+0'),
-                SingleActionResponse.ACCEPTED,
+                smart_control_building_pb2.SingleActionResponse.ACCEPTED,
             ),
         ),
         (
@@ -49,7 +52,7 @@ class ControllerReadWriteTest(absltest.TestCase):
                 'airflow',
                 25.0,
                 pd.Timestamp('2021-05-25 19:07+0'),
-                SingleActionResponse.ACCEPTED,
+                smart_control_building_pb2.SingleActionResponse.ACCEPTED,
             ),
         ),
         (
@@ -60,7 +63,7 @@ class ControllerReadWriteTest(absltest.TestCase):
                 'water_valve',
                 100.0,
                 pd.Timestamp('2021-05-25 20:01+0'),
-                SingleActionResponse.ACCEPTED,
+                smart_control_building_pb2.SingleActionResponse.ACCEPTED,
             ),
         ),
         (
@@ -71,7 +74,7 @@ class ControllerReadWriteTest(absltest.TestCase):
                 'airflow',
                 25.0,
                 pd.Timestamp('2021-05-25 20:07+0'),
-                SingleActionResponse.ACCEPTED,
+                smart_control_building_pb2.SingleActionResponse.ACCEPTED,
             ),
         ),
     ]
@@ -473,16 +476,16 @@ class ControllerReadWriteTest(absltest.TestCase):
     response_ts = conversion_utils.pandas_to_proto_timestamp(
         pd.Timestamp(response_timestamp)
     )
-    single_request = SingleActionRequest(
+    single_request = smart_control_building_pb2.SingleActionRequest(
         device_id=device_id, setpoint_name=setpoint_name, continuous_value=value
     )
-    single_response = SingleActionResponse(
+    single_response = smart_control_building_pb2.SingleActionResponse(
         request=single_request, response_type=response_type
     )
-    request = ActionRequest(
+    request = smart_control_building_pb2.ActionRequest(
         timestamp=request_ts, single_action_requests=[single_request]
     )
-    return ActionResponse(
+    return smart_control_building_pb2.ActionResponse(
         timestamp=response_ts,
         request=request,
         single_action_responses=[single_response],
@@ -503,19 +506,19 @@ class ControllerReadWriteTest(absltest.TestCase):
     response_ts = conversion_utils.pandas_to_proto_timestamp(
         pd.Timestamp(response_timestamp)
     )
-    single_request = SingleObservationRequest(
+    single_request = smart_control_building_pb2.SingleObservationRequest(
         device_id=device_id, measurement_name=measurement_name
     )
-    single_response = SingleObservationResponse(
+    single_response = smart_control_building_pb2.SingleObservationResponse(
         timestamp=response_ts,
         single_observation_request=single_request,
         observation_valid=observation_valid,
         continuous_value=value,
     )
-    request = ObservationRequest(
+    request = smart_control_building_pb2.ObservationRequest(
         timestamp=request_ts, single_observation_requests=[single_request]
     )
-    return ObservationResponse(
+    return smart_control_building_pb2.ObservationResponse(
         timestamp=response_ts,
         request=request,
         single_observation_responses=[single_response],
@@ -565,54 +568,64 @@ class ControllerReadWriteTest(absltest.TestCase):
     return normalization_constants
 
   def _get_device_infos(self):
-    d0 = DeviceInfo(
+    d0 = smart_control_building_pb2.DeviceInfo(
         device_id='device_00',
         namespace='test',
         code='code0',
         zone_id='zone00',
-        device_type=DeviceInfo.AHU,
+        device_type=smart_control_building_pb2.DeviceInfo.AHU,
         observable_fields={
-            'f0': DeviceInfo.ValueType.VALUE_CONTINUOUS,
-            'f1': DeviceInfo.ValueType.VALUE_INTEGER,
+            'f0': (
+                smart_control_building_pb2.DeviceInfo.ValueType.VALUE_CONTINUOUS
+            ),
+            'f1': smart_control_building_pb2.DeviceInfo.ValueType.VALUE_INTEGER,
         },
         action_fields={
-            'a0': DeviceInfo.ValueType.VALUE_CATEGORICAL,
-            'a1': DeviceInfo.ValueType.VALUE_CONTINUOUS,
+            'a0': (
+                smart_control_building_pb2.DeviceInfo.ValueType.VALUE_CATEGORICAL
+            ),
+            'a1': (
+                smart_control_building_pb2.DeviceInfo.ValueType.VALUE_CONTINUOUS
+            ),
         },
     )
 
-    d1 = DeviceInfo(
+    d1 = smart_control_building_pb2.DeviceInfo(
         device_id='device_01',
         namespace='test',
         code='code1',
         zone_id='zone01',
-        device_type=DeviceInfo.AHU,
+        device_type=smart_control_building_pb2.DeviceInfo.AHU,
         observable_fields={
-            'f0': DeviceInfo.ValueType.VALUE_BINARY,
-            'f1': DeviceInfo.ValueType.VALUE_INTEGER,
+            'f0': smart_control_building_pb2.DeviceInfo.ValueType.VALUE_BINARY,
+            'f1': smart_control_building_pb2.DeviceInfo.ValueType.VALUE_INTEGER,
         },
         action_fields={
-            'a0': DeviceInfo.ValueType.VALUE_TYPE_UNDEFINED,
-            'a1': DeviceInfo.ValueType.VALUE_CONTINUOUS,
+            'a0': (
+                smart_control_building_pb2.DeviceInfo.ValueType.VALUE_TYPE_UNDEFINED
+            ),
+            'a1': (
+                smart_control_building_pb2.DeviceInfo.ValueType.VALUE_CONTINUOUS
+            ),
         },
     )
     return [d0, d1]
 
   def _get_zone_infos(self):
-    z0 = ZoneInfo(
+    z0 = smart_control_building_pb2.ZoneInfo(
         zone_id='zone00',
         building_id='US-BLDG-0000',
         zone_description='microkitchen',
         area=900.0,
-        zone_type=ZoneInfo.ROOM,
+        zone_type=smart_control_building_pb2.ZoneInfo.ROOM,
         floor=2,
     )
-    z1 = ZoneInfo(
+    z1 = smart_control_building_pb2.ZoneInfo(
         zone_id='zone01',
         building_id='US-BLDG-0000',
         zone_description='work area 01',
         area=500.0,
-        zone_type=ZoneInfo.ROOM,
+        zone_type=smart_control_building_pb2.ZoneInfo.ROOM,
         floor=1,
     )
     return [z0, z1]

@@ -1,20 +1,36 @@
-"""Utilities to read smart control protos from endpoint."""
+"""Utilities to read smart control protos from endpoint.
+
+Copyright 2024 Google LLC
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    https://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+"""
 
 import glob
 import operator
 import os
 import re
-from typing import Callable, Mapping, Sequence, TypeVar, Union
+from typing import Callable, Mapping, Sequence, Union, TypeVar
 
 from absl import logging
 import gin
 import pandas as pd
+from smart_buildings.smart_control.proto import smart_control_building_pb2
+from smart_buildings.smart_control.proto import smart_control_normalization_pb2
+from smart_buildings.smart_control.proto import smart_control_reward_pb2
+from smart_buildings.smart_control.utils import constants
+from smart_buildings.smart_control.utils import reader_lib
 
-from smart_control.proto import smart_control_building_pb2
-from smart_control.proto import smart_control_normalization_pb2
-from smart_control.proto import smart_control_reward_pb2
-from smart_control.utils import constants
-from smart_control.utils import reader_lib
 
 T = TypeVar('T')
 
@@ -105,7 +121,9 @@ class ProtoReader(reader_lib.BaseReader):
       start_time: pd.Timestamp,
       end_time: pd.Timestamp,
       file_prefix: str,
-      from_string_func: Callable[[Union[bytearray, bytes, memoryview]], T],
+      from_string_func: Callable[
+          [Union[bytearray, bytes, memoryview]], T
+      ],
   ) -> Sequence[T]:
     """Reads all proto messages from sharded RIO files.
 
@@ -149,14 +167,9 @@ class ProtoReader(reader_lib.BaseReader):
 
     def _read_timestamp(filepath: str) -> pd.Timestamp:
       """Reads the timestamp from the filepath."""
-      if not filepath:
-        raise ValueError('Filepath cannot be empty when reading timestamp.')
-      matches = re.findall(r'\d{4}\.\d{2}\.\d{2}\.\d{2}', filepath)
-      if not matches:
-        raise ValueError(
-            f'Could not extract timestamp from filepath: {filepath!r}'
-        )
-      return pd.Timestamp(matches[-1])
+      assert filepath
+      ts = pd.Timestamp(re.findall(r'\d{4}\.\d{2}\.\d{2}\.\d{2}', filepath)[-1])
+      return ts
 
     def _between(
         timestamp: pd.Timestamp,
@@ -218,7 +231,9 @@ class ProtoReader(reader_lib.BaseReader):
             )
         )
         if reader_lib.VariableId(variable.id) in normalization_info:
-          raise ValueError(f'Duplicate entry for variable {variable.id} found.')
+          raise ValueError(
+              'Duplicate entry for variable %s found.' % variable.id
+          )
         normalization_info[reader_lib.VariableId(variable.id)] = variable
     return normalization_info
 

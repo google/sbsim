@@ -1,4 +1,20 @@
-"""Energy carbon and cost model for natural gas."""
+"""Energy carbon and cost model for natural gas.
+
+Copyright 2024 Google LLC
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    https://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+"""
 
 from typing import Sequence
 
@@ -6,9 +22,9 @@ from absl import logging
 import gin
 import numpy as np
 import pandas as pd
+from smart_buildings.smart_control.models.base_energy_cost import BaseEnergyCost
+from smart_buildings.smart_control.utils import constants
 
-from smart_control.models.base_energy_cost import BaseEnergyCost
-from smart_control.utils import constants
 
 # Source: https://www.eia.gov/dnav/ng/hist/n3035ca3m.htm
 # For 2020, units: Dollars per Thousand Cubic Feet
@@ -39,9 +55,9 @@ class NaturalGasEnergyCost(BaseEnergyCost):
   def __init__(
       self, gas_price_by_month: Sequence[float] = GAS_PRICE_BY_MONTH_SOURCE
   ):
-    if len(gas_price_by_month) != 12:
-      raise ValueError('Gas price per month must have exactly 12 values.')
-
+    assert (
+        len(gas_price_by_month) == 12
+    ), 'Gas price per month must have exactly 12 values.'
     # Convert the month-by-month gas price from $/1000 cubic feet to $/Joule.
     self._month_gas_price = (
         np.array(gas_price_by_month)

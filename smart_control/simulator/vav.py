@@ -1,15 +1,29 @@
-"""Models a Variable Air Volume device for the simulation."""
+"""Models a Variable Air Volume device for the simulation.
+
+Copyright 2023 Google LLC
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    https://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+"""
 
 from typing import Optional, Tuple
 import uuid
 
 import pandas as pd
-
-from smart_control.proto import smart_control_building_pb2
-from smart_control.simulator import boiler as boiler_py
-from smart_control.simulator import smart_device
-from smart_control.simulator import thermostat
-from smart_control.utils import constants
+from smart_buildings.smart_control.proto import smart_control_building_pb2
+from smart_buildings.smart_control.simulator import boiler as boiler_py
+from smart_buildings.smart_control.simulator import smart_device
+from smart_buildings.smart_control.simulator import thermostat
+from smart_buildings.smart_control.utils import constants
 
 
 class Vav(smart_device.SmartDevice):
@@ -108,10 +122,7 @@ class Vav(smart_device.SmartDevice):
 
   @max_air_flow_rate.setter
   def max_air_flow_rate(self, value: float):
-    if value <= 0:
-      raise ValueError(
-          f'Maximum air flow rate must be greater than 0 (got {value}).'
-      )
+    assert value > 0
     self._max_air_flow_rate = value
 
   @property
@@ -157,38 +168,18 @@ class Vav(smart_device.SmartDevice):
   def compute_zone_supply_temp(
       self, supply_air_temp: float, input_water_temp: float
   ) -> float:
-    """Returns temperature of air output from the VAV, supplied to the zone.
-
-    Temperatures are measured in Kelvin.
+    """Returns temperature in K of air output from the VAV, supplied to the zone.
 
     Args:
       supply_air_temp: Temperature in K of input air.
       input_water_temp: Temperature in K of input water.
     """
-
-    # Ensure damper_setting and max_air_flow_rate are positive
-    if self.damper_setting <= 0:
-      raise ValueError(
-          f'Damper setting must be greater than 0, got {self.damper_setting}.'
-      )
-    if self._max_air_flow_rate <= 0:
-      raise ValueError(
-          'Maximum air flow rate must be greater than 0, '
-          f'got {self._max_air_flow_rate}.'
-      )
-
+    assert self.damper_setting > 0
+    assert self._max_air_flow_rate > 0
     reheat_flow_rate = (
         self._reheat_valve_setting * self._reheat_max_water_flow_rate
     )
     air_flow_rate = self._damper_setting * self._max_air_flow_rate
-
-    # Ensure air_flow_rate is positive to avoid ZeroDivisionError
-    if air_flow_rate <= 0:
-      raise ValueError(
-          'Air flow rate must be > 0 to compute zone supply temp. '
-          f'damper_setting={self.damper_setting}, '
-          f'max_air_flow_rate={self._max_air_flow_rate}.'
-      )
 
     heat_difference = (
         constants.AIR_HEAT_CAPACITY * air_flow_rate

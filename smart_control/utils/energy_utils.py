@@ -1,10 +1,23 @@
-"""A collection of utility functions for Smart Building energy problems."""
+"""A collection of utility functions for Smart Building energy problems.
+
+Copyright 2022 Google LLC
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    https://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+"""
 
 from typing import Optional, Sequence
-
 import numpy as np
-
-from smart_control.utils import constants
+from smart_buildings.smart_control.utils import constants
 
 # Source: Thermodynamik, (1992), Hans Dieter Baehr, 8. Auflage, Springer Verlag
 # Tabelle 5.4, p. 213
@@ -63,22 +76,7 @@ def get_humidity_ratio(
 
   Returns: water mass to air mass ratio in kg Water / kg Air
   """
-  if not (len(temps) == len(relative_humidities) == len(pressures)):  # pylint: disable=superfluous-parens
-    raise ValueError(
-        f'Input arrays must have equal length. Got: temps={len(temps)}, '
-        f'relative_humidities={len(relative_humidities)}, '
-        f'pressures={len(pressures)}.'
-    )
-
-  # Sanity-check each RH and pressure using numpy
-  humidities_array = np.array(relative_humidities)
-  if np.any((humidities_array <= 0.0) | (humidities_array > 1.0)):
-    raise ValueError('Relative humidities must be in the range (0, 1].')
-
-  pressures_array = np.array(pressures)
-  if np.any(pressures_array <= 0.0):
-    raise ValueError('Pressures must be greater than 0 (bar).')
-
+  assert len(temps) == len(relative_humidities) == len(pressures)
   psat = [p / 1000.0 for p in get_water_vapor_partial_pressure(temps)]
   return [
       0.622 * psat[i] / (pressures[i] / relative_humidities[i] - psat[i])
@@ -112,22 +110,13 @@ def get_air_conditioning_energy_rate(
   Returns: Thermal power applied to heat the air to supply temp [W]
   """
 
-  # Combined check for all input vector lengths
-  if not (
+  assert (
       len(air_flow_rates)
       == len(outside_temps)
       == len(outside_relative_humidities)
       == len(supply_temps)
       == len(ambient_pressures)
-  ):
-    raise ValueError(
-        'All input vectors must be of the same length. '
-        f'Got lengths: air_flow_rates={len(air_flow_rates)}, '
-        f'outside_temps={len(outside_temps)}, '
-        f'outside_relative_humidities={len(outside_relative_humidities)}, '
-        f'supply_temps={len(supply_temps)}, '
-        f'ambient_pressures={len(ambient_pressures)}.'
-    )
+  ), 'All input vectors must be of the same length.'
 
   x = get_humidity_ratio(
       temps=outside_temps,
@@ -192,12 +181,11 @@ def get_fan_power(
   if motor_factor is None:
     motor_factor = 0.85
 
-  # If the caller explicitly passed brake_hp (even if 0.0), honor it
-  # otherwise fall back to design_hp × motor_factor
-  if brake_hp is not None:
+  if brake_hp:
     hp = brake_hp
   else:
     hp = motor_factor * design_hp
+
   # Fan is operational if the supply_static_pressure > threshold for
   # supply fan. Exhaust fan doesn't report static pressure, so assume on
   # when fan_speed_percentage is > 0.

@@ -1,24 +1,35 @@
-"""Utilities for plotting simulation and converting to video."""
+"""Utilities for plotting simulation and converting to video.
+
+Copyright 2022 Google LLC
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    https://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+"""
 
 import collections
 import os
 import pathlib
 
-from matplotlib import cm
 from matplotlib import patches
+import matplotlib.cm as cm
 import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MaxNLocator
 import numpy as np
 import pandas as pd
 
-K_TO_C = 273.0  # TODO: https://github.com/google/sbsim/issues/25 - consider importing and using `int(KELVIN_TO_CELSIUS)` constant here # pylint:disable=line-too-long
-
 
 def get_temp_colors(min_k, max_k):
-  """Returns a color gradient for the temps between min and max_k.
-
-  Temperatures are measured in Kelvin.
+  """Returns a color gradient for the temps between min and max_k, measured in Kelvin.
 
   Args:
     min_k: min temp in kelvin
@@ -70,7 +81,7 @@ def render_building_subplot(
     return temp_color
 
   def render_ambient(temp):
-    """Draws an exterior rectangle around the building based on ambient temp."""
+    """Draws an exterior rectangle around the building based on the ambient temp."""
 
     temp_color = get_temp_color(temp)
     width = (
@@ -186,17 +197,11 @@ def render_building_subplot(
 
     temp_min, temp_max, temp_avg = building.get_zone_temp_stats((zi, zj))
 
-    temp_label = (
-        f'({zi}, {zj}) '
-        f'min {(temp_min - K_TO_C):3.1f} C, '
-        f'max {(temp_max - K_TO_C):3.1f} C, '
-        f'avg {(temp_avg - K_TO_C):3.1f} C'
-    )
-
     ax.text(
         0.01 + left,
         bottom + height - 0.017,
-        temp_label,
+        '(%d, %d) min %3.1f C, max %3.1f C, avg %3.1f C'
+        % (zi, zj, temp_min - 273.0, temp_max - 273.0, temp_avg - 273.0),
         horizontalalignment='left',
         verticalalignment='top',
         transform=ax.transAxes,
@@ -233,7 +238,7 @@ def render_building_subplot(
       ax.text(
           x + 0.005,
           y,
-          f'{(q / 1000.0):3.1f} kW',
+          '%3.1f kW' % (q / 1000.0),
           horizontalalignment='left',
           verticalalignment='top',
           transform=ax.transAxes,
@@ -270,15 +275,11 @@ def render_building_subplot(
     ):
       if building.diffusers[i][j] > 0:
         render_diffuser(i, j, building.diffusers[i][j] * building.input_q[i][j])
-
-  label = (
-      f"Local time {current_time.strftime('%Y-%m-%d %H:%M')}, "
-      f'Ambient temp {(ambient_temp - K_TO_C):3.1f} C'
-  )
   ax.text(
       0.01,
       1.0,
-      label,
+      'Local time %s, Ambient temp %3.1f C'
+      % (current_time.strftime('%Y-%m-%d %H:%M'), ambient_temp - 273.0),
       horizontalalignment='left',
       verticalalignment='top',
       transform=ax.transAxes,
@@ -294,7 +295,7 @@ def plot_zone_temp_timeline(ax1, schedule, temps_timeseries_df, end_timestamp):
   )
   for _, row in setpoint_windows.iterrows():
     left = mdates.date2num(row['start_time'])
-    bottom = row['heating_setpoint'] - K_TO_C
+    bottom = row['heating_setpoint'] - 273.0
     width = mdates.date2num(row['end_time']) - left
     height = row['cooling_setpoint'] - row['heating_setpoint']
     face_color = 'white'
@@ -314,7 +315,7 @@ def plot_zone_temp_timeline(ax1, schedule, temps_timeseries_df, end_timestamp):
   for zone in zone_temps_cols:
     ax1.plot(
         temps_timeseries_df.index,
-        temps_timeseries_df[zone] - K_TO_C,
+        temps_timeseries_df[zone] - 273.0,
         color='yellow',
         marker=None,
         alpha=1,
@@ -324,7 +325,7 @@ def plot_zone_temp_timeline(ax1, schedule, temps_timeseries_df, end_timestamp):
 
   ax1.plot(
       temps_timeseries_df.index,
-      temps_timeseries_df['ambient'] - K_TO_C,
+      temps_timeseries_df['ambient'] - 273.0,
       color='blue',
       marker=None,
       alpha=1,
@@ -426,7 +427,9 @@ def plot_combined_results(
 
   if writedir:
 
-    filename = f"thermal_step_{current_time.strftime('%Y-%m-%d_%H-%M-%S')}.png"
+    filename = 'thermal_step_%s.png' % (
+        current_time.strftime('%Y-%m-%d_%H-%M-%S')
+    )
     full_path = os.path.join(writedir, filename)
     full_path = pathlib.Path(full_path)
 

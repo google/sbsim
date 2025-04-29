@@ -1,4 +1,19 @@
-"""General-purpose conversion utilities for smart control."""
+"""General-purpose conversion utilities for smart control.
+
+Copyright 2022 Google LLC
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    https://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+"""
 
 import collections
 import datetime
@@ -8,12 +23,12 @@ import re
 import types
 from typing import Mapping, Tuple
 
-from google.protobuf import timestamp_pb2
 import holidays
 import numpy as np
 import pandas as pd
+from smart_buildings.smart_control.proto import smart_control_reward_pb2
 
-from smart_control.proto import smart_control_reward_pb2
+from google3.google.protobuf import timestamp_pb2
 
 _COUNTRY = 'US'
 _SECONDS_IN_DAY = 24 * 3600
@@ -64,30 +79,22 @@ def floor_plan_based_zone_identifier_to_id(identifier: str) -> str:
 
 
 def zone_id_to_coordinates(zone_id: str) -> Tuple[int, int]:
-  # Expect exactly "zone_id_(<row>,<col>)" (optional spaces after comma)
-  m = re.match(r'^zone_id_\((\d+),\s*(\d+)\)$', zone_id)
-  if not m:
-    raise ValueError(
-        f"Invalid zone_id format: {zone_id!r}. Expected 'zone_id_(<row>,<col>)'"
-    )
-  return int(m.group(1)), int(m.group(2))
+  p = r'^zone_id_[(](\d+), (\d+)[)]'
+  m = re.match(p, zone_id)
+  if m:
+    return int(m.group(1)), int(m.group(2))
+  raise ValueError('Could not convert zone_id to coordinates!')
 
 
 def normalize_dow(dow: int) -> float:
   """Returns a normalized day of week, mapping [0, 6] to [-1., 1.]."""
-  if dow < 0 or dow > 6:
-    raise ValueError(
-        f'Day of week (dow) must be within the range [0, 6] (got {dow}).'
-    )
+  assert dow <= 6 and dow >= 0
   return (float(dow) - 3.0) / 3.0
 
 
 def normalize_hod(hod: int) -> float:
   """Returns a normlized hour of day, mapping  [0,23] to [-1., 1.]."""
-  if hod < 0 or hod > 23:
-    raise ValueError(
-        f'Hour of day (hod) must be within the range [0, 23] (got {hod}).'
-    )
+  assert hod <= 23 and hod >= 0
   return (float(hod) - 11.5) / 11.5
 
 
@@ -125,37 +132,6 @@ def get_radian_time(
   else:
     raise ValueError(f'No cycle conversion for {time_interval}.')
   return 2.0 * np.pi * interval_frac
-
-
-def kelvin_to_celsius(kelvin: float) -> float:
-  """Converts Kelvin to Celsius.
-  Args:
-    kelvin: Temperature in Kelvin.
-
-  Returns:
-    The temperature in Celsius.
-  Raises:
-    A ValueError if the input value is negative.
-  """
-  if kelvin <= 0.0:
-    raise ValueError('Temperature must be greater than absolute zero.')
-  return kelvin - 273.15
-
-
-def celsius_to_kelvin(celsius: float) -> float:
-  """Converts Celsius to Kelvin.
-  Args:
-    celsius: Temperature in Celsius.
-
-  Returns:
-    The temperature in Kelvin.
-
-  Raises:
-    A ValueError if the input value is less than absolute zero, -273.15°C.
-  """
-  if celsius <= -273.15:
-    raise ValueError('Temperature must be greater than absolute zero.')
-  return celsius + 273.15
 
 
 def kelvin_to_fahrenheit(kelvin: float) -> float:

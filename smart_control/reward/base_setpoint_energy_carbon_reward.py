@@ -1,13 +1,27 @@
-"""Base Reward Function for Smart Buildings."""
+"""Base Reward Function for Smart Buildings.
+
+Copyright 2024 Google LLC
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    https://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+"""
 
 from typing import Tuple
 
 import gin
 import numpy as np
-
-from smart_control.models.base_reward_function import BaseRewardFunction
-from smart_control.proto import smart_control_reward_pb2
-from smart_control.utils import conversion_utils
+from smart_buildings.smart_control.models.base_reward_function import BaseRewardFunction
+from smart_buildings.smart_control.proto import smart_control_reward_pb2
+from smart_buildings.smart_control.utils import conversion_utils
 
 
 @gin.configurable()
@@ -32,7 +46,7 @@ class BaseSetpointEnergyCarbonRewardFunction(BaseRewardFunction):
     self._productivity_decay_stiffness = productivity_decay_stiffness
 
   def compute_reward(
-      self, reward_info: smart_control_reward_pb2.RewardInfo
+      self, energy_reward_info: smart_control_reward_pb2.RewardInfo
   ) -> smart_control_reward_pb2.RewardResponse:
     """Returns the real-valued reward for the current state of the building."""
     raise NotImplementedError()
@@ -40,18 +54,6 @@ class BaseSetpointEnergyCarbonRewardFunction(BaseRewardFunction):
   def _sum_zone_productivities(
       self, energy_reward_info: smart_control_reward_pb2.RewardInfo
   ) -> Tuple[float, float]:
-    """Calculates cumulative productivity and total occupancy across all zones.
-
-    Args:
-      energy_reward_info: A RewardInfo object containing zone-specific
-        information, including setpoint temperatures, zone air temperatures, and
-        average occupancies.
-
-    Returns:
-      A tuple containing:
-        - The cumulative productivity across all zones (float).
-        - The total average occupancy across all zones (float).
-    """
     time_interval_sec = self._get_delta_time_sec(energy_reward_info)
     cumulative_productivity = 0.0
     total_occupancy = 0.0
@@ -60,8 +62,12 @@ class BaseSetpointEnergyCarbonRewardFunction(BaseRewardFunction):
       occupancy = energy_reward_info.zone_reward_infos[zid].average_occupancy
       total_occupancy += occupancy
       cumulative_productivity += self._get_zone_productivity_reward(
-          energy_reward_info.zone_reward_infos[zid].heating_setpoint_temperature,  # pylint:disable=line-too-long
-          energy_reward_info.zone_reward_infos[zid].cooling_setpoint_temperature,  # pylint:disable=line-too-long
+          energy_reward_info.zone_reward_infos[
+              zid
+          ].heating_setpoint_temperature,
+          energy_reward_info.zone_reward_infos[
+              zid
+          ].cooling_setpoint_temperature,
           energy_reward_info.zone_reward_infos[zid].zone_air_temperature,
           time_interval_sec,
           occupancy,

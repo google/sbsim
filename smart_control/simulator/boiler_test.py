@@ -1,12 +1,26 @@
-"""Tests for boiler."""
+"""Tests for boiler.
+
+Copyright 2023 Google LLC
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    https://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+"""
 
 from absl.testing import absltest
 from absl.testing import parameterized
 import pandas as pd
-
-from smart_control.proto import smart_control_building_pb2
-from smart_control.simulator import boiler
-from smart_control.utils import constants
+from smart_buildings.smart_control.proto import smart_control_building_pb2
+from smart_buildings.smart_control.simulator import boiler
+from smart_buildings.smart_control.utils import constants
 
 
 class BoilerTest(parameterized.TestCase):
@@ -161,7 +175,7 @@ class BoilerTest(parameterized.TestCase):
         places=3,
     )
 
-  def test_compute_thermal_energy_rate_raises_value_error(self):
+  def test_compute_thermal_energy_rate_raises_assertion_error(self):
     return_water_temp = 200
     total_flow_rate = 0.5
     reheat_water_setpoint = 100
@@ -177,7 +191,7 @@ class BoilerTest(parameterized.TestCase):
 
     b.add_demand(total_flow_rate)
 
-    with self.assertRaises(ValueError):
+    with self.assertRaises(AssertionError):
       _ = b.compute_thermal_energy_rate(return_water_temp, outside_temp)
 
   @parameterized.parameters(
@@ -426,7 +440,7 @@ class BoilerTest(parameterized.TestCase):
 
   def test_compute_thermal_dissipation_rate_invalid(self):
     b = self.get_default_boiler()
-    with self.assertRaises(ValueError):
+    with self.assertRaises(AssertionError):
       _ = b.compute_thermal_dissipation_rate(240.0, 290.0)
 
   def test_action_field_names(self):
