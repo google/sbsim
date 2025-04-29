@@ -48,11 +48,10 @@ from absl import logging
 import gin
 import numpy as np
 import pandas as pd
-
-from smart_control.proto import smart_control_building_pb2
-from smart_control.utils import reader_lib
-from smart_control.utils.reducer import BaseReducedSequence
-from smart_control.utils.reducer import BaseReducer
+from smart_buildings.smart_control.proto import smart_control_building_pb2
+from smart_buildings.smart_control.utils import reader_lib
+from smart_buildings.smart_control.utils.reducer import BaseReducedSequence
+from smart_buildings.smart_control.utils.reducer import BaseReducer
 
 Feature = str  # Measurement name
 Device = str  # Device Identity
@@ -123,7 +122,7 @@ def approximate_values_from_histogram_assignment(
     bins: the values associated with each bin.
 
   Returns:
-    A mapping of {(device_id, measurement_name): bin-assigned value}
+    A mapping of (device_id, measurement_name): bin-assigned value
   """
   assigned_values = {}
 
@@ -348,7 +347,6 @@ class HistogramReducer(BaseReducer):
               next_histogram_assignment
           )
 
-          # pylint: disable-next=consider-using-dict-items # TODO: loop through the items (perhaps after this existing functionality has been tested)
           for measurement in next_assigned_measurements:
             updates[measurement].append(next_assigned_measurements[measurement])
 
@@ -421,7 +419,7 @@ class HistogramReducer(BaseReducer):
       reduced_feature_columns = feature_mapping[reduced_feature]
       # Now compute the histogram
       if reduced_feature_columns:
-        columns_indexes = [(reduced_feature, f"h_{v:.2f}") for v in bins]
+        columns_indexes = [(reduced_feature, "h_%.2f" % v) for v in bins]
         df = pd.DataFrame(columns=columns_indexes)
         for idx, row in observation_sequence.iterrows():
           # Convert all the measurements of the same feature into an array.

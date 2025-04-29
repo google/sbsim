@@ -28,15 +28,14 @@ from absl import logging
 import gin
 import numpy as np
 from PIL import Image
-
-from smart_control.proto import smart_control_building_pb2
-from smart_control.utils import building_renderer
-from smart_control.utils import real_building_temperature_array_generator as temp_array_gen
+from smart_buildings.smart_control.proto import smart_control_building_pb2
+from smart_buildings.smart_control.utils import building_renderer
+from smart_buildings.smart_control.utils import real_building_temperature_array_generator as temp_array_gen
 
 if sys.version_info >= (3, 11):
-  from importlib.resources.abc import Traversable  # pylint: disable=g-import-not-at-top, g-importing-member
+  from importlib.resources.abc import Traversable  # pylint: disable=g-import-not-at-top
 else:
-  from importlib_resources.abc import Traversable  # pylint: disable=g-import-not-at-top, g-importing-member
+  from importlib_resources.abc import Traversable  # pylint: disable=g-import-not-at-top
 
 PathLocation: TypeAlias = Traversable | os.PathLike[str] | str
 
@@ -83,7 +82,7 @@ class BuildingImageGenerator:
     for device_info in self._device_infos:
       device_map[device_info.device_id] = device_info.code
 
-    with self._device_layout_path.open("rt", encoding="utf-8") as f:  # pytype: disable=wrong-arg-types
+    with self._device_layout_path.open("rt") as f:  # pytype: disable=wrong-arg-types
       room_dict_real = json.load(f)
 
     with self._floor_plan_path.open("rb") as fp:

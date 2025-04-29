@@ -19,9 +19,8 @@ from absl.testing import absltest
 from absl.testing import parameterized
 import numpy as np
 import pandas as pd
-
-from smart_control.proto import smart_control_reward_pb2
-from smart_control.utils import conversion_utils
+from smart_buildings.smart_control.proto import smart_control_reward_pb2
+from smart_buildings.smart_control.utils import conversion_utils
 
 
 class ConversionUtilsTest(parameterized.TestCase):
@@ -162,8 +161,10 @@ class ConversionUtilsTest(parameterized.TestCase):
         'boiler_pump_electrical_energy': 130 * to_kwh,
     }
 
-    for field, value in expected_energy_use.items():
-      self.assertAlmostEqual(value, energy_use[field], places=5)
+    for field in expected_energy_use:
+      self.assertAlmostEqual(
+          expected_energy_use[field], energy_use[field], places=5
+      )
 
 
 if __name__ == '__main__':
