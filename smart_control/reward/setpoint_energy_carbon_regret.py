@@ -81,11 +81,10 @@ deadband. Productivity decays smoothly on a logistic curve outside the deadband.
 """
 
 import gin
-
-from smart_control.models.base_energy_cost import BaseEnergyCost
-from smart_control.proto import smart_control_reward_pb2
-from smart_control.reward.base_setpoint_energy_carbon_reward import BaseSetpointEnergyCarbonRewardFunction
-from smart_control.utils import conversion_utils
+from smart_buildings.smart_control.models.base_energy_cost import BaseEnergyCost
+from smart_buildings.smart_control.proto import smart_control_reward_pb2
+from smart_buildings.smart_control.reward.base_setpoint_energy_carbon_reward import BaseSetpointEnergyCarbonRewardFunction
+from smart_buildings.smart_control.utils import conversion_utils
 
 _HOUR_SEC = 3600.0
 
@@ -123,14 +122,12 @@ class SetpointEnergyCarbonRegretFunction(
       energy_cost_weight: float,
       carbon_emission_weight: float,
   ):
-    super().__init__(
-        max_productivity_personhour_usd=max_productivity_personhour_usd,
-        productivity_midpoint_delta=productivity_midpoint_delta,
-        productivity_decay_stiffness=productivity_decay_stiffness,
-    )
+    self._max_productivity_personhour_usd = max_productivity_personhour_usd
     self._min_productivity_personhour_usd = min_productivity_personhour_usd
     self._max_electricity_rate = max_electricity_rate
     self._max_natural_gas_rate = max_natural_gas_rate
+    self._productivity_midpoint_delta = productivity_midpoint_delta
+    self._productivity_decay_stiffness = productivity_decay_stiffness
     self._electricity_energy_cost = electricity_energy_cost
     self._natural_gas_energy_cost = natural_gas_energy_cost
     self._productivity_weight = productivity_weight
@@ -143,21 +140,21 @@ class SetpointEnergyCarbonRegretFunction(
     )
 
   def compute_reward(
-      self, reward_info: smart_control_reward_pb2.RewardInfo
+      self, energy_reward_info: smart_control_reward_pb2.RewardInfo
   ) -> smart_control_reward_pb2.RewardResponse:
     """Returns the real-valued reward for the current state of the building."""
 
     start_time = conversion_utils.proto_to_pandas_timestamp(
-        reward_info.start_timestamp
+        energy_reward_info.start_timestamp
     )
     end_time = conversion_utils.proto_to_pandas_timestamp(
-        reward_info.end_timestamp
+        energy_reward_info.end_timestamp
     )
 
     delta_time_sec = (end_time - start_time).total_seconds()
 
     actual_productivity, total_occupancy = self._sum_zone_productivities(
-        reward_info
+        energy_reward_info
     )
 
     max_productivity = (
@@ -183,7 +180,7 @@ class SetpointEnergyCarbonRegretFunction(
       normalized_productivity_regret = 0.0
 
     capped_electricity_energy_rate = min(
-        self._sum_electricity_energy_rate(reward_info),
+        self._sum_electricity_energy_rate(energy_reward_info),
         self._max_electricity_rate,
     )
 
@@ -212,7 +209,7 @@ class SetpointEnergyCarbonRegretFunction(
     )
 
     capped_natural_gas_energy_rate = min(
-        self._sum_natural_gas_energy_rate(reward_info),
+        self._sum_natural_gas_energy_rate(energy_reward_info),
         self._max_natural_gas_rate,
     )
 
@@ -275,8 +272,8 @@ class SetpointEnergyCarbonRegretFunction(
     response.normalized_productivity_regret = normalized_productivity_regret
     response.normalized_energy_cost = normalized_energy_cost
     response.normalized_carbon_emission = normalized_carbon_emission
-    response.start_timestamp.CopyFrom(reward_info.start_timestamp)
-    response.end_timestamp.CopyFrom(reward_info.end_timestamp)
+    response.start_timestamp.CopyFrom(energy_reward_info.start_timestamp)
+    response.end_timestamp.CopyFrom(energy_reward_info.end_timestamp)
 
     raw_reward_value = (
         normalized_productivity_regret * self._productivity_weight

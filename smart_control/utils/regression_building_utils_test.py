@@ -13,17 +13,17 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
+
 """
 
 from absl.testing import absltest
 import pandas as pd
-
-from smart_control.models.base_occupancy import BaseOccupancy
-from smart_control.proto import smart_control_building_pb2
-from smart_control.proto import smart_control_reward_pb2
-from smart_control.simulator.setpoint_schedule import SetpointSchedule
-from smart_control.utils import conversion_utils
-from smart_control.utils import regression_building_utils
+from smart_buildings.smart_control.models.base_occupancy import BaseOccupancy
+from smart_buildings.smart_control.proto import smart_control_building_pb2
+from smart_buildings.smart_control.proto import smart_control_reward_pb2
+from smart_buildings.smart_control.simulator.setpoint_schedule import SetpointSchedule
+from smart_buildings.smart_control.utils import conversion_utils
+from smart_buildings.smart_control.utils import regression_building_utils
 
 
 class RegressionBuildingUtilsTest(absltest.TestCase):
@@ -284,13 +284,13 @@ class RegressionBuildingUtilsTest(absltest.TestCase):
     reward_info.air_handler_reward_infos[air_handler0].CopyFrom(
         smart_control_reward_pb2.RewardInfo.AirHandlerRewardInfo(
             blower_electrical_energy_rate=blower_electrical_energy_rate_d0,
-            air_conditioning_electrical_energy_rate=air_conditioning_electrical_energy_rate_d0,  # pylint: disable=line-too-long
+            air_conditioning_electrical_energy_rate=air_conditioning_electrical_energy_rate_d0,
         )
     )
     reward_info.air_handler_reward_infos[air_handler1].CopyFrom(
         smart_control_reward_pb2.RewardInfo.AirHandlerRewardInfo(
             blower_electrical_energy_rate=blower_electrical_energy_rate_d1,
-            air_conditioning_electrical_energy_rate=air_conditioning_electrical_energy_rate_d1,  # pylint: disable=line-too-long
+            air_conditioning_electrical_energy_rate=air_conditioning_electrical_energy_rate_d1,
         )
     )
 
@@ -420,7 +420,7 @@ class RegressionBuildingUtilsTest(absltest.TestCase):
     input_mapping = expected_observation_mapping.copy()
     input_mapping.update(expected_reward_info_mapping)
     observation_mapping, reward_info_mapping = (
-        regression_building_utils.split_output_into_observations_and_reward_info_mapping(  # pylint: disable=line-too-long
+        regression_building_utils.split_output_into_observations_and_reward_info_mapping(
             input_mapping
         )
     )
@@ -517,11 +517,11 @@ class RegressionBuildingUtilsTest(absltest.TestCase):
     expected_air_handler_reward_infos = {
         device0: smart_control_reward_pb2.RewardInfo.AirHandlerRewardInfo(
             blower_electrical_energy_rate=blower_electrical_energy_rate_d0,
-            air_conditioning_electrical_energy_rate=air_conditioning_electrical_energy_rate_d0,  # pylint: disable=line-too-long
+            air_conditioning_electrical_energy_rate=air_conditioning_electrical_energy_rate_d0,
         ),
         device1: smart_control_reward_pb2.RewardInfo.AirHandlerRewardInfo(
             blower_electrical_energy_rate=blower_electrical_energy_rate_d1,
-            air_conditioning_electrical_energy_rate=air_conditioning_electrical_energy_rate_d1,  # pylint: disable=line-too-long
+            air_conditioning_electrical_energy_rate=air_conditioning_electrical_energy_rate_d1,
         ),
     }
     reward_info_devices = {
@@ -565,8 +565,8 @@ class RegressionBuildingUtilsTest(absltest.TestCase):
     step_interval = pd.Timedelta(5, unit='minute')
     zone_infos, device_infos = self._get_test_zone_device_infos()
     current_observation_mapping = {
-        ('d0', 'zone_air_temperature_sensor'): 72.0,
-        ('d1', 'zone_air_temperature_sensor'): 68.0,
+        ('d0', 'zone_air_temperature_sensor'): 295.0,
+        ('d1', 'zone_air_temperature_sensor'): 293.0
     }
     zone_reward_infos = regression_building_utils.get_zone_reward_infos(
         current_timestamp=current_timestamp,
@@ -582,25 +582,23 @@ class RegressionBuildingUtilsTest(absltest.TestCase):
         'z0': smart_control_reward_pb2.RewardInfo.ZoneRewardInfo(
             heating_setpoint_temperature=291.0,
             cooling_setpoint_temperature=295.0,
-            zone_air_temperature=295.37222,
+            zone_air_temperature=295.0,
             average_occupancy=10.0,
         ),
         'z1': smart_control_reward_pb2.RewardInfo.ZoneRewardInfo(
             heating_setpoint_temperature=291.0,
             cooling_setpoint_temperature=295.0,
-            zone_air_temperature=293.15,
+            zone_air_temperature=293.0,
             average_occupancy=10.0,
         ),
     }
-    self.assertAlmostEqual(
+    self.assertEqual(
         expected_zone_reward_infos['z0'],
         zone_reward_infos['z0'],
-        delta=0.001,
     )
-    self.assertAlmostEqual(
+    self.assertEqual(
         expected_zone_reward_infos['z1'],
         zone_reward_infos['z1'],
-        delta=0.001,
     )
 
   def test_get_zone_reward_infos_invalid(self):
@@ -745,7 +743,7 @@ class RegressionBuildingUtilsTest(absltest.TestCase):
         },
         action_fields={
             'a0': (
-                smart_control_building_pb2.DeviceInfo.ValueType.VALUE_CATEGORICAL  # pylint: disable=line-too-long
+                smart_control_building_pb2.DeviceInfo.ValueType.VALUE_CATEGORICAL
             ),
             'a1': (
                 smart_control_building_pb2.DeviceInfo.ValueType.VALUE_CONTINUOUS
@@ -765,7 +763,7 @@ class RegressionBuildingUtilsTest(absltest.TestCase):
         },
         action_fields={
             'a0': (
-                smart_control_building_pb2.DeviceInfo.ValueType.VALUE_TYPE_UNDEFINED  # pylint: disable=line-too-long
+                smart_control_building_pb2.DeviceInfo.ValueType.VALUE_TYPE_UNDEFINED
             ),
             'a1': (
                 smart_control_building_pb2.DeviceInfo.ValueType.VALUE_CONTINUOUS

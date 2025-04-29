@@ -19,10 +19,10 @@ from typing import Sequence
 
 import gin
 import pandas as pd
+from smart_buildings.smart_control.models.base_building import BaseBuilding
+from smart_buildings.smart_control.proto import smart_control_building_pb2
+from smart_buildings.smart_control.proto import smart_control_reward_pb2
 
-from smart_control.models.base_building import BaseBuilding
-from smart_control.proto import smart_control_building_pb2
-from smart_control.proto import smart_control_reward_pb2
 
 _ValueType = smart_control_building_pb2.DeviceInfo.ValueType
 _ActionResponseType = (
@@ -80,11 +80,11 @@ class RejectionSimulatorBuilding(BaseBuilding):
       self,
       observation_request: smart_control_building_pb2.ObservationRequest,
       start_timestamp: pd.Timestamp,
-      end_timestamp: pd.Timestamp,
+      end_time: pd.Timestamp,
   ) -> Sequence[smart_control_building_pb2.ObservationResponse]:
     """Queries the building for observations between start and end times."""
     return self._base_building.request_observations_within_time_interval(
-        observation_request, start_timestamp, end_timestamp
+        observation_request, start_timestamp, end_time
     )
 
   def wait_time(self) -> None:

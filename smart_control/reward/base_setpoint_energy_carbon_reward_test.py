@@ -13,16 +13,16 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
+
 """
 
 from absl.testing import absltest
 from absl.testing import parameterized
 import pandas as pd
-
-from smart_control.models.base_energy_cost import BaseEnergyCost
-from smart_control.proto import smart_control_reward_pb2
-from smart_control.reward import base_setpoint_energy_carbon_reward
-from smart_control.utils import conversion_utils
+from smart_buildings.smart_control.models.base_energy_cost import BaseEnergyCost
+from smart_buildings.smart_control.proto import smart_control_reward_pb2
+from smart_buildings.smart_control.reward import base_setpoint_energy_carbon_reward
+from smart_buildings.smart_control.utils import conversion_utils
 
 
 class BaseSetpointEnergyCarbonRewardTest(parameterized.TestCase):
@@ -86,7 +86,7 @@ class BaseSetpointEnergyCarbonRewardTest(parameterized.TestCase):
     productivity_decay_stiffness = 4.3
     productivity_midpoint_delta = 1.5
 
-    return base_setpoint_energy_carbon_reward.BaseSetpointEnergyCarbonRewardFunction(  # pylint: disable=line-too-long
+    return base_setpoint_energy_carbon_reward.BaseSetpointEnergyCarbonRewardFunction(
         max_productivity_personhour_usd=max_productivity_personhour_usd,
         productivity_midpoint_delta=productivity_midpoint_delta,
         productivity_decay_stiffness=productivity_decay_stiffness,
@@ -149,21 +149,11 @@ class BaseSetpointEnergyCarbonRewardTest(parameterized.TestCase):
 
 
 class TestEnergyCost(BaseEnergyCost):
-  """Calculates energy cost and carbon emissions based on fixed rates.
-
-  Used for testing purposes.
-
-  TODO: https://github.com/google/sbsim/issues/49 - refactor identical classes:
-    smart_control/reward/setpoint_energy_carbon_regret_test.py
-    smart_control/reward/setpoint_energy_carbon_reward_test.py
-
-  UPDATE: this class is unused, so let's move it to a more central location.
-  """
 
   def __init__(self, usd_per_kwh: float, kg_per_kwh: float):
     # Energy price in USD/Watt second (fixed schedule)
     # To convert denominator units hours to seconds, divide by 3600.0, and to
-    # convert kW to W, divide by 1000. This leaves us with an energy price
+    # convert kW to W, divide by 1000. This leaves us with an enegy price
     # in USD /W /s and carbon rate of kg /W /s.
     self._energy_price = usd_per_kwh / 3600.0 / 1000.0
     self._carbon_rate = kg_per_kwh / 3600.0 / 1000.0

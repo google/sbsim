@@ -28,8 +28,7 @@ from typing import MutableSequence, Optional
 
 import gin
 import numpy as np
-
-from smart_control.simulator import base_convection_simulator
+from smart_buildings.smart_control.simulator import base_convection_simulator
 
 
 @gin.configurable
@@ -65,14 +64,7 @@ class StochasticConvectionSimulator(
       room_dict: dict[str, MutableSequence[tuple[int, int]]],
       temp: np.ndarray,
   ) -> None:
-    """Applies convection to the temperature array given.
-
-    Splits up rooms via room_dict.
-
-    Args:
-      room_dict: A dictionary mapping of room coordinates.
-      temp: An array of temperatures.
-    """
+    """Applies convection to the temperature array given, splitting up rooms via room_dict."""
     p = self._p
     distance = self._distance
     if p == 0 or distance == 0:

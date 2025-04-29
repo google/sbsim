@@ -13,6 +13,7 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
+
 """
 
 import csv
@@ -23,12 +24,11 @@ from absl import logging
 import gin
 from google.protobuf import message
 import pandas as pd
-
-from smart_control.proto import smart_control_building_pb2
-from smart_control.proto import smart_control_normalization_pb2
-from smart_control.proto import smart_control_reward_pb2
-from smart_control.utils import constants
-from smart_control.utils import writer_lib
+from smart_buildings.smart_control.proto import smart_control_building_pb2
+from smart_buildings.smart_control.proto import smart_control_normalization_pb2
+from smart_buildings.smart_control.proto import smart_control_reward_pb2
+from smart_buildings.smart_control.utils import constants
+from smart_buildings.smart_control.utils import writer_lib
 
 
 @gin.configurable
@@ -67,7 +67,7 @@ class ProtoWriter(writer_lib.BaseWriter):
   ) -> None:
     """Writes the rendered building image obtained from the environment."""
     filepath = os.path.join(self._output_dir, constants.BUILDING_IMAGE_CSV_FILE)
-    with open(filepath, 'a', encoding='utf-8') as csv_file:
+    with open(filepath, 'a') as csv_file:
       csv.writer(csv_file).writerow([timestamp.timestamp(), base64_img])
 
   def write_action_response(
@@ -110,7 +110,7 @@ class ProtoWriter(writer_lib.BaseWriter):
     return timestamp.strftime('%Y.%m.%d.%H')
 
   def _get_file_path(self, output_dir: str, file_prefix: str, serial: str):
-    return os.path.join(output_dir, f'{file_prefix}_{serial}')
+    return os.path.join(output_dir, '%s_%s' % (file_prefix, serial))
 
   def _write_msg_to_disk(self, proto: message.Message, filepath: str):
     """Creates or appends a binary file with the proto."""

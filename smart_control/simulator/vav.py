@@ -19,12 +19,11 @@ from typing import Optional, Tuple
 import uuid
 
 import pandas as pd
-
-from smart_control.proto import smart_control_building_pb2
-from smart_control.simulator import boiler as boiler_py
-from smart_control.simulator import smart_device
-from smart_control.simulator import thermostat
-from smart_control.utils import constants
+from smart_buildings.smart_control.proto import smart_control_building_pb2
+from smart_buildings.smart_control.simulator import boiler as boiler_py
+from smart_buildings.smart_control.simulator import smart_device
+from smart_buildings.smart_control.simulator import thermostat
+from smart_buildings.smart_control.utils import constants
 
 
 class Vav(smart_device.SmartDevice):
@@ -169,9 +168,7 @@ class Vav(smart_device.SmartDevice):
   def compute_zone_supply_temp(
       self, supply_air_temp: float, input_water_temp: float
   ) -> float:
-    """Returns temperature of air output from the VAV, supplied to the zone.
-
-    Temperatures are measured in Kelvin.
+    """Returns temperature in K of air output from the VAV, supplied to the zone.
 
     Args:
       supply_air_temp: Temperature in K of input air.

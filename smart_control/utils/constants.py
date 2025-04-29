@@ -1,4 +1,4 @@
-"""Single location for constants related to the simulation and RL environment.
+"""Single location for all constants related to the simulation and RL environment.
 
 Copyright 2022 Google LLC
 
@@ -16,7 +16,6 @@ limitations under the License.
 """
 
 from typing import Final
-
 # --------- Thermal Constants ---------------
 
 AIR_HEAT_CAPACITY = 1006.0  # J/kg/K, standard atmosphere
