@@ -818,26 +818,15 @@ def get_zone_reward_infos(
       ):
         zone_air_temperature = device_observations[_ZONE_AIR_TEMPERATURE_SENSOR]
 
-        # In the real building, VAVs generate setpoint and sensor
-        # measurements in F rather than K. So, here we make the adjustment
-        # from F to K.
-        zone_air_temperature = conversion_utils.fahrenheit_to_kelvin(
-            zone_air_temperature
-        )
-
         if _ZONE_AIR_COOLING_TEMPERATURE_SETPOINT in device_observations:
-          zone_air_cooling_temperature_setpoint = (
-              conversion_utils.fahrenheit_to_kelvin(
-                  device_observations[_ZONE_AIR_COOLING_TEMPERATURE_SETPOINT]
-              )
-          )
+          zone_air_cooling_temperature_setpoint = device_observations[
+              _ZONE_AIR_COOLING_TEMPERATURE_SETPOINT
+          ]
 
         if _ZONE_AIR_HEATING_TEMPERATURE_SETPOINT in device_observations:
-          zone_air_heating_temperature_setpoint = (
-              conversion_utils.fahrenheit_to_kelvin(
-                  device_observations[_ZONE_AIR_HEATING_TEMPERATURE_SETPOINT]
-              )
-          )
+          zone_air_heating_temperature_setpoint = device_observations[
+              _ZONE_AIR_HEATING_TEMPERATURE_SETPOINT
+          ]
 
         zone_reward_infos[zone_id] = (
             smart_control_reward_pb2.RewardInfo.ZoneRewardInfo(
