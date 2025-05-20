@@ -565,8 +565,8 @@ class RegressionBuildingUtilsTest(absltest.TestCase):
     step_interval = pd.Timedelta(5, unit='minute')
     zone_infos, device_infos = self._get_test_zone_device_infos()
     current_observation_mapping = {
-        ('d0', 'zone_air_temperature_sensor'): 72.0,
-        ('d1', 'zone_air_temperature_sensor'): 68.0,
+        ('d0', 'zone_air_temperature_sensor'): 295.0,
+        ('d1', 'zone_air_temperature_sensor'): 293.0
     }
     zone_reward_infos = regression_building_utils.get_zone_reward_infos(
         current_timestamp=current_timestamp,
@@ -582,25 +582,23 @@ class RegressionBuildingUtilsTest(absltest.TestCase):
         'z0': smart_control_reward_pb2.RewardInfo.ZoneRewardInfo(
             heating_setpoint_temperature=291.0,
             cooling_setpoint_temperature=295.0,
-            zone_air_temperature=295.37222,
+            zone_air_temperature=295.0,
             average_occupancy=10.0,
         ),
         'z1': smart_control_reward_pb2.RewardInfo.ZoneRewardInfo(
             heating_setpoint_temperature=291.0,
             cooling_setpoint_temperature=295.0,
-            zone_air_temperature=293.15,
+            zone_air_temperature=293.0,
             average_occupancy=10.0,
         ),
     }
-    self.assertAlmostEqual(
+    self.assertEqual(
         expected_zone_reward_infos['z0'],
         zone_reward_infos['z0'],
-        delta=0.001,
     )
-    self.assertAlmostEqual(
+    self.assertEqual(
         expected_zone_reward_infos['z1'],
         zone_reward_infos['z1'],
-        delta=0.001,
     )
 
   def test_get_zone_reward_infos_invalid(self):
