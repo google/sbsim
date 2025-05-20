@@ -26,7 +26,6 @@ licenses(["notice"])
 pytype_strict_library(
     name = "base_building",
     srcs = ["base_building.py"],
-    srcs_version = "PY3",
     deps = [
         "//third_party/py/pandas",
         "//third_party/py/smart_buildings/smart_control/proto:smart_control_building_py_pb2",
@@ -37,7 +36,6 @@ pytype_strict_library(
 pytype_strict_library(
     name = "base_reward_function",
     srcs = ["base_reward_function.py"],
-    srcs_version = "PY3",
     deps = [
         "//third_party/py/smart_buildings/smart_control/proto:smart_control_reward_py_pb2",
     ],
@@ -46,7 +44,6 @@ pytype_strict_library(
 pytype_strict_library(
     name = "base_energy_cost",
     srcs = ["base_energy_cost.py"],
-    srcs_version = "PY3",
     deps = [
         "//third_party/py/absl/logging",
         "//third_party/py/pandas",
@@ -56,7 +53,6 @@ pytype_strict_library(
 pytype_strict_library(
     name = "base_occupancy",
     srcs = ["base_occupancy.py"],
-    srcs_version = "PY3",
     deps = [
         "//third_party/py/pandas",
     ],
@@ -65,7 +61,6 @@ pytype_strict_library(
 pytype_strict_library(
     name = "base_normalizer",
     srcs = ["base_normalizer.py"],
-    srcs_version = "PY3",
     deps = [
         "//third_party/py/numpy",
         "//third_party/py/smart_buildings/smart_control/proto:smart_control_building_py_pb2",
