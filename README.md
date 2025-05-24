@@ -64,6 +64,26 @@ libraries are not supported by other operating systems.
 
 8. Now you are ready to run the `notebooks/SAC_Demo.ipynb` notebook
 
+
+## 🐳 Docker (Alternative Setup)
+
+To avoid OS compatibility issues, use the pre-configured Docker environment (Linux/amd64):
+
+**Build:**
+```bash
+docker build -t sbsim-env .
+```
+Run the container:
+```bash
+docker run -it -p 8888:8888 -v $(pwd):/workspace sbsim-env
+```
+Access Jupyter:
+
+Open http://localhost:8888 
+
+The container will copy the SBSim code into /workspace/sbsim on first run. Use -v to persist changes.
+
+
 ## Real World Data
 
 In addition to our calibrated simulator, we released 6 years of data on 3
