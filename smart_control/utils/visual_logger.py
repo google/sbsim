@@ -19,6 +19,7 @@ from typing import Optional
 
 import numpy as np
 import pandas as pd
+
 from smart_control.utils import building_renderer
 
 

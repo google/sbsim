@@ -1,3 +1,8 @@
+<<<<<<< HEAD
+=======
+"""Reinforcement learning constants."""
+
+>>>>>>> copybara_push
 # Temperature conversion
 KELVIN_TO_CELSIUS = 273.15
 

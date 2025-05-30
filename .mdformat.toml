@@ -1,0 +1,14 @@
+# .mdformat.toml
+#
+# See: https://mdformat.readthedocs.io/en/stable/users/configuration_file.html
+#
+
+wrap = 80             # options: {"keep", "no", INTEGER}
+number = true         # for ordered lists (true: consecutive numbering)
+end_of_line = "lf"    # options: {"lf", "crlf", "keep"}
+validate = true       # options: {false, true}
+
+# Python 3.13+ only:
+#exclude = [
+#  ".venv/**"
+#]  # options: a list of file path pattern strings

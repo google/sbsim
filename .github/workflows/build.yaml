@@ -1,10 +1,15 @@
-name: Python CI
+name: Python CI Build
 
 on:
   push:
+    branches:
+      - master
+      - main
+      - copybara_push
   pull_request:
     branches:
       - master
+      - main
       - copybara_push
 
 jobs:
@@ -20,7 +25,7 @@ jobs:
       uses: actions/checkout@v4  # Checks out the repository's code
 
     - name: Set up Python
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v4
       with:
         python-version: ${{ matrix.python-version }}  # Use Python version from the matrix
 
@@ -35,9 +40,29 @@ jobs:
         python -m venv .venv
         source .venv/bin/activate
         pip install poetry
-        poetry install
-    
+        poetry install --with dev
+
+    - name: Run the Python formatter
+      run: |
+        source .venv/bin/activate
+        pyink .
+
+    - name: Run the Python import sorter
+      run: |
+        source .venv/bin/activate
+        isort .
+
+    - name: Run the Python style checker
+      run: |
+        source .venv/bin/activate
+        pylint --rcfile=.pylintrc --ignore=proto smart_control
+
+    - name: Run the Markdown formatter
+      run: |
+        source .venv/bin/activate
+        mdformat README.md --check
+
     - name: Run tests
       run: |
         source .venv/bin/activate
-        pytest
+        pytest --disable-pytest-warnings

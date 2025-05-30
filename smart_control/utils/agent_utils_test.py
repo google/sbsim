@@ -18,8 +18,9 @@ limitations under the License.
 from absl.testing import absltest
 from absl.testing import parameterized
 import numpy as np
-from smart_control.utils import agent_utils
 import tensorflow as tf
+
+from smart_control.utils import agent_utils
 
 
 class AgentUtilsTest(parameterized.TestCase):

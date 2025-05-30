@@ -22,6 +22,11 @@ from absl.testing import parameterized
 import bidict
 import numpy as np
 import pandas as pd
+import tensorflow as tf
+from tf_agents.environments import utils
+from tf_agents.specs import array_spec
+from tf_agents.trajectories import time_step as ts
+
 from smart_control.environment import environment
 from smart_control.environment import environment_test_utils
 from smart_control.models import base_building
@@ -33,10 +38,6 @@ from smart_control.utils import conversion_utils
 from smart_control.utils import histogram_reducer
 from smart_control.utils import observation_normalizer
 from smart_control.utils import test_utils
-import tensorflow as tf
-from tf_agents.environments import utils
-from tf_agents.specs import array_spec
-from tf_agents.trajectories import time_step as ts
 
 
 def _get_histogram_reducer():
@@ -348,7 +349,7 @@ class EnvironmentTest(parameterized.TestCase, tf.test.TestCase):
     for i in range(len(env._action_names)):
       field_id = env._action_names[i]
       device, setpoint = env._id_map.inv[field_id]
-      action_normalizer = action_config._action_normalizers[setpoint]
+      action_normalizer = action_config.action_normalizers[setpoint]
       normalized_value = action_normalizer.setpoint_value(action[i])
       expected_request.single_action_requests.append(
           smart_control_building_pb2.SingleActionRequest(
@@ -393,7 +394,7 @@ class EnvironmentTest(parameterized.TestCase, tf.test.TestCase):
       ) -> smart_control_building_pb2.ActionResponse:
         action_response = super().request_action(action_request)
         action_response.single_action_responses[0].response_type = (
-            smart_control_building_pb2.SingleActionResponse.REJECTED_INVALID_DEVICE
+            smart_control_building_pb2.SingleActionResponse.REJECTED_INVALID_DEVICE  # pylint: disable=line-too-long
         )
         return action_response
 
@@ -590,6 +591,7 @@ class EnvironmentTest(parameterized.TestCase, tf.test.TestCase):
 
   def test_get_observation_invalid(self):
     class BadObservationBuilding(environment_test_utils.SimpleBuilding):
+      """A building that has a bad observation. Used for testing purposes."""
 
       def request_observations(
           self,
@@ -600,12 +602,10 @@ class EnvironmentTest(parameterized.TestCase, tf.test.TestCase):
                 self, observation_request
             )
         )
-        bad_observation_response = smart_control_building_pb2.ObservationResponse(
+        bad_observation_response = smart_control_building_pb2.ObservationResponse(  # pylint: disable=line-too-long
             timestamp=observation_response.timestamp,
             request=observation_response.request,
-            single_observation_responses=observation_response.single_observation_responses[
-                :3
-            ],
+            single_observation_responses=observation_response.single_observation_responses[:3],  # pylint: disable=line-too-long
         )
         return bad_observation_response
 
@@ -722,6 +722,10 @@ class EnvironmentTest(parameterized.TestCase, tf.test.TestCase):
   )
   def test_validate_environment(self, step_interval):
     class TerminatingEnv(environment.Environment):
+      """Environment that terminates after a fixed number of steps.
+
+      Used for testing purposes.
+      """
 
       def __init__(
           self,

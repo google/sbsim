@@ -1,10 +1,24 @@
+
+.DS_Store
+
+# environment variables:
+.env
+
+# virtual environment:
 .venv/
-*/**/__pycache__/
+
+# cache files:
+__pycache__/
+.pytest_cache
+
+# results files:
 */**/output_data/
 */**/metrics/
 **/videos/
 **/train/
 **/eval/
+smart_control/learning/
+smart_control/simulator/videos
 smart_control/refactor/data/
 smart_control/refactor/experiment_results/
 smart_control/learning/

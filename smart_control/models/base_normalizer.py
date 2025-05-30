@@ -16,9 +16,11 @@ limitations under the Licenses.
 """
 
 import abc
+
 import numpy as np
-from smart_control.proto import smart_control_building_pb2
 from tf_agents import specs
+
+from smart_control.proto import smart_control_building_pb2
 
 
 class BaseObservationNormalizer(metaclass=abc.ABCMeta):

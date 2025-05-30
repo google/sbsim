@@ -130,7 +130,9 @@ class SetpointSchedule:
   def get_plot_data(
       self, start_timestamp: pd.Timestamp, end_timestamp: pd.Timestamp
   ) -> pd.DataFrame:
-    """Returns DataFrame that can be plotted of all transition events in the time window.
+    """Returns DataFrame of all transition events in the time window.
+
+    Can be used for plotting purposes.
 
     Columns: comfort_mode (True/False), start time, end time, heating,
       cooling setpoints.

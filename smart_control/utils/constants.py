@@ -1,4 +1,4 @@
-"""Single location for all constants related to the simulation and RL environment.
+"""Single location for constants related to the simulation and RL environment.
 
 Copyright 2022 Google LLC
 
@@ -15,7 +15,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
+import os
 from typing import Final
+
+# --------- Relative Filepaths ---------------
+
+# Path to the root directory of the project (where the main README is):
+ROOT_DIR = os.path.join(os.path.dirname(__file__), '..', '..')
+
 # --------- Thermal Constants ---------------
 
 AIR_HEAT_CAPACITY = 1006.0  # J/kg/K, standard atmosphere

@@ -13,7 +13,6 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
-
 """
 
 from typing import Sequence
@@ -23,6 +22,7 @@ import gin
 import numpy as np
 import pandas as pd
 import pint
+
 from smart_control.models.base_energy_cost import BaseEnergyCost
 from smart_control.utils import conversion_utils
 

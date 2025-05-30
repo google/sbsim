@@ -1,23 +1,24 @@
 """Test utilities for replay_building.
 
-  Copyright 2022 Google LLC
+Copyright 2022 Google LLC
 
-  Licensed under the Apache License, Version 2.0 (the "License");
-  you may not use this file except in compliance with the License.
-  You may obtain a copy of the License at
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
 
-      https://www.apache.org/licenses/LICENSE-2.0
+    https://www.apache.org/licenses/LICENSE-2.0
 
-  Unless required by applicable law or agreed to in writing, software
-  distributed under the License is distributed on an "AS IS" BASIS,
-  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-  See the License for the specific language governing permissions and
-  limitations under the License.
-
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
 """
+
 from typing import Sequence, Tuple
 
 import pandas as pd
+
 from smart_control.environment.environment import ActionConfig
 from smart_control.proto import smart_control_building_pb2
 from smart_control.proto import smart_control_reward_pb2
@@ -187,7 +188,7 @@ def get_test_observation_request() -> (
 
 
 def get_observation_request(
-    device_measurements: Sequence[Tuple[str, str]]
+    device_measurements: Sequence[Tuple[str, str]],
 ) -> smart_control_building_pb2.ObservationRequest:
   """Returns a test observation request."""
   single_observation_requests = []
@@ -465,7 +466,7 @@ def get_test_reward_info(
     ) = air_handler_energy
     air_handler_info = smart_control_reward_pb2.RewardInfo.AirHandlerRewardInfo(
         blower_electrical_energy_rate=blower_electrical_energy_rate,
-        air_conditioning_electrical_energy_rate=air_conditioning_electrical_energy_rate,
+        air_conditioning_electrical_energy_rate=air_conditioning_electrical_energy_rate,  # pylint: disable=line-too-long
     )
     info.air_handler_reward_infos[air_handler_id].CopyFrom(air_handler_info)
 

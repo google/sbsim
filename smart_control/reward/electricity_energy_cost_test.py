@@ -13,13 +13,12 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
-
-
 """
 
 from absl.testing import absltest
 from absl.testing import parameterized
 import pandas as pd
+
 from smart_control.reward import electricity_energy_cost
 
 

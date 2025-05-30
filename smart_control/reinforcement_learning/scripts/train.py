@@ -46,22 +46,22 @@ logger = logging.getLogger(__name__)
 def save_experiment_parameters(params, save_path):
     """
     Save experiment parameters to a JSON file.
-    
+
     Args:
         params: Dictionary containing experiment parameters
         save_path: Path to save the parameters file
     """
     # Create a parameters file path
     params_file = os.path.join(save_path, 'experiment_parameters.json')
-    
+
     # Add timestamp to parameters
     params['timestamp'] = datetime.now().strftime("%Y_%m_%d-%H:%M:%S")
-    
+
     # Save parameters to file
     logger.info(f"Saving experiment parameters to {params_file}")
     with open(params_file, 'w') as f:
         json.dump(params, f, indent=4)
-    
+
     # Also save as a readable text file for quick reference
     params_txt = os.path.join(save_path, 'experiment_parameters.txt')
     with open(params_txt, 'w') as f:
@@ -69,7 +69,7 @@ def save_experiment_parameters(params, save_path):
         f.write("=====================\n\n")
         for key, value in params.items():
             f.write(f"{key}: {value}\n")
-    
+
     logger.info(f"Experiment parameters saved to {params_file} and {params_txt}")
 
 def train_agent(
@@ -88,7 +88,7 @@ def train_agent(
 ):
     """
     Trains a reinforcement learning agent using a pre-populated replay buffer.
-    
+
     Args:
         starter_buffer_path: Path to the pre-populated replay buffer
         experiment_name: Name of the experiment
@@ -106,18 +106,18 @@ def train_agent(
     # Set up scenario config path if not provided
     if scenario_config_path is None:
         scenario_config_path = os.path.join(CONFIG_PATH, "sim_config_1_day.gin")
-    
+
     # Generate timestamp for summary directory
     current_time = datetime.now().strftime("%Y_%m_%d-%H:%M:%S")
     summary_dir = os.path.join(EXPERIMENT_RESULTS_PATH, f"{experiment_name}_{current_time}")
     logger.info(f"Experiment results will be saved to {summary_dir}")
-    
+
     try:
         os.makedirs(summary_dir, exist_ok=False)
     except FileExistsError:
         logger.exception(f"Directory {summary_dir} already exists. Exiting.")
         raise FileExistsError(f"Directory {summary_dir} already exists. Exiting.")
-    
+
     # Save experiment parameters
     experiment_params = {
         'starter_buffer_path': starter_buffer_path,
@@ -134,22 +134,22 @@ def train_agent(
         'scenario_config_path': scenario_config_path
     }
     save_experiment_parameters(experiment_params, summary_dir)
-    
+
     # Create train and eval environments
     logger.info("Creating train and eval environments")
     train_env = create_and_setup_environment(scenario_config_path, metrics_path=os.path.join(summary_dir, 'metrics'))
     eval_env = create_and_setup_environment(scenario_config_path, metrics_path=None)
-    
+
     # Wrap in TF environments
     train_tf_env = tf_py_environment.TFPyEnvironment(train_env)
     eval_tf_env = tf_py_environment.TFPyEnvironment(eval_env)
-    
+
     # Create global step for training
     train_step = tf.Variable(0, trainable=False, dtype=tf.int64)
-    
+
     # Get specs
     _, action_spec, time_step_spec = spec_utils.get_tensor_specs(train_tf_env)
-    
+
     # Create agent based on type
     logger.info(f"Creating {agent_type} agent")
     if agent_type.lower() == 'sac':
@@ -164,11 +164,11 @@ def train_agent(
     else:
         logger.exception(f"Unsupported agent type: {agent_type}")
         raise ValueError(f"Unsupported agent type: {agent_type}")
-    
+
     # Create policies
     collect_policy = agent.collect_policy
     eval_policy = greedy_policy.GreedyPolicy(agent.policy)
-    
+
     # Set up metrics
     train_metrics = [
         tf_metrics.NumberOfEpisodes(),
@@ -176,19 +176,19 @@ def train_agent(
         tf_metrics.AverageReturnMetric(),
         tf_metrics.AverageEpisodeLengthMetric(),
     ]
-    
+
     eval_metrics = [
         tf_metrics.AverageReturnMetric(buffer_size=num_eval_episodes),
         tf_metrics.AverageEpisodeLengthMetric(buffer_size=num_eval_episodes)
     ]
-    
+
     # Create a new buffer path in the experiment directory
     new_buffer_path = os.path.join(summary_dir, 'replay_buffer')
     os.makedirs(new_buffer_path, exist_ok=True)
-    
+
     # Copy the original buffer to the new location
     logger.info(f"Creating a copy of replay buffer from {starter_buffer_path} to {new_buffer_path}")
-    
+
     # First check if starter_buffer_path is a file or directory
     if os.path.isfile(starter_buffer_path):
         # If it's a file, copy it directly
@@ -202,9 +202,9 @@ def train_agent(
                 shutil.copy2(source_item, dest_item)
             else:
                 shutil.copytree(source_item, dest_item)
-    
+
     logger.info(f"Replay buffer copied to {new_buffer_path}")
-    
+
     # Initialize replay buffer manager with the copied buffer path
     logger.info("Instantiating replay buffer manager with copied buffer")
     replay_manager = ReplayBufferManager(
@@ -214,12 +214,12 @@ def train_agent(
         sequence_length=2
     )
     logger.info(f"Replay buffer size before loading: {replay_manager.num_frames()} frames")
-    
+
     # Load the copied replay buffer
     logger.info(f"Loading replay buffer from {new_buffer_path}")
     replay_buffer, replay_buffer_observer = replay_manager.load_replay_buffer()
     logger.info(f"Replay buffer size after loading: {replay_manager.num_frames()} frames")
-    
+
     # Create dataset for sampling from the buffer
     logger.info("Creating dataset for sampling from replay buffer")
     dataset = replay_buffer.as_dataset(
@@ -227,23 +227,23 @@ def train_agent(
         num_steps=2,
         num_parallel_calls=3
     ).prefetch(3)
-    
+
     # Create print observer for collection
     print_observer = PrintStatusObserver(
         status_interval_steps=1,  # Print status every step
         environment=train_tf_env,
         replay_buffer=replay_buffer
     )
-    
+
     eval_print_observer = PrintStatusObserver(
         status_interval_steps=1,
         environment=eval_tf_env,
         replay_buffer=replay_buffer
     )
-    
+
     # Combine observers
     collect_observers = CompositeObserver([print_observer, replay_buffer_observer])
-    
+
     # Create collect actor
     logger.info("Creating collect and eval actors")
     collect_actor = actor.Actor(
@@ -256,7 +256,7 @@ def train_agent(
         summary_dir=os.path.join(summary_dir, 'collect'),
         summary_interval=1
     )
-    
+
     # Create eval actor
     logger.info("Creating eval actor")
     eval_actor = actor.Actor(
@@ -269,7 +269,7 @@ def train_agent(
         summary_dir=os.path.join(summary_dir, 'eval'),
         summary_interval=1
     )
-    
+
     # Create learner
     logger.info("Creating learner")
     agent_learner = learner.Learner(
@@ -288,7 +288,7 @@ def train_agent(
             triggers.StepPerSecondLogTrigger(train_step, interval=log_interval)
         ]
     )
-    
+
     # Main training loop
     logger.info(f"Starting training for {train_iterations} iterations")
 
@@ -301,38 +301,38 @@ def train_agent(
         # Get current training step value before operations
         current_step = train_step.numpy()
         logger.info(f"Starting training loop iteration {i} (step {current_step})")
-        
+
         # Evaluate periodically
         if (i % eval_interval == 0):
             logger.info(f"Evaluating at iteration {i} (step {current_step})")
             eval_actor.run()
-            
+
             # Write eval summaries with the current global step
             with eval_actor.summary_writer.as_default():
                 for m in eval_metrics:
                     tf.summary.scalar(m.name, m.result(), step=current_step)
                 eval_actor.summary_writer.flush()
-        
+
         # Collect experience
         logger.info(f"Starting collection for loop iteration {i} (step {current_step})")
         collect_actor.run()
-        
+
         # Write collect summaries with the current global step
         with collect_actor.summary_writer.as_default():
             for m in train_metrics:
                 tf.summary.scalar(m.name, m.result(), step=current_step)
             collect_actor.summary_writer.flush()
-        
+
         # Train the agent using the specified learner iterations
         # This will internally increment the train_step
         logger.info(f"Training agent for loop iteration {i}")
         agent_learner.run(iterations=learner_iterations)
-        
+
         # Checkpoint replay buffer periodically based on the new argument
         if (i % checkpoint_interval == 0):
             logger.info("Checkpointing replay buffer")
             replay_buffer.py_client.checkpoint()
-        
+
         train_step.assign_add(1)
 
     # Final checkpoint and evaluation
@@ -353,7 +353,7 @@ def train_agent(
 
 if __name__ == "__main__":
     import argparse
-    
+
     parser = argparse.ArgumentParser(description='Train a reinforcement learning agent using a pre-populated replay buffer')
     parser.add_argument('--starter-buffer-path', type=str, required=True, help='Path to the starter replay buffer')
     parser.add_argument('--agent-type', type=str, default='sac', choices=['sac', 'td3', 'ddpg'],
@@ -362,7 +362,7 @@ if __name__ == "__main__":
     parser.add_argument('--collect-steps-per-training-iteration', type=int, default=50, help='Number of collection steps per iteration')
     parser.add_argument('--batch-size', type=int, default=256, help='Batch size for training (each gradient update uses \
                                                                      this many elements from the replay buffer batched)')
-    
+
     parser.add_argument('--eval-interval', type=int, default=10, help='Interval for evaluating the agent')
     parser.add_argument('--num-eval-episodes', type=int, default=1, help='Number of episodes for evaluation')
     parser.add_argument('--log-interval', type=int, default=1, help='Interval for logging training metrics')
@@ -374,12 +374,12 @@ if __name__ == "__main__":
     parser.add_argument('--scenario-config-path', type=str, default=os.path.join(ROOT_DIR, "smart_control", "configs", "resources",
                                                                                  "sb1", "generated_configs", "config_timestepsec-900_numdaysinepisode-7_starttimestamp-2023-07-06.gin"), help='Path to the scenario config file. \
                                                                               Default is sim_config_1_day.gin')
-    
+
     args = parser.parse_args()
-    
+
     # Save all CLI parameters to be passed to train_agent
     cli_args = vars(args)
-    
+
     train_agent(
         starter_buffer_path=args.starter_buffer_path,
         experiment_name=args.experiment_name,

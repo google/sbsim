@@ -1,0 +1,8 @@
+{
+  // when a contributor opens this project in VS Code,
+  // ... they will be prompted to install these extensions
+  "recommendations": [
+    "ms-python.black-formatter",
+    "ms-python.isort"
+  ]
+}

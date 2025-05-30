@@ -16,6 +16,7 @@ limitations under the License.
 """
 
 from absl.testing import absltest
+
 from smart_control.simulator import simulator_building as sb_py
 from smart_control.simulator import simulator_building_test_lib
 

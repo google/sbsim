@@ -17,6 +17,7 @@ limitations under the License.
 
 from absl.testing import absltest
 from absl.testing import parameterized
+
 from smart_control.proto import smart_control_building_pb2
 from smart_control.simulator import rejection_simulator_building as rj_sb_py
 from smart_control.simulator import simulator_building as sb_py
