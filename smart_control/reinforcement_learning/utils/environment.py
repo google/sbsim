@@ -2,9 +2,7 @@
 import gin
 
 from smart_control.environment.environment import Environment
-from smart_control.reinforcement_learning.utils.constants import (
-    DEFAULT_OCCUPANCY_NORMALIZATION_CONSTANT,
-)
+from smart_control.reinforcement_learning.utils.constants import DEFAULT_OCCUPANCY_NORMALIZATION_CONSTANT
 
 
 def load_environment(gin_config_file: str):

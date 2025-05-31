@@ -12,13 +12,13 @@ from tf_agents.networks import network
 from tf_agents.typing import types
 
 <<<<<<< HEAD
-from smart_control.reinforcement_learning.agents.networks.sac_networks import (
-    create_sequential_actor_network,
-    create_sequential_critic_network,
-)
+from smart_control.reinforcement_learning.agents.networks.sac_networks import create_sequential_actor_network
+from smart_control.reinforcement_learning.agents.networks.sac_networks import create_sequential_critic_network
+
 =======
 from smart_control.reinforcement_learning.agents.networks.sac_networks import create_sequential_actor_network
 from smart_control.reinforcement_learning.agents.networks.sac_networks import create_sequential_critic_network
+
 >>>>>>> copybara_push
 
 

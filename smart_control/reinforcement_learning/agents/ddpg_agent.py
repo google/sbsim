@@ -11,10 +11,8 @@ from tf_agents.agents.ddpg import ddpg_agent
 from tf_agents.networks import network
 from tf_agents.typing import types
 
-from smart_control.reinforcement_learning.agents.networks.ddpg_networks import (
-    create_sequential_actor_network,
-    create_sequential_critic_network,
-)
+from smart_control.reinforcement_learning.agents.networks.ddpg_networks import create_sequential_actor_network
+from smart_control.reinforcement_learning.agents.networks.ddpg_networks import create_sequential_critic_network
 
 
 def create_ddpg_agent(

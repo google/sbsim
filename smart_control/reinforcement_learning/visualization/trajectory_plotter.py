@@ -4,9 +4,9 @@ import logging
 import os
 from typing import Any, Dict, List
 
+from matplotlib.figure import Figure
 import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib.figure import Figure
 
 logger = logging.getLogger(__name__)
 

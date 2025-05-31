@@ -3,12 +3,12 @@ Script to evaluate a trained reinforcement learning policy.
 This script loads a saved policy and evaluates it on a configured environment.
 """
 
+from datetime import datetime
 import json
 import logging
 import os
 import shutil
 import tempfile
-from datetime import datetime
 
 import tensorflow as tf
 from tf_agents.environments import tf_py_environment
@@ -16,20 +16,14 @@ from tf_agents.metrics import tf_metrics
 from tf_agents.policies import py_tf_eager_policy
 from tf_agents.train import actor
 
-from smart_control.reinforcement_learning.observers.composite_observer import \
-    CompositeObserver
-from smart_control.reinforcement_learning.observers.print_status_observer import \
-    PrintStatusObserver
-from smart_control.reinforcement_learning.observers.trajectory_recorder_observer import \
-    TrajectoryRecorderObserver
-from smart_control.reinforcement_learning.policies.saved_model_policy import \
-    SavedModelPolicy
-from smart_control.reinforcement_learning.policies.schedule_policy import \
-    create_baseline_schedule_policy
-from smart_control.reinforcement_learning.utils.config import (
-    CONFIG_PATH, EXPERIMENT_RESULTS_PATH)
-from smart_control.reinforcement_learning.utils.environment import \
-    create_and_setup_environment
+from smart_control.reinforcement_learning.observers.composite_observer import CompositeObserver
+from smart_control.reinforcement_learning.observers.print_status_observer import PrintStatusObserver
+from smart_control.reinforcement_learning.observers.trajectory_recorder_observer import TrajectoryRecorderObserver
+from smart_control.reinforcement_learning.policies.saved_model_policy import SavedModelPolicy
+from smart_control.reinforcement_learning.policies.schedule_policy import create_baseline_schedule_policy
+from smart_control.reinforcement_learning.utils.config import CONFIG_PATH
+from smart_control.reinforcement_learning.utils.config import EXPERIMENT_RESULTS_PATH
+from smart_control.reinforcement_learning.utils.environment import create_and_setup_environment
 
 # Configure logging
 logging.basicConfig(

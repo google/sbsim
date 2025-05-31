@@ -35,14 +35,19 @@ from tf_agents.specs import array_spec
 from tf_agents.trajectories import time_step as ts
 from tf_agents.typing import types
 
-from smart_control.models import (base_building, base_normalizer,
-                                  base_reward_function)
-from smart_control.proto import (smart_control_building_pb2,
-                                 smart_control_reward_pb2)
-from smart_control.utils import (building_image_generator, constants,
-                                 conversion_utils, histogram_reducer,
-                                 plot_utils, regression_building_utils,
-                                 run_command_predictor, writer_lib)
+from smart_control.models import base_building
+from smart_control.models import base_normalizer
+from smart_control.models import base_reward_function
+from smart_control.proto import smart_control_building_pb2
+from smart_control.proto import smart_control_reward_pb2
+from smart_control.utils import building_image_generator
+from smart_control.utils import constants
+from smart_control.utils import conversion_utils
+from smart_control.utils import histogram_reducer
+from smart_control.utils import plot_utils
+from smart_control.utils import regression_building_utils
+from smart_control.utils import run_command_predictor
+from smart_control.utils import writer_lib
 
 ACTION_REJECTION_REWARD: Final[float] = -np.inf
 

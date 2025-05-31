@@ -4,8 +4,8 @@ Defines a simplified PyEnvironment wrapper that manages multiple environment
 configurations, loading only one environment at a time and switching upon reset.
 """
 
+import collections.abc  # Used for type hinting
 import logging
-import collections.abc # Used for type hinting
 
 # Import necessary TF-Agents components
 from tf_agents.environments import py_environment

@@ -6,10 +6,8 @@ import os
 
 from tf_agents.trajectories import trajectory as trajectory_lib
 
-from smart_control.reinforcement_learning.observers.base_observer import \
-    Observer
-from smart_control.reinforcement_learning.visualization.trajectory_plotter import \
-    TrajectoryPlotter
+from smart_control.reinforcement_learning.observers.base_observer import Observer
+from smart_control.reinforcement_learning.visualization.trajectory_plotter import TrajectoryPlotter
 
 logger = logging.getLogger(__name__)
 

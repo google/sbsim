@@ -7,10 +7,10 @@ of different values for specified parameters.
 """
 
 import argparse
+from itertools import product
 import logging
 import os
 import re
-from itertools import product
 
 logger = logging.getLogger(__name__)
 # Configure logging

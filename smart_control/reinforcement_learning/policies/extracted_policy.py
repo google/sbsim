@@ -1,17 +1,17 @@
+import datetime
+import logging
+import math
+from typing import Any, List, Optional
+
+import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
-import numpy as np
-import datetime
-import math
-from typing import List, Any, Optional
-import logging
-
 from tf_agents.policies import tf_policy
+from tf_agents.specs import BoundedTensorSpec
+from tf_agents.specs import tensor_spec
 from tf_agents.trajectories import policy_step
 from tf_agents.trajectories import time_step as ts
-from tf_agents.specs import tensor_spec, BoundedTensorSpec
 from tf_agents.typing import types
-
 
 logging.basicConfig(
     level=logging.INFO,

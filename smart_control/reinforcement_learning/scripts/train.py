@@ -3,10 +3,10 @@ Script to train a reinforcement learning agent using a pre-populated replay buff
 This script sets up the training process with separate collection and evaluation components.
 """
 
+from datetime import datetime
 import json
 import os
 import shutil
-from datetime import datetime
 
 os.environ['WRAPT_DISABLE_EXTENSIONS'] = 'true'
 import logging
@@ -14,27 +14,24 @@ import logging
 import tensorflow as tf
 from tf_agents.environments import tf_py_environment
 from tf_agents.metrics import tf_metrics
-from tf_agents.policies import greedy_policy, py_tf_eager_policy
-from tf_agents.train import actor, learner, triggers
+from tf_agents.policies import greedy_policy
+from tf_agents.policies import py_tf_eager_policy
+from tf_agents.train import actor
+from tf_agents.train import learner
+from tf_agents.train import triggers
 from tf_agents.train.utils import spec_utils
 from tqdm import tqdm
 
-from smart_control.reinforcement_learning.agents.ddpg_agent import \
-    create_ddpg_agent
-from smart_control.reinforcement_learning.agents.sac_agent import \
-    create_sac_agent
-from smart_control.reinforcement_learning.agents.td3_agent import \
-    create_td3_agent
-from smart_control.reinforcement_learning.observers.composite_observer import \
-    CompositeObserver
-from smart_control.reinforcement_learning.observers.print_status_observer import \
-    PrintStatusObserver
-from smart_control.reinforcement_learning.replay_buffer.replay_buffer import \
-    ReplayBufferManager
-from smart_control.reinforcement_learning.utils.config import (
-    CONFIG_PATH, EXPERIMENT_RESULTS_PATH, ROOT_DIR)
-from smart_control.reinforcement_learning.utils.environment import \
-    create_and_setup_environment
+from smart_control.reinforcement_learning.agents.ddpg_agent import create_ddpg_agent
+from smart_control.reinforcement_learning.agents.sac_agent import create_sac_agent
+from smart_control.reinforcement_learning.agents.td3_agent import create_td3_agent
+from smart_control.reinforcement_learning.observers.composite_observer import CompositeObserver
+from smart_control.reinforcement_learning.observers.print_status_observer import PrintStatusObserver
+from smart_control.reinforcement_learning.replay_buffer.replay_buffer import ReplayBufferManager
+from smart_control.reinforcement_learning.utils.config import CONFIG_PATH
+from smart_control.reinforcement_learning.utils.config import EXPERIMENT_RESULTS_PATH
+from smart_control.reinforcement_learning.utils.config import ROOT_DIR
+from smart_control.reinforcement_learning.utils.environment import create_and_setup_environment
 
 # Configure logging
 logging.basicConfig(
