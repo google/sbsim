@@ -66,7 +66,6 @@ line_length = 200
 single_line_exclusions = ['typing']
 known_first_party = ["smart_control"]
 skip_glob = ['smart_control/proto/*']
-tqdm = "^4.67.1"
 
 
 [build-system]
