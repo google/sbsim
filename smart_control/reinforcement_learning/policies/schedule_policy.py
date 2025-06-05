@@ -123,10 +123,10 @@ class SchedulePolicy(tf_policy.TFPolicy):
   def _normalize_actions(
       self, action_map: Dict[Tuple[DeviceType, SetpointName], SetpointValue]
   ) -> Dict:  # pylint: disable=g-bare-generic # TODO: use a more specific type hint if possible
-    """Normalize action values using the provided normalizers."""
+    """Normalize action values using the provided normalisers."""
     normalized = {}
     for (device, setpoint_name), value in action_map.items():
-      # Find the matching normalizer for this setpoint
+      # Find the matching normaliser for this setpoint
       for normalizer_key, normalizer in self.action_normalizers.items():
         if normalizer_key.endswith(setpoint_name):
           normalized[(device, setpoint_name)] = normalizer.agent_value(value)
@@ -137,7 +137,7 @@ class SchedulePolicy(tf_policy.TFPolicy):
     """Determine the appropriate actions based on time."""
     observation = time_step.observation
 
-    # Denormalize the time signals
+    # Denormalise the time signals
     # fmt: off
     # pylint: disable=line-too-long
     dow_sin = (observation[0][self.dow_sin_index] * self.norm_std) + self.norm_mean

@@ -1,4 +1,4 @@
-"""Utilities to visualize temperatures in a building.
+"""Utilities to visualise temperatures in a building.
 
 Copyright 2024 Google LLC
 

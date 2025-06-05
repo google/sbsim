@@ -148,7 +148,7 @@ class StepFunctionOccupancy(BaseOccupancy):
     # Before work start:
     next_step = min(interval_end, self._work_start_time)
 
-    # Get the time between the curren time and the next step.
+    # Get the time between the current time and the next step.
     if current < next_step:
       before_work = (next_step - current).total_seconds()
       current = max(current, next_step)
@@ -159,7 +159,7 @@ class StepFunctionOccupancy(BaseOccupancy):
       during_work = (next_step - current).total_seconds()
       current = next_step
 
-    # Finally, between work end and modnight.
+    # Finally, between work end and midnight.
     next_step = interval_end
     if current < next_step:
       after_work = (next_step - current).total_seconds()

@@ -1,7 +1,7 @@
-"""Observer for rendering and visualizing environments.
+"""Observer for rendering and visualising environments.
 
-This module provides an observer for rendering RL environments and visualizing
-agent behavior through plots.
+This module provides an observer for rendering RL environments and visualising
+agent behaviour through plots.
 """
 
 import logging
@@ -51,7 +51,7 @@ class RenderingObserver(Observer):
       time_zone: str = DEFAULT_TIME_ZONE,
       save_path: str = RENDERS_PATH,
   ):
-    """Initialize the observer.
+    """Initialise the observer.
 
     Args:
         render_interval_steps: Number of steps between renders.
@@ -63,7 +63,7 @@ class RenderingObserver(Observer):
           plotting will be done.
         clear_output_before_render: Whether to clear output before rendering.
         time_zone: Time zone for plotting timestamps.
-        save_path: Directory path to save rendered visualizations.
+        save_path: Directory path to save rendered visualisations.
     """
     self._counter = 0
     self._render_interval_steps = render_interval_steps

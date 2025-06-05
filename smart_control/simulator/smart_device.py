@@ -113,7 +113,7 @@ class SmartDevice(metaclass=abc.ABCMeta):
   def _attribute_info(
       self, field_name: str, is_observable: bool
   ) -> AttributeInfo:
-    """Returns mapped attribute info after checking if its valid.
+    """Returns mapped attribute info after checking if it's valid.
 
     Args:
       field_name: Name of the observable field.

@@ -492,7 +492,7 @@ class SimulatorTest(parameterized.TestCase):
   def test_get_cv_temp_estimate_convection_corner_increases_faster_than_edge(
       self,
   ):
-    """Tests that the speed at which cell temps increase from convection.
+    """Tests the speed at which cell temps increase from convection.
 
     Corner cells are more exposed to air, so they should transfer/absorb heat
     through convection more rapidly than edges. All cells start at 292, so
@@ -803,7 +803,7 @@ class SimulatorTest(parameterized.TestCase):
     """Tests that certain zones heat faster than others.
 
     Ambient temperatures are set high. Corner zones should heat fastest,
-    followed by edge zones, lastly the center zone.
+    followed by edge zones, lastly the centre zone.
     """
     # Constant temp of 300C
     weather_controller = weather_controller_py.WeatherController(300.0, 300.0)

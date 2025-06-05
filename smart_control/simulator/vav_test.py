@@ -410,8 +410,8 @@ class VavTest(parameterized.TestCase):
     damper_setting = 0.1
     reheat_valve_setting = 0
 
-    # change the VAV damper setting, since otherwise this test passes since the
-    # default setting is the same as the one update switches too in Off mode
+    # Change the VAV damper setting, since otherwise this test passes since the
+    # default setting is the same as the one update switches to in Off mode
     v.damper_setting = 0.6
     zone_supply_temp = compute_zone_supply_temp(
         reheat_valve_setting,

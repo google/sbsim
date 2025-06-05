@@ -121,7 +121,7 @@ class AirHandlerTest(parameterized.TestCase):
   ):
     """Calculates the mixed air temperature.
 
-    This function is calculated by muliplying the recirculation_temp by
+    This function is calculated by multiplying the recirculation_temp by
     the recirculation factor, and the ambient_temp
     by 1 minus the recirculation factor, and adding the two.
 

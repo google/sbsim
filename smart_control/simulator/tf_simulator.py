@@ -16,7 +16,7 @@ limitations under the License.
 
 Iterative methods that loop through each control volume sequentially
 are very slow with geometries that have many control volumes (CV). The
-TFSimulator, instead, processe the finite differences as a set of
+TFSimulator, instead, processes the finite differences as a set of
 tensor operations.
 """
 
@@ -37,7 +37,7 @@ from smart_control.simulator import weather_controller as weather_controller_py
 
 # List of neighbors for a specific CV.
 NeighborCoordinates = Sequence[simulator.CVCoordinates]
-# Neighors, indexable by a specific i,j coord.
+# Neighbors, indexable by a specific i,j coord.
 Neighbors = Sequence[Sequence[NeighborCoordinates]]
 
 
@@ -95,7 +95,7 @@ class CVType:
   can be an edge with three neighbors, or a corner with two neighbors.
 
   Using a regular class instead of a data class to ensure consistent
-  assignment of CV proprties.
+  assignment of CV properties.
   """
 
   def __init__(
@@ -502,7 +502,7 @@ def apply_exterior_temps(
 
 @gin.configurable
 class TFSimulator(simulator.SimulatorFlexibleGeometries):
-  """Tensor-based simulator that used matrix ops to update temps."""
+  """Tensor-based simulator that uses matrix ops to update temps."""
 
   def __init__(
       self,
@@ -528,15 +528,15 @@ class TFSimulator(simulator.SimulatorFlexibleGeometries):
     )
 
     # Get a mapping of all the boundary CVs that interface between interior
-    # and extrior CVs. This mapping will be used to process boundary elements
+    # and exterior CVs. This mapping will be used to process boundary elements
     # iteratively.
     self._boundary_cv_mapping = get_cv_mapping(
         building.neighbors, position_criterion=CVPositionType.BOUNDARY
     )
     n_boundary_elements = len(self._boundary_cv_mapping)
     logging.info('Number of boundary CVs: %d', n_boundary_elements)
-    # Get a binary mask that mark exterior CVs so that they will always be
-    # assigned ambinent air temps.
+    # Get a binary mask that marks exterior CVs so that they will always be
+    # assigned ambient air temps.
     self._t_exerior_temps_mask = self._get_tensor_exterior_mask(building)
     n_exterior_elements = tf.math.count_nonzero(self._t_exerior_temps_mask)
     logging.info('Number of exterior CVs: %d', n_exterior_elements)
@@ -593,7 +593,7 @@ class TFSimulator(simulator.SimulatorFlexibleGeometries):
       convection_coefficient: Current wind convection coefficient (W/m2/K).
 
     Returns:
-      Maximum difference in temperture_estimates across all CVs before and after
+      Maximum difference in temperature_estimates across all CVs before and after
       operation.
     """
 
@@ -739,7 +739,7 @@ class TFSimulator(simulator.SimulatorFlexibleGeometries):
       nt2 = tf.math.add(t_k2_div_v_temp_below, t_k4_div_v_temp_above)
       nt2 = tf.math.add(nt2, t_h_below_tinf)
       nt2 = tf.math.add(nt2, t_h_above_tinf)
-      nt2 = tf.math.multiply(t_uz, nt2)
+      nt2 = tf.math.multiply(nt2, t_uz)
 
       # Create the thermal absorption term.
       nt3 = tf.math.multiply(t_density, self._t_u)
@@ -783,7 +783,7 @@ class TFSimulator(simulator.SimulatorFlexibleGeometries):
         t_temp, ambient_temperature
     )
 
-    # Get the ambinet temperature as a tensor.
+    # Get the ambient temperature as a tensor.
     t_temp_inf = tf.constant(ambient_temperature, dtype=tf.float32)
 
     # Convert the timestep input to tensor.
@@ -845,7 +845,7 @@ class TFSimulator(simulator.SimulatorFlexibleGeometries):
     t_temperature_estimates = tf.math.divide(t_numer, t_denom)
 
     # The tensor operation potentially altered the exterior air conditions,
-    # so we need to reset exterior CVs to the exterior air conditioners.
+    # so we need to reset exterior CVs to the exterior air conditions.
     t_temperature_estimates = apply_exterior_temps(
         t_temperature_estimates, t_temp_inf, self._t_exerior_temps_mask
     )

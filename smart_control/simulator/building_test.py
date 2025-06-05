@@ -1637,7 +1637,7 @@ class BuildingTest(parameterized.TestCase):
 
     b.apply_convection()
 
-    # since we seeded the random number generator, we can assert exact vals
+    # since we seeded the random number generator, we can assert exact values
     self.assertEqual(b.temp[2][2], vals[0])
     self.assertEqual(b.temp[2][3], vals[1])
     self.assertEqual(b.temp[3][2], vals[2])
@@ -1692,7 +1692,7 @@ class BuildingTest(parameterized.TestCase):
 
     b.apply_convection()
 
-    # since we seeded the random number generator, we can assert exact vals
+    # since we seeded the random number generator, we can assert exact values
     # when max dist is 1, [2][2] cannot swap with [3][3], nor [2][3] with [3][2]
     self.assertEqual(b.temp[2][2], vals[0])
     self.assertEqual(b.temp[2][3], vals[1])
@@ -1706,7 +1706,7 @@ class BuildingTest(parameterized.TestCase):
           continue
         self.assertEqual(b.temp[i][j], 292.0)
 
-    # lets reset and try again, to make sure the chache works
+    # let's reset and try again, to make sure the cache works
     # now lets change the temps in a room
     b.temp[2][2] = 1
     b.temp[2][3] = 2
@@ -1721,7 +1721,7 @@ class BuildingTest(parameterized.TestCase):
 
     b.apply_convection()
 
-    # since we seeded the random number generator, we can assert exact vals
+    # since we seeded the random number generator, we can assert exact values
     # when max dist is 1, [2][2] cannot swap with [3][3], nor [2][3] with [3][2]
     # this time, we are using cache for efficiency
     self.assertEqual(b.temp[2][2], vals[0])

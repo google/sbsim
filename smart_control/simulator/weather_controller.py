@@ -37,7 +37,7 @@ _EPOCH: Final[pd.Timestamp] = pd.Timestamp('1970-01-01', tz='UTC')
 
 @gin.configurable
 class BaseWeatherController(metaclass=abc.ABCMeta):
-  """Represents the weather on any specific time."""
+  """Represents the weather at any specific time."""
 
   @abc.abstractmethod
   def get_current_temp(self, timestamp: pd.Timestamp) -> float:
@@ -82,7 +82,7 @@ class WeatherController(BaseWeatherController):
         )
 
   def seconds_to_rads(self, seconds_in_day: int) -> float:
-    """Returns radians corresponding to number of second in the day.
+    """Returns radians corresponding to number of seconds in the day.
 
     Args:
       seconds_in_day: Seconds that have passed so far in the day.
@@ -165,7 +165,7 @@ def get_replay_temperatures(
 
 @gin.configurable
 class ReplayWeatherController:
-  """Weather controller that interplolates real weather from past observations.
+  """Weather controller that interpolates real weather from past observations.
 
   Attributes:
     local_weather_path: Path to local weather file.

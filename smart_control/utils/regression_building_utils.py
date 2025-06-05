@@ -105,7 +105,7 @@ def expand_time_features(
     label: Feature label, i.e., dow or hod, etc.
 
   Returns:
-    Dict with {(label, cos_0): cos(theta0), ..., (label, sin_n): sin(thetan-1)}
+    Dict with {(label, cos_0): cos(theta0), ..., (label, sin_n-1): sin(thetan-1)}
   """
 
   feature_names = get_time_feature_names(n, label)
@@ -141,11 +141,11 @@ def get_observation_sequence(
     feature_tuples: set of desired (device_id: measurement_name) pairs
     time_zone: time_zone, defaulting to UTC
     n_hod: Number of cos/sin feature pairs for hour of day.
-    n_dow: Number of cos/sin feature pairs for day or week.
+    n_dow: Number of cos/sin feature pairs for day of week.
 
   Returns:
     a pandas DF, one row for each ObservationResponse and columns for each
-    (device, meausrement) pair, and also timestamp and Day of Week (dow)
+    (device, measurement) pair, and also timestamp and Day of Week (dow)
     and Hour of Day (hod) features.
   """
 
@@ -175,7 +175,7 @@ def get_feature_map(
     observation_response: an ObservationResponse object
     time_zone: time_zone, defaulting to UTC
     n_hod: Number of cos/sin feature pairs for hour of day.
-    n_dow: Number of cos/sin feature pairs for day or week.
+    n_dow: Number of cos/sin feature pairs for day of week.
 
   Returns:
     a mapping  {(feature tuple): value} appending timestamp, Day of Week and
@@ -317,7 +317,7 @@ def get_reward_info_map(
     reward_info: A RewardInfo.
     time_zone: The local time zone.
 
-  Returns: an mapping of devices and associated energy use.
+  Returns: a mapping of devices and associated energy use.
   """
   reward_info_map = {}
 
@@ -364,7 +364,7 @@ def get_matching_indexes(
   """Matches input and output DataFrames, offset by one timestep.
 
   Both input and output dataframes have timestamp indexes, that are
-  separated by step_interval. If t1 - t0 = time_interval, then the
+  separated by step_interval. If t1 - t0 = step_interval, then the
   resultant indexes will be:
     input   output
     t0      t1
@@ -423,7 +423,7 @@ def get_action_sequence(
     action_tuples: set[tuple[str, str, str]],
     time_zone: Union[str, datetime.tzinfo] = 'UTC',
 ) -> pd.DataFrame:
-  """Converts a list of ActionResponses in to a dataframe."""
+  """Converts a list of ActionResponses into a dataframe."""
   df = pd.DataFrame(columns=[_TIMESTAMP] + sorted(list(action_tuples)))
   for action_response in action_responses:
     action_map_all = get_action_map(action_response, time_zone)
@@ -647,7 +647,7 @@ def action_request_to_action_mapping(
 def get_boiler_reward_infos(
     reward_info_devices: Mapping[str, Mapping[str, float]],
 ) -> Mapping[str, smart_control_reward_pb2.RewardInfo.BoilerRewardInfo]:
-  """Converts the reward info devices in to a map of BoilerRewardInfos.
+  """Converts the reward info devices into a map of BoilerRewardInfos.
 
   Args:
     reward_info_devices: Mapping {device_id: {field_id: field_value}}
@@ -658,7 +658,7 @@ def get_boiler_reward_infos(
   boiler_reward_infos = {}
   for device_id in reward_info_devices:
     # Determine this device is a boiler by its fields, not its name.
-    # To be a boiler (HW system) is must reoprt both a natural gas heating and
+    # To be a boiler (HW system) it must report both a natural gas heating and
     # pump electric power.
     if _NATURAL_GAS_HEATING_ENERGY_RATE in reward_info_devices[device_id]:
       natural_has_heating_energy_rate = reward_info_devices[device_id][

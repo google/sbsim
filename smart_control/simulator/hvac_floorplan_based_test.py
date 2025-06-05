@@ -1,4 +1,4 @@
-"""Tests for floor plan based hvac.
+"""Tests for floor plan based HVAC.
 
 Copyright 2023 Google LLC
 

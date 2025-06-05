@@ -42,7 +42,7 @@ class Hvac:
     vavs: Mapping from zone_coordinates to VAV.
     air_handler: AirHandler
     boiler: Boiler
-    zone_infos: information about each zone in the building.
+    zone_infos: Information about each zone in the building.
   """
 
   def __init__(
@@ -58,7 +58,7 @@ class Hvac:
 
     Args:
       zone_coordinates: List of 2-tuple containing zone coordinates to service.
-      air_handler: the air handler for hte HVAC
+      air_handler: the air handler for the HVAC
       boiler: the boiler for the HVAC
       schedule: the setpoint_schedule for the thermostats
       vav_max_air_flow_rate: the max airflow rate for the vavs

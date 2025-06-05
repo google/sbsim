@@ -16,14 +16,14 @@ limitations under the License.
 
 
 The objective of the histogram reducer is to compress a very wide
-multivariate timeseries with minimal data loss. The current control agents
+multivariate time series with minimal data loss. The current control agents
 don't really benefit from knowing the temperature (etc.) of each zone, but
-simply need to know that some zones are below of above setpoints. As such,
-representing each zone as a separate timeseries is rather inefficient.
+simply need to know that some zones are below or above setpoints. As such,
+representing each zone as a separate time series is rather inefficient.
 
-Reduce function converts a feature from individual timeseries into a histogram.
-For exammple, devices d1, d2 have a zone_air_temperature timeseries,
-the histogram reducer converts the timeseries into a counts on temperature
+Reduce function converts a feature from individual time series into a histogram.
+For example, devices d1, d2 have a zone_air_temperature time series,
+the histogram reducer converts the time series into counts on temperature
 bins, like 70, 71, 72, etc. and assigns a count to the bin. This reduces
 the dimensionality into a more compressed format if the number of the devices
 exceeds the number of bins.
@@ -36,7 +36,7 @@ For first bin, assign v to bin 0 if v < bin[1]. For the last bin, assign v
 to bin N-1 if bin[N-1] <= v.
 
 Expand function takes the counts in the histogram and reconstructs lossy
-timeseries for each device. For example, suppose a measurement of 72.7 is
+time series for each device. For example, suppose a measurement of 72.7 is
 assigned to bin 72, then the approximate measurement would be the lower
 bound on the bin (i.e., 72.0).
 """
@@ -88,7 +88,7 @@ def assign_devices_to_bins(
   Returns:
     A jagged array with outer dim for each bin, and inner array with device ids.
   """
-  # Create a an eply assignment as a list of lists, one list per bin.
+  # Create an empty assignment as a list of lists, one list per bin.
   assignment = [[] for _ in range(len(bins))]
 
   for (
@@ -153,7 +153,7 @@ def reassign_nodes(
   """Takes a current assignment and shifts it to match the HistogramCounts.
 
   Moves devices from one bin to another to match the next histogram counts as
-  efficiently as possible (i.e., moves a devices from the closest possible
+  efficiently as possible (i.e., moves a device from the closest possible
   current bin assignment.)
 
   Args:
@@ -206,14 +206,14 @@ class HistogramReducer(BaseReducer):
   """Implementation of the HistogramReducer.
 
   The objective of the histogram reducer is to compress a very wide
-  multivariate timeseries with minimal data loss. The current control agents
+  multivariate time series with minimal data loss. The current control agents
   don't really benefit from knowing the temperature (etc.) of each zone, but
-  simply need to know that some zones are below of above setpoints. As such,
-  representing each zone as a separate timeseries is rather inefficient.
+  simply need to know that some zones are below or above setpoints. As such,
+  representing each zone as a separate time series is rather inefficient.
 
-  Reduce function converts a feature from timeseries into a histogram.
-  For exammple, devices d1, d2 have a zone_air_temperature timeseries,
-  the histogram reducer converts the timeseries into a counts on temperature
+  Reduce function converts a feature from time series into a histogram.
+  For example, devices d1, d2 have a zone_air_temperature time series,
+  the histogram reducer converts the time series into counts on temperature
   bins, like 70, 71, 72, etc. and assigns a count to the bin. This reduces
   the dimensionality into a more compressed format if the number of the devices
   exceeds the number of bins.
@@ -226,7 +226,7 @@ class HistogramReducer(BaseReducer):
   to bin N-1 if bin[N-1] <= v.
 
   Expand function takes the counts in the histogram and reconstructs lossy
-  timeseries for each device. For example, suppose a measurement of 72.7 is
+  time series for each device. For example, suppose a measurement of 72.7 is
   assigned to bin 72, then the approximate measurement would be the lower
   bound on the bin (i.e., 72.0).
   """
@@ -354,7 +354,7 @@ class HistogramReducer(BaseReducer):
 
       df = pd.DataFrame(updates, index=indexes)
 
-      # Add in "passthough" features that are not histogrammed.
+      # Add in "passthrough" features that are not histogrammed.
       if self._passthrough_sequence is not None:
         # Prefer the columns in the reduced sequence over the
         # passthrough values.
@@ -447,7 +447,7 @@ class HistogramReducer(BaseReducer):
         observation_sequence, feature_mapping
     )
 
-    # Join the passthrough and the rediced sequences into a single dataframe.
+    # Join the passthrough and the reduced sequences into a single dataframe.
     reduced_sequence = passthrough_sequence
     if reduced_feature_dfs:
       df_hist = pd.concat(reduced_feature_dfs, axis=1)

@@ -16,7 +16,7 @@ limitations under the License.
 
 Some RL Agents, like Soft-Actor-Critic, are designed for continuous action
 spaces. However, SM control requires a hybrid action space (continuous pressures
-and temperatures, and a discrete on/off run command.
+and temperatures, and a discrete on/off run command).
 
 Multiple attempts have failed to train an agent to manage the hybrid action
 space effectively, but given pressure and temperature setting, it is easy to

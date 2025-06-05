@@ -64,14 +64,14 @@ class BaseSetpointEnergyCarbonRewardTest(parameterized.TestCase):
     info = self._get_test_reward_info()
     reward_fn = self._get_test_reward_function()
     energy_rate = reward_fn._sum_electricity_energy_rate(info)
-    # Expected = 1 units x (pump + a/c + blower)
+    # Expected = 1 unit x (pump + a/c + blower)
     self.assertAlmostEqual((250.0 + 4500.0 + 800.0), energy_rate, delta=0.001)
 
   def test_sum_natural_gas_energy_rate(self):
     info = self._get_test_reward_info()
     reward_fn = self._get_test_reward_function()
     energy_rate = reward_fn._sum_natural_gas_energy_rate(info)
-    # Expected = 1 units x nat_gas_heater
+    # Expected = 1 unit x nat_gas_heater
     self.assertAlmostEqual(5000.0, energy_rate, delta=0.001)
 
   def test_get_time_delta_sec(self):

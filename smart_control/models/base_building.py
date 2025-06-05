@@ -61,7 +61,7 @@ class BaseBuilding(metaclass=abc.ABCMeta):
 
   @abc.abstractmethod
   def reset(self) -> None:
-    """Resets the building, throwing an RuntimeError if this is impossible."""
+    """Resets the building, throwing a RuntimeError if this is impossible."""
 
   @property
   @abc.abstractmethod
@@ -84,12 +84,12 @@ class BaseBuilding(metaclass=abc.ABCMeta):
 
   @abc.abstractmethod
   def is_comfort_mode(self, current_time: pd.Timestamp) -> bool:
-    """Returns True if building is in comfort mode."""
+    """Returns True if the building is in comfort mode."""
 
   @property
   @abc.abstractmethod
   def num_occupants(self) -> int:
-    """Returns the number of occupants in building."""
+    """Returns the number of occupants in the building."""
 
   @property
   @abc.abstractmethod

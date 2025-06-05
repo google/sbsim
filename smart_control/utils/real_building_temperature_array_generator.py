@@ -1,4 +1,4 @@
-"""Utility to go from list of VAV temperatues, to a teperature array.
+"""Utility to go from list of VAV temperatures, to a temperature array.
 
 Copyright 2023 Google LLC
 

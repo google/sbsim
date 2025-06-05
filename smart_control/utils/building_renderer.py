@@ -42,7 +42,7 @@ class BuildingRenderer:
   def __init__(
       self, building_layout: building_utils.FileInputFloorPlan, cv_size: int = 6
   ):
-    """Initializes the foreground image, ie the walls of the building.
+    """Initializes the foreground image, i.e., the walls of the building.
 
     Args:
       building_layout: an array representing where the walls are in the building
@@ -130,7 +130,7 @@ class BuildingRenderer:
       vmin: vmin value to be used when creating the heatmap
       vmax: vmax value to be used when creating the heatmap
       cmap: color map to use for heatmap
-      alpha: opacity of walls. 1 means full dark, 0 means fully invisible
+      alpha: opacity of walls. 1 means fully dark, 0 means fully invisible
       wall_color: color of the walls
       grid: boolean flag. If False, walls are solid, if True, a grid pattern
       ts: optional  timestamp to render
@@ -276,7 +276,7 @@ class BuildingRenderer:
       vmin: minimum value to be used when creating the heatmap
       vmax: maximum value to be used when creating the heatmap
       cmap: color map to use
-      alpha: opacity of walls. 1 means full dark, 0 means fully invisible
+      alpha: opacity of walls. 1 means fully dark, 0 means fully invisible
       wall_color: color of the walls
       grid: boolean flag. If False, walls are solid, if True, a grid pattern
       timestamps: optional list of timestamps to render

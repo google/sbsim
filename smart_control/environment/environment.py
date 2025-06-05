@@ -112,7 +112,7 @@ def replace_missing_observations_past(
       observations.
 
   Returns:
-    A merged ObservationResponsem filled in from the past observation.
+    A merged ObservationResponse filled in from the past observation.
 
    Raises:
      ValueError when a missing observation exists and there is no past
@@ -208,8 +208,8 @@ def replace_missing_observations_past(
   missing_observations = get_missing_observations(current_observation_response)
 
   if missing_observations:
-    # If there are missing observations and we have a past ObservationRespose,
-    # filling the missing values from the past response.
+    # If there are missing observations and we have a past ObservationResponse,
+    # fill the missing values from the past response.
     # If there are no missing observations, just return the original
     # ObservationResponse.
     check_valid_past_observation(
@@ -254,7 +254,7 @@ def compute_action_regularization_cost(
     Returns the L2 Norm of the actions as a penalty term for large changes.
 
   Args:
-    action_history: Seqential array of actions taken in the episode.
+    action_history: Sequential array of actions taken in the episode.
 
   Returns:
     A smoothing cost applied to the reward function for applying big changes.
@@ -614,7 +614,7 @@ class Environment(py_environment.PyEnvironment):
         "Loading device-setpoint pairs from %d device_infos.", len(devices)
     )
     for device in devices:
-      # We need to apply an arbitrary, but consistent ordering the actions
+      # We need to apply an arbitrary, but consistent ordering to the actions
       # within a device. Since device.action_fields is a map and has a random
       # order, we choose to sort the actions within a device alphabetically.
       for setpoint_name in sorted(device.action_fields.keys()):

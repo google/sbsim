@@ -1,6 +1,6 @@
 """Models a thermostat in the simulation.
 
-The theromstat is given a SetpointSchedule, which defines for any given time
+The thermostat is given a SetpointSchedule, which defines for any given time
 the deadband. The SetpointSchedule also determines when the thermostat should
 operate in Comfort mode or Eco mode.
 
@@ -8,10 +8,10 @@ In Comfort mode, the thermostat can be in one of 3 states.  If the temperature
 goes beneath the heating setpoint, Heat mode is activated until the temperature
 reaches midway between the 2 setpoints. Similarly, if the temperature is higher
 than the cooling setpoint, the thermostat enters Cool mode until the mid-point.
-Otherways, it enters Off mode.
+Otherwise, it enters Off mode.
 
 In Eco mode, there is an additional state, Passive Cool mode. Upon entering
-Eco mode, the thermostate is initially placed in this state, and remains that
+Eco mode, the thermostat is initially placed in this state, and remains that
 way until the temperature cools beyond the eco heating setpoint, upon which the
 thermostat operates as it did in Comfort mode
 
@@ -84,8 +84,8 @@ class Thermostat:
     Does not consider Passive Cool mode.
 
     Default control works as follows: if the temperature sinks below the heating
-    setpoint, Cool mode is entered until the midpoint temperature is reached.
-    Similarly, if the temperature rises above the cooling setpoint, Heat mode is
+    setpoint, Heat mode is entered until the midpoint temperature is reached.
+    Similarly, if the temperature rises above the cooling setpoint, Cool mode is
     entered until the midpoint is reached. In all other cases, the thermostat is
     in Off mode.
 
@@ -136,7 +136,7 @@ class Thermostat:
         and self._setpoint_schedule.is_comfort_mode(self._previous_timestamp)
     ):
       self._current_mode = self.Mode.PASSIVE_COOL
-    # Been in eco mod
+    # Been in eco mode
     else:
       if (
           self._current_mode == self.Mode.PASSIVE_COOL

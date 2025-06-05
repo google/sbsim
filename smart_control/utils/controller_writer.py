@@ -128,7 +128,7 @@ class ProtoWriter(writer_lib.BaseWriter):
 
     except IOError:
       logging.exception(
-          'IOException encountered. Failed to write proto to %s', filepath
+          'IOError encountered. Failed to write proto to %s', filepath
       )
 
   def write_normalization_info(
@@ -152,7 +152,7 @@ class ProtoWriter(writer_lib.BaseWriter):
     """Writes the device infos to disk."""
     filepath = os.path.join(self._output_dir, constants.DEVICE_INFO_PREFIX)
     if os.path.exists(filepath):
-      logging.info('Deleting an exiting DeviceInfo file.')
+      logging.info('Deleting an existing DeviceInfo file.')
       os.remove(filepath)
     for device_info in device_infos:
       self._write_msg_to_disk(device_info, filepath)
@@ -163,7 +163,7 @@ class ProtoWriter(writer_lib.BaseWriter):
     """Writes the zone infos to disk."""
     filepath = os.path.join(self._output_dir, constants.ZONE_INFO_PREFIX)
     if os.path.exists(filepath):
-      logging.info('Deleting an exiting ZoneInfo file.')
+      logging.info('Deleting an existing ZoneInfo file.')
       os.remove(filepath)
     for zone_info in zone_infos:
       self._write_msg_to_disk(zone_info, filepath)

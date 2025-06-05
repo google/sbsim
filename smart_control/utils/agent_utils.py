@@ -23,7 +23,7 @@ import tensorflow as tf
 # PolicyStep = number of agent steps to hold the policy constant.
 # Using a custom type of Tuple[int, Tensor] since it provides a
 # named type while retaining the structure and form defined by
-# TF-Agants.
+# TF-Agents.
 PolicyStep = Tuple[int, tf.Tensor]
 # Policy = a list of policy steps in the episode.
 Policy = Sequence[PolicyStep]
@@ -43,13 +43,13 @@ def create_random_walk_collect_script(
   current state. The format is a list of transition pairs, where the first
   element is an integer that specifies how many steps the transition should
   hold for (1 or more), and the second is a Tensor of actions to apply,
-  which are bounded. The policy length are the number of transitions provided.
+  which are bounded. The policy length is the number of transitions provided.
 
-  A random walk script is a a scripted policy that takes a random step
+  A random walk script is a scripted policy that takes a random step
   of size random_step_magnitude, independently for each action dimension,
   which is held constant for time_steps_per_random_step.
 
-  The random walk is a a technique to enable the agent to explore action space.
+  The random walk is a technique to enable the agent to explore action space.
 
   Args:
     fixed_policy: A Tensor of initial values for the random walk.

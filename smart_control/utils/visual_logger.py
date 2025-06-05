@@ -33,7 +33,7 @@ class VisualLogger:
   """
 
   def __init__(self, renderer: building_renderer.BuildingRenderer):
-    """Initializes the forground image, ie the walls of the building.
+    """Initializes the foreground image, i.e. the walls of the building.
 
     Args:
       renderer: a building renderer
@@ -82,7 +82,7 @@ class VisualLogger:
       vmin: minimum value to be used when creating the heatmap
       vmax: maximum value to be used when creating the heatmap
       cmap: color map to use
-      alpha: opacity of walls. 1 means full dark, 0 means fully invisible
+      alpha: opacity of walls. 1 means fully dark, 0 means fully invisible
       wall_color: color of the walls
       grid: boolean flag. If False, walls are solid, if True, a grid pattern
     """

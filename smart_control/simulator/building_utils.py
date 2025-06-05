@@ -144,7 +144,7 @@ def save_images_to_cns_for_debugging(
 def guarantee_air_padding_in_frame(
     floor_plan: FileInputFloorPlan,
 ) -> FileInputFloorPlan:
-  """Adds a row or column of air if a building is abuts its frame edge.
+  """Adds a row or column of air if a building abuts its frame edge.
 
   Future computation relies on buildings being surrounded by at least one
     layer of air CVs between them and the edge of the floor plan frame.
@@ -165,7 +165,7 @@ def guarantee_air_padding_in_frame(
     floor_plan: a FileInputFloorPlan
 
   Returns:
-    an FileInputFloorPlan that has 2's padded along whichever array edge was
+    a FileInputFloorPlan that has 2's padded along whichever array edge was
       missing them.
   """
 
@@ -224,7 +224,7 @@ def _determine_exterior_space(
 ) -> Tuple[ConnectionReadyFloorPlan, ExteriorSpace]:
   """Marks which CVs are exterior space and which are not.
 
-  Creates an ancillary array denoting the exterior space, and then make original
+  Creates an ancillary array denoting the exterior space, and then makes original
   a binary value. OpenCV's connectedComponents function works by considering
   1's as components and 0's as filler space.
 
@@ -298,7 +298,7 @@ def _set_exterior_space_neg(
   """Modifies the connections array so that exterior space is negative.
 
   Encoding the exterior space as negative is important in the connections array
-  as it will encode an aribtrarily large number of rooms as positive integers.
+  as it will encode an arbitrarily large number of rooms as positive integers.
   Thus, setting the exterior space as negative ensures that we will always be
   able to deal with it as its own category of space.
 
@@ -447,7 +447,7 @@ def construct_building_data_types(
   necessary pieces of information for further processing.
 
   Args:
-    floor_plan: an FileInputFloorPlan with outside air marked as
+    floor_plan: a FileInputFloorPlan with outside air marked as
       constants.EXTERIOR_SPACE_VALUE_IN_FILE_INPUT, inside walls marked as
       constants.INTERIOR_WALL_VALUE_IN_FILE_INPUT, and inside space marked as
       constants.INTERIOR_SPACE_VALUE_IN_FILE_INPUT.

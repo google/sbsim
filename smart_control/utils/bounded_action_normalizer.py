@@ -29,7 +29,7 @@ ACTION_TOLERANCE = 0.00001
 class BoundedActionNormalizer(base_normalizer.BaseActionNormalizer):
   """Translates normalized agent action values into native setpoint values.
 
-  Actions involve setting real valued setpoints. The normalized agent action
+  Actions involve setting real-valued setpoints. The normalized agent action
   range is mapped directly to the native setpoint value range.
   """
 

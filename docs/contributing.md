@@ -96,7 +96,7 @@ pytest --disable-pytest-warnings -k your_test_name_here
 We are using [`pyink`](https://github.com/google/pyink) to format Python code
 according to
 [Google Python Style Guidelines](https://google.github.io/styleguide/pyguide.html).
-The formatter will automatically update files inplace.
+The formatter will automatically update files in place.
 
 The formatter will run automatically as a pre-commit hook (see "Pre-commit
 Hooks" section below for more information and setup instructions).
@@ -172,7 +172,7 @@ We are using [`pylint`](https://pylint.readthedocs.io/en/stable/index.html) to
 check for additional Python style formatting issues that `pyink` doesn't fix, to
 more closely follow
 [Google Python style guidelines](https://google.github.io/styleguide/pyguide.html).
-The style checker will NOT automatically update files inplace, but rather will
+The style checker will NOT automatically update files in place, but rather will
 produce a report containing any errors that you will need to fix manually.
 
 The style checker will run automatically as a pre-commit hook (see "Pre-commit

@@ -16,15 +16,15 @@ limitations under the License.
 
 The reward function provides a feedback signal to the reinforcement learning
 agent that indicates the benefit of the action taken. During training, the
-agent learns an action policy to maximize the cumulative, or long-term reward.
+agent learns an action policy to maximise the cumulative, or long-term reward.
 
 For this pilot there are three principal factors that contribute to the
 reward function:
   * Setpoint: Maintaining the zone temperatures within heating and cooling
-  setpoints  results in a positive reward, and any temperature outside of
+  setpoints results in a positive reward, and any temperature outside of
   setpoints may also result in a negative reward (i.e., penalty).
   * Cost: The cost of electricity and natural gas is a negative reward (cost).
-  Then by minimizing negative rewards/maximizing positive reward, the agent
+  Then by minimising negative rewards/maximising positive reward, the agent
   will reduce overall energy cost. To compute the cost, both energy consumption
   and the energy cost schedules are required.
   * Carbon: By receiving negative reward for consuming natural gas, the agent
@@ -35,10 +35,10 @@ The three factors can be scaled and combined into a single reward function:
         r = s(setpoint) - u x f(cost) - w x g(carbon)
 where:
   r is the incremental reward at this step
-  s(setpoint) is the reward for maintining setpoint
+  s(setpoint) is the reward for maintaining setpoint
   f(cost) is the cost of consuming electrical and natural gas energy
   g(carbon) is the cost of emitting carbon,
-  and u, w are weighing factors for cost and carbon dependingon the policy.
+  and u, w are weighting factors for cost and carbon depending on the policy.
 
 The fundamental metric unit of energy is the Joule (J), and the unit of energy
 applied over a fixed time interval (energy rate) is power measured in J/sec or
@@ -56,7 +56,7 @@ temperature is outside the deadband. Near the deadband, individual productivity
 decreases a little, but decreases smoothly and monotonically the farther the
 zone air temperature is away from the deadband.
 
-Cumulative productivity is the maximum potential reward, and is parameterized by
+Cumulative productivity is the maximum potential reward, and is parameterised by
 how many persons occupy the zones, and the average hourly per-person
 productivity.
 
@@ -96,7 +96,7 @@ class SetpointEnergyCarbonRewardFunction(
     energy_cost_weight: u-coefficient described above
     carbon_cost_weight: w-coefficient described above
     carbon_cost_factor: cost value in $ per kg carbon emitted
-    reward_normalizer_shift: shift reward by subtracting the from the reward
+    reward_normalizer_shift: shift reward by subtracting this from the reward
     reward_normalizer_scale: divide the shifted reward by this value
   """
 

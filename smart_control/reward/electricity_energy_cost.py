@@ -63,7 +63,7 @@ CARBON_EMISSION_BY_HOUR = (
     88.99950995,
 ) * UNIT.kg_per_MWh
 
-# Time-of use schedule source (PG&E) for commercial/industrial:
+# Time-of-use schedule source (PG&E) for commercial/industrial:
 # https://www.pge.com/includes/docs/pdfs/mybusiness/energysavingsrebates/economicdevelopment/factsheet/ed-comind_e_rates_v4.pdf
 # Actual values estimated from Joint Rate Comparisons PG&E - MCE,
 # Large Commercial and Industrial
@@ -166,12 +166,12 @@ class ElectricityEnergyCost(BaseEnergyCost):
   def cost(
       self, start_time: pd.Timestamp, end_time: pd.Timestamp, energy_rate: float
   ) -> float:
-    """Returns the cost of energy from this time step.
+    """Returns the cost of energy for this time step.
 
     Args:
       start_time: start of window
       end_time: end of window
-      energy_rate: power applies in W, if negative then energy is drawn away
+      energy_rate: power applied in W, if negative then energy is drawn away
         (i.e., cooling), positive energy_rate means heating.
 
     Returns:
@@ -200,7 +200,7 @@ class ElectricityEnergyCost(BaseEnergyCost):
     Args:
       start_time: start of window
       end_time: end of window
-      energy_rate: power applies in W, if negative then energy is drawn away
+      energy_rate: power applied in W, if negative then energy is drawn away
         (i.e., cooling), positive energy_rate means heating.
 
     Returns:

@@ -115,7 +115,7 @@ class RejectionSimulatorBuilding(BaseBuilding):
 
   @property
   def num_occupants(self) -> int:
-    """Returns the number of occupants in building."""
+    """Returns the number of occupants in the building."""
     return self._base_building.num_occupants
 
   @property

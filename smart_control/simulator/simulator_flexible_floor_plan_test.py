@@ -138,7 +138,6 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
         inside,
         inside,
         inside,
-        inside,
         wall,
         inside,
         inside,
@@ -595,7 +594,7 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
     self.assertEqual(simulator.building.input_q[0][3], 0)
 
   def test_get_cv_temp_estimate_cell_no_change(self):
-    """This tests that temperatures don"t change in stable conditions.
+    """This tests that temperatures don't change in stable conditions.
 
     This test sets up a small building at temperature 292. The ambient
     conditions are also 292.

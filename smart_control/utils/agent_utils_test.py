@@ -58,7 +58,7 @@ class AgentUtilsTest(parameterized.TestCase):
     last_step = None
 
     for step in random_walk_policy:
-      # Check the policy length is correct.
+      # Check that the policy length is correct.
       self.assertEqual(time_steps_per_random_step, step[0])
       if last_step is not None:
         # Check that the number of steps is correct.

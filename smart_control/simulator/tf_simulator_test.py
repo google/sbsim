@@ -694,7 +694,7 @@ class TFSimulatorTest(absltest.TestCase):
     self.assertLessEqual(7.0, max_delta)
 
   def test_finite_difference_convergence(self):
-    """Tests that the FD problem converges within a fixed numbe of steps."""
+    """Tests that the FD problem converges within a fixed number of steps."""
     weather_controller = mock.create_autospec(
         weather_controller_py.WeatherController
     )

@@ -50,10 +50,10 @@ class BaseEnergyCost(metaclass=abc.ABCMeta):
   def carbon(
       self, start_time: pd.Timestamp, end_time: pd.Timestamp, energy_rate: float
   ) -> float:
-    """Returns the mass of carbon emitted from the enegy consumption.
+    """Returns the mass of carbon emitted from the energy consumption.
 
     The energy-to-carbon emission is source specific. Assuming a constant
-    rate of energy consumption (W) of the time interval bounded by
+    rate of energy consumption (W) over the time interval bounded by
     start_time and end_time, we can estimate total energy use (J). The type
     of source will convert energy into carbon mass (kg).
 

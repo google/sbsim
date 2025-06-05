@@ -45,13 +45,13 @@ class SmartBuildingsDataset:
     shutil.unpack_archive("sb1.zip", "sb1/")
 
   def get_floorplan(self, building):
-    """Gets the floorplan and device layout map for a specific building.
+    """Gets the floor plan and device layout map for a specific building.
 
     Args:
       building: The name of the building.
 
     Returns:
-      A tuple containing the floorplan and device layout map.
+      A tuple containing the floor plan and device layout map.
     """
     if building not in self.partitions:
       raise ValueError("Invalid building")
@@ -78,7 +78,7 @@ class SmartBuildingsDataset:
       raise ValueError("Invalid building")
 
     if partition not in self.partitions[building]:
-      raise ValueError("invalid partition")
+      raise ValueError("Invalid partition")
 
     path = f"./{building}/tabular/{building}/{partition}/"
 

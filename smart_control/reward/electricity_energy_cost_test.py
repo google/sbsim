@@ -111,7 +111,7 @@ class ElectricityEnergyCostTest(parameterized.TestCase):
           0.4410,
       ),
   ])
-  def test_carbon_emisison(
+  def test_carbon_emission(
       self, start_time, end_time, energy_rate, expected_carbon
   ):
     cost = electricity_energy_cost.ElectricityEnergyCost()
