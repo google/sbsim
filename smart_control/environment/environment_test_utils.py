@@ -1,4 +1,4 @@
-"""Shared test utiltiles for environment tests.
+"""Shared test utilities for environment tests.
 
 Copyright 2022 Google LLC
 

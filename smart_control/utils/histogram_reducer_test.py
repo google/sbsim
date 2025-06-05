@@ -422,7 +422,7 @@ class HistogramReducerTest(parameterized.TestCase):
 
     reduced_sequence = rs.reduced_sequence
 
-    # Override the values with updetd predictions:
+    # Override the values with updated predictions:
     predicted_measurements = [15.0, 16.0, 17.0]
     reduced_sequence[('A', 'm2')] = predicted_measurements
 
@@ -529,10 +529,10 @@ class HistogramReducerTest(parameterized.TestCase):
     )
 
     # Since D is associated with m1, and this assignment is for m0,
-    # D should not appear in the expectec assignment.
-    expected_assignmant = [['A'], ['B'], [], [], ['C']]
+    # D should not appear in the expected assignment.
+    expected_assignment = [['A'], ['B'], [], [], ['C']]
 
-    self.assertEqual(assignment, expected_assignmant)
+    self.assertEqual(assignment, expected_assignment)
 
   def _get_test_observation_response(
       self, device_ids, measurement_names, values

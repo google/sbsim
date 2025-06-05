@@ -35,7 +35,7 @@ class StandardScoreObservationNormalizer(
   """Normalizes and denormalizes ObservationResponses and ActionResponses.
 
   Normalization is simply a shift by mean and scale by sqrt(variance).
-  Native variable: variable value in original form, before normlization.
+  Native variable: variable value in original form, before normalization.
   Normalized variable: variable shifted and scaled, after normalization.
 
   Attributes:
@@ -73,7 +73,7 @@ class StandardScoreObservationNormalizer(
     example, all temperatures are in Kelvin, so the same normalization should
     apply to all fields with temperature (e.g., zone_air_temperature sensor,
     exhaust_air_temperature_sensor should be normalized the same way.) For
-    this reason, we apply a keyword match of the field_name rather than and
+    this reason, we apply a keyword match of the field_name rather than an
     exact match.
 
     Args:
@@ -101,14 +101,14 @@ class StandardScoreObservationNormalizer(
   def normalize(
       self, native: smart_control_building_pb2.ObservationResponse
   ) -> smart_control_building_pb2.ObservationResponse:
-    """Shifts/scales a ObservationResponse from native to normalized."""
+    """Shifts/scales an ObservationResponse from native to normalized."""
 
     return self._transform_observation(native, self._normalize_one)
 
   def denormalize(
       self, normalized: smart_control_building_pb2.ObservationResponse
   ) -> smart_control_building_pb2.ObservationResponse:
-    """Scales/Shifts a ObservationResponse from normalized to native."""
+    """Scales/Shifts an ObservationResponse from normalized to native."""
 
     return self._transform_observation(normalized, self._denormalize_one)
 
@@ -121,7 +121,7 @@ class StandardScoreObservationNormalizer(
 
     Args:
       obs_in: input ObservationResponse
-      transform_func: normallization or denormlization function
+      transform_func: normalization or denormalization function
 
     Returns:
       an ObservationResponse with the same fields, but transformed values.

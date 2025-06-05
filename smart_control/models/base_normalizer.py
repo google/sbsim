@@ -12,7 +12,7 @@ Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
-limitations under the Licenses.
+limitations under the License.
 """
 
 import abc
@@ -36,7 +36,7 @@ class BaseObservationNormalizer(metaclass=abc.ABCMeta):
   def denormalize(
       self, normalized: smart_control_building_pb2.ObservationResponse
   ) -> smart_control_building_pb2.ObservationResponse:
-    """De-normalizes an Observation response."""
+    """Denormalizes an Observation response."""
 
 
 class BaseActionNormalizer(metaclass=abc.ABCMeta):

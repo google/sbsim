@@ -107,7 +107,7 @@ def get_air_conditioning_energy_rate(
     outside_temps: list of outside air temperature [K]
     outside_relative_humidities: relative humidity [0.0 (dry) - 1.0 (saturated)]
     supply_temps: temperatures of the supply air [K]
-    ambient_pressures: lost of pressures [bar]
+    ambient_pressures: list of pressures [bar]
 
   Returns: Thermal power applied to heat the air to supply temp [W]
   """
@@ -149,12 +149,12 @@ def get_fan_power(
 
   If fan speed is not available, and the fan is constant volume, assume
   whenever the fan is running that it is at 100% speed.
-  If only horsepower is available, multiple by a Motor Factor of 0.85
+  If only horsepower is available, multiply by a Motor Factor of 0.85
   (which accounts for losses to friction). If brake horsepower is available,
   no Motor Factor is needed. Horsepower (HP) or brake horsepower (BHP)
   can typically be found in AHU manufacturer documentation, or directly on
-  the equipment nameplate (on-site). If there are multiple fans in the AHU, m
-  ultiply by the total number of fans running (integer) to obtain total fan
+  the equipment nameplate (on-site). If there are multiple fans in the AHU,
+  multiply by the total number of fans running (integer) to obtain total fan
   power. Source: go/sb-energy-calculations.
 
   Args:
@@ -162,19 +162,19 @@ def get_fan_power(
     brake_hp: Brake horsepower of the fan.
     fan_speed_percentage: Fan speed percentage, 0 - 100.
     supply_static_pressure: Static pressure in psi.
-    motor_factor: Fan's efficiency coefficient when uing the design horsepower.
+    motor_factor: Fan's efficiency coefficient when using the design horsepower.
     num_fans: Number of fans that are included in the total calculation.
 
   Returns:
     The fan power in Watts.
 
   Raises:
-    ValueError if neither design_hp or break_hp are provided.
+    ValueError if neither design_hp or brake_hp are provided.
   """
 
   if design_hp is None and brake_hp is None:
     raise ValueError(
-        'Must provide either design horseposer or brake horsepower.'
+        'Must provide either design horsepower or brake horsepower.'
     )
 
   if fan_speed_percentage is None:
@@ -357,7 +357,7 @@ def get_compressor_power_utilization(
       raise ValueError('Total stages must be greater than 0.')
 
     if count_stages_on < 0:
-      raise ValueError('Stages on must be not be negative.')
+      raise ValueError('Stages on must not be negative.')
 
     if count_stages_on > total_stages:
       raise ValueError('Total stages must be greater than count_stages_on.')
@@ -386,7 +386,7 @@ def get_water_pump_power(
   Calculate the pump power using the design motor horsepower, pump speed, and
   pump duty cycle. If pump speed is not available, and the pump is constant
   volume, assume whenever the pump is running that it is at 100% speed.
-  If only horsepower is available, multiple by a Motor Factor of 0.85
+  If only horsepower is available, multiply by a Motor Factor of 0.85
   (which accounts for losses to friction). If brake horsepower is available,
   no Motor Factor is needed. Horsepower (HP) or brake horsepower (BHP) can
   typically be found in pump manufacturer documentation, or directly on the
@@ -554,7 +554,7 @@ def get_water_heating_energy_rate_primary_secondary(
     return_water_temperature: Cooled return temperature in F.
     num_active_boilers: Number of boilers currently running.
     num_active_secondary_pumps: Number of active secondary pumps.
-    avg_secondary_pump_speed_percentage: Pecentage [0 - 100] opf sec. pumps.
+    avg_secondary_pump_speed_percentage: Percentage [0 - 100] of sec. pumps.
 
   Returns:
     Heating energy rate in BTU/hr.

@@ -36,7 +36,7 @@ from smart_control.utils import conversion_utils
 class Hvac:
   """Model for the HVAC components of the building.
 
-  Creates a single boiler and air handler, along with one vav for each zone.
+  Creates a single boiler and air handler, along with one VAV for each zone.
 
   Attributes:
     vavs: Mapping from zone_coordinates to VAV.
@@ -58,11 +58,11 @@ class Hvac:
 
     Args:
       zone_coordinates: List of 2-tuple containing zone coordinates to service.
-      air_handler: the air handler for hte HVAC
+      air_handler: the air handler for the HVAC
       boiler: the boiler for the HVAC
       schedule: the setpoint_schedule for the thermostats
-      vav_max_air_flow_rate: the max airflow rate for the vavs
-      vav_reheat_max_water_flow_rate: the max water reheat flowrate for the vavs
+      vav_max_air_flow_rate: the max airflow rate for the VAVs
+      vav_reheat_max_water_flow_rate: the max water reheat flowrate for the VAVs
     """
     self._air_handler = air_handler
     self._boiler = boiler

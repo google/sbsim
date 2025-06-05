@@ -40,13 +40,13 @@ def get_temp_colors(min_k, max_k):
     max_k: max temp in kelvin
   """
 
-  def get_temp_color_pallet(num_colors):
+  def get_temp_color_palette(num_colors):
     x = np.arange(num_colors)
     ys = [i + x + (i * x) ** 2 for i in range(num_colors)]
     return cm.get_cmap('rainbow')(np.linspace(0, 1, len(ys)))
 
   num_colors = max_k - min_k + 1
-  colors = get_temp_color_pallet(num_colors)
+  colors = get_temp_color_palette(num_colors)
   temp_color_map = {}
   temp = min_k
   for c in colors:
@@ -451,7 +451,7 @@ def plot_combined_results(
 
 
 def init_metrics():
-  """Initializes the metrics for sumlation."""
+  """Initializes the metrics for simulation."""
 
   metrics = {}
   metrics['timestamps'] = []

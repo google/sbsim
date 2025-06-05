@@ -301,7 +301,7 @@ class BoilerTest(parameterized.TestCase):
     )
     self.assertEqual(observed_value, reheat_water_setpoint)
 
-    # Up the setpoint to 365, one minute later, the temp should go to 362.
+    # Increase the setpoint to 365, one minute later, the temp should go to 362.
     b.set_action(
         'supply_water_setpoint', 365.0, pd.Timestamp('2021-09-01 10:00:00')
     )

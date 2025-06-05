@@ -118,7 +118,7 @@ class StepFunctionOccupancy(BaseOccupancy):
   def _split_workday(
       self, start_time: pd.Timedelta, end_time: pd.Timedelta
   ) -> Tuple[float, float, float]:
-    """Splits the interval into sec before, during, and after working hours.
+    """Splits the interval into seconds before, during, and after working hours.
 
     Args:
       start_time: start of the interval.
@@ -136,7 +136,7 @@ class StepFunctionOccupancy(BaseOccupancy):
     during_work = 0.0
     after_work = 0.0
 
-    # Step through before work, during work, and afterwork phases, and
+    # Step through before work, during work, and after-work phases, and
     # add up the times in seconds. If the current time is before any
     # phase, do not add any time, and truncate.
     # If the end_time precedes any phase, truncate the phase, and do not
@@ -148,7 +148,7 @@ class StepFunctionOccupancy(BaseOccupancy):
     # Before work start:
     next_step = min(interval_end, self._work_start_time)
 
-    # Get the time between the curren time and the next step.
+    # Get the time between the current time and the next step.
     if current < next_step:
       before_work = (next_step - current).total_seconds()
       current = max(current, next_step)
@@ -159,7 +159,7 @@ class StepFunctionOccupancy(BaseOccupancy):
       during_work = (next_step - current).total_seconds()
       current = next_step
 
-    # Finally, between work end and modnight.
+    # Finally, between work end and midnight.
     next_step = interval_end
     if current < next_step:
       after_work = (next_step - current).total_seconds()

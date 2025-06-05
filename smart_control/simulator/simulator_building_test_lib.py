@@ -126,7 +126,7 @@ class SimulatorBuildingTestBase(parameterized.TestCase):
     return hvac
 
   def _create_small_simulator(self):
-    """Creats a small simulator for test."""
+    """Creates a small simulator for test."""
     # Set up simulation parameters
     weather_controller = weather_controller_py.WeatherController(296.0, 296.0)
     time_step_sec = 300.0
@@ -274,7 +274,7 @@ class SimulatorBuildingTestBase(parameterized.TestCase):
     )
 
   def test_request_observation_incorrect_measurement(self):
-    """Tests when an observation is requested for a nonexistnt measurement."""
+    """Tests when an observation is requested for a nonexistent measurement."""
     simulator_building = self.get_sim_building()
 
     observation_request = smart_control_building_pb2.ObservationRequest()

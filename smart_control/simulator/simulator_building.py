@@ -96,7 +96,7 @@ class SimulatorBuilding(BaseBuilding):
     if clazz == float:
       return _ValueType.VALUE_CONTINUOUS
     elif clazz == int:
-      # TODO(gusatb): Handle non continuous values.
+      # TODO(gusatb): Handle non-continuous values.
       return _ValueType.VALUE_CONTINUOUS
     else:
       return _ValueType.VALUE_TYPE_UNDEFINED
@@ -204,7 +204,7 @@ class SimulatorBuilding(BaseBuilding):
       self, action_request: smart_control_building_pb2.ActionRequest
   ) -> smart_control_building_pb2.ActionResponse:
     """Issues a command to the building to change one or more setpoints."""
-    # Set up default building behavior
+    # Set up default building behaviour
     self.simulator.setup_step_sim()
 
     action_response = smart_control_building_pb2.ActionResponse()

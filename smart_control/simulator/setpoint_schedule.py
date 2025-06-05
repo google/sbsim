@@ -31,7 +31,7 @@ class SetpointSchedule:
 
   Building setpoint schedules have temperature windows for day (comfort) and
   night (eco).
-  Weekends are treated as nights. Additionally specific weekdays can be set
+  Weekends are treated as nights. Additionally, specific weekdays can be set
   to the night windows as well to account for holidays.
 
   Temperature windows are a tuple: (heating_setpoint, cooling_setpoint)

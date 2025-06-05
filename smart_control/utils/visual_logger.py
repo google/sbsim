@@ -33,7 +33,7 @@ class VisualLogger:
   """
 
   def __init__(self, renderer: building_renderer.BuildingRenderer):
-    """Initializes the forground image, ie the walls of the building.
+    """Initializes the foreground image, i.e. the walls of the building.
 
     Args:
       renderer: a building renderer

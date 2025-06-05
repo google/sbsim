@@ -134,7 +134,7 @@ class RenderingObserver(Observer):
         energy_rate: float,
         step_interval: pd.Timedelta = pd.Timedelta(5, unit='minute'),
     ) -> float:
-      """Convert to kwh."""
+      """Convert to kWh."""
       kw_power = energy_rate / 1000.0
       hwh_power = kw_power * step_interval / pd.Timedelta(1, unit='hour')
       return hwh_power.cumsum()
@@ -445,7 +445,7 @@ class RenderingObserver(Observer):
     )
 
   def _plot_timeseries_charts(self, reader, time_zone, step_count):
-    """Plots timeseries charts and saves to file."""
+    """Plots time series charts and saves to file."""
 
     # fmt: off
     # pylint: disable=line-too-long
@@ -510,7 +510,7 @@ class RenderingObserver(Observer):
     )
     fig.savefig(fig_path, bbox_inches='tight', dpi=100)
     plt.close(fig)
-    logger.info('Saved timeseries plot to %s', fig_path)
+    logger.info('Saved time series plot to %s', fig_path)
 
   def _render_env(self, env: environment.Environment, step_count: int):
     """Renders the environment and saves to file."""
@@ -572,7 +572,7 @@ class RenderingObserver(Observer):
       )
 
       if self._environment.pyenv.envs[0].metrics_path is not None:
-        logger.warning('Plotting timeseries charts...')
+        logger.warning('Plotting time series charts...')
         reader = get_latest_episode_reader(self._environment.pyenv.envs[0].metrics_path)  # pylint: disable=line-too-long
         self._plot_timeseries_charts(reader, self._time_zone, self._counter)
 

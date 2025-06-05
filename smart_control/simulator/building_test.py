@@ -1706,7 +1706,7 @@ class BuildingTest(parameterized.TestCase):
           continue
         self.assertEqual(b.temp[i][j], 292.0)
 
-    # lets reset and try again, to make sure the chache works
+    # lets reset and try again, to make sure the cache works
     # now lets change the temps in a room
     b.temp[2][2] = 1
     b.temp[2][3] = 2

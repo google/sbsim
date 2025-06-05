@@ -3,7 +3,7 @@
 This repository accompanies Goldfeder, J., Sipple, J., Real-World Data and
 Calibrated Simulation Suite for Offline Training of Reinforcement Learning
 Agents to Optimize Energy and Emission in Office Buildings, currently under
-review at Neurips 2024, and builds off of Goldfeder, J., Sipple, J., (2023).
+review at NeurIPS 2024, and builds off of Goldfeder, J., Sipple, J., (2023).
 [A Lightweight Calibrated Simulation Enabling Efficient Offline Learning for Optimal Control of Real Buildings](https://dl.acm.org/doi/10.1145/3600100.3625682),
 BuildSys '23, November 15–16, 2023, Istanbul, Turkey
 
@@ -14,7 +14,7 @@ three buildings. This data can be used for further simulator calibration, and
 for training and evaluating reinforcement learning (RL) models.
 
 The dataset is available for download from
-[Tensorflow Datasets](https://www.tensorflow.org/datasets/catalog/smart_buildings).
+[TensorFlow Datasets](https://www.tensorflow.org/datasets/catalog/smart_buildings).
 
 Alternatively, a smaller version of the dataset can be downloaded as a
 [zip file](https://storage.googleapis.com/gresearch/smart_buildings_dataset/tabular_data/sb1.zip)
@@ -41,7 +41,7 @@ notebook will walk you through:
 2. Visualizing the environment.
 
 3. Training an agent using the
-   [Tensorflow Agents Library](https://www.tensorflow.org/agents).
+   [TensorFlow Agents Library](https://www.tensorflow.org/agents).
 
 Alternatively, RL agents can be trained by running various scripts in the
 "smart_control/reinforcement_learning/scripts" directory.

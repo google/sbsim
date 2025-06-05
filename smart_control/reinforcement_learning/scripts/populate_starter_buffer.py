@@ -70,7 +70,7 @@ def populate_replay_buffer(
         'This buffer path already exists. This would override the existing'
         ' buffer. Please use another name'
     )
-    raise FileExistsError('Buffer name already exists, would be overriden') from err  # pylint: disable=line-too-long
+    raise FileExistsError('Buffer name already exists, would be overwritten') from err  # pylint: disable=line-too-long
 
   # Load environment
   logger.info('Loading environment from standard config')

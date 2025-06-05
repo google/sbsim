@@ -114,7 +114,7 @@ class Vav(smart_device.SmartDevice):
   @reheat_valve_setting.setter
   def reheat_valve_setting(self, value: float):
     if value < 0 or value > 1:
-      raise ValueError('reheat_valve_setting must be in [0 ,1]')
+      raise ValueError('reheat_valve_setting must be in [0, 1]')
     self._reheat_valve_setting = value
 
   @property
@@ -133,7 +133,7 @@ class Vav(smart_device.SmartDevice):
   @damper_setting.setter
   def damper_setting(self, value: float):
     if value < 0 or value > 1:
-      raise ValueError('damper_setting must be in [0 ,1]')
+      raise ValueError('damper_setting must be in [0, 1]')
     self._damper_setting = value
 
   @property

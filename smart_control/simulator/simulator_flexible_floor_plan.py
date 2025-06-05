@@ -43,7 +43,7 @@ ZoneId = Tuple[int, int]
 class SimulatorFlexibleGeometries(simulator.Simulator):
   """Simulates thermodynamics of a building with flexible geometries.
 
-  NOTE: post-refector
+  NOTE: post-refactor
 
   This simulator uses finite differences method (FDM) to approximate the
   temperature changes in each Control Volume (CV) in a building. This happens
@@ -68,7 +68,7 @@ class SimulatorFlexibleGeometries(simulator.Simulator):
       building: Refactored flexible FloorPlanBasedBuilding object controlling
         the control volumes.
       hvac: Hvac for the building.
-      weather_controller: Weather Controller for modelling ambient temperature.
+      weather_controller: Weather Controller for modeling ambient temperature.
       time_step_sec: Size of each time step in seconds.
       convergence_threshold: Minimum iteration temperature change to finish a
         FDM time step.
@@ -175,7 +175,7 @@ class SimulatorFlexibleGeometries(simulator.Simulator):
       if vav.flow_rate_demand > 0:
         hvac.air_handler.add_demand(vav.flow_rate_demand)
 
-      # Update the boiler demand for hot water as the sum of each VAV"s demand.
+      # Update the boiler demand for hot water as the sum of each VAV's demand.
       if vav.reheat_demand > 0:
         hvac.boiler.add_demand(vav.reheat_demand)
 

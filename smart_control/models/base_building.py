@@ -61,7 +61,7 @@ class BaseBuilding(metaclass=abc.ABCMeta):
 
   @abc.abstractmethod
   def reset(self) -> None:
-    """Resets the building, throwing an RuntimeError if this is impossible."""
+    """Resets the building, throwing a RuntimeError if this is impossible."""
 
   @property
   @abc.abstractmethod

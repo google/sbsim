@@ -64,7 +64,7 @@ class FloorPlanBasedHvac:
       boiler: the boiler for the HVAC
       schedule: the setpoint_schedule for the thermostats
       vav_max_air_flow_rate: the max airflow rate for the vavs
-      vav_reheat_max_water_flow_rate: the max water reheat flowrate for the vavs
+      vav_reheat_max_water_flow_rate: the max water reheat flow rate for the vavs
       zone_identifier: List of strings containing zone coordinates to service.
         If None, then the Simulator which calls the hvac must have a list of
         rooms that it plans on passing.

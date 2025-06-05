@@ -15,7 +15,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 
 A convection simulator that randomly shuffles control volumes as a stochastic
-imitation of convection
+imitation of convection.
 We specify probability of a control volume getting shuffled, as well as maximum
 distance that any given
 control volume can be moved.
@@ -89,7 +89,7 @@ class StochasticConvectionSimulator(
         self._shuffle_max_dist(p, v, distance, temp)
 
   def _shuffle_no_max_dist(self, v, temp):
-    """Special case of shuffling when no max dist is specified.and p=1.
+    """Special case of shuffling when no max dist is specified and p=1.
 
     Args:
       v: list of CVs to shuffle

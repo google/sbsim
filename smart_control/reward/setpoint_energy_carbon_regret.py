@@ -24,7 +24,7 @@ reward function:
   setpoints  results in a positive reward, and any temperature outside of
   setpoints may also result in a negative reward (i.e., penalty).
   * Cost: The cost of electricity and natural gas is a negative reward (cost).
-  Then by minimizing negative rewards/maximizing positive reward, the agent
+  Thus by minimizing negative rewards/maximizing positive reward, the agent
   will reduce overall energy cost. To compute the cost, both energy consumption
   and the energy cost schedules are required.
   * Carbon: By receiving negative reward for consuming natural gas, the agent
@@ -39,13 +39,13 @@ The three factors can be scaled and combined into a single regret function:
         r_i -> [-1, 0]
 where:
   r_i is the incremental reward at step i
-  s(setpoint) is the reward for maintining temperature inside setpoint
+  s(setpoint) is the reward for maintaining temperature inside setpoint
   s_max = occupancy x productivity, the maximum possible reward
   f(cost) is the cost of consuming electrical and natural gas energy
   f_max: maximum momentary cost that occurs at max energy use
   g(carbon) is the cost of emitting carbon,
   g_max
-  and u, w, w are weighing factors for the policy.
+  and u, v, w are weighting factors for the policy.
 
 The fundamental metric unit of energy is the Joule (J), and the unit of energy
 applied over a fixed time interval (energy rate) is power measured in J/sec or

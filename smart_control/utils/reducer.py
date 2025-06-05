@@ -14,13 +14,13 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 
-The observation space dimensionality of the real building is greater a thousand,
+The observation space dimensionality of the real building is greater than a thousand,
 with multiple observations being of the same type. For example, in US-MTV-1055,
 there are 127 VAVs each reporting zone_air_temperature_sensor values, creating
 127 timelines of zone_air_temperature_sensor. One strategy to simplify
 representation of the real building is to collapse these similar
 timeseries into a central unit of measure, like a mean or median. This
-reduced the observation space to less than 100, e.g., 79 in US-MTV-1055, which
+reduces the observation space to less than 100, e.g., 79 in US-MTV-1055, which
 makes training a regression model much more efficient.
 
 The purpose of the reducer is to transform the full-width observation space

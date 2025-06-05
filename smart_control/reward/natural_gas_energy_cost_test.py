@@ -55,10 +55,10 @@ class NaturalGasEnergyCostTest(parameterized.TestCase):
     cost_estimate = cost.cost(start_time, end_time, energy_rate)
     self.assertAlmostEqual(expected_cost, cost_estimate, 2)
 
-  def test_carbon_emisison(self):
+  def test_carbon_emission(self):
     # Source:
     # https://www.eia.gov/environment/emissions/co2_vol_mass.php
-    # 1 million BTUs nat gas generate 53.1 kg C02.
+    # 1 million BTUs natural gas generate 53.1 kg CO2.
     energy_rate = 1.0e6 * constants.JOULES_PER_BTU / 3600.0
     dt = pd.Timedelta(1.0, unit='hour')
     start_time = pd.Timestamp(year=2020, month=1, day=5, hour=8)

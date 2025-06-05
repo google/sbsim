@@ -32,7 +32,7 @@ T = TypeVar('T')
 
 
 class BaseReader(metaclass=abc.ABCMeta):
-  """Abstract base class for writing the building and reward protos."""
+  """Abstract base class for reading the building and reward protos."""
 
   @abc.abstractmethod
   def read_observation_responses(

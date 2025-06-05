@@ -363,7 +363,7 @@ class EnvironmentTest(parameterized.TestCase, tf.test.TestCase):
 
   def test_create_action_request_rejected_exception(self):
     class RejectionBuilding(environment_test_utils.SimpleBuilding):
-      """A Building that throws exception simulating no authorization."""
+      """A Building that throws exception simulating no authorisation."""
 
       def request_action(
           self, action_request: smart_control_building_pb2.ActionRequest
@@ -387,7 +387,7 @@ class EnvironmentTest(parameterized.TestCase, tf.test.TestCase):
 
   def test_create_action_request_rejected_no_accepted_status(self):
     class StatusRejectionBuilding(environment_test_utils.SimpleBuilding):
-      """A Building that throws exception simulating no authorization."""
+      """A Building that throws exception simulating no authorisation."""
 
       def request_action(
           self, action_request: smart_control_building_pb2.ActionRequest
@@ -448,7 +448,6 @@ class EnvironmentTest(parameterized.TestCase, tf.test.TestCase):
             0.0000000e00,
             1.2246469e-16,
             1.0000000e00,
-            1.0000000e00,
             1.0000000e01,
         ]),
         dtype=np.float32,
@@ -483,7 +482,6 @@ class EnvironmentTest(parameterized.TestCase, tf.test.TestCase):
             -1.0000000e00,
             0.0000000e00,
             1.2246469e-16,
-            1.0000000e00,
             1.0000000e00,
             1.0000000e01,
         ]),

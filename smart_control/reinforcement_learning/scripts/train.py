@@ -6,7 +6,7 @@ components.
 
 import os
 
-# setting this environment variable before importing tensorflow
+# Set this environment variable before importing tensorflow
 # https://github.com/tensorflow/tensorflow/issues/63548#issuecomment-2008941537
 os.environ['WRAPT_DISABLE_EXTENSIONS'] = 'true'
 

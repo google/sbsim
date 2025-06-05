@@ -144,13 +144,13 @@ def save_images_to_cns_for_debugging(
 def guarantee_air_padding_in_frame(
     floor_plan: FileInputFloorPlan,
 ) -> FileInputFloorPlan:
-  """Adds a row or column of air if a building is abuts its frame edge.
+  """Adds a row or column of air if a building abuts its frame edge.
 
   Future computation relies on buildings being surrounded by at least one
     layer of air CVs between them and the edge of the floor plan frame.
     However, due to human variation in preparing floor plans for transformation
     into arrays, we may have the case where a floor plan is passed in that has
-    wall CVs at the edge of the frame. Thus, this function should check that
+    wall CVs at the edge of the frame. Thus, this function should check if
     that is the case and will add a layer of exterior space CVs if building lies
     against the array's edge.
 
@@ -165,7 +165,7 @@ def guarantee_air_padding_in_frame(
     floor_plan: a FileInputFloorPlan
 
   Returns:
-    an FileInputFloorPlan that has 2's padded along whichever array edge was
+    a FileInputFloorPlan that has 2's padded along whichever array edge was
       missing them.
   """
 
@@ -298,7 +298,7 @@ def _set_exterior_space_neg(
   """Modifies the connections array so that exterior space is negative.
 
   Encoding the exterior space as negative is important in the connections array
-  as it will encode an aribtrarily large number of rooms as positive integers.
+  as it will encode an arbitrarily large number of rooms as positive integers.
   Thus, setting the exterior space as negative ensures that we will always be
   able to deal with it as its own category of space.
 
@@ -308,7 +308,7 @@ def _set_exterior_space_neg(
     exterior_space: an ExteriorSpace array
 
   Returns:
-    a Connections array in which exterior air set negative.
+    a Connections array in which exterior air is set negative.
   """
 
   connections = np.where(
@@ -447,7 +447,7 @@ def construct_building_data_types(
   necessary pieces of information for further processing.
 
   Args:
-    floor_plan: an FileInputFloorPlan with outside air marked as
+    floor_plan: a FileInputFloorPlan with outside air marked as
       constants.EXTERIOR_SPACE_VALUE_IN_FILE_INPUT, inside walls marked as
       constants.INTERIOR_WALL_VALUE_IN_FILE_INPUT, and inside space marked as
       constants.INTERIOR_SPACE_VALUE_IN_FILE_INPUT.

@@ -2,7 +2,7 @@
 
 Occupancy refers to the average number of people in a zone within a specified
 period of time. Concrete classes can either simulate the occupancy or
-estimate the occupancy from Calendar or motion sensors in the buildings.
+estimate the occupancy from Calendar or motion sensors in the building.
 
 The occupancy signal is an input to the agent's reward function.
 

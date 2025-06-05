@@ -18,12 +18,12 @@ limitations under the License.
 The objective of the histogram reducer is to compress a very wide
 multivariate timeseries with minimal data loss. The current control agents
 don't really benefit from knowing the temperature (etc.) of each zone, but
-simply need to know that some zones are below of above setpoints. As such,
+simply need to know that some zones are below or above setpoints. As such,
 representing each zone as a separate timeseries is rather inefficient.
 
 Reduce function converts a feature from individual timeseries into a histogram.
-For exammple, devices d1, d2 have a zone_air_temperature timeseries,
-the histogram reducer converts the timeseries into a counts on temperature
+For example, devices d1, d2 have a zone_air_temperature timeseries,
+the histogram reducer converts the timeseries into counts on temperature
 bins, like 70, 71, 72, etc. and assigns a count to the bin. This reduces
 the dimensionality into a more compressed format if the number of the devices
 exceeds the number of bins.
@@ -88,7 +88,7 @@ def assign_devices_to_bins(
   Returns:
     A jagged array with outer dim for each bin, and inner array with device ids.
   """
-  # Create a an eply assignment as a list of lists, one list per bin.
+  # Create an empty assignment as a list of lists, one list per bin.
   assignment = [[] for _ in range(len(bins))]
 
   for (
@@ -153,7 +153,7 @@ def reassign_nodes(
   """Takes a current assignment and shifts it to match the HistogramCounts.
 
   Moves devices from one bin to another to match the next histogram counts as
-  efficiently as possible (i.e., moves a devices from the closest possible
+  efficiently as possible (i.e., moves a device from the closest possible
   current bin assignment.)
 
   Args:
@@ -208,12 +208,12 @@ class HistogramReducer(BaseReducer):
   The objective of the histogram reducer is to compress a very wide
   multivariate timeseries with minimal data loss. The current control agents
   don't really benefit from knowing the temperature (etc.) of each zone, but
-  simply need to know that some zones are below of above setpoints. As such,
+  simply need to know that some zones are below or above setpoints. As such,
   representing each zone as a separate timeseries is rather inefficient.
 
   Reduce function converts a feature from timeseries into a histogram.
-  For exammple, devices d1, d2 have a zone_air_temperature timeseries,
-  the histogram reducer converts the timeseries into a counts on temperature
+  For example, devices d1, d2 have a zone_air_temperature timeseries,
+  the histogram reducer converts the timeseries into counts on temperature
   bins, like 70, 71, 72, etc. and assigns a count to the bin. This reduces
   the dimensionality into a more compressed format if the number of the devices
   exceeds the number of bins.
@@ -354,7 +354,7 @@ class HistogramReducer(BaseReducer):
 
       df = pd.DataFrame(updates, index=indexes)
 
-      # Add in "passthough" features that are not histogrammed.
+      # Add in "passthrough" features that are not histogrammed.
       if self._passthrough_sequence is not None:
         # Prefer the columns in the reduced sequence over the
         # passthrough values.
@@ -447,7 +447,7 @@ class HistogramReducer(BaseReducer):
         observation_sequence, feature_mapping
     )
 
-    # Join the passthrough and the rediced sequences into a single dataframe.
+    # Join the passthrough and the reduced sequences into a single dataframe.
     reduced_sequence = passthrough_sequence
     if reduced_feature_dfs:
       df_hist = pd.concat(reduced_feature_dfs, axis=1)

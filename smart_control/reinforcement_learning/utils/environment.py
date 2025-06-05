@@ -8,7 +8,7 @@ from smart_control.reinforcement_learning.utils.constants import DEFAULT_OCCUPAN
 
 def load_environment(gin_config_file: str):
   """Returns an Environment from a config file."""
-  # Global definition is required by Gin library to instantiate Environment.
+  # Global definition is required by the Gin library to instantiate Environment.
   # global environment  # pylint: disable=global-variable-not-assigned
 
   with gin.unlock_config():

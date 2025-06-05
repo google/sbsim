@@ -10,7 +10,7 @@ This project requires the following dependencies:
 - [Protocol Buffer Compiler](https://grpc.io/docs/protoc-installation/) (i.e.
   "protoc")
 - [FFmpeg](https://ffmpeg.org/)
-- Python (>=3.10.12 and \<3.12), as installed using
+- Python (>=3.10.12 and <3.12), as installed using
   [Pyenv](https://github.com/pyenv/pyenv)
 - [Venv](https://docs.python.org/3/library/venv.html), for managing a Python
   virtual environment

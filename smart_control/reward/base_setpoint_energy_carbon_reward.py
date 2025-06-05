@@ -92,7 +92,7 @@ class BaseSetpointEnergyCarbonRewardFunction(BaseRewardFunction):
       time_interval_sec: float,
       average_occupancy,
   ) -> float:
-    """Computes the productivity for person hour from the zone temp."""
+    """Computes the productivity per person hour from the zone temp."""
 
     x0low = heating_setpoint - self._productivity_midpoint_delta  # pytype: disable=attribute-error  # trace-all-classes
     x0high = cooling_setpoint + self._productivity_midpoint_delta  # pytype: disable=attribute-error  # trace-all-classes
@@ -170,7 +170,7 @@ class BaseSetpointEnergyCarbonRewardFunction(BaseRewardFunction):
   def _sum_natural_gas_energy_rate(
       self, energy_reward_info: smart_control_reward_pb2.RewardInfo
   ) -> float:
-    """Returns the sum of nat gas energy rate over the interval in W."""
+    """Returns the sum of natural gas energy rate over the interval in W."""
 
     # Sum up the power in Watts for the total power.
     gas_energy_rate = 0.0
