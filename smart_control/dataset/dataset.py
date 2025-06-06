@@ -9,7 +9,7 @@ import requests
 
 
 class SmartBuildingsDataset:
-  """Smart Buildings Dataset implementation, including loading and downloading."""
+  """Smart Buildings Dataset"""
 
   def __init__(self, download=True):
     self.partitions = {
@@ -28,16 +28,19 @@ class SmartBuildingsDataset:
     """Downloads the Smart Buildings Dataset from Google Cloud Storage."""
     print("Downloading data...")
 
-    def download_file(url):
+    def download_file(url, timeout=200):
       local_filename = url.split("/")[-1]
-      with requests.get(url, stream=True) as r:
+
+      with requests.get(url, stream=True, timeout=timeout) as r:
         r.raise_for_status()
+
         with open(local_filename, "wb") as f:
           for chunk in r.iter_content(chunk_size=8192):
             f.write(chunk)
+
       return local_filename
 
-    url = "https://storage.googleapis.com/gresearch/smart_buildings_dataset/tabular_data/sb1.zip"
+    url = "https://storage.googleapis.com/gresearch/smart_buildings_dataset/tabular_data/sb1.zip"  # pylint: disable=line-too-long
     download_file(url)
     shutil.unpack_archive("sb1.zip", "sb1/")
 
@@ -50,11 +53,15 @@ class SmartBuildingsDataset:
     Returns:
       A tuple containing the floorplan and device layout map.
     """
-    if building not in self.partitions.keys():
-      raise ValueError("invalid building")
+    if building not in self.partitions:
+      raise ValueError("Invalid building")
+
     floorplan = np.load(f"./{building}/tabular/floorplan.npy")
-    with open(f"./{building}/tabular/device_layout_map.json") as json_file:
+
+    json_filepath = f"./{building}/tabular/device_layout_map.json"
+    with open(json_filepath, encoding="utf-8") as json_file:
       device_layout_map = json.load(json_file)
+
     return floorplan, device_layout_map
 
   def get_building_data(self, building, partition):
@@ -67,10 +74,12 @@ class SmartBuildingsDataset:
     Returns:
       A tuple containing the data and metadata.
     """
-    if building not in self.partitions.keys():
-      raise ValueError("invalid building")
+    if building not in self.partitions:
+      raise ValueError("Invalid building")
+
     if partition not in self.partitions[building]:
       raise ValueError("invalid partition")
+
     path = f"./{building}/tabular/{building}/{partition}/"
 
     data = np.load(path + "data.npy.npz")

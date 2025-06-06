@@ -31,6 +31,7 @@ from smart_control.utils.observation_normalizer import StandardScoreObservationN
 # pylint: enable=unused-import
 
 # Relative filepaths. Consider moving to reinforcement_learning/constants.py
+# fmt: off
 # pylint: disable=line-too-long
 DATA_PATH = os.path.join(ROOT_DIR, "smart_control", "configs", "resources", "sb1")
 CONFIG_PATH = os.path.join(ROOT_DIR, "smart_control", "configs", "resources", "sb1", "train_sim_configs")
@@ -39,6 +40,7 @@ RENDERS_PATH = os.path.join(ROOT_DIR, "smart_control", "reinforcement_learning",
 OUTPUT_DATA_PATH = os.path.join(ROOT_DIR, "smart_control", "reinforcement_learning", "data", "starter_buffers")
 EXPERIMENT_RESULTS_PATH = os.path.join(ROOT_DIR, "smart_control", "reinforcement_learning", "experiment_results")
 # pylint: enable=line-too-long
+# fmt: on
 
 
 @gin.configurable
@@ -102,6 +104,7 @@ def get_histogram_reducer() -> Any:
   Returns:
       Histogram reducer.
   """
+  # fmt: off
   # pylint: disable=bad-continuation
   histogram_parameters_tuples = (
       ("zone_air_temperature_sensor", (
@@ -114,6 +117,7 @@ def get_histogram_reducer() -> Any:
       )),
   )
   # pylint: enable=bad-continuation
+  # fmt: on
   reader = controller_reader.ProtoReader(DATA_PATH)
 
   hr = histogram_reducer.HistogramReducer(

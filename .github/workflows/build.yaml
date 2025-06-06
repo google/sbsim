@@ -60,7 +60,7 @@ jobs:
     - name: Run the Markdown formatter
       run: |
         source .venv/bin/activate
-        mdformat README.md --check
+        mdformat README.md docs/*.md --check
 
     - name: Run tests
       run: |

@@ -566,7 +566,7 @@ class RegressionBuildingUtilsTest(absltest.TestCase):
     zone_infos, device_infos = self._get_test_zone_device_infos()
     current_observation_mapping = {
         ('d0', 'zone_air_temperature_sensor'): 295.0,
-        ('d1', 'zone_air_temperature_sensor'): 293.0
+        ('d1', 'zone_air_temperature_sensor'): 293.0,
     }
     zone_reward_infos = regression_building_utils.get_zone_reward_infos(
         current_timestamp=current_timestamp,

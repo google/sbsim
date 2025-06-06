@@ -1,0 +1,140 @@
+#
+# MKDOCS CONFIGURATION FILE
+# https://www.mkdocs.org/user-guide/configuration/
+#
+# https://github.com/google/bayesnf/blob/main/mkdocs.yml
+# https://github.com/google/ml-metadata/blob/master/mkdocs.yml
+# https://github.com/google/temporian/blob/main/docs/mkdocs.yml
+# https://github.com/mesop-dev/mesop/blob/main/mkdocs.yml
+#
+
+site_name: Smart Control Project Documentation
+site_description: "Google Open Source Smart Buildings Control"
+site_dir: docs_site # NOTE: should not be within the docs dir
+site_url: https://google.github.io/sbsim/
+repo_url: https://github.com/google/sbsim
+repo_name: google/sbsim
+edit_uri: edit/copybara_push/docs/
+
+#
+# THEME / STYLE
+#
+
+theme:
+  name: material # default: (readthedocs / mkdocs), third-party: material
+
+  features:
+    #- navigation.tabs # puts tabs under top navbar
+    - navigation.sections # splits left sidebar into sections
+    - navigation.path # breadcrumbs ?
+    - navigation.top # back to top button
+    - navigation.footer # next and back buttons
+    #- navigation.indexes # allows a directory to have an index.md
+    - content.action.edit  # Enables the "Edit this page" button
+    - content.action.view  # Enables the "View source of this page" button
+
+  favicon: assets/images/favicon.ico
+
+  # https://squidfunk.github.io/mkdocs-material/reference/icons-emojis/
+  #icon:
+  #  logo: fontawesome/brands/google # material/glasses
+
+  logo: assets/images/google-open-source-logo-large.png
+
+  # https://squidfunk.github.io/mkdocs-material/setup/changing-the-colors/
+  palette:
+
+    # Light Mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: light blue
+      accent: light blue
+      toggle:
+        icon: material/weather-sunny # material/brightness-7
+        name: Switch to dark mode
+
+    # Dark Mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: light blue
+      accent: light blue
+      toggle:
+        icon: material/weather-night # material/brightness-2
+        name: Switch to light mode
+
+#extra_css:
+#  - assets/stylesheets/google-style.css
+
+#
+# NAVIGATION / TOC
+#
+
+nav:
+  - 'Home': index.md
+  - 'Local Development':
+    - 'Setup': setup.md
+    - 'Contributing': contributing.md
+    - 'Documentation Site': docs-site.md
+  - 'API Reference':
+    - api/config.md
+    - api/dataset.md
+    - api/environment.md
+    - api/models.md
+    - 'Reinforcement Learning':
+      - api/reinforcement_learning/agents.md
+      - api/reinforcement_learning/observers.md
+      - api/reinforcement_learning/policies.md
+      - api/reinforcement_learning/replay_buffer.md
+      - api/reinforcement_learning/scripts.md
+      - api/reinforcement_learning/utils.md
+    - api/reward.md
+    - 'Simulator':
+      - 'Overview': api/simulator/simulator.md
+      - api/simulator/building.md
+      - api/simulator/devices.md
+      - api/simulator/occupancy.md
+      - api/simulator/weather.md
+      - api/simulator/utils.md
+
+#
+# PLUGINS / EXTENSIONS
+#
+
+markdown_extensions:
+  - toc:
+      permalink: "#" # adds clickable link anchors for all headings
+
+plugins:
+  - search
+
+  #
+  # API DOCS
+  # https://mkdocstrings.github.io/python/usage/
+  #
+  - mkdocstrings:
+      default_handler: python
+      handlers:
+        python:
+          paths:
+            - .  # look in the current directory for the "smart_control" dir
+          options:
+            docstring_style: google
+            docstring_section_style: "table" # "table", "list", "spacy"
+            show_source: false
+            show_signature_annotations: true # type hints
+            show_root_heading: true # HTML heading for the import path
+            show_root_full_path: true # show full module import path
+            show_root_members_full_path: false
+            show_root_toc_entry: true
+            members_order: alphabetical # "alphabetical", "source", "__all__"
+            filters: ["!^_"] # exclude private / protected members
+            inherited_members: true
+            show_inheritance_diagram: true # paid feature?
+            line_length: 80
+            show_category_heading: false # "Classes", "Functions" etc.
+            show_symbol_type_heading: true # "Class", "Function", etc
+            show_symbol_type_toc: true # "mod", "class", "meth", etc.
+            merge_init_into_class: true
+            show_if_no_docstring: false
+            separate_signature: true
+            annotations_path: "brief" # "brief", "source", or "full"

@@ -11,6 +11,16 @@
 __pycache__/
 .pytest_cache
 
+# data downloads:
+sb1.zip
+sb1/
+
+# jupyter notebook checkpoints:
+smart_control/notebooks/.ipynb_checkpoints/
+
+# documentation site:
+docs_site
+
 # results files:
 */**/output_data/
 */**/metrics/
@@ -21,8 +31,6 @@ smart_control/learning/
 smart_control/simulator/videos
 smart_control/refactor/data/
 smart_control/refactor/experiment_results/
-smart_control/learning/
-.vscode/
 smart_control/old/
 smart_control/configs/resources/sb1/generated_configs/
 smart_control/reinforcement_learning/data/

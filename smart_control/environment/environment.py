@@ -320,14 +320,14 @@ def generate_field_id(
   If a unique device/field generates the same id as a different device/field,
   the id will be concatenated with an integer if the id already exists.
 
-  Examples for clarity:
-    generate_field_id(device='a_b', field='c') -> a_b_c
-    generate_field_id(device='a_b', field='c') -> a_b_c
-    generate_field_id(device='a', field='b_c') -> a_b_c_1
+  Examples:
+      >>> generate_field_id(device='a_b', field='c') -> a_b_c
+      >>> generate_field_id(device='a_b', field='c') -> a_b_c
+      >>> generate_field_id(device='a', field='b_c') -> a_b_c_1
 
-  The first id is a_b_c. The second call is an exact duplicate of the first,
-  so the same id is returned. When the third call is made, because a_b_c is
-  already taken, an int is concatenated and the returned id is a_b_c_1.
+  The first id is `a_b_c`. The second call is an exact duplicate of the first,
+  so the same id is returned. When the third call is made, because `a_b_c` is
+  already taken, an int is concatenated and the returned id is `a_b_c_1`.
 
   Args:
     device: Device id.
