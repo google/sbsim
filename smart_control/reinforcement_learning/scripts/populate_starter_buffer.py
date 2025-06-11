@@ -20,8 +20,9 @@ from smart_control.reinforcement_learning.observers.print_status_observer import
 from smart_control.reinforcement_learning.policies.schedule_policy import create_baseline_schedule_policy
 from smart_control.reinforcement_learning.replay_buffer.replay_buffer import ReplayBufferManager
 from smart_control.reinforcement_learning.utils.config import CONFIG_PATH
-from smart_control.reinforcement_learning.utils.config import OUTPUT_DATA_PATH
+from smart_control.reinforcement_learning.utils.config import REPLAY_BUFFER_DATA_PATH
 from smart_control.reinforcement_learning.utils.environment import create_and_setup_environment
+from smart_control.utils.constants import ROOT_DIR
 
 # Configure logging
 logging.basicConfig(
@@ -32,7 +33,7 @@ logger = logging.getLogger(__name__)
 
 
 def populate_replay_buffer(
-    buffer_name,
+    buffer_path,
     buffer_capacity,
     steps_per_run,
     num_runs,
@@ -42,8 +43,7 @@ def populate_replay_buffer(
   """Populates a replay buffer with initial exploration data.
 
   Args:
-    buffer_name: Name with which to save replay buffer. Buffer will be at
-      smart_control/reinforcement_learning/data/starter_buffers/{buffer_name}
+    buffer_path: Path where the replay buffer will be saved.
     buffer_capacity: Maximum size of the replay buffer
     steps_per_run: Number of steps per actor run
     num_runs: Number of actor runs to perform
@@ -53,24 +53,17 @@ def populate_replay_buffer(
   Returns:
     The replay buffer.
   """
-
-  buffer_path = os.path.join(
-      OUTPUT_DATA_PATH,
-      f'{buffer_name}_seqlen{sequence_length}_exp{num_runs*steps_per_run}',
-  )
   logger.info('Buffer path: %s', buffer_path)
 
   # Create directory if it doesn't exist
   try:
-    os.makedirs(
-        os.path.dirname(buffer_path + '/anything-here'), exist_ok=False
-    )  # added '/anything-here' such that the path is a directory
+    os.makedirs(buffer_path, exist_ok=False)
   except FileExistsError as err:
     logger.exception(
         'This buffer path already exists. This would override the existing'
-        ' buffer. Please use another name'
+        ' buffer. Please use another path'
     )
-    raise FileExistsError('Buffer name already exists, would be overriden') from err  # pylint: disable=line-too-long
+    raise FileExistsError('Buffer path already exists, would be overriden') from err  # pylint: disable=line-too-long
 
   # Load environment
   logger.info('Loading environment from standard config')
@@ -189,7 +182,7 @@ if __name__ == '__main__':
   # fmt: off
   # pylint: disable=line-too-long
   parser = argparse.ArgumentParser(description='Populate a replay buffer with initial exploration data')
-  parser.add_argument('--buffer-name', type=str, required=True, help='Name to identify the saved replay buffer')
+  parser.add_argument('--buffer-name', type=str, required=True, help='Name used to identify the replay buffer')
   parser.add_argument('--capacity', type=int, default=50000, help='Replay buffer capacity')
   parser.add_argument('--steps-per-run', type=int, default=100, help='Number of steps per actor run')
   parser.add_argument('--num-runs', type=int, default=5, help='Number of actor runs to perform')
@@ -199,8 +192,18 @@ if __name__ == '__main__':
   # fmt: on
   args = parser.parse_args()
 
+  # This makes it work for both relative and absolute paths
+  if not os.path.isabs(args.env_gin_config_file_path):
+    args.env_gin_config_file_path = os.path.join(
+        ROOT_DIR, args.env_gin_config_file_path
+    )
+
+  buffer_path = args.buffer_name
+  if not os.path.isabs(args.buffer_name):
+    buffer_path = os.path.join(REPLAY_BUFFER_DATA_PATH, args.buffer_name)
+
   populate_replay_buffer(
-      buffer_name=args.buffer_name,
+      buffer_path=buffer_path,
       buffer_capacity=args.capacity,
       steps_per_run=args.steps_per_run,
       num_runs=args.num_runs,

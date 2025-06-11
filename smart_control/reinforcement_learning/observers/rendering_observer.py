@@ -19,7 +19,6 @@ from smart_control.environment import environment
 from smart_control.reinforcement_learning.observers.base_observer import Observer
 from smart_control.reinforcement_learning.utils.config import RENDERS_PATH
 from smart_control.reinforcement_learning.utils.constants import DEFAULT_TIME_ZONE
-from smart_control.reinforcement_learning.utils.constants import KELVIN_TO_CELSIUS as _KELVIN_TO_CELSIUS
 from smart_control.reinforcement_learning.utils.data_processing import get_action_timeseries
 from smart_control.reinforcement_learning.utils.data_processing import get_energy_timeseries
 from smart_control.reinforcement_learning.utils.data_processing import get_latest_episode_reader
@@ -27,6 +26,7 @@ from smart_control.reinforcement_learning.utils.data_processing import get_outsi
 from smart_control.reinforcement_learning.utils.data_processing import get_reward_timeseries
 from smart_control.reinforcement_learning.utils.data_processing import get_zone_timeseries
 from smart_control.utils import building_renderer
+from smart_control.utils.constants import KELVIN_TO_CELSIUS
 
 logger = logging.getLogger(__name__)
 
@@ -37,9 +37,6 @@ class RenderingObserver(Observer):
   This observer renders the environment at specified intervals and can
   also show plots of metrics.
   """
-
-  # Class constant
-  KELVIN_TO_CELSIUS = _KELVIN_TO_CELSIUS
 
   def __init__(
       self,
@@ -356,37 +353,37 @@ class RenderingObserver(Observer):
 
     ax1.plot(
         zone_cooling_setpoints.index,
-        zone_cooling_setpoints - self.KELVIN_TO_CELSIUS,
+        zone_cooling_setpoints - KELVIN_TO_CELSIUS,
         color='yellow',
         lw=1,
     )
 
     ax1.plot(
         zone_cooling_setpoints.index,
-        zone_heating_setpoints - self.KELVIN_TO_CELSIUS,
+        zone_heating_setpoints - KELVIN_TO_CELSIUS,
         color='yellow',
         lw=1,
     )
 
     ax1.fill_between(
         zone_temp_stats.index,
-        zone_temp_stats['min_temp'] - self.KELVIN_TO_CELSIUS,
-        zone_temp_stats['max_temp'] - self.KELVIN_TO_CELSIUS,
+        zone_temp_stats['min_temp'] - KELVIN_TO_CELSIUS,
+        zone_temp_stats['max_temp'] - KELVIN_TO_CELSIUS,
         facecolor='green',
         alpha=0.8,
     )
 
     ax1.fill_between(
         zone_temp_stats.index,
-        zone_temp_stats['q25_temp'] - self.KELVIN_TO_CELSIUS,
-        zone_temp_stats['q75_temp'] - self.KELVIN_TO_CELSIUS,
+        zone_temp_stats['q25_temp'] - KELVIN_TO_CELSIUS,
+        zone_temp_stats['q75_temp'] - KELVIN_TO_CELSIUS,
         facecolor='green',
         alpha=0.8,
     )
 
     ax1.plot(
         zone_temp_stats.index,
-        zone_temp_stats['median_temp'] - self.KELVIN_TO_CELSIUS,
+        zone_temp_stats['median_temp'] - KELVIN_TO_CELSIUS,
         color='white',
         lw=3,
         alpha=1.0,
@@ -394,7 +391,7 @@ class RenderingObserver(Observer):
 
     ax1.plot(
         outside_air_temperature_timeseries.index,
-        outside_air_temperature_timeseries - self.KELVIN_TO_CELSIUS,
+        outside_air_temperature_timeseries - KELVIN_TO_CELSIUS,
         color='magenta',
         lw=3,
         alpha=1.0,
@@ -422,7 +419,7 @@ class RenderingObserver(Observer):
 
     if action_tuple[1] in ['supply_water_setpoint', 'supply_air_heating_temperature_setpoint']:  # pylint: disable=line-too-long
       single_action_timeseries['setpoint_value'] = (
-          single_action_timeseries['setpoint_value'] - self.KELVIN_TO_CELSIUS
+          single_action_timeseries['setpoint_value'] - KELVIN_TO_CELSIUS
       )
 
     ax1.plot(
@@ -581,5 +578,7 @@ class RenderingObserver(Observer):
   def reset(self) -> None:
     """Reset the observer to its initial state."""
     self._counter = 0
+    self._cumulative_reward = 0.0
+    self._start_time = None
     self._cumulative_reward = 0.0
     self._start_time = None
