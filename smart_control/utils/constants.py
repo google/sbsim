@@ -21,6 +21,7 @@ JOULES_PER_BTU: float = 1055.06
 W_PER_KW: float = 1000.0  # Number of Watts in a kW.
 WATTS_PER_BTU_HR: float = 0.29307107  # Number of Watts in a BTU/hr
 HZ_PERCENT: float = 100.0 / 60.0  # Converts blower/pump Hz to Percentage Power
+KELVIN_TO_CELSIUS = 273.15
 
 # https://www.rapidtables.com/convert/power/hp-to-watt.html
 WATTS_PER_HORSEPOWER = 746.0
