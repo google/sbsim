@@ -198,12 +198,12 @@ if __name__ == '__main__':
         ROOT_DIR, args.env_gin_config_file_path
     )
 
-  buffer_path = args.buffer_name
+  buffer_path_ = args.buffer_name
   if not os.path.isabs(args.buffer_name):
-    buffer_path = os.path.join(REPLAY_BUFFER_DATA_PATH, args.buffer_name)
+    buffer_path_ = os.path.join(REPLAY_BUFFER_DATA_PATH, args.buffer_name)
 
   populate_replay_buffer(
-      buffer_path=buffer_path,
+      buffer_path=buffer_path_,
       buffer_capacity=args.capacity,
       steps_per_run=args.steps_per_run,
       num_runs=args.num_runs,

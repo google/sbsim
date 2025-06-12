@@ -118,7 +118,8 @@ class _TanhNormalProjectionNetworkWrapper(
       del kwargs['step_type']
     del kwargs[
         'network_state'
-    ]  # was getting error saying that this argument was unexpected in the call below
+    ]  # was getting error saying that this argument was unexpected in
+    # the call below
     return super(_TanhNormalProjectionNetworkWrapper, self).call(
         inputs, **kwargs
     )

@@ -2,15 +2,15 @@
 """
 Grid Configuration Generator for Gin Config Files
 
-This script generates multiple variations of a gin config file by creating a grid
-of different values for specified parameters.
+This script generates multiple variations of a gin config file by creating a
+grid of different values for specified parameters.
 """
 
 import argparse
+from itertools import product
 import logging
 import os
 import re
-from itertools import product
 
 from smart_control.reinforcement_learning.utils.config import CONFIG_PATH
 from smart_control.utils.constants import ROOT_DIR
@@ -25,7 +25,7 @@ logging.basicConfig(
 
 def read_config_file(filepath):
   """Read the base configuration file."""
-  with open(filepath, 'r') as f:
+  with open(filepath, 'r', encoding='utf-8') as f:
     return f.read()
 
 
@@ -45,9 +45,15 @@ def modify_config(config_content, param_name, param_value):
   #    - Or a sequence that doesn't start with @ and doesn't contain ()
   # 5. Capture the end of line
 
-  pattern = rf'(^|\n)(.*?)({re.escape(param_name)}\s*=\s*)((?:[\'\"].*?[\'\"])|(?:[^@\n][^()\n]*))($|\n)'
+  pattern = (
+      rf'(^|\n)'
+      rf'(.*?)'
+      rf'({re.escape(param_name)}\s*=)'
+      rf'((?:[\'\"].*?[\'\"])|(?:[^@\n][^()\n]*))'
+      rf'($|\n)'
+  )
   # Format replacement to preserve surrounding context
-  replacement = r'\g<1>\g<2>\g<3>{}\g<5>'.format(param_value)
+  replacement = rf'\g<1>\g<2>\g<3>{param_value}\g<5>'
 
   modified_content = re.sub(
       pattern, replacement, config_content, flags=re.MULTILINE
@@ -55,7 +61,7 @@ def modify_config(config_content, param_name, param_value):
 
   if modified_content == config_content:
     logger.warning(
-        f"Warning: Parameter '{param_name}' not found in config file."
+        "Warning: Parameter '%s' not found in config file.", param_name
     )
 
   return modified_content
@@ -105,10 +111,10 @@ def generate_configs(base_config_path, output_dir, param_grids):
     output_path = os.path.join(output_dir, output_filename)
 
     # Write the modified config to a new file
-    with open(output_path, 'w') as f:
+    with open(output_path, 'w', encoding='utf-8') as f:
       f.write(modified_config)
 
-    logger.info(f'Generated: {output_path}')
+    logger.info('Generated: %s', output_path)
 
 
 def main():
@@ -167,7 +173,7 @@ def main():
       for timestamp in args.start_timestamps.split(',')
   ]
 
-  logger.info(start_timestamps)
+  logger.info('Start timestamps: %s', start_timestamps)
 
   # Define the parameter grid
   param_grid = {
@@ -180,8 +186,9 @@ def main():
   generate_configs(args.base_config, args.output_dir, param_grid)
 
   logger.info(
-      f'Generated {len(time_steps) * len(num_days)} configuration files in'
-      f' {args.output_dir}'
+      'Generated %d configuration files in %s',
+      len(time_steps) * len(num_days),
+      args.output_dir,
   )
 
 

@@ -360,7 +360,6 @@ class Environment(py_environment.PyEnvironment):
       image_generator: (
           building_image_generator.BuildingImageGenerator | None
       ) = None,
-      step_interval: pd.Timedelta = pd.Timedelta(5, unit="minutes"),
       writer_factory: writer_lib.BaseWriterFactory | None = None,
   ) -> None:
     """Environment constructor.

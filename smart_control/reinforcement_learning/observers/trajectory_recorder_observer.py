@@ -1,3 +1,5 @@
+"""Observer that records trajectory data for visualization."""
+
 # smart_control/reinforcement_learning/observers/trajectory_recorder_observer.py
 
 import json
@@ -100,12 +102,13 @@ class TrajectoryRecorderObserver(Observer):
     episode_file = os.path.join(
         self._save_dir, f'episode_{self._episode_count}.json'
     )
-    with open(episode_file, 'w') as f:
+    with open(episode_file, 'w', encoding='utf-8') as f:
       json.dump(trajectory_data, f, indent=2)
 
     logger.info(
-        f'Saved trajectory data for episode {self._episode_count} to'
-        f' {episode_file}'
+        'Saved trajectory data for episode %d to %s',
+        self._episode_count,
+        episode_file,
     )
 
   def _generate_plots_for_episode(self):
@@ -145,7 +148,7 @@ class TrajectoryRecorderObserver(Observer):
         title=f'Episode {episode_num}: Cumulative Reward Over Time',
     )
 
-    logger.info(f'Generated plots for episode {episode_num}')
+    logger.info('Generated plots for episode %d', episode_num)
 
   def reset(self) -> None:
     """Reset the observer to its initial state."""

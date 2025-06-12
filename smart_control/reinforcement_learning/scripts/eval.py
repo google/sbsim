@@ -90,11 +90,11 @@ def create_merged_saved_model(policy_dir):
     logger.warning("No checkpoints found, using original model structure only")
     return model_structure_dir
 
-  logger.info(f"Found latest checkpoint at: {latest_checkpoint}")
+  logger.info("Found latest checkpoint at: %s", latest_checkpoint)
 
   # Create temporary directory for merged model
   temp_dir = tempfile.mkdtemp(prefix="merged_policy_")
-  logger.info(f"Created temporary directory for merged model: {temp_dir}")
+  logger.info("Created temporary directory for merged model: %s", temp_dir)
 
   # Copy model structure files (everything except 'variables' directory)
   for item in os.listdir(model_structure_dir):
@@ -117,7 +117,7 @@ def create_merged_saved_model(policy_dir):
     dest = os.path.join(variables_dir, item)
     shutil.copy2(source, dest)
 
-  logger.info(f"Successfully created merged model at {temp_dir}")
+  logger.info("Successfully created merged model at %s", temp_dir)
   return temp_dir
 
 
@@ -148,13 +148,15 @@ def evaluate_policy(
   results_dir = os.path.join(
       eval_results_path, f"{experiment_name}_{current_time}"
   )
-  logger.info(f"Evaluation results will be saved to {results_dir}")
+  logger.info("Evaluation results will be saved to %s", results_dir)
 
   try:
     os.makedirs(results_dir, exist_ok=False)
-  except FileExistsError:
-    logger.exception(f"Directory {results_dir} already exists. Exiting.")
-    raise FileExistsError(f"Directory {results_dir} already exists. Exiting.")
+  except FileExistsError as exc:
+    logger.exception("Directory %s already exists. Exiting.", results_dir)
+    raise FileExistsError(
+        f"Directory {results_dir} already exists. Exiting."
+    ) from exc
 
   # Create metrics directory
   metrics_dir = os.path.join(results_dir, "metrics")
@@ -179,11 +181,12 @@ def evaluate_policy(
       logger.info("Using schedule policy")
       policy = create_baseline_schedule_policy(eval_tf_env)
     else:
-      # Create a merged saved model with structure from policy dir and variables from latest checkpoint
+      # Create a merged saved model with structure from policy dir and variables
+      # from latest checkpoint
       temp_dir = create_merged_saved_model(policy_dir)
 
       # Use SavedModelPolicy for saved model
-      logger.info(f"Loading saved model from {temp_dir}")
+      logger.info("Loading saved model from %s", temp_dir)
       policy = SavedModelPolicy(
           temp_dir, eval_tf_env.time_step_spec(), eval_tf_env.action_spec()
       )
@@ -235,23 +238,23 @@ def evaluate_policy(
     )
 
     # Run evaluation
-    logger.info(f"Starting evaluation for {num_eval_episodes} episodes")
+    logger.info("Starting evaluation for %d episodes", num_eval_episodes)
     eval_actor.run()
 
     # Write evaluation summaries
     with eval_actor.summary_writer.as_default():
       for m in eval_metrics:
         tf.summary.scalar(m.name, m.result(), step=eval_step.numpy())
-        logger.info(f"Eval {m.name}: {m.result()}")
+        logger.info("Eval %s: %s", m.name, m.result())
       eval_actor.summary_writer.flush()
 
-    logger.info(f"Evaluation completed. Saved results in {results_dir}")
+    logger.info("Evaluation completed. Saved results in %s", results_dir)
     return
 
   finally:
     # Clean up temporary directory if created
     if temp_dir and os.path.exists(temp_dir):
-      logger.info(f"Cleaning up temporary directory: {temp_dir}")
+      logger.info("Cleaning up temporary directory: %s", temp_dir)
       shutil.rmtree(temp_dir)
 
 
@@ -300,15 +303,16 @@ if __name__ == "__main__":
   args = parser.parse_args()
 
   # Make it work for both relative and absolute paths
+  gin_config_path_ = args.gin_config
   if not os.path.isabs(args.gin_config):
-    gin_config_path = os.path.join(ROOT_DIR, args.gin_config)
+    gin_config_path_ = os.path.join(ROOT_DIR, args.gin_config)
 
   if not os.path.isabs(args.policy_dir) and args.policy_dir != "schedule":
     args.policy_dir = os.path.join(ROOT_DIR, args.policy_dir)
 
   evaluate_policy(
       policy_dir=args.policy_dir,
-      gin_config_path=gin_config_path,
+      gin_config_path=gin_config_path_,
       experiment_name=args.experiment_name,
       num_eval_episodes=args.num_eval_episodes,
   )

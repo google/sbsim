@@ -705,7 +705,7 @@ class EnvironmentTest(parameterized.TestCase, tf.test.TestCase):
       (pd.Timedelta(1, unit="minute")),
       (pd.Timedelta(1, unit="hour")),
   )
-  def test_validate_environment(self, step_interval):
+  def test_validate_environment(self):
     class TerminatingEnv(environment.Environment):
       """Environment that terminates after a fixed number of steps.
 
