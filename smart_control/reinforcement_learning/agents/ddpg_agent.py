@@ -1,6 +1,7 @@
 """DDPG Agent implementation.
 
-This module provides a function to create a DDPG agent with customizable parameters.
+This module provides a function to create a DDPG agent with customizable
+parameters.
 """
 
 from typing import Optional, Sequence
@@ -49,18 +50,19 @@ def create_ddpg_agent(
 
       action_spec: A nest of BoundedTensorSpec representing the actions.
 
-      actor_fc_layers: Iterable of fully connected layer units for the actor network.
+      actor_fc_layers: Iterable of fully connected layer units for the actor
+                       network.
 
       actor_network: Optional custom actor network to use.
 
-      critic_obs_fc_layers: Iterable of fully connected layer units for the critic
-                            observation network.
+      critic_obs_fc_layers: Iterable of fully connected layer units for the
+                            critic observation network.
 
-      critic_action_fc_layers: Iterable of fully connected layer units for the critic
-                               action network.
+      critic_action_fc_layers: Iterable of fully connected layer units for the
+                               critic action network.
 
-      critic_joint_fc_layers: Iterable of fully connected layer units for the joint
-                              part of the critic network.
+      critic_joint_fc_layers: Iterable of fully connected layer units for the
+                              joint part of the critic network.
 
       critic_network: Optional custom critic network to use.
 
@@ -68,8 +70,8 @@ def create_ddpg_agent(
 
       critic_learning_rate: Critic network learning rate.
 
-      ou_stddev: Standard deviation for the Ornstein-Uhlenbeck (OU) noise added for
-                 exploration.
+      ou_stddev: Standard deviation for the Ornstein-Uhlenbeck (OU) noise added
+                 for exploration.
 
       ou_damping: Damping factor for the OU noise.
 
@@ -111,7 +113,7 @@ def create_ddpg_agent(
     )
 
   # Create agent
-  tf_agent = ddpg_agent.DdpgAgent(
+  ddpg_tf_agent = ddpg_agent.DdpgAgent(
       time_step_spec=time_step_spec,
       action_spec=action_spec,
       actor_network=actor_network,
@@ -136,6 +138,6 @@ def create_ddpg_agent(
   )
 
   # Initialize the agent
-  tf_agent.initialize()
+  ddpg_tf_agent.initialize()
 
-  return tf_agent
+  return ddpg_tf_agent

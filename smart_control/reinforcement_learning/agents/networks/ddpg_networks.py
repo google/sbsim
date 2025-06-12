@@ -1,6 +1,7 @@
 """Network architectures for DDPG agent.
 
-This module provides functions to create actor and critic networks for DDPG agents.
+This module provides functions to create actor and critic networks for
+DDPG agents.
 """
 
 import functools

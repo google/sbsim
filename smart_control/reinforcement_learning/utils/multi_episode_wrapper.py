@@ -17,14 +17,15 @@ logger = logging.getLogger(__name__)
 
 class MultiEpisodeWrapper(py_environment.PyEnvironment):
   """
-  A PyEnvironment wrapper that cycles through environment configurations ('scenarios')
-  provided as file paths.
+  A PyEnvironment wrapper that cycles through environment configurations
+  ('scenarios') provided as file paths.
 
   Key characteristics:
   - Takes a list of configuration file paths.
   - Takes a function (`create_env_fn`) that can create an environment instance
     from a configuration path.
-  - Only *one* underlying environment instance exists in memory at a time ('lazy' loading).
+  - Only *one* underlying environment instance exists in memory at a time
+    ('lazy' loading).
   - When an episode ends and `reset()` is called, it closes the current
     environment (if applicable), loads the *next* environment in a round-robin
     fashion using the next config path, and resets it.
@@ -43,10 +44,11 @@ class MultiEpisodeWrapper(py_environment.PyEnvironment):
 
     Args:
         scenario_config_paths: A non-empty sequence (list, tuple) of string
-                               paths pointing to environment configuration files.
-        create_env_fn: A callable function that takes a single argument (a config path
-                       from `scenario_config_paths`) and returns a fully constructed
-                       `py_environment.PyEnvironment` instance.
+                               paths pointing to environment configuration files
+        create_env_fn: A callable function that takes a single argument
+                       (a config path from `scenario_config_paths`) and returns
+                       a fully constructed `py_environment.PyEnvironment`
+                       instance.
 
     Raises:
         ValueError: If scenario_config_paths is empty.
@@ -59,8 +61,8 @@ class MultiEpisodeWrapper(py_environment.PyEnvironment):
       raise TypeError("`create_env_fn` must be a callable function.")
 
     logger.info(
-        "Initializing LazyMultiScenarioPyEnvironment with"
-        f" {len(scenario_config_paths)} config paths."
+        "Initializing LazyMultiScenarioPyEnvironment with %d config paths.",
+        len(scenario_config_paths),
     )
 
     self._scenario_config_paths = list(scenario_config_paths)  # Store a copy
@@ -83,8 +85,8 @@ class MultiEpisodeWrapper(py_environment.PyEnvironment):
       )
     except Exception as e:
       logger.exception(
-          "Failed to load or reset the initial environment "
-          f"(path: {self._scenario_config_paths[0]})."
+          "Failed to load or reset the initial environment (path: %s).",
+          self._scenario_config_paths[0],
       )
       raise RuntimeError("Could not initialize the first environment.") from e
 
@@ -98,8 +100,9 @@ class MultiEpisodeWrapper(py_environment.PyEnvironment):
     config_path = self._scenario_config_paths[self._current_env_index]
 
     logger.info(
-        f"Loading environment from config: {config_path} (index"
-        f" {self._current_env_index})"
+        "Loading environment from config: %s (index %d)",
+        config_path,
+        self._current_env_index,
     )
 
     try:
@@ -114,13 +117,14 @@ class MultiEpisodeWrapper(py_environment.PyEnvironment):
       # Reset the newly loaded environment
       self._state = self._current_env.reset()
       logger.debug(
-          "Successfully loaded and reset environment index"
-          f" {self._current_env_index}"
+          "Successfully loaded and reset environment index %d",
+          self._current_env_index,
       )
 
     except Exception as e:
       logger.exception(
-          f"Failed to load or reset environment from config path: {config_path}"
+          "Failed to load or reset environment from config path: %s",
+          config_path,
       )
       # Propagate the error to indicate failure
       raise RuntimeError(
@@ -129,7 +133,10 @@ class MultiEpisodeWrapper(py_environment.PyEnvironment):
 
   @property
   def current_environment(self) -> py_environment.PyEnvironment | None:
-    """Returns the currently active underlying environment instance, if loaded."""
+    """
+    Returns the currently active underlying environment instance,
+    if loaded.
+    """
     # Added check for None in case called after close() or before init finishes
     return self._current_env
 
@@ -147,28 +154,28 @@ class MultiEpisodeWrapper(py_environment.PyEnvironment):
   def _num_timesteps_in_episode(self):
     """Returns the number of timesteps in the current episode."""
     if self._current_env is not None:
-      return self._current_env._num_timesteps_in_episode
+      return self._current_env._num_timesteps_in_episode  # pylint: disable=protected-access
     return None
 
   @property
   def _end_timestamp(self):
     """Returns the end timestamp of the current episode."""
     if self._current_env is not None:
-      return self._current_env._end_timestamp
+      return self._current_env._end_timestamp  # pylint: disable=protected-access
     return None
 
   @property
   def current_simulation_timestamp(self):
     """Returns the current simulation timestamp of the current episode."""
     if self._current_env is not None:
-      return self._current_env.current_simulation_timestamp
+      return self._current_env.current_simulation_timestamp  # pylint: disable=protected-access
     return None
 
   @property
   def _step_count(self):
     """Returns the step count of the current episode."""
     if self._current_env is not None:
-      return self._current_env._step_count
+      return self._current_env._step_count  # pylint: disable=protected-access
     return None
 
   # --- PyEnvironment API Implementation ---
@@ -188,19 +195,20 @@ class MultiEpisodeWrapper(py_environment.PyEnvironment):
   def _reset(self) -> ts.TimeStep:
     """Closes the current environment, loads the next one, and resets it."""
     logger.debug(
-        "Reset called. Closing current environment (index"
-        f" {self._current_env_index})..."
+        "Reset called. Closing current environment (index %d)...",
+        self._current_env_index,
     )
     # Close the previous environment, if it exists
     if self._current_env is not None:
       try:
         self._current_env.close()
         logger.debug("Previous environment closed.")
-      except Exception as e:
+      except Exception as e:  # pylint: disable=broad-exception-caught
         # Log error but continue, as we need to load the next one
         logger.error(
-            "Error closing environment from path "
-            f"'{self.current_config_path}': {e}"
+            "Error closing environment from path '%s': %s",
+            self.current_config_path,
+            e,
         )
       finally:
         self._current_env = None  # Ensure it's marked as closed/gone
@@ -223,11 +231,13 @@ class MultiEpisodeWrapper(py_environment.PyEnvironment):
     # Delegate the step call to the currently loaded environment.
     self._state = self._current_env.step(action)
 
-    # If the episode ended, the next call should be reset(), which handles the switch.
+    # If the episode ended, the next call should be reset(), which handles
+    # the switch.
     if self._state.is_last():
       logger.debug(
-          f"Episode ended in environment index: {self._current_env_index}. "
-          "Next reset call will switch environment."
+          "Episode ended in environment index: %d. Next reset call will switch"
+          " environment.",
+          self._current_env_index,
       )
 
     return self._state
@@ -238,14 +248,16 @@ class MultiEpisodeWrapper(py_environment.PyEnvironment):
     if self._current_env is not None:
       try:
         logger.info(
-            "Closing currently active environment (index"
-            f" {self._current_env_index}, path: {self.current_config_path})"
+            "Closing currently active environment (index %d, path: %s)",
+            self._current_env_index,
+            self.current_config_path,
         )
         self._current_env.close()
-      except Exception as e:
+      except Exception as e:  # pylint: disable=broad-exception-caught
         logger.error(
-            "Error closing environment from path "
-            f"'{self.current_config_path}': {e}"
+            "Error closing environment from path '%s': %s",
+            self.current_config_path,
+            e,
         )
       finally:
         self._current_env = None  # Mark as closed
@@ -261,8 +273,10 @@ class MultiEpisodeWrapper(py_environment.PyEnvironment):
 
     try:
       return self.current_environment.render(mode)
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-exception-caught
       logger.error(
-          f"Failed to render environment index {self._current_env_index}: {e}"
+          "Failed to render environment index %d: %s",
+          self._current_env_index,
+          e,
       )
       return None  # Example: return None if rendering fails

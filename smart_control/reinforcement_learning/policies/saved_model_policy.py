@@ -1,3 +1,5 @@
+"""Model to wrap a policy that uses a saved TF-Agents policy model."""
+
 import tensorflow as tf
 import tensorflow_probability as tfp
 from tf_agents.policies import tf_policy

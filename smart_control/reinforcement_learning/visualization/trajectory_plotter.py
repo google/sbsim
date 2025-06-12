@@ -1,10 +1,13 @@
+"""Trajectory Plotter.
+
+This module provides functions to plot trajectories of rl episodes.
+"""
+
 # smart_control/reinforcement_learning/visualization/trajectory_plotter.py
 
 import logging
-import os
-from typing import Any, Dict, List
+from typing import List
 
-from matplotlib.figure import Figure
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -60,7 +63,7 @@ class TrajectoryPlotter:
     plt.tight_layout()
     plt.savefig(save_path)
     plt.close(fig)
-    logger.info(f'Saved action plot to {save_path}')
+    logger.info('Saved action plot to %s', save_path)
 
   @staticmethod
   def plot_rewards(
@@ -104,7 +107,7 @@ class TrajectoryPlotter:
     plt.tight_layout()
     plt.savefig(save_path)
     plt.close(fig)
-    logger.info(f'Saved reward plot to {save_path}')
+    logger.info('Saved reward plot to %s', save_path)
 
   @staticmethod
   def plot_cumulative_reward(
@@ -145,4 +148,4 @@ class TrajectoryPlotter:
     plt.tight_layout()
     plt.savefig(save_path)
     plt.close(fig)
-    logger.info(f'Saved cumulative reward plot to {save_path}')
+    logger.info('Saved cumulative reward plot to %s', save_path)
