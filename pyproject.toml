@@ -91,7 +91,6 @@ single_line_exclusions = ['typing']
 known_first_party = ["smart_control"]
 skip_glob = ['smart_control/proto/*']
 
-
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
