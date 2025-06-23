@@ -23,6 +23,6 @@ Details:
 - [ ] I have added [docstrings](https://google.github.io/sbsim/contributing/#documentation) and updated the documentation as necessary, and I have previewed the [documentation site](https://google.github.io/sbsim/docs-site/) locally to make sure things look good.
 - [ ] I have self-reviewed my code (especially important if using AI agents).
 
-______________________________________________________________________
+---
 
 **Thank you for your contribution!**
