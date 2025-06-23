@@ -37,4 +37,4 @@ repos:
   rev: 0.7.22
   hooks:
   - id: mdformat
-    exclude: ^docs/api/
+    exclude: ^docs/api/|^\.github/
