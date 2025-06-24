@@ -20,8 +20,9 @@ from smart_control.reinforcement_learning.observers.print_status_observer import
 from smart_control.reinforcement_learning.observers.trajectory_recorder_observer import TrajectoryRecorderObserver
 from smart_control.reinforcement_learning.policies.saved_model_policy import SavedModelPolicy
 from smart_control.reinforcement_learning.policies.schedule_policy import create_baseline_schedule_policy
+from smart_control.reinforcement_learning.utils.config import BUILDING_GIN_CONFIG_FILEPATH
 from smart_control.reinforcement_learning.utils.config import EXPERIMENT_RESULTS_PATH
-from smart_control.reinforcement_learning.utils.config import ROOT_DIR
+from smart_control.reinforcement_learning.utils.constants import ROOT_DIRPATH
 from smart_control.reinforcement_learning.utils.environment import create_and_setup_environment
 
 # Configure logging
@@ -277,14 +278,7 @@ if __name__ == "__main__":
   parser.add_argument(
       "--gin-config",
       type=str,
-      default=os.path.join(
-          ROOT_DIR,
-          "smart_control",
-          "configs",
-          "resources",
-          "sb1",
-          "sim_config.gin",
-      ),
+      default=BUILDING_GIN_CONFIG_FILEPATH,
       help="Path to the .gin config file",
   )
   parser.add_argument(
@@ -305,10 +299,10 @@ if __name__ == "__main__":
   # Make it work for both relative and absolute paths
   gin_config_path_ = args.gin_config
   if not os.path.isabs(args.gin_config):
-    gin_config_path_ = os.path.join(ROOT_DIR, args.gin_config)
+    gin_config_path_ = os.path.join(ROOT_DIRPATH, args.gin_config)
 
   if not os.path.isabs(args.policy_dir) and args.policy_dir != "schedule":
-    args.policy_dir = os.path.join(ROOT_DIR, args.policy_dir)
+    args.policy_dir = os.path.join(ROOT_DIRPATH, args.policy_dir)
 
   evaluate_policy(
       policy_dir=args.policy_dir,

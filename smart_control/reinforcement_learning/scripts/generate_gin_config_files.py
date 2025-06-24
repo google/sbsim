@@ -12,7 +12,8 @@ import os
 import re
 
 from smart_control.reinforcement_learning.utils.config import CONFIG_PATH
-from smart_control.utils.constants import ROOT_DIR
+from smart_control.utils.constants import BUILDING_GIN_CONFIG_FILEPATH
+from smart_control.utils.constants import ROOT_DIRPATH
 
 logger = logging.getLogger(__name__)
 # Configure logging
@@ -122,14 +123,7 @@ def main():
   )
   parser.add_argument(
       'base_config',
-      default=os.path.join(
-          ROOT_DIR,
-          'smart_control',
-          'configs',
-          'resources',
-          'sb1',
-          'sim_config.gin',
-      ),
+      default=BUILDING_GIN_CONFIG_FILEPATH,
       help='Path to the base gin config file',
   )
   parser.add_argument(
@@ -160,9 +154,9 @@ def main():
 
   # This ensures that it works both with absolute and relative paths
   if not os.path.isabs(args.base_config):
-    args.base_config = os.path.join(ROOT_DIR, args.base_config)
+    args.base_config = os.path.join(ROOT_DIRPATH, args.base_config)
   if not os.path.isabs(args.output_dir):
-    args.output_dir = os.path.join(ROOT_DIR, args.output_dir)
+    args.output_dir = os.path.join(ROOT_DIRPATH, args.output_dir)
 
   # Convert comma-separated values to lists
   time_steps = [step.strip() for step in args.time_steps.split(',')]

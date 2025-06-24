@@ -6,7 +6,19 @@ from typing import Final
 # --------- Relative Filepaths ---------------
 
 # Path to the root directory of the project (where the main README is):
-ROOT_DIR = os.path.join(os.path.dirname(__file__), '..', '..')
+ROOT_DIRPATH = os.path.join(os.path.dirname(__file__), '..', '..')
+
+# Configs:
+CONFIGS_DIRPATH = os.path.join(ROOT_DIRPATH, 'smart_control', 'configs')
+BUILDING_CONFIG_DIRPATH = os.path.join(
+    CONFIGS_DIRPATH,
+    'resources',
+    'sb1',
+)
+BUILDING_GIN_CONFIG_FILEPATH = os.path.join(
+    BUILDING_CONFIG_DIRPATH,
+    'sim_config.gin',
+)
 
 # --------- Thermal Constants ---------------
 

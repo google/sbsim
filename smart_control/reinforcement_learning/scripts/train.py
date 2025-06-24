@@ -28,9 +28,10 @@ from smart_control.reinforcement_learning.agents.sac_agent import create_sac_age
 from smart_control.reinforcement_learning.observers.composite_observer import CompositeObserver
 from smart_control.reinforcement_learning.observers.print_status_observer import PrintStatusObserver
 from smart_control.reinforcement_learning.replay_buffer.replay_buffer import ReplayBufferManager
+from smart_control.reinforcement_learning.utils.config import BUILDING_GIN_CONFIG_FILEPATH
 from smart_control.reinforcement_learning.utils.config import CONFIG_PATH
 from smart_control.reinforcement_learning.utils.config import EXPERIMENT_RESULTS_PATH
-from smart_control.reinforcement_learning.utils.config import ROOT_DIR
+from smart_control.reinforcement_learning.utils.config import ROOT_DIRPATH
 from smart_control.reinforcement_learning.utils.environment import create_and_setup_environment
 
 os.environ['WRAPT_DISABLE_EXTENSIONS'] = 'true'
@@ -146,7 +147,7 @@ def train_agent(
 
   # Create train and eval environments
   logger.info(
-      'Creating train and eval environments with scenatio config path: %s',
+      'Creating train and eval environments with scenario config path: %s',
       scenario_config_path,
   )
   train_env = create_and_setup_environment(
@@ -423,8 +424,7 @@ if __name__ == '__main__':
       type=int,
       default=256,
       help=(
-          'Batch size for training (each gradient update uses                  '
-          '                                                    this many'
+          'Batch size for training (each gradient update uses this many'
           ' elements from the replay buffer batched)'
       ),
   )
@@ -451,11 +451,7 @@ if __name__ == '__main__':
       '--experiment-name',
       type=str,
       required=True,
-      help=(
-          'Name of the experiment. This be used to                             '
-          '                                                save TensorBoard'
-          ' summaries'
-      ),
+      help='Name of the experiment. This is used to save TensorBoard summaries',
   )
   parser.add_argument(
       '--checkpoint-interval',
@@ -468,38 +464,28 @@ if __name__ == '__main__':
       type=int,
       default=200,
       help=(
-          'Number of iterations (gradient updates)                             '
-          '                                                 to run the agent'
+          'Number of iterations (gradient updates) to run the agent'
           ' learner per training loop'
       ),
   )
   parser.add_argument(
       '--scenario-config-path',
       type=str,
-      default=os.path.join(
-          ROOT_DIR,
-          'smart_control',
-          'configs',
-          'resources',
-          'sb1',
-          'sim_config.gin',
-      ),
-      help=(
-          'Path to the scenario config file.                                   '
-          '                                            Default is'
-          ' sim_config.gin'
-      ),
+      default=BUILDING_GIN_CONFIG_FILEPATH,
+      help='Path to the scenario config file (sim_config.gin)',
   )
 
   args = parser.parse_args()
 
   # Make it work for both relative and absolute paths
   if not os.path.isabs(args.starter_buffer_path):
-    args.starter_buffer_path = os.path.join(ROOT_DIR, args.starter_buffer_path)
+    args.starter_buffer_path = os.path.join(
+        ROOT_DIRPATH, args.starter_buffer_path
+    )
 
   if not os.path.isabs(args.scenario_config_path):
     args.scenario_config_path = os.path.join(
-        ROOT_DIR, args.scenario_config_path
+        ROOT_DIRPATH, args.scenario_config_path
     )
 
   train_agent(
