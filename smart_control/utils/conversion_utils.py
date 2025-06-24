@@ -6,7 +6,7 @@ import enum
 import functools
 import re
 import types
-from typing import Mapping, Tuple
+from typing import Mapping, Tuple, Union
 
 from google.protobuf import timestamp_pb2
 import holidays
@@ -14,11 +14,16 @@ import numpy as np
 import pandas as pd
 
 from smart_control.proto import smart_control_reward_pb2
+from smart_control.utils.constants import _KELVIN_TO_CELSIUS
 
 _COUNTRY = 'US'
 _SECONDS_IN_DAY = 24 * 3600
 _WATT_SECONDS_KWH = 1.0 / 3600.0 / 1000.0
 _DAYS_IN_WEEK = 7.0
+
+#
+# DATES AND TIMES
+#
 
 
 def pandas_to_proto_timestamp(
@@ -53,6 +58,11 @@ def is_work_day(timestamp: pd.Timestamp):
   """Returns whether timestamp is on a workday."""
 
   return timestamp.weekday() < 5 and timestamp.date() not in _us_holidays()
+
+
+#
+# BUILDING INFO
+#
 
 
 def zone_coordinates_to_id(coordinates: Tuple[int, int]) -> str:
@@ -119,6 +129,11 @@ def get_radian_time(
   return 2.0 * np.pi * interval_frac
 
 
+#
+# TEMPERATURES
+#
+
+
 def kelvin_to_fahrenheit(kelvin: float) -> float:
   """Converts Kelvin to °F.
 
@@ -153,6 +168,39 @@ def fahrenheit_to_kelvin(fahrenheit: float) -> float:
     raise ValueError('Temperature must be greater than absolute zero.')
   celsius = (fahrenheit - 32.0) * 5.0 / 9.0
   return celsius + 273.15
+
+
+def convert_kelvin_to_celsius(
+    temperature_kelvin: Union[float, np.ndarray, pd.Series],
+) -> Union[float, np.ndarray, pd.Series]:
+  """Convert temperature from Kelvin to Celsius.
+
+  Args:
+      temperature_kelvin: Temperature in Kelvin.
+
+  Returns:
+      Temperature in Celsius.
+  """
+  return temperature_kelvin - _KELVIN_TO_CELSIUS
+
+
+def convert_celsius_to_kelvin(
+    temperature_celsius: Union[float, np.ndarray, pd.Series],
+) -> Union[float, np.ndarray, pd.Series]:
+  """Convert temperature from Celsius to Kelvin.
+
+  Args:
+      temperature_celsius: Temperature in Celsius.
+
+  Returns:
+      Temperature in Kelvin.
+  """
+  return temperature_celsius + _KELVIN_TO_CELSIUS
+
+
+#
+# ENERGY
+#
 
 
 def get_reward_info_energy_use(

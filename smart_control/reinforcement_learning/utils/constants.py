@@ -11,9 +11,6 @@ RL_EXPERIMENT_METRICS_DIR = os.path.join(RL_EXPERIMENT_RESULTS_DIR, 'metrics')
 RL_EXPERIMENT_RENDERS_DIR = os.path.join(RL_EXPERIMENT_RESULTS_DIR, 'renders')
 # RL_STARTER_BUFFERS_DIR = os.path.join(RL_DIR, 'data', 'starter_buffers')
 
-# Temperature conversion
-KELVIN_TO_CELSIUS = 273.15
-
 # Default time zone for plotting and simulations
 DEFAULT_TIME_ZONE = 'US/Pacific'
 
