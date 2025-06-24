@@ -176,7 +176,7 @@ class SimulatorFlexibleGeometries(simulator.Simulator):
     self._log_and_plotter.log(self.building.temp)
 
     if self.current_timestamp == self._start_timestamp + pd.Timedelta(days=4):
-      self.get_video(path=constants.SIM_VIDEOS_DIRPATH + video_filename)
+      self.get_video(path=constants.SIM_VIDEOS_DIR + video_filename)
 
   def _get_zone_reward_info(
       self,

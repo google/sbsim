@@ -19,10 +19,10 @@ from smart_control.reinforcement_learning.observers.composite_observer import Co
 from smart_control.reinforcement_learning.observers.print_status_observer import PrintStatusObserver
 from smart_control.reinforcement_learning.policies.schedule_policy import create_baseline_schedule_policy
 from smart_control.reinforcement_learning.replay_buffer.replay_buffer import ReplayBufferManager
-from smart_control.reinforcement_learning.utils.config import CONFIG_PATH
 from smart_control.reinforcement_learning.utils.config import REPLAY_BUFFER_DATA_PATH
 from smart_control.reinforcement_learning.utils.environment import create_and_setup_environment
-from smart_control.utils.constants import ROOT_DIRPATH
+from smart_control.utils.constants import ROOT_DIR
+from smart_control.utils.constants import SB1_TRAIN_CONFIGS_DIR
 
 # Configure logging
 logging.basicConfig(
@@ -177,7 +177,7 @@ def populate_replay_buffer(
 
 if __name__ == '__main__':
 
-  config_filepath = os.path.join(CONFIG_PATH, 'sim_config_1_day.gin')
+  config_filepath = os.path.join(SB1_TRAIN_CONFIGS_DIR, 'sim_config_1_day.gin')
 
   # fmt: off
   # pylint: disable=line-too-long
@@ -195,7 +195,7 @@ if __name__ == '__main__':
   # This makes it work for both relative and absolute paths
   if not os.path.isabs(args.env_gin_config_file_path):
     args.env_gin_config_file_path = os.path.join(
-        ROOT_DIRPATH, args.env_gin_config_file_path
+        ROOT_DIR, args.env_gin_config_file_path
     )
 
   buffer_path_ = args.buffer_name
