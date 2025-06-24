@@ -2,13 +2,12 @@
 
 import logging
 import os
-from typing import Any, List, Union
+from typing import Any, List
 
 import numpy as np
 import pandas as pd
 
 from smart_control.reinforcement_learning.utils.constants import DEFAULT_TIME_ZONE
-from smart_control.reinforcement_learning.utils.constants import KELVIN_TO_CELSIUS
 from smart_control.utils import controller_reader
 from smart_control.utils import conversion_utils
 
@@ -323,31 +322,3 @@ def get_action_timeseries(action_responses: List[Any]) -> pd.DataFrame:
       'setpoint_value': setpoint_values,
       'response_type': response_types,
   })
-
-
-def convert_kelvin_to_celsius(
-    temperature_kelvin: Union[float, np.ndarray, pd.Series],
-) -> Union[float, np.ndarray, pd.Series]:
-  """Convert temperature from Kelvin to Celsius.
-
-  Args:
-      temperature_kelvin: Temperature in Kelvin.
-
-  Returns:
-      Temperature in Celsius.
-  """
-  return temperature_kelvin - KELVIN_TO_CELSIUS
-
-
-def convert_celsius_to_kelvin(
-    temperature_celsius: Union[float, np.ndarray, pd.Series],
-) -> Union[float, np.ndarray, pd.Series]:
-  """Convert temperature from Celsius to Kelvin.
-
-  Args:
-      temperature_celsius: Temperature in Celsius.
-
-  Returns:
-      Temperature in Kelvin.
-  """
-  return temperature_celsius + KELVIN_TO_CELSIUS
