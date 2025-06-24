@@ -580,5 +580,3 @@ class RenderingObserver(Observer):
     self._counter = 0
     self._cumulative_reward = 0.0
     self._start_time = None
-    self._cumulative_reward = 0.0
-    self._start_time = None
