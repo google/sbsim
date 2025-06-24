@@ -22,7 +22,7 @@ from smart_control.reinforcement_learning.replay_buffer.replay_buffer import Rep
 from smart_control.reinforcement_learning.utils.config import CONFIG_PATH
 from smart_control.reinforcement_learning.utils.config import REPLAY_BUFFER_DATA_PATH
 from smart_control.reinforcement_learning.utils.environment import create_and_setup_environment
-from smart_control.utils.constants import ROOT_DIR
+from smart_control.utils.constants import ROOT_DIRPATH
 
 # Configure logging
 logging.basicConfig(
@@ -195,7 +195,7 @@ if __name__ == '__main__':
   # This makes it work for both relative and absolute paths
   if not os.path.isabs(args.env_gin_config_file_path):
     args.env_gin_config_file_path = os.path.join(
-        ROOT_DIR, args.env_gin_config_file_path
+        ROOT_DIRPATH, args.env_gin_config_file_path
     )
 
   buffer_path_ = args.buffer_name
