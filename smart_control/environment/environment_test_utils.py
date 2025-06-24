@@ -36,6 +36,8 @@ class SimpleBuilding(base_building.BaseBuilding):
     self.reset_called = False
     self.step_count = 0
 
+    self._time_step_sec = 300  # allow setting of the property
+
   @property
   def reward_info(self) -> smart_control_reward_pb2.RewardInfo:
     """Returns a message with data to compute the instantaneous reward."""
@@ -175,7 +177,16 @@ class SimpleBuilding(base_building.BaseBuilding):
 
   @property
   def time_step_sec(self) -> float:
-    return 300.0
+    return self._time_step_sec
+
+  @time_step_sec.setter
+  def time_step_sec(self, value: float):
+    """Allows setting of the time_step_sec property like:
+    building.time_step_sec = 500
+    """
+    if value <= 0:
+      raise ValueError("time_step_sec must be a positive value.")
+    self._time_step_sec = value
 
 
 class SimpleRewardFunction(base_reward_function.BaseRewardFunction):
