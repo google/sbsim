@@ -1,9 +1,7 @@
 """Trajectory Plotter.
 
-This module provides functions to plot trajectories of rl episodes.
+This module provides functions to plot trajectories of RL episodes.
 """
-
-# smart_control/reinforcement_learning/visualization/trajectory_plotter.py
 
 import logging
 from typing import List

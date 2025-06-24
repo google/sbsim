@@ -1,5 +1,6 @@
 """Module for a TF Policy that aggregates historical actions based on a
-timedeltaand then replays the aggregated actions sequentially."""
+timedelta and then replays the aggregated actions sequentially.
+"""
 
 import datetime
 import logging

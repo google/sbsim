@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Defines a simplified PyEnvironment wrapper that manages multiple environment
 configurations, loading only one environment at a time and switching upon reset.

@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Grid Configuration Generator for Gin Config Files
 
