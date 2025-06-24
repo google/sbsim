@@ -3,6 +3,7 @@ Script to evaluate a trained reinforcement learning policy.
 This script loads a saved policy and evaluates it on a configured environment.
 """
 
+import argparse
 from datetime import datetime
 import logging
 import os
@@ -25,7 +26,6 @@ from smart_control.reinforcement_learning.utils.environment import create_and_se
 from smart_control.utils.constants import ROOT_DIR
 from smart_control.utils.constants import SB1_GIN_CONFIG_FILEPATH
 
-# Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format="[%(levelname)s] [%(filename)s:%(lineno)d] [%(message)s]",
@@ -260,7 +260,6 @@ def evaluate_policy(
 
 
 if __name__ == "__main__":
-  import argparse
 
   parser = argparse.ArgumentParser(
       description="Evaluate a trained reinforcement learning policy"
@@ -270,9 +269,8 @@ if __name__ == "__main__":
       type=str,
       required=True,
       help=(
-          "Path to the directory containing the saved policy. To               "
-          "                                                         use"
-          " schedule policy, just type `schedule`"
+          "Path to the directory containing the saved policy. To use schedule"
+          " policy, just type `schedule`"
       ),
   )
   parser.add_argument(
