@@ -4,7 +4,7 @@ import os
 
 from absl.testing import absltest
 
-from smart_control.utils.constants import ROOT_DIRPATH
+from smart_control.utils.constants import ROOT_DIR
 
 
 class TestRelativePaths(absltest.TestCase):
@@ -13,7 +13,7 @@ class TestRelativePaths(absltest.TestCase):
     # test the path to the root directory is correct,
     # and some files that would only exist there are present
 
-    file_names = os.listdir(ROOT_DIRPATH)
+    file_names = os.listdir(ROOT_DIR)
     self.assertIn("README.md", file_names)
     self.assertIn("pyproject.toml", file_names)
     self.assertIn("LICENSE", file_names)

@@ -17,8 +17,8 @@ from tf_agents.trajectories import trajectory as trajectory_lib
 
 from smart_control.environment import environment
 from smart_control.reinforcement_learning.observers.base_observer import Observer
-from smart_control.reinforcement_learning.utils.config import RENDERS_PATH
 from smart_control.reinforcement_learning.utils.constants import DEFAULT_TIME_ZONE
+from smart_control.reinforcement_learning.utils.constants import RL_EXPERIMENT_RENDERS_DIR
 from smart_control.reinforcement_learning.utils.data_processing import get_action_timeseries
 from smart_control.reinforcement_learning.utils.data_processing import get_energy_timeseries
 from smart_control.reinforcement_learning.utils.data_processing import get_latest_episode_reader
@@ -46,7 +46,7 @@ class RenderingObserver(Observer):
       plot_fn: Optional[Callable] = None,  # pylint: disable=g-bare-generic
       clear_output_before_render: bool = True,
       time_zone: str = DEFAULT_TIME_ZONE,
-      save_path: str = RENDERS_PATH,
+      save_path: str = RL_EXPERIMENT_RENDERS_DIR,
   ):
     """Initialize the observer.
 

@@ -28,11 +28,11 @@ from smart_control.reinforcement_learning.agents.sac_agent import create_sac_age
 from smart_control.reinforcement_learning.observers.composite_observer import CompositeObserver
 from smart_control.reinforcement_learning.observers.print_status_observer import PrintStatusObserver
 from smart_control.reinforcement_learning.replay_buffer.replay_buffer import ReplayBufferManager
-from smart_control.reinforcement_learning.utils.config import BUILDING_GIN_CONFIG_FILEPATH
-from smart_control.reinforcement_learning.utils.config import CONFIG_PATH
-from smart_control.reinforcement_learning.utils.config import EXPERIMENT_RESULTS_PATH
-from smart_control.reinforcement_learning.utils.config import ROOT_DIRPATH
+from smart_control.reinforcement_learning.utils.constants import RL_EXPERIMENT_RESULTS_DIR
 from smart_control.reinforcement_learning.utils.environment import create_and_setup_environment
+from smart_control.utils.constants import ROOT_DIR
+from smart_control.utils.constants import SB1_GIN_CONFIG_FILEPATH
+from smart_control.utils.constants import SB1_TRAIN_CONFIGS_DIR
 
 os.environ['WRAPT_DISABLE_EXTENSIONS'] = 'true'
 
@@ -111,12 +111,14 @@ def train_agent(
   """
   # Set up scenario config path if not provided
   if scenario_config_path is None:
-    scenario_config_path = os.path.join(CONFIG_PATH, 'sim_config_1_day.gin')
+    scenario_config_path = os.path.join(
+        SB1_TRAIN_CONFIGS_DIR, 'sim_config_1_day.gin'
+    )
 
   # Generate timestamp for summary directory
   current_time = datetime.now().strftime('%Y_%m_%d-%H:%M:%S')
   summary_dir = os.path.join(
-      EXPERIMENT_RESULTS_PATH, f'{experiment_name}_{current_time}'
+      RL_EXPERIMENT_RESULTS_DIR, f'{experiment_name}_{current_time}'
   )
   logger.info('Experiment results will be saved to %s', summary_dir)
 
@@ -471,7 +473,7 @@ if __name__ == '__main__':
   parser.add_argument(
       '--scenario-config-path',
       type=str,
-      default=BUILDING_GIN_CONFIG_FILEPATH,
+      default=SB1_GIN_CONFIG_FILEPATH,
       help='Path to the scenario config file (sim_config.gin)',
   )
 
@@ -479,14 +481,10 @@ if __name__ == '__main__':
 
   # Make it work for both relative and absolute paths
   if not os.path.isabs(args.starter_buffer_path):
-    args.starter_buffer_path = os.path.join(
-        ROOT_DIRPATH, args.starter_buffer_path
-    )
+    args.starter_buffer_path = os.path.join(ROOT_DIR, args.starter_buffer_path)
 
   if not os.path.isabs(args.scenario_config_path):
-    args.scenario_config_path = os.path.join(
-        ROOT_DIRPATH, args.scenario_config_path
-    )
+    args.scenario_config_path = os.path.join(ROOT_DIR, args.scenario_config_path)  # pylint: disable=line-too-long
 
   train_agent(
       starter_buffer_path=args.starter_buffer_path,

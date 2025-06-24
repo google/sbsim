@@ -23,24 +23,14 @@ from smart_control.simulator.tf_simulator import TFSimulator
 from smart_control.simulator.weather_controller import ReplayWeatherController
 from smart_control.utils import controller_reader
 from smart_control.utils import histogram_reducer
-from smart_control.utils.constants import ROOT_DIRPATH
 from smart_control.utils.controller_writer import ProtoWriterFactory
 from smart_control.utils.environment_utils import to_timestamp
 from smart_control.utils.observation_normalizer import StandardScoreObservationNormalizer
 
 # pylint: enable=unused-import
 
-# Relative filepaths. Consider moving to reinforcement_learning/constants.py
-# fmt: off
-# pylint: disable=line-too-long
-DATA_PATH = os.path.join(ROOT_DIRPATH, "smart_control", "configs", "resources", "sb1")
-CONFIG_PATH = os.path.join(ROOT_DIRPATH, "smart_control", "configs", "resources", "sb1", "train_sim_configs")
-METRICS_PATH = os.path.join(ROOT_DIRPATH, "smart_control", "reinforcement_learning", "experiment_results", "metrics")
-RENDERS_PATH = os.path.join(ROOT_DIRPATH, "smart_control", "reinforcement_learning", "experiment_results", "renders")
-OUTPUT_DATA_PATH = os.path.join(ROOT_DIRPATH, "smart_control", "reinforcement_learning", "data", "starter_buffers")
-EXPERIMENT_RESULTS_PATH = os.path.join(ROOT_DIRPATH, "smart_control", "reinforcement_learning", "experiment_results")
-# pylint: enable=line-too-long
-# fmt: on
+from smart_control.utils.constants import SB1_CONFIG_DIR  # isort:skip
+from smart_control.reinforcement_learning.utils.constants import RL_EXPERIMENT_METRICS_DIR  # isort:skip
 
 
 @gin.configurable
@@ -50,7 +40,7 @@ def get_histogram_path() -> str:
   Returns:
       Path to histogram data.
   """
-  return DATA_PATH
+  return SB1_CONFIG_DIR
 
 
 @gin.configurable
@@ -60,7 +50,7 @@ def get_reset_temp_values() -> np.ndarray:
   Returns:
       Reset temperature values.
   """
-  reset_temps_filepath = os.path.join(DATA_PATH, "reset_temps.npy")
+  reset_temps_filepath = os.path.join(SB1_CONFIG_DIR, "reset_temps.npy")
 
   return np.load(reset_temps_filepath)
 
@@ -72,7 +62,7 @@ def get_zone_path() -> str:
   Returns:
       Path to zone data.
   """
-  return os.path.join(DATA_PATH, "double_resolution_zone_1_2.npy")
+  return os.path.join(SB1_CONFIG_DIR, "double_resolution_zone_1_2.npy")
 
 
 @gin.configurable
@@ -82,7 +72,7 @@ def get_metrics_path() -> str:
   Returns:
       Path to metrics.
   """
-  return os.path.join(METRICS_PATH, "metrics")
+  return os.path.join(RL_EXPERIMENT_METRICS_DIR, "metrics")
 
 
 @gin.configurable
@@ -93,7 +83,8 @@ def get_weather_path() -> str:
       Path to weather data.
   """
   return os.path.join(
-      DATA_PATH, "local_weather_moffett_field_20230701_20231122.csv"
+      SB1_CONFIG_DIR,
+      "local_weather_moffett_field_20230701_20231122.csv",
   )
 
 
@@ -118,7 +109,7 @@ def get_histogram_reducer() -> Any:
   )
   # pylint: enable=bad-continuation
   # fmt: on
-  reader = controller_reader.ProtoReader(DATA_PATH)
+  reader = controller_reader.ProtoReader(SB1_CONFIG_DIR)
 
   hr = histogram_reducer.HistogramReducer(
       histogram_parameters_tuples=histogram_parameters_tuples,

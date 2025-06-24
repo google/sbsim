@@ -120,7 +120,7 @@ cd ../..
 
 By default, simulation videos are stored in the "simulator/videos" directory
 (which is ignored from version control). If you would like to customize this
-location, use the `SIM_VIDEOS_DIRPATH` environment variable.
+location, use the `SIM_VIDEOS_DIR` environment variable.
 
 You can pass environment variable(s) at runtime, or create a local ".env" file
 and set your desired value(s) there:
@@ -129,7 +129,7 @@ and set your desired value(s) there:
 # this is the ".env" file...
 
 # customizing the directory where simulation videos are stored:
-SIM_VIDEOS_DIRPATH="/cns/oz-d/home/smart-buildings-control-team/smart-buildings/geometric_sim_videos/"
+SIM_VIDEOS_DIR="/cns/oz-d/home/smart-buildings-control-team/smart-buildings/geometric_sim_videos/"
 ```
 
 ## Notebook Setup
