@@ -1,7 +1,5 @@
 """Observer that records trajectory data for visualization."""
 
-# smart_control/reinforcement_learning/observers/trajectory_recorder_observer.py
-
 import json
 import logging
 import os
