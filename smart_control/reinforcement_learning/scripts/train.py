@@ -499,9 +499,4 @@ if __name__ == '__main__':
       checkpoint_interval=args.checkpoint_interval,
       learner_iterations=args.learner_iterations,
       scenario_config_path=args.scenario_config_path,
-      num_eval_episodes=args.num_eval_episodes,
-      log_interval=args.log_interval,
-      checkpoint_interval=args.checkpoint_interval,
-      learner_iterations=args.learner_iterations,
-      scenario_config_path=args.scenario_config_path,
   )

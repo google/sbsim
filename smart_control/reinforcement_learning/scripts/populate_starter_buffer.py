@@ -19,7 +19,7 @@ from smart_control.reinforcement_learning.observers.composite_observer import Co
 from smart_control.reinforcement_learning.observers.print_status_observer import PrintStatusObserver
 from smart_control.reinforcement_learning.policies.schedule_policy import create_baseline_schedule_policy
 from smart_control.reinforcement_learning.replay_buffer.replay_buffer import ReplayBufferManager
-from smart_control.reinforcement_learning.utils.config import REPLAY_BUFFER_DATA_PATH
+from smart_control.reinforcement_learning.utils.constants import RL_STARTER_BUFFERS_DIR
 from smart_control.reinforcement_learning.utils.environment import create_and_setup_environment
 from smart_control.utils.constants import ROOT_DIR
 from smart_control.utils.constants import SB1_TRAIN_CONFIGS_DIR
@@ -63,7 +63,7 @@ def populate_replay_buffer(
         'This buffer path already exists. This would override the existing'
         ' buffer. Please use another path'
     )
-    raise FileExistsError('Buffer path already exists, would be overriden') from err  # pylint: disable=line-too-long
+    raise FileExistsError('Buffer path already exists, would be overridden') from err  # pylint: disable=line-too-long
 
   # Load environment
   logger.info('Loading environment from standard config')
@@ -200,7 +200,7 @@ if __name__ == '__main__':
 
   buffer_path_ = args.buffer_name
   if not os.path.isabs(args.buffer_name):
-    buffer_path_ = os.path.join(REPLAY_BUFFER_DATA_PATH, args.buffer_name)
+    buffer_path_ = os.path.join(RL_STARTER_BUFFERS_DIR, args.buffer_name)
 
   populate_replay_buffer(
       buffer_path=buffer_path_,
