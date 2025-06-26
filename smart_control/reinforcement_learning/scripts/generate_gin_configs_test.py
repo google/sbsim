@@ -1,9 +1,14 @@
 """Tests for gin config generation script."""
 
+import os
+import shutil
+
 from absl.testing import absltest
 from absl.testing import parameterized
 
+from smart_control.reinforcement_learning.scripts.generate_gin_configs import generate_configs
 from smart_control.reinforcement_learning.scripts.generate_gin_configs import modify_config
+from smart_control.utils.constants import SB1_TRAIN_CONFIGS_DIR
 
 GIN_CONFIG_EXCERPT = """
 
@@ -13,6 +18,8 @@ GIN_CONFIG_EXCERPT = """
     iteration_limit = 100
     iteration_warning = 30
     start_timestamp = '2023-07-06 07:00:00+00:00'
+
+    ...
 
     # Top-level Environment parameters
     discount_factor = 0.9
@@ -46,6 +53,35 @@ class ConfigGenerationTest(parameterized.TestCase):
     #  breakpoint()
     modified = modify_config(GIN_CONFIG_EXCERPT, param_name, param_value)
     self.assertIn(expected_content, modified)
+
+  def test_generate_configs(self):
+    # setup, using separate temporary directory for generating test files:
+    test_output_dir = os.path.join(SB1_TRAIN_CONFIGS_DIR, "generation_test")
+    if os.path.isdir(test_output_dir):
+      shutil.rmtree(test_output_dir)
+    self.assertEqual(os.path.isdir(test_output_dir), False)
+
+    grid = {
+        "time_step_sec": ["300"],
+        "num_days_in_episode": ["1", "7", "14", "30"],
+        "start_timestamp": ["2023-07-06 07:00:00+00:00"],
+    }
+    generate_configs(output_dir=test_output_dir, params_grid=grid)
+
+    # it creates the output directory:
+    self.assertEqual(os.path.isdir(test_output_dir), True)
+    # it generates a number of gin files in there:
+    generated_file_names = sorted(os.listdir(test_output_dir))
+    expected_file_names = [
+        "step_300_days_14_start_20230706.gin",
+        "step_300_days_1_start_20230706.gin",
+        "step_300_days_30_start_20230706.gin",
+        "step_300_days_7_start_20230706.gin",
+    ]
+    self.assertEqual(generated_file_names, expected_file_names)
+
+    # cleanup:
+    shutil.rmtree(test_output_dir)
 
 
 if __name__ == "__main__":

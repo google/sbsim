@@ -28,6 +28,7 @@ data/sb1/
 #**/eval/
 
 smart_control/configs/resources/sb1/train_sim_configs/generated/
+smart_control/configs/resources/sb1/train_sim_configs/generation_test/
 smart_control/simulator/videos
 smart_control/reinforcement_learning/data/
 smart_control/reinforcement_learning/experiment_results/
