@@ -21,15 +21,16 @@ data/sb1.zip
 data/sb1/
 
 # results files:
-*/**/output_data/
-*/**/metrics/
-**/videos/
-**/train/
-**/eval/
-smart_control/learning/
+#*/**/output_data/
+#*/**/metrics/
+#**/videos/
+#**/train/
+#**/eval/
+
+smart_control/configs/resources/sb1/train_sim_configs/generated/
 smart_control/simulator/videos
-smart_control/refactor/data/
-smart_control/refactor/experiment_results/
+smart_control/reinforcement_learning/data/
+smart_control/reinforcement_learning/experiment_results/
 
 # jupyter notebook checkpoints:
 smart_control/notebooks/.ipynb_checkpoints/

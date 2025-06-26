@@ -18,16 +18,16 @@ from smart_control.utils.constants import ROOT_DIR
 from smart_control.utils.constants import SB1_GIN_CONFIG_FILEPATH
 from smart_control.utils.constants import SB1_TRAIN_CONFIGS_DIR
 
-SB1_GENERATED_CONFIGS_DIR = os.path.join(SB1_TRAIN_CONFIGS_DIR, 'generated_configs')  # pylint:disable=line-too-long
+SB1_GENERATED_CONFIGS_DIR = os.path.join(SB1_TRAIN_CONFIGS_DIR, 'generated')
 
-# LOGGER
+# LOGGING
 
 logger = logging.getLogger(__name__)
 
-# logging.basicConfig(
-#    level=logging.INFO,
-#    format='[%(levelname)s] [%(filename)s:%(lineno)d] [%(message)s]',
-# )
+logging.basicConfig(
+    level=logging.WARNING,
+    format='[%(levelname)s] [%(filename)s:%(lineno)d] [%(message)s]',
+)
 
 logging.basicConfig(
     level=logging.INFO,
