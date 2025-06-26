@@ -24,10 +24,10 @@ SB1_GENERATED_CONFIGS_DIR = os.path.join(SB1_TRAIN_CONFIGS_DIR, 'generated')
 
 logger = logging.getLogger(__name__)
 
-logging.basicConfig(
-    level=logging.WARNING,
-    format='[%(levelname)s] [%(filename)s:%(lineno)d] [%(message)s]',
-)
+# logging.basicConfig(
+#    level=logging.WARNING,
+#    format='[%(levelname)s] [%(filename)s:%(lineno)d] [%(message)s]',
+# )
 
 logging.basicConfig(
     level=logging.INFO,
@@ -63,6 +63,8 @@ flags.DEFINE_list(
     default=['2023-07-06'],
     help='Comma-separated list of start_timestamp dates',
 )
+
+# FUNCTIONS
 
 
 def read_config_file(filepath):

@@ -8,6 +8,8 @@ from absl.testing import parameterized
 
 from smart_control.reinforcement_learning.scripts.generate_gin_configs import generate_configs
 from smart_control.reinforcement_learning.scripts.generate_gin_configs import modify_config
+from smart_control.reinforcement_learning.scripts.generate_gin_configs import read_config_file
+from smart_control.utils.constants import SB1_GIN_CONFIG_FILEPATH
 from smart_control.utils.constants import SB1_TRAIN_CONFIGS_DIR
 
 GIN_CONFIG_EXCERPT = """
@@ -29,10 +31,18 @@ GIN_CONFIG_EXCERPT = """
     num_hod_features = 1
     num_dow_features = 1
 
-"""  # this was copied directly from the sb1 gin config file
+"""  # content was copied directly from the sb1 gin config file
 
 
 class ConfigGenerationTest(parameterized.TestCase):
+
+  def test_read_config(self):
+    content = read_config_file(SB1_GIN_CONFIG_FILEPATH)
+    self.assertIsInstance(content, str)
+    self.assertEqual(len(content), 40805)
+    self.assertIn("time_step_sec =  300", content)
+    self.assertIn("num_days_in_episode=14", content)
+    self.assertIn("start_timestamp = '2023-07-06 07:00:00+00:00'", content)
 
   MODIFICATION_PARAMS = [
       ("time_step_sec", 60, "time_step_sec =60"),
@@ -41,7 +51,8 @@ class ConfigGenerationTest(parameterized.TestCase):
       ("num_days_in_episode", 14, "num_days_in_episode=14"),
       (
           "start_timestamp",
-          "'2024-01-01 07:00:00+00:00'",  # todo: work without ''
+          "'2024-01-01 07:00:00+00:00'",  # todo: get this to work without ''
+          # "2024-01-01 07:00:00+00:00",
           "start_timestamp ='2024-01-01 07:00:00+00:00",
       ),
   ]
