@@ -113,7 +113,11 @@ def modify_config(config_content, param_name, param_value):
 #  pass
 
 
-def generate_configs(base_config_path: str, output_dir: str, params_grid: dict):
+def generate_configs(
+    params_grid: dict,
+    base_config_path: str = SB1_GIN_CONFIG_FILEPATH,
+    output_dir: str = SB1_GENERATED_CONFIGS_DIR,
+):
   """
   Generate multiple config files based on parameter grids.
 
@@ -228,7 +232,11 @@ def main(argv: Sequence[str]):
       'start_timestamp': start_timestamps,
   }
 
-  generate_configs(base_config_filepath, output_dir, params_grid)
+  generate_configs(
+      base_config_path=base_config_filepath,
+      output_dir=output_dir,
+      params_grid=params_grid,
+  )
 
   logger.info(
       'Generated %d configuration files in %s',
