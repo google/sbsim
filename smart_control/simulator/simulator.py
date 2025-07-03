@@ -206,7 +206,7 @@ class Simulator:
     input_q = self.building.input_q[x][y]
     neighbors = self.building.neighbors[x][y]
     neighbor_temps = [temperature_estimates[nx][ny] for nx, ny in neighbors]
-
+    include_radiative_heat_transfer = self.building.include_radiative_heat_transfer  # pylint: disable=line-too-long
     # Ensure interior CV.
     assert len(neighbors) == 4
 
@@ -221,16 +221,22 @@ class Simulator:
     retained_heat = t0 * last_temp
 
     thermal_source = input_q / conductivity / z
-
-    # Radiative heat transfer
-    q_lwx_array = self.building.apply_longwave_interior_radiative_heat_transfer(
-        temperature_estimates
-    )
-    # q_lwx_idx is -1 if the CV does not have LWX
-    q_lwx_idx = self.building.interior_wall_index[x, y]
-    q_lwx = (
-        (q_lwx_array[q_lwx_idx] / conductivity / z) if q_lwx_idx != -1 else 0.0
-    )
+    if include_radiative_heat_transfer:
+      # Radiative heat transfer
+      q_lwx_array = (
+          self.building.apply_longwave_interior_radiative_heat_transfer(
+              temperature_estimates
+          )
+      )
+      # q_lwx_idx is -1 if the CV does not have LWX
+      q_lwx_idx = self.building.interior_wall_index[x, y]
+      q_lwx = (
+          (q_lwx_array[q_lwx_idx] / conductivity / z)
+          if q_lwx_idx != -1
+          else 0.0
+      )
+    else:
+      q_lwx = 0.0
 
     return (
         neighbor_transfer + thermal_source + retained_heat + q_lwx

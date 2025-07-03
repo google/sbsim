@@ -641,6 +641,28 @@ class FloorPlanBasedBuilding(BaseSimulatorBuilding):
     neighbors: Matrix containing list of neighbor coordinates for each control
       volume.
     len_neighbors: matrix containing the length of neighbors
+    include_radiative_heat_transfer: bool to note whether to include radiative
+      heat transfer.
+    indexed_floor_plan: matrix representing the building's floor plan. Used only
+      for calculating interior radiative heat transfer.
+    interior_wall_mask: matrix representing the interior walls of the
+      building. Used only for calculating interior radiative heat transfer.
+    interior_wall_index: matrix representing the index of the interior
+      walls of the building. Used only for calculating interior radiative
+      heat transfer.
+    interior_wall_VF: matrix representing the view factors of the
+      interior walls of the building, which is denoted as F in eqatuion.
+      Used only for calculating interior radiative heat transfer.
+    epsilon: matrix representing the emissivity of the nodes of
+      the building. Used only for calculating radiative heat transfer.
+    alpha: matrix representing the absorptivity of the nodes of
+      the building. Used only for calculating radiative heat transfer.
+    tau: matrix representing the transmittance of the nodes of
+      the building. Used only for calculating radiative heat transfer.
+    IFAinv: matrix representing the inverse of the IFA matrix of the nodes of
+      the building. q_lwx=sigma(I-F)@A_tilde_inv@T^4, and
+      IFAinv=(I-F)@A_tilde_inv. Used only for calculating radiative heat
+      transfer.
   """
 
   def __init__(
@@ -651,9 +673,6 @@ class FloorPlanBasedBuilding(BaseSimulatorBuilding):
       inside_air_properties: MaterialProperties,
       inside_wall_properties: MaterialProperties,
       building_exterior_properties: MaterialProperties,
-      inside_air_radiative_properties: RadiationProperties | None = None,
-      inside_wall_radiative_properties: RadiationProperties | None = None,
-      building_exterior_radiative_properties: RadiationProperties | None = None,
       zone_map: Optional[np.ndarray] = None,
       zone_map_filepath: Optional[str] = None,
       floor_plan: Optional[np.ndarray] = None,
@@ -663,6 +682,11 @@ class FloorPlanBasedBuilding(BaseSimulatorBuilding):
           base_convection_simulator.BaseConvectionSimulator
       ] = None,
       reset_temp_values: np.ndarray | None = None,
+      inside_air_radiative_properties: RadiationProperties | None = None,
+      inside_wall_radiative_properties: RadiationProperties | None = None,
+      building_exterior_radiative_properties: RadiationProperties | None = None,
+      include_radiative_heat_transfer: bool = False,
+      view_factor_method: str = "ScriptF",
   ):
     """Initializes the New Building.
 
@@ -690,6 +714,17 @@ class FloorPlanBasedBuilding(BaseSimulatorBuilding):
         and walls
       convection_simulator: object to simulate air convection
       reset_temp_values: Temp values to use when resetting the building
+      inside_air_radiative_properties: RadiationProperties for interior air.
+      inside_wall_radiative_properties: RadiationProperties for interior walls.
+      building_exterior_radiative_properties: RadiationProperties for building's
+        exterior.
+      include_radiative_heat_transfer: bool to note whether to include radiative
+        heat transfer.
+      view_factor_method: str to note the method to use for view factors.
+        Either "ScriptF" or "CarrollMRT". See
+        https://bigladdersoftware.com/epx/docs/9-6/engineering-reference/
+        inside-heat-balance.html#lw-radiation-exchange-among-zone-surfaces
+        for more details.
     """
 
     self.cv_size_cm = cv_size_cm
@@ -697,7 +732,7 @@ class FloorPlanBasedBuilding(BaseSimulatorBuilding):
     self._initial_temp = initial_temp
     self._convection_simulator = convection_simulator
     self._reset_temp_values = reset_temp_values
-
+    self.include_radiative_heat_transfer = include_radiative_heat_transfer
     # below is new code, to derive necessary artifacts from the floor plan.
     # TODO(spangher): neaten code by turning the next twenty lines into a
     #   private method.
@@ -782,77 +817,80 @@ class FloorPlanBasedBuilding(BaseSimulatorBuilding):
     self.neighbors = self._calculate_neighbors()
     self.len_neighbors = self._calculate_length_of_neighbors()
 
-    # Beginning of radiation-related calculation
-    self.indexed_floor_plan = (
-        self._exterior_space.copy()
-        + exterior_walls.copy()
-        + interior_walls.copy()
-    )
-    self.interior_wall_idx = [
-        (r, c)
-        for r in range(self.indexed_floor_plan.shape[0])
-        for c in range(self.indexed_floor_plan.shape[1])
-        if self.indexed_floor_plan[r, c] == -3
-    ]
-    self.interior_wall_mask = (
-        self.indexed_floor_plan == constants.INTERIOR_WALL_VALUE_IN_FUNCTION
-    )
-    self.interior_wall_index = np.full(self.indexed_floor_plan.shape, -1)
-    self.interior_wall_index[self.interior_wall_mask] = np.arange(
-        np.sum(self.interior_wall_mask)
-    )
-    self.interior_wall_VF = building_radiation_utils.get_VF(  # pylint: disable=invalid-name
-        self.indexed_floor_plan
-    )
-
-    # radiative properties
-    # by default, all radiative properties are 0.0
-    if inside_wall_radiative_properties is None:
-      inside_wall_radiative_properties = RadiationProperties(
-          epsilon=0.0, alpha=0.0, tau=0.0
-      )
-    if building_exterior_radiative_properties is None:
-      building_exterior_radiative_properties = RadiationProperties(
-          epsilon=0.0, alpha=0.0, tau=0.0
-      )
-    if inside_air_radiative_properties is None:
-      inside_air_radiative_properties = RadiationProperties(
-          epsilon=0.0, alpha=0.0, tau=0.0
+    if include_radiative_heat_transfer:
+      # Beginning of radiation-related calculation
+      self.indexed_floor_plan = (
+          self._exterior_space.copy()
+          + exterior_walls.copy()
+          + interior_walls.copy()
       )
 
-    # emissivity
-    self._epsilon = _assign_interior_and_exterior_values(
-        exterior_walls=exterior_walls,
-        interior_walls=interior_walls,
-        interior_wall_value=inside_wall_radiative_properties.epsilon,
-        exterior_wall_value=building_exterior_radiative_properties.epsilon,
-        interior_and_exterior_space_value=inside_air_radiative_properties.epsilon,  # pylint: disable=line-too-long
-    )
-    # absorptivity
-    self._alpha = _assign_interior_and_exterior_values(
-        exterior_walls=exterior_walls,
-        interior_walls=interior_walls,
-        interior_wall_value=inside_wall_radiative_properties.alpha,
-        exterior_wall_value=building_exterior_radiative_properties.alpha,
-        interior_and_exterior_space_value=inside_air_radiative_properties.alpha,
-    )
-    # transmittance
-    self._tau = _assign_interior_and_exterior_values(
-        exterior_walls=exterior_walls,
-        interior_walls=interior_walls,
-        interior_wall_value=inside_wall_radiative_properties.tau,
-        exterior_wall_value=building_exterior_radiative_properties.tau,
-        interior_and_exterior_space_value=inside_air_radiative_properties.tau,
-    )
-    self._epsilon_vector = self._epsilon[self.interior_wall_mask]
-    self.A_tilde_inv = building_radiation_utils.calculate_A_tilde_inv(  # pylint: disable=invalid-name
-        self._epsilon_vector, self.interior_wall_VF
-    )
-    self.IFAinv = building_radiation_utils.calculate_IFAinv(  # pylint: disable=invalid-name
-        self.interior_wall_VF, self.A_tilde_inv
-    )
+      self.interior_wall_mask = (
+          building_radiation_utils.mark_interior_wall_adjacent_to_air(
+              self.indexed_floor_plan,
+              constants.INTERIOR_WALL_VALUE_IN_FUNCTION,
+              constants.INTERIOR_SPACE_VALUE_IN_FUNCTION,
+          )
+      )
+      self.interior_wall_index = np.full(self.indexed_floor_plan.shape, -1)
+      self.interior_wall_index[self.interior_wall_mask] = np.arange(
+          np.sum(self.interior_wall_mask)
+      )
+      self.interior_wall_VF = building_radiation_utils.get_VF(  # pylint: disable=invalid-name
+          self.indexed_floor_plan,
+          self.interior_wall_mask,
+          constants.INTERIOR_WALL_VALUE_IN_FUNCTION,
+          view_factor_method=view_factor_method,
+      )
 
-    ## End of radiation-related calculation
+      # radiative properties
+      # by default, all radiative properties are 0.0
+      if inside_wall_radiative_properties is None:
+        inside_wall_radiative_properties = RadiationProperties(
+            epsilon=0.0, alpha=0.0, tau=0.0
+        )
+      if building_exterior_radiative_properties is None:
+        building_exterior_radiative_properties = RadiationProperties(
+            epsilon=0.0, alpha=0.0, tau=0.0
+        )
+      if inside_air_radiative_properties is None:
+        inside_air_radiative_properties = RadiationProperties(
+            epsilon=0.0, alpha=0.0, tau=0.0
+        )
+
+      # emissivity
+      self._epsilon = _assign_interior_and_exterior_values(
+          exterior_walls=exterior_walls,
+          interior_walls=interior_walls,
+          interior_wall_value=inside_wall_radiative_properties.epsilon,
+          exterior_wall_value=building_exterior_radiative_properties.epsilon,
+          interior_and_exterior_space_value=inside_air_radiative_properties.epsilon,  # pylint: disable=line-too-long
+      )
+      # absorptivity
+      self._alpha = _assign_interior_and_exterior_values(
+          exterior_walls=exterior_walls,
+          interior_walls=interior_walls,
+          interior_wall_value=inside_wall_radiative_properties.alpha,
+          exterior_wall_value=building_exterior_radiative_properties.alpha,
+          interior_and_exterior_space_value=inside_air_radiative_properties.alpha,  # pylint: disable=line-too-long
+      )
+      # transmittance
+      self._tau = _assign_interior_and_exterior_values(
+          exterior_walls=exterior_walls,
+          interior_walls=interior_walls,
+          interior_wall_value=inside_wall_radiative_properties.tau,
+          exterior_wall_value=building_exterior_radiative_properties.tau,
+          interior_and_exterior_space_value=inside_air_radiative_properties.tau,
+      )
+      epsilon_vector = self._epsilon[self.interior_wall_mask]
+      A_tilde_inv = building_radiation_utils.calculate_A_tilde_inv(  # pylint: disable=invalid-name
+          epsilon_vector, self.interior_wall_VF
+      )
+      self.IFAinv = building_radiation_utils.calculate_IFAinv(  # pylint: disable=invalid-name
+          self.interior_wall_VF, A_tilde_inv
+      )
+
+      ## End of radiation-related calculation
 
     self.reset()
 

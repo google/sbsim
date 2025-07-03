@@ -190,7 +190,12 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
     ])
     return plan
 
-  def _create_small_building(self, initial_temp, match_diffusers=False):
+  def _create_small_building(
+      self,
+      initial_temp,
+      match_diffusers=False,
+      include_radiative_heat_transfer=False,
+  ):
     """Returns building with specified initial temperature.
 
     The building returned will have a matrix size of: 21 x 10, this should be
@@ -214,33 +219,48 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
         conductivity=0.05, heat_capacity=500.0, density=3000.0
     )
 
-    inside_air_radiative_properties = building_py.RadiationProperties(
-        epsilon=0.0, alpha=0.0, tau=0.0
-    )
-    inside_wall_radiative_properties = building_py.RadiationProperties(
-        epsilon=0.4, alpha=0.0, tau=0.0
-    )
-    building_exterior_radiative_properties = building_py.RadiationProperties(
-        epsilon=0.3, alpha=0.2, tau=0.0
-    )
-
     floor_plan = self._create_dummy_floor_plan_small()
     zone_map = copy.deepcopy(floor_plan)
 
-    building = building_py.FloorPlanBasedBuilding(
-        cv_size_cm=cv_size_cm,
-        floor_height_cm=floor_height_cm,
-        initial_temp=initial_temp,
-        inside_air_properties=inside_air_properties,
-        inside_wall_properties=inside_wall_properties,
-        building_exterior_properties=building_exterior_properties,
-        inside_air_radiative_properties=inside_air_radiative_properties,
-        inside_wall_radiative_properties=inside_wall_radiative_properties,
-        building_exterior_radiative_properties=building_exterior_radiative_properties,  # pylint: disable=line-too-long
-        floor_plan=floor_plan,
-        zone_map=zone_map,
-        buffer_from_walls=0,
-    )
+    if include_radiative_heat_transfer:
+      inside_air_radiative_properties = building_py.RadiationProperties(
+          epsilon=0.0, alpha=0.0, tau=0.0
+      )
+      inside_wall_radiative_properties = building_py.RadiationProperties(
+          epsilon=0.4, alpha=0.0, tau=0.0
+      )
+      building_exterior_radiative_properties = building_py.RadiationProperties(
+          epsilon=0.3, alpha=0.2, tau=0.0
+      )
+
+      building = building_py.FloorPlanBasedBuilding(
+          cv_size_cm=cv_size_cm,
+          floor_height_cm=floor_height_cm,
+          initial_temp=initial_temp,
+          inside_air_properties=inside_air_properties,
+          inside_wall_properties=inside_wall_properties,
+          building_exterior_properties=building_exterior_properties,
+          floor_plan=floor_plan,
+          zone_map=zone_map,
+          buffer_from_walls=0,
+          inside_air_radiative_properties=inside_air_radiative_properties,
+          inside_wall_radiative_properties=inside_wall_radiative_properties,
+          building_exterior_radiative_properties=building_exterior_radiative_properties,  # pylint: disable=line-too-long
+          include_radiative_heat_transfer=include_radiative_heat_transfer,
+          view_factor_method="ScriptF",
+      )
+    else:
+      building = building_py.FloorPlanBasedBuilding(
+          cv_size_cm=cv_size_cm,
+          floor_height_cm=floor_height_cm,
+          initial_temp=initial_temp,
+          inside_air_properties=inside_air_properties,
+          inside_wall_properties=inside_wall_properties,
+          building_exterior_properties=building_exterior_properties,
+          floor_plan=floor_plan,
+          zone_map=zone_map,
+          buffer_from_walls=0,
+      )
 
     if match_diffusers:
       deprecated_building = self._create_small_building_deprecated(initial_temp)
@@ -640,13 +660,12 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
             ambient_temperature,
             convection_coefficient,
         )
-        # TODO (LBNL): This is not valid anymore due to LWX
         # Due to floating point precision errors.
         self.assertAlmostEqual(
             temp_estimate,
             expected_temp_estimate,
             msg=f"Cell ({x}, {y}) changed unexpectedly.",
-            delta=1,  # 1e-2,
+            delta=1e-5,
         )
 
   @parameterized.named_parameters(
@@ -1011,8 +1030,7 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
         ambient_temperature=292.0,
         convection_coefficient=12.0,
     )
-    # TODO: LBNL this is not valid anymore due to LWX
-    self.assertAlmostEqual(max_delta, 0.0, places=1)
+    self.assertAlmostEqual(max_delta, 0.0, places=3)
 
   def test_finite_differences_timestep_does_not_converge(self):
     weather_controller = mock.create_autospec(
@@ -1442,6 +1460,47 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
     self.assertEqual(
         pump_electrical_energy_rate,
         boiler_reward_info.pump_electrical_energy_rate,
+    )
+
+  def test_update_temperature_estimates_return_value_with_radiative_heat_transfer(  # pylint: disable=line-too-long
+      self,
+  ):
+    weather_controller = mock.create_autospec(
+        weather_controller_py.WeatherController
+    )
+    time_step_sec = 300.0
+    hvac = self._create_small_hvac()
+    convergence_threshold = 0.1
+    iteration_limit = 100
+    iteration_warning = 10
+    start_timestamp = pd.Timestamp("2012-12-21")
+
+    building = self._create_small_building(
+        initial_temp=292.0, include_radiative_heat_transfer=True
+    )
+    # temperature_estimates = building.temp.copy()
+
+    simulator = simulator_py.SimulatorFlexibleGeometries(
+        building,
+        hvac,
+        weather_controller,
+        time_step_sec,
+        convergence_threshold,
+        iteration_limit,
+        iteration_warning,
+        start_timestamp,
+    )
+
+    converged = simulator.finite_differences_timestep(
+        ambient_temperature=292, convection_coefficient=12.0
+    )
+
+    self.assertTrue(
+        converged,
+        msg=(
+            "finite_differences_timestep converged with radiative heat"
+            " transfer."
+        ),
     )
 
 

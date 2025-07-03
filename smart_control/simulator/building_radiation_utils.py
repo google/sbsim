@@ -4,6 +4,7 @@ For computing the physical and thermal characteristics of buildings.
 """
 
 from collections import deque
+import math
 from typing import Optional, Tuple
 
 import numpy as np
@@ -44,25 +45,26 @@ def calculate_A_tilde_inv(epsilon: np.ndarray, F: np.ndarray) -> np.ndarray:
 
 
 def calculate_IFAinv(F: np.ndarray, A_inv: np.ndarray) -> np.ndarray:
-  """
+  r"""
   Calculates the $IFA_{inv}$ matrix.
 
   Main equation:
 
-  $$IFA_{inv} = (I - F) @ A_{inv}$$
+  $$IFA_{inv} = (I - F) @ \tilde{A}^{-1}$$
 
   Where:
 
     + $q=(I-F)@J$
-    + $J=A_{inv}@E_b$
+    + $J=\tilde{A}^{-1}@E_b$
     + $E_b=sigma*T^4$
+    + $\tilde{A}_{ij} = \frac{\delta_{ij}-(1-\epsilon_i)F_{ij}}{\epsilon_i}$
 
   So:
 
-  $$q=sigma*(I-F)@A_{inv}@T^4$$
+  $$q=sigma*(I-F)@\tilde{A}^{-1}@T^4$$
 
   Args:
-      F (np.ndarray): The F matrix.
+      F (np.ndarray): The view factor matrix.
       A_inv (np.ndarray): The A inverse matrix.
 
   Returns:
@@ -107,8 +109,7 @@ def mark_air_connected_interior_walls(
   """
   Mark all interior wall nodes that are connected to the same air space as the
       starting interior wall.
-  Uses 8-directional connectivity (including diagonals) to check wall-air
-      adjacency.
+  Uses 4-directional connectivity to check wall-air adjacency.
   All connected walls including the starting position are marked.
 
   Args:
@@ -139,8 +140,6 @@ def mark_air_connected_interior_walls(
   """
   # Make a copy to avoid modifying the original
   floor_plan = indexed_floor_plan.copy()
-
-  # Check if starting position is valid
   if (
       start_pos[0] < 0
       or start_pos[0] >= floor_plan.shape[0]
@@ -151,32 +150,17 @@ def mark_air_connected_interior_walls(
   if floor_plan[start_pos[0], start_pos[1]] != interior_wall_value:
     return None, None
 
-  # Directions for 4-connectivity (up, down, left, right)
-  # - for air-to-air connections
-  air_directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]
-
-  # Directions for 8-connectivity (including diagonals)
-  # - for wall-air adjacency
-  wall_air_directions = [
-      (-1, -1),
-      (-1, 0),
-      (-1, 1),
-      (0, -1),
-      (0, 1),
-      (1, -1),
-      (1, 0),
-      (1, 1),
-  ]
+  # 4-connectivity for all steps
+  directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]
 
   start_row, start_col = start_pos
 
   # Find all air cells that are connected to the starting wall
-  # (using 8-connectivity)
   connected_air_cells = set()
   air_queue = deque()
 
-  # Add all air cells adjacent to starting wall (including diagonals)
-  for dr, dc in wall_air_directions:
+  # Add all air cells adjacent to starting wall (4-connectivity)
+  for dr, dc in directions:
     new_row, new_col = start_row + dr, start_col + dc
     if (
         0 <= new_row < floor_plan.shape[0]
@@ -186,63 +170,44 @@ def mark_air_connected_interior_walls(
       air_queue.append((new_row, new_col))
       connected_air_cells.add((new_row, new_col))
 
-  # BFS to find all connected air cells (using 4-connectivity for air-to-air)
+  # BFS to find all connected air cells (4-connectivity)
   while air_queue:
     current_row, current_col = air_queue.popleft()
-
-    # Check all neighbors (4-directional for air connectivity)
-    for dr, dc in air_directions:
+    for dr, dc in directions:
       new_row, new_col = current_row + dr, current_col + dc
-
-      # Skip if out of bounds
       if (
-          new_row < 0
-          or new_row >= floor_plan.shape[0]
-          or new_col < 0
-          or new_col >= floor_plan.shape[1]
-      ):
-        continue
-
-      # If neighbor is air and not yet visited
-      if (
-          floor_plan[new_row, new_col] == air_value
+          0 <= new_row < floor_plan.shape[0]
+          and 0 <= new_col < floor_plan.shape[1]
+          and floor_plan[new_row, new_col] == air_value
           and (new_row, new_col) not in connected_air_cells
       ):
         air_queue.append((new_row, new_col))
         connected_air_cells.add((new_row, new_col))
 
-  # Now find all interior walls that are adjacent to any of the connected air
-  # cells (using 8-connectivity)
+  # Now find all interior walls that are adjacent to
+  #  any of the connected air cells (4-connectivity)
   walls_to_mark = set()
-
   for air_row, air_col in connected_air_cells:
-    for dr, dc in wall_air_directions:
+    for dr, dc in directions:
       wall_row, wall_col = air_row + dr, air_col + dc
-
-      # Skip if out of bounds
       if (
-          wall_row < 0
-          or wall_row >= floor_plan.shape[0]
-          or wall_col < 0
-          or wall_col >= floor_plan.shape[1]
+          0 <= wall_row < floor_plan.shape[0]
+          and 0 <= wall_col < floor_plan.shape[1]
+          and floor_plan[wall_row, wall_col] == interior_wall_value
       ):
-        continue
-
-      # If it's an interior wall, mark it
-      if floor_plan[wall_row, wall_col] == interior_wall_value:
         walls_to_mark.add((wall_row, wall_col))
 
-  # Mark all the connected interior walls INCLUDING the starting position
+  # Mark all the connected interior walls (excluding the starting position)
   for wall_row, wall_col in walls_to_mark:
-    if wall_row == start_row and wall_col == start_col:
-      pass
-    else:
+    if (wall_row, wall_col) != (start_row, start_col):
       floor_plan[wall_row, wall_col] = marked_value
 
-  # Create interior space array containing only air and marked walls
-  # Find bounding box of the interior space
-  all_interior_positions = connected_air_cells.union(walls_to_mark)
+  # If any wall was marked, also mark the starting position
+  if walls_to_mark:
+    floor_plan[start_row, start_col] = marked_value
 
+  # Create interior space array containing only air and marked walls
+  all_interior_positions = connected_air_cells.union(walls_to_mark)
   if not all_interior_positions:
     return floor_plan, None
 
@@ -251,24 +216,23 @@ def mark_air_connected_interior_walls(
   min_col = min(pos[1] for pos in all_interior_positions)
   max_col = max(pos[1] for pos in all_interior_positions)
 
-  # Extract the interior space
   interior_height = max_row - min_row + 1
   interior_width = max_col - min_col + 1
   interior_space = np.full(
       (interior_height, interior_width),
       interior_wall_value,
       dtype=floor_plan.dtype,
-  )  # Use -999 as background
+  )
 
-  # Copy air cells and marked walls to interior space
   for air_row, air_col in connected_air_cells:
     interior_space[air_row - min_row, air_col - min_col] = air_value
 
   for wall_row, wall_col in walls_to_mark:
-    if wall_row == start_row and wall_col == start_col:
-      pass
-    else:
+    if (wall_row, wall_col) != (start_row, start_col):
       interior_space[wall_row - min_row, wall_col - min_col] = marked_value
+
+  if walls_to_mark:
+    interior_space[start_row - min_row, start_col - min_col] = marked_value
 
   return floor_plan, interior_space
 
@@ -440,12 +404,7 @@ def fix_view_factors(F: np.ndarray, A: np.ndarray = None) -> np.ndarray:
       # pylint:disable=line-too-long
       if CheckConvergeTolerance > 0.005:
         if CheckConvergeTolerance > 0.1:
-          # warnings.warn(f"FixViewFactors: View factors convergence has failed and will lead to heat balance errors in zone=\"{encl_name}\".")
           pass
-
-        # warnings.warn(f"FixViewFactors: View factors not complete. Check for bad surface descriptions or unenclosed zone=\"{encl_name}\".")
-        # warnings.warn(f"Enforced reciprocity has tolerance (ideal is 0)=[{CheckConvergeTolerance:.6f}], Row Sum (ideal is {N})=[{results['row_sum']:.2f}].")
-        # warnings.warn("If zone is unusual or tolerance is on the order of 0.001, view factors might be OK but results should be checked carefully.")
         pass
       # pylint:enable=line-too-long
 
@@ -485,8 +444,9 @@ def fix_view_factors(F: np.ndarray, A: np.ndarray = None) -> np.ndarray:
 
 def get_VF(
     indexed_floor_plan: np.ndarray,
-    interior_wall_value: int = constants.INTERIOR_WALL_VALUE_IN_FUNCTION,
+    interior_wall_mask: np.ndarray,
     marked_value: int = -33,
+    view_factor_method: str = 'ScriptF',
 ) -> np.ndarray:
   """
   Calculate view factors between interior walls in the floor plan.
@@ -494,38 +454,329 @@ def get_VF(
   Args:
       indexed_floor_plan (np.ndarray): 2D array representing the floor plan with
           indexed values.
-      interior_wall_value (int, optional): Value representing interior walls.
-          Defaults to -3 (`constants.INTERIOR_WALL_VALUE_IN_FUNCTION`).
       marked_value (int, optional): Value to mark connected walls. Defaults to
           -33.
+      view_factor_method (str, optional): Method to use for view factors.
+          Defaults to 'ScriptF'. Either "ScriptF" or "CarrollMRT".
 
   Returns:
       View factor matrix where `VF[i,j]` represents the view factor from wall
           `i` to wall `j`.
 
   """
-  # TODO: how to handle for non typical.. or no interior walls?
-  interior_wall_mask = indexed_floor_plan == interior_wall_value
-  n_interior_wall = np.sum(interior_wall_mask)
-  VF = np.zeros((n_interior_wall, n_interior_wall))
-  interior_wall_idx = [
-      (r, c)
-      for r in range(indexed_floor_plan.shape[0])
-      for c in range(indexed_floor_plan.shape[1])
-      if indexed_floor_plan[r, c] == interior_wall_value
-  ]
+  if view_factor_method == 'ScriptF':
+    n_interior_wall = np.sum(interior_wall_mask)
+    VF = np.zeros((n_interior_wall, n_interior_wall))
 
-  for i in range(n_interior_wall):
-    result_floor_plan, _ = mark_air_connected_interior_walls(
-        indexed_floor_plan, interior_wall_idx[i]
+    interior_wall_tuples = [
+        (r, c)
+        for r in range(indexed_floor_plan.shape[0])
+        for c in range(indexed_floor_plan.shape[1])
+        if interior_wall_mask[r, c]
+    ]
+
+    for i in range(n_interior_wall):
+      result_floor_plan, _ = mark_air_connected_interior_walls(
+          indexed_floor_plan, interior_wall_tuples[i]
+      )
+      # for now, the view factor is just 1/# of seen surfaces.
+      result_floor_plan = mark_directly_seeing_nodes(
+          floor_plan=result_floor_plan, base_node=interior_wall_tuples[i]
+      )
+      vf_ = 1 / np.sum(result_floor_plan == marked_value)
+
+      result_floor_plan_ = np.zeros_like(result_floor_plan).astype('float')
+      result_floor_plan_[result_floor_plan == marked_value] = vf_
+      VF[i, :] = result_floor_plan_[interior_wall_mask]
+
+  elif view_factor_method == 'CarrollMRT':
+    raise NotImplementedError('CarrollMRT view factor method not implemented')
+  else:
+    raise ValueError(
+        f'Invalid view factor method: {view_factor_method}. Either "ScriptF" or'
+        ' "CarrollMRT"'
     )
-    # for now, the view factor is just 1/# of seen surfaces.
-    vf_ = 1 / np.sum(result_floor_plan == marked_value)
-
-    result_floor_plan_ = result_floor_plan.copy().astype('float')
-    result_floor_plan_[result_floor_plan_ == interior_wall_value] = 0
-    result_floor_plan_[result_floor_plan_ == marked_value] = vf_
-    VF[i, :] = result_floor_plan_[interior_wall_mask]
 
   VF = fix_view_factors(VF)
   return VF
+
+
+def mark_interior_wall_adjacent_to_air(
+    arr: np.ndarray,
+    interior_wall_value: int = constants.INTERIOR_WALL_VALUE_IN_FUNCTION,
+    air_value: int = constants.INTERIOR_SPACE_VALUE_IN_FUNCTION,
+) -> np.ndarray:
+  """Marks interior walls that are adjacent to air spaces.
+
+  Creates a boolean mask identifying interior walls that share an edge with an
+  air space (value of 0) in the floor plan. Checks for adjacency in four
+   directions:   up, down, left, and right.
+
+  Args:
+    arr: 2D array representing the floor plan with interior walls marked as
+      interior_wall_value and air spaces as 0.
+    interior_wall_value: Value used to represent interior walls in the floor
+    plan. Defaults to -3 (constants.INTERIOR_WALL_VALUE_IN_FUNCTION).
+
+  Returns:
+    Boolean mask array where True indicates an interior wall that is adjacent to
+    at least one air space.
+  """
+  mask_minus_interior_wall = arr == interior_wall_value
+  mask_zero = arr == air_value
+  # Find -3s that have a 0 neighbor (up/down/left/right)
+  contact = np.zeros_like(arr, dtype=bool)
+  # up
+  contact[1:, :] |= mask_zero[:-1, :] & mask_minus_interior_wall[1:, :]
+  # down
+  contact[:-1, :] |= mask_zero[1:, :] & mask_minus_interior_wall[:-1, :]
+  # left
+  contact[:, 1:] |= mask_zero[:, :-1] & mask_minus_interior_wall[:, 1:]
+  # right
+  contact[:, :-1] |= mask_zero[:, 1:] & mask_minus_interior_wall[:, :-1]
+  # Only mark the -3 cells that are adjacent to a 0
+  marked = mask_minus_interior_wall & contact
+  return marked
+
+
+def get_line_points(
+    start: Tuple[float, float], end: Tuple[float, float]
+) -> list[Tuple[float, float]]:
+  """Generate points where the line crosses integer grid lines.
+
+  This function calculates all intersection points between a line segment and
+  the integer grid lines. It handles vertical, horizontal, and diagonal lines
+  by finding intersections with both vertical (x = integer) and horizontal
+  (y = integer) grid lines.
+
+  Args:
+      start: Starting point of the line segment as (x, y) coordinates.
+      end: Ending point of the line segment as (x, y) coordinates.
+
+  Returns:
+      List of intersection points sorted by distance from the start point.
+          Each point is a tuple of (x, y) coordinates as floats.
+
+
+  """
+  x1, y1 = start
+  x2, y2 = end
+
+  points = []
+
+  # Handle vertical line case
+  if abs(x2 - x1) < 1e-10:  # Vertical line
+    min_y, max_y = min(y1, y2), max(y2, y1)
+    for y in range(int(math.ceil(min_y)), int(math.floor(max_y)) + 1):
+      if min_y <= y <= max_y:
+        points.append((x1, float(y)))
+  # Handle horizontal line case
+  elif abs(y2 - y1) < 1e-10:  # Horizontal line
+    min_x, max_x = min(x1, x2), max(x1, x2)
+    for x in range(int(math.ceil(min_x)), int(math.floor(max_x)) + 1):
+      if min_x <= x <= max_x:
+        points.append((float(x), y1))
+  else:
+    # General case: line has slope
+    # Find intersections with vertical grid lines (x = integer)
+    min_x, max_x = min(x1, x2), max(x1, x2)
+    for x in range(int(math.ceil(min_x)), int(math.floor(max_x)) + 1):
+      if min_x <= x <= max_x:
+        # Calculate y for this x using line equation
+        t = (x - x1) / (x2 - x1)
+        y = y1 + t * (y2 - y1)
+        points.append((float(x), y))
+
+    # Find intersections with horizontal grid lines (y = integer)
+    min_y, max_y = min(y1, y2), max(y1, y2)
+    for y in range(int(math.ceil(min_y)), int(math.floor(max_y)) + 1):
+      if min_y <= y <= max_y:
+        # Calculate x for this y using line equation
+        t = (y - y1) / (y2 - y1)
+        x = x1 + t * (x2 - x1)
+        points.append((x, float(y)))
+
+  # Remove duplicates and sort by distance from start
+  unique_points = []
+  for point in points:
+    # Check if this point is already in the list (within tolerance)
+    is_duplicate = False
+    for existing_point in unique_points:
+      if (
+          abs(point[0] - existing_point[0]) < 1e-10
+          and abs(point[1] - existing_point[1]) < 1e-10
+      ):
+        is_duplicate = True
+        break
+    if not is_duplicate:
+      unique_points.append(point)
+
+  # Sort by distance from start point
+  def distance_from_start(point):
+    return (point[0] - x1) ** 2 + (point[1] - y1) ** 2
+
+  unique_points.sort(key=distance_from_start)
+
+  return unique_points
+
+
+def is_line_blocked(
+    floor_plan: np.ndarray,
+    start: Tuple[float, float],
+    end: Tuple[float, float],
+    interior_wall_value: int = constants.INTERIOR_WALL_VALUE_IN_FUNCTION,
+    marked_value: int = -33,
+    blocked_value: int = -34,
+) -> bool:
+  """Check if the line between start and end is blocked by walls.
+
+  This function determines if a line of sight between two points is blocked
+  by walls in the floor plan. It checks all grid intersections along the line
+  and determines if the line is blocked by examining the 4 surrounding grid
+  cells at each intersection point.
+
+  Args:
+      floor_plan: 2D numpy array representing the floor plan where different
+          values represent different types of cells (walls, air, etc.).
+      start: Starting point of the line as (x, y) coordinates.
+      end: Ending point of the line as (x, y) coordinates.
+
+  Returns:
+      True if the line is blocked by walls, False if the line of sight is clear.
+
+  Note:
+      The function considers a line blocked if all 4 grid cells surrounding
+      an intersection point are walls (values -3, -33, or -34).
+  """
+  line_points = get_line_points(start, end)
+
+  # Skip start and end points for blocking check
+  for _, point in enumerate(line_points[1:-1], 1):
+    x, y = point
+
+    # Get 4 integer coordinates by rounding up/down
+    coords = [
+        (math.floor(x), math.floor(y)),
+        (math.floor(x), math.ceil(y)),
+        (math.ceil(x), math.floor(y)),
+        (math.ceil(x), math.ceil(y)),
+    ]
+
+    # Check if all 4 coordinates are within bounds and get their values
+    coord_values = []
+    all_walls = True
+
+    for cx, cy in coords:
+      if 0 <= cx < floor_plan.shape[0] and 0 <= cy < floor_plan.shape[1]:
+        value = floor_plan[cx, cy]
+        coord_values.append(value)
+        if (
+            value != interior_wall_value
+            and value != marked_value
+            and value != blocked_value
+        ):
+          all_walls = False
+      else:
+        coord_values.append('OUT_OF_BOUNDS')
+        all_walls = False
+
+    # If all 4 coordinates are walls, the line is blocked
+    if all_walls:
+      return True
+
+  return False
+
+
+def are_neighbors(pos1: Tuple[int, int], pos2: Tuple[int, int]) -> bool:
+  """Check if two positions are physically neighboring (adjacent).
+
+  This function determines if two grid positions are adjacent to each other
+  using 4-connectivity. Two positions are considered neighbors if they are
+  within 1 unit distance in both x and y directions, but not the same position.
+
+  Args:
+      pos1: First position as (row, col) coordinates.
+      pos2: Second position as (row, col) coordinates.
+
+  Returns:
+      True if the positions are neighbors, False otherwise.
+
+
+  """
+  dx = abs(pos1[0] - pos2[0])
+  dy = abs(pos1[1] - pos2[1])
+  return (dx == 1 and dy == 0) or (dx == 0 and dy == 1)
+
+
+def mark_directly_seeing_nodes(
+    floor_plan: np.ndarray,
+    base_node: Tuple[int, int],
+    interior_wall_value: int = constants.INTERIOR_WALL_VALUE_IN_FUNCTION,
+    marked_value: int = -33,
+    blocked_value: int = -34,
+) -> np.ndarray:
+  """Mark nodes that are directly seeing the base node as blocked_value.
+
+  This function identifies and marks wall nodes that have a direct line of sight
+  to the base node. It processes all connected wall nodes (marked with
+  marked_value) and determines which ones can directly see the base node without
+  being blocked by other walls.
+
+  Args:
+      floor_plan: 2D numpy array representing the floor plan where different
+          values represent different types of cells (walls, air, etc.).
+      base_node: Position of the base node as (row, col) coordinates.
+      marked_value: Value used to represent connected wall nodes that should
+          be checked for line of sight. Defaults to -33.
+      blocked_value: Value used to mark nodes that cannot directly see the
+          base node. Defaults to -34.
+
+  Returns:
+      Copy of the floor plan with nodes marked according to their visibility
+          to the base node. Nodes that cannot see the base node are marked
+          with blocked_value, and the base node itself is marked with
+          blocked_value + marked_value.
+
+  Note:
+      - Neighboring nodes are automatically marked as blocked (no line of sight
+        calculation needed).
+      - For non-neighboring nodes, the function checks if the line of sight
+        is blocked by walls using is_line_blocked().
+      - The base node itself is marked with a special value to distinguish it.
+  """
+  floor_plan_copy = floor_plan.copy()
+  base_row, base_col = base_node
+  # Find all blocked_value nodes (connected wall nodes)
+  connected_nodes = np.where(floor_plan_copy == marked_value)
+  connected_positions = list(zip(connected_nodes[0], connected_nodes[1]))
+
+  directly_seeing_count = 0
+
+  for pos in connected_positions:
+    row, col = pos
+
+    # Skip if it's the base node itself
+    if (row, col) == (base_row, base_col):
+      continue
+    # Check if not physically neighboring
+    is_neighbor = are_neighbors((base_row, base_col), (row, col))
+
+    if is_neighbor:
+      floor_plan_copy[row, col] = blocked_value
+    else:
+      # Check if line of sight is not blocked
+      blocked = is_line_blocked(
+          floor_plan_copy,
+          (base_row, base_col),
+          (row, col),
+          interior_wall_value,
+          marked_value,
+          blocked_value,
+      )
+      if blocked:
+        floor_plan_copy[row, col] = blocked_value
+        directly_seeing_count += 1
+      else:
+        pass
+  floor_plan_copy[base_row, base_col] = blocked_value + marked_value
+  return floor_plan_copy
