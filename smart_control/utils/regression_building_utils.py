@@ -130,7 +130,7 @@ def get_observation_sequence(
 
   Returns:
     a pandas DF, one row for each ObservationResponse and columns for each
-    (device, meausrement) pair, and also timestamp and Day of Week (dow)
+    (device, measurement) pair, and also timestamp and Day of Week (dow)
     and Hour of Day (hod) features.
   """
 
@@ -643,7 +643,7 @@ def get_boiler_reward_infos(
   boiler_reward_infos = {}
   for device_id in reward_info_devices:
     # Determine this device is a boiler by its fields, not its name.
-    # To be a boiler (HW system) is must reoprt both a natural gas heating and
+    # To be a boiler (HW system) is must report both a natural gas heating and
     # pump electric power.
     if _NATURAL_GAS_HEATING_ENERGY_RATE in reward_info_devices[device_id]:
       natural_has_heating_energy_rate = reward_info_devices[device_id][

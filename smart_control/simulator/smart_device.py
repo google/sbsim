@@ -168,7 +168,7 @@ class SmartDevice(metaclass=abc.ABCMeta):
       action_timestamp: Timestamp of the action
 
     Raises:
-      AttributeError: If requested field was not declared action or does
+      AttributeError: If requested field was not declared as action or does
       not exist.
 
       ValueError: If given value is not the declared type.

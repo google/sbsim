@@ -240,7 +240,7 @@ def compute_action_regularization_cost(
     Returns the L2 Norm of the actions as a penalty term for large changes.
 
   Args:
-    action_history: Seqential array of actions taken in the episode.
+    action_history: Sequential array of actions taken in the episode.
 
   Returns:
     A smoothing cost applied to the reward function for applying big changes.
@@ -986,7 +986,7 @@ class Environment(py_environment.PyEnvironment):
       continuous_value = single_observation_response.continuous_value
 
       if not single_observation_response.observation_valid:
-        logging.warn(
+        logging.warning(
             "Invalid observation reported %s %s %f",
             device_id,
             measurement_name,

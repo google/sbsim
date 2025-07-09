@@ -73,7 +73,7 @@ def assign_devices_to_bins(
   Returns:
     A jagged array with outer dim for each bin, and inner array with device ids.
   """
-  # Create a an eply assignment as a list of lists, one list per bin.
+  # Create an empty assignment as a list of lists, one list per bin.
   assignment = [[] for _ in range(len(bins))]
 
   for (
@@ -197,7 +197,7 @@ class HistogramReducer(BaseReducer):
   representing each zone as a separate timeseries is rather inefficient.
 
   Reduce function converts a feature from timeseries into a histogram.
-  For exammple, devices d1, d2 have a zone_air_temperature timeseries,
+  For example, devices d1, d2 have a zone_air_temperature timeseries,
   the histogram reducer converts the timeseries into a counts on temperature
   bins, like 70, 71, 72, etc. and assigns a count to the bin. This reduces
   the dimensionality into a more compressed format if the number of the devices
@@ -432,7 +432,7 @@ class HistogramReducer(BaseReducer):
         observation_sequence, feature_mapping
     )
 
-    # Join the passthrough and the rediced sequences into a single dataframe.
+    # Join the passthrough and the reduced sequences into a single dataframe.
     reduced_sequence = passthrough_sequence
     if reduced_feature_dfs:
       df_hist = pd.concat(reduced_feature_dfs, axis=1)

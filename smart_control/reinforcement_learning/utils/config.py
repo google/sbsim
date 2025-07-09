@@ -30,7 +30,7 @@ from smart_control.utils.observation_normalizer import StandardScoreObservationN
 
 # pylint: enable=unused-import
 
-# Relative filepaths. Consider moving to reinforcement_learning/constants.py
+# Relative file paths. Consider moving to reinforcement_learning/constants.py
 # fmt: off
 # pylint: disable=line-too-long
 DATA_PATH = os.path.join(ROOT_DIR, "smart_control", "configs", "resources", "sb1")

@@ -44,7 +44,7 @@ class Hvac:
 
     Args:
       zone_coordinates: List of 2-tuple containing zone coordinates to service.
-      air_handler: the air handler for hte HVAC
+      air_handler: the air handler for the HVAC
       boiler: the boiler for the HVAC
       schedule: the setpoint_schedule for the thermostats
       vav_max_air_flow_rate: the max airflow rate for the vavs

@@ -326,7 +326,7 @@ def get_test_reward_response(
 
 
 def get_device_infos() -> Sequence[smart_control_building_pb2.DeviceInfo]:
-  """Returns pre-defined DeviceInfos for unit test."""
+  """Returns pre-defined DeviceInfos for unit tests."""
 
   d0 = smart_control_building_pb2.DeviceInfo(
       device_id='d0',

@@ -28,8 +28,8 @@ class ZoneOccupant:
   """Represents a single occupant in a zone.
 
   Attributes:
-    earliest_expected_arrival_hour: earliest arrivel, 0 - 22
-    latest_expected_arrival_hour: latest arrivel, 1 - 23
+    earliest_expected_arrival_hour: earliest arrival, 0 - 22
+    latest_expected_arrival_hour: latest arrival, 1 - 23
     earliest_expected_departure_hour: earliest departure, 0 - 22
     latest_expected_departure_hour: latest departure, 1 - 23
     random_state: random state used to generate events
@@ -82,8 +82,8 @@ class ZoneOccupant:
     # The halfway point is the firts half of the trials.
     n_halfway = window / self._step_size / 2.0
     # We'd like to return the probability of event happening in a single time-
-    # step. This follow a geometric distribution, where E[X] = 1/p, where
-    # E[x] is the expected number of events before the first success. If
+    # step. This follows a geometric distribution, where E[X] = 1/p, where
+    # E[X] is the expected number of events before the first success. If
     # E[X] is the halfway point, then p = 1 / n_halfway.
     return 1.0 / n_halfway
 
@@ -91,7 +91,7 @@ class ZoneOccupant:
     """Makes a random draw to determine whether occupant arrives."""
 
     local_timestamp = self._to_local_time(timestamp)
-    # TODO(sipple): Consider effects when time crosses DST>
+    # TODO(sipple): Consider effects when time crosses DST.
     if (
         local_timestamp.hour < self._earliest_expected_arrival_hour
         or local_timestamp.hour > self._latest_expected_arrival_hour
@@ -138,8 +138,8 @@ class RandomizedArrivalDepartureOccupancy(BaseOccupancy):
 
   Attributes:
     zone_assignment: number of occupants in a zone
-    earliest_expected_arrival_hour: earliest arrivel, 0 - 22
-    latest_expected_arrival_hour: latest arrivel, 1 - 23
+    earliest_expected_arrival_hour: earliest arrival, 0 - 22
+    latest_expected_arrival_hour: latest arrival, 1 - 23
     earliest_expected_departure_hour: earliest departure, 0 - 22
     latest_expected_departure_hour: latest departure, 1 - 23
     seed: integer used to set the random state for repeatability

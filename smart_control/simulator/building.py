@@ -259,7 +259,7 @@ def _construct_cv_type_array(
 ) -> np.ndarray:
   """Fills once the CV type matrix and save it.
 
-  In the original imlementation,
+  In the original implementation,
       the sweep() function would call the get_cv_type() function every time,
       repeating logic that only needed to be computed once and saved.
 
@@ -390,7 +390,7 @@ class Building(BaseSimulatorBuilding):
       length of the building.
     temp: The current temp in K of each control volume.
     conductivity: Thermal conductivity in of each control volume W/m/K.
-    heat_capacity: Thermal heat cpacity of each control volume in J/kg/K.
+    heat_capacity: Thermal heat capacity of each control volume in J/kg/K.
     density: Material density in kg/m3 of each control volume.
     input_q: Heat energy applied (sign indicates heating/cooling) at the CV in W
       (J/s).

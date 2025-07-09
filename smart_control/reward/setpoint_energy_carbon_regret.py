@@ -8,7 +8,7 @@ agent learns an action policy to maximize the cumulative, or long-term reward.
 For this pilot there are three principal factors that contribute to the
 reward function:
   * Setpoint: Maintaining the zone temperatures within heating and cooling
-  setpoints  results in a positive reward, and any temperature outside of
+  setpoints results in a positive reward, and any temperature outside of
   setpoints may also result in a negative reward (i.e., penalty).
   * Cost: The cost of electricity and natural gas is a negative reward (cost).
   Then by minimizing negative rewards/maximizing positive reward, the agent

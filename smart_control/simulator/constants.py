@@ -34,13 +34,13 @@ EXTERIOR_WALL_VALUE_IN_FUNCTION = -2
 # that designates exterior space in the file input.
 EXTERIOR_SPACE_VALUE_IN_FILE_INPUT = 2
 
-# Here we designate a specific placeholder to help use demarcate which CVs
+# Here we designate a specific placeholder to help us demarcate which CVs
 # are for exterior space once processed in the function. It is intentionally
 # set to -1 so that the connectedComponent function can have access to all
 # nonzero integers to count upwards in an unbounded way.
 EXTERIOR_SPACE_VALUE_IN_FUNCTION = -1
 
-# Here we designate a specific placeholder to help use demarcate which CVs
+# Here we designate a specific placeholder to help us demarcate which CVs
 # are for exterior space are noted in the component. It is intentionally
 # set to -1 so that the connectedComponent function can have access to all
 # nonzero integers to count upwards in an unbounded way.
@@ -52,7 +52,7 @@ INTERIOR_SPACE_VALUE_IN_FILE_INPUT = 0
 
 # Here we pick out a specific value that we know will code for interior space
 # after connectedComponents() processes it. We know this because we have ensured
-# that the CV at index (0,0) will always be an "space" CV when ready for
+# that the CV at index (0,0) will always be a "space" CV when ready for
 # input to connectedComponents, but we previously index the exterior space CVs
 # in their own data array. Thus, after overwriting the exterior space CVs to
 # the value _EXTERIOR_SPACE_VALUE_IN_FUNCTION, all connectedComponents of
@@ -82,17 +82,11 @@ GENERIC_SPACE_VALUE_IN_CONNECTION_INPUT = 0
 # returning expanded exterior walls when calling enlarge_component()
 WALLS_AND_EXPANDED_BOOLS = 2
 
-# Here we wish to specifically set exterior space as indistinguishable
-# from exterior walls, as we wish to perform connectedComponents only on
-# connected groups of interior space. Thus, we set exterior space to a generic
-# space value, i.e. 0.
-GENERIC_SPACE_VALUE_IN_CONNECTION_INPUT = 0
-
 # Here we use a specific placeholder value, matching with the file input schema,
 # that designates interior space in the file input.
 INTERIOR_WALL_VALUE_IN_FILE_INPUT = 1
 
-# Here we designate a specific placeholder to help use demarcate which CVs
+# Here we designate a specific placeholder to help us demarcate which CVs
 # are for interior walls once processed in the function. It is intentionally
 # set to -3 so that the connectedComponent function can have access to all
 # nonzero integers to count upwards in an unbounded way.

@@ -13,7 +13,7 @@ from smart_control.utils import constants
 
 @gin.configurable
 class AirHandler(smart_device.SmartDevice):
-  """Models an air hander with heating/cooling, input/exhaust and recirculation.
+  """Models an air handler with heating/cooling, input/exhaust and recirculation.
 
   Attributes:
     recirculation: Proportion of air recirculated.
@@ -45,7 +45,7 @@ class AirHandler(smart_device.SmartDevice):
   ):
     if cooling_air_temp_setpoint <= heating_air_temp_setpoint:
       raise ValueError(
-          'cooling_air_temp_setpoint must greater than'
+          'cooling_air_temp_setpoint must be greater than'
           ' heating_air_temp_setpoint'
       )
 

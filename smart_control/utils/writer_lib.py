@@ -89,4 +89,4 @@ class BaseWriterFactory(metaclass=abc.ABCMeta):
 
   @abc.abstractmethod
   def create(self, output_dir: PathLocation) -> BaseWriter:
-    """Creates a writer with a output directory."""
+    """Creates a writer with an output directory."""

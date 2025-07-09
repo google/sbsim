@@ -522,7 +522,7 @@ class TFSimulator(simulator.SimulatorFlexibleGeometries):
     n_boundary_elements = len(self._boundary_cv_mapping)
     logging.info('Number of boundary CVs: %d', n_boundary_elements)
     # Get a binary mask that mark exterior CVs so that they will always be
-    # assigned ambinent air temps.
+    # assigned ambient air temps.
     self._t_exerior_temps_mask = self._get_tensor_exterior_mask(building)
     n_exterior_elements = tf.math.count_nonzero(self._t_exerior_temps_mask)
     logging.info('Number of exterior CVs: %d', n_exterior_elements)
@@ -769,7 +769,7 @@ class TFSimulator(simulator.SimulatorFlexibleGeometries):
         t_temp, ambient_temperature
     )
 
-    # Get the ambinet temperature as a tensor.
+    # Get the ambient temperature as a tensor.
     t_temp_inf = tf.constant(ambient_temperature, dtype=tf.float32)
 
     # Convert the timestep input to tensor.
@@ -831,7 +831,7 @@ class TFSimulator(simulator.SimulatorFlexibleGeometries):
     t_temperature_estimates = tf.math.divide(t_numer, t_denom)
 
     # The tensor operation potentially altered the exterior air conditions,
-    # so we need to reset exterior CVs to the exterior air conditioners.
+    # so we need to reset exterior CVs to the exterior air conditions.
     t_temperature_estimates = apply_exterior_temps(
         t_temperature_estimates, t_temp_inf, self._t_exerior_temps_mask
     )

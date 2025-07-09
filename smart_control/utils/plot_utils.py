@@ -436,7 +436,7 @@ def plot_combined_results(
 
 
 def init_metrics():
-  """Initializes the metrics for sumlation."""
+  """Initializes the metrics for simulation."""
 
   metrics = {}
   metrics['timestamps'] = []

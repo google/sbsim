@@ -27,7 +27,7 @@ class BuildingRenderer:
   def __init__(
       self, building_layout: building_utils.FileInputFloorPlan, cv_size: int = 6
   ):
-    """Initializes the foreground image, ie the walls of the building.
+    """Initializes the foreground image, i.e. the walls of the building.
 
     Args:
       building_layout: an array representing where the walls are in the building

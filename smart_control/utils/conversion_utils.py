@@ -78,7 +78,7 @@ def normalize_dow(dow: int) -> float:
 
 
 def normalize_hod(hod: int) -> float:
-  """Returns a normlized hour of day, mapping  [0,23] to [-1., 1.]."""
+  """Returns a normalized hour of day, mapping  [0,23] to [-1., 1.]."""
   assert hod <= 23 and hod >= 0
   return (float(hod) - 11.5) / 11.5
 
@@ -141,7 +141,7 @@ def fahrenheit_to_kelvin(fahrenheit: float) -> float:
   """Converts °F to Kelvin.
 
   Args:
-    fahrenheit: Temperature in Kelvin, where 273K = 32°F.
+    fahrenheit: Temperature in Fahrenheit, where 32°F = 273K.
 
   Returns:
     The temperature in K.
@@ -149,7 +149,7 @@ def fahrenheit_to_kelvin(fahrenheit: float) -> float:
   Raises:
     A ValueError if the input value <= absolute 0, −459.67°F.
   """
-  if fahrenheit <= -495.67:
+  if fahrenheit <= -459.67:
     raise ValueError('Temperature must be greater than absolute zero.')
   celsius = (fahrenheit - 32.0) * 5.0 / 9.0
   return celsius + 273.15

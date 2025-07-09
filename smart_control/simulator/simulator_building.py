@@ -82,7 +82,7 @@ class SimulatorBuilding(BaseBuilding):
     if clazz == float:
       return _ValueType.VALUE_CONTINUOUS
     elif clazz == int:
-      # TODO(gusatb): Handle non continuous values.
+      # TODO(gusatb): Handle non-continuous values.
       return _ValueType.VALUE_CONTINUOUS
     else:
       return _ValueType.VALUE_TYPE_UNDEFINED

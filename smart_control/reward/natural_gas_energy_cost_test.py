@@ -40,7 +40,7 @@ class NaturalGasEnergyCostTest(parameterized.TestCase):
     cost_estimate = cost.cost(start_time, end_time, energy_rate)
     self.assertAlmostEqual(expected_cost, cost_estimate, 2)
 
-  def test_carbon_emisison(self):
+  def test_carbon_emission(self):
     # Source:
     # https://www.eia.gov/environment/emissions/co2_vol_mass.php
     # 1 million BTUs nat gas generate 53.1 kg C02.

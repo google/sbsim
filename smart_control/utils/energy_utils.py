@@ -154,12 +154,12 @@ def get_fan_power(
     The fan power in Watts.
 
   Raises:
-    ValueError if neither design_hp or break_hp are provided.
+    ValueError if neither design_hp or brake_hp are provided.
   """
 
   if design_hp is None and brake_hp is None:
     raise ValueError(
-        'Must provide either design horseposer or brake horsepower.'
+        'Must provide either design horsepower or brake horsepower.'
     )
 
   if fan_speed_percentage is None:

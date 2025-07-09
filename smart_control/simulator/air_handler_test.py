@@ -106,7 +106,7 @@ class AirHandlerTest(parameterized.TestCase):
   ):
     """Calculates the mixed air temperature.
 
-    This function is calculated by muliplying the recirculation_temp by
+    This function is calculated by multiplying the recirculation_temp by
     the recirculation factor, and the ambient_temp
     by 1 minus the recirculation factor, and adding the two.
 
@@ -129,7 +129,7 @@ class AirHandlerTest(parameterized.TestCase):
 
   @parameterized.named_parameters(
       ('below setpoint window case 1', 0.3, 280, 240, 270),
-      ('below setpount window case 2', 0.6, 244, 270, 270),
+      ('below setpoint window case 2', 0.6, 244, 270, 270),
       ('above setpoint window case 1', 0.1, 210, 316, 288),
       ('above setpoint window case 2', 0.4, 250, 316, 288),
       ('in setpoint window case 1', 0.4, 286, 266, 0.4 * 286 + 0.6 * 266),

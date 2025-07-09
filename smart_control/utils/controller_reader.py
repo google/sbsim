@@ -158,7 +158,7 @@ class ProtoReader(reader_lib.BaseReader):
         start_time: pd.Timestamp,
         end_time: pd.Timestamp,
     ) -> bool:
-      """Turns true if timestamp is equal or between start and end times."""
+      """Returns true if timestamp is equal or between start and end times."""
       return (timestamp >= start_time) and (timestamp <= end_time)
 
     return [
@@ -221,7 +221,7 @@ class ProtoReader(reader_lib.BaseReader):
 def get_episode_data(working_dir: str) -> pd.DataFrame:
   """Returns a dataframe with details about each episode.
 
-  In retrieving the summaries of the of the experiment there are various
+  In retrieving the summaries of the experiment there are various
   time-stamped files/directories:
     (1) The episode directory format is [episode_label]_[yymmdd_hhmmss UTC].
     (2) The updates (RewardInfo, RewardResponse, ActionResponse, and

@@ -55,11 +55,11 @@ class AgentUtilsTest(parameterized.TestCase):
 
         # Check step sizes are no larger than random_step_magnitude.
         with self.subTest(name='CheckStepMagnitude'):
-          dif = tf.math.subtract(last_step[1], step[1])
-          abs_dif = tf.math.abs(dif)
-          max_dif = np.max(abs_dif.numpy())
+          diff = tf.math.subtract(last_step[1], step[1])
+          abs_diff = tf.math.abs(diff)
+          max_diff = np.max(abs_diff.numpy())
           # Need to add small tolerance  (1e-6) due to float32 imprecision.
-          self.assertLessEqual(max_dif, random_step_magnitude + 1e-6)
+          self.assertLessEqual(max_diff, random_step_magnitude + 1e-6)
 
       # Check that the results are always inside upper and lower limits.
       with self.subTest(name='CheckMaxValue'):

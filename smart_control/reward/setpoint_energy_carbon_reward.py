@@ -24,7 +24,7 @@ where:
   s(setpoint) is the reward for maintaining setpoint
   f(cost) is the cost of consuming electrical and natural gas energy
   g(carbon) is the cost of emitting carbon,
-  and u, w are weighing factors for cost and carbon depending on the policy.
+  and u, w are weighting factors for cost and carbon depending on the policy.
 
 The fundamental metric unit of energy is the Joule (J), and the unit of energy
 applied over a fixed time interval (energy rate) is power measured in J/sec or

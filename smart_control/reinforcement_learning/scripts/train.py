@@ -244,7 +244,7 @@ def train_agent(
   for i in range(train_iterations):
     # Get current training step value before operations
     current_step = train_step.numpy()
-    logger.exception(
+    logger.info(
         'Starting training loop iteration %d (step %d)', i, current_step
     )
 

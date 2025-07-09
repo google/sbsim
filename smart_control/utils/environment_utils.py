@@ -9,13 +9,13 @@ from smart_control.utils import bounded_action_normalizer
 
 @gin.configurable
 def to_timestamp(date_str: str) -> pd.Timestamp:
-  """Utilty macro for gin config."""
+  """Utility macro for gin config."""
   return pd.Timestamp(date_str)
 
 
 @gin.configurable
 def local_time(time_str: str) -> pd.Timedelta:
-  """Utilty macro for gin config."""
+  """Utility macro for gin config."""
   return pd.Timedelta(time_str)
 
 

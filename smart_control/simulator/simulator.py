@@ -93,7 +93,7 @@ class Simulator:
     """Returns temperature estimate for corner CV in K for next time step.
 
     This function calculates the solution to an equation involving the energy
-    transfer by conduction to neighoring air CVs as well as energy transfer by
+    transfer by conduction to neighboring air CVs as well as energy transfer by
     convection from the external ambient air.
 
     Args:
@@ -139,7 +139,7 @@ class Simulator:
     """Returns temperature estimate for edge CV in K for next time step.
 
     This function calculates the solution to an equation involving the energy
-    transfer by conduction to neighoring air CVs as well as energy transfer by
+    transfer by conduction to neighboring air CVs as well as energy transfer by
     convection from the external ambient air.
 
     Args:
@@ -188,7 +188,7 @@ class Simulator:
     """Returns temperature estimate for interior CV in K for next time step.
 
     This function calculates the solution to an equation involving the energy
-    transfer by conduction to neighoring air CVs as well as energy transfer
+    transfer by conduction to neighboring air CVs as well as energy transfer
     from heat input to the CV from a diffuser.
 
     Args:
@@ -281,7 +281,7 @@ class Simulator:
       convection_coefficient: Current wind convection coefficient (W/m2/K).
 
     Returns:
-      Maximum difference in temperture_estimates across all CVs before and after
+      Maximum difference in temperature_estimates across all CVs before and after
       operation.
     """
     nrows, ncols = temperature_estimates.shape
@@ -317,7 +317,7 @@ class Simulator:
     3.   Calculate the difference between previous T and new T.
 
     If the maximum difference in the grid is less than some small constant,
-    conversion_threshold, then quit. Otherwise, return to step 2.
+    convergence_threshold, then quit. Otherwise, return to step 2.
 
     The update_temperature_estimates function performs steps 2, and 3.
 
@@ -449,7 +449,7 @@ class Simulator:
       zone_id: str,
       zone_air_temperature: float,
   ) -> RewardInfo.ZoneRewardInfo:
-    """Returns a messagde with zone data to compute the instantaneous reward."""
+    """Returns a message with zone data to compute the instantaneous reward."""
     schedule = self._hvac.vavs[zone_coords].thermostat.get_setpoint_schedule()
     heating_setpoint_temperature, cooling_setpoint_temperature = (
         schedule.get_temperature_window(self._current_timestamp)

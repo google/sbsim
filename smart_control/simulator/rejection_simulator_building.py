@@ -17,7 +17,7 @@ _ActionResponseType = (
 
 @gin.configurable
 class RejectionSimulatorBuilding(BaseBuilding):
-  """A Building that throws exception while agent is awaiting authorization."""
+  """A Building that throws exceptions while agent is awaiting authorization."""
 
   def __init__(
       self, base_building: BaseBuilding, initial_rejection_count: int = 0

@@ -1,6 +1,6 @@
 """Code for generating thermal diffusers in a building.
 
-These helper functions are separated these out into their own file for
+These helper functions are separated out into their own file for
 extensibility: we can easily put in another function loading these from data and
 process this using similar function format.
 """
@@ -206,7 +206,7 @@ def diffuser_allocation_switch(
     spacing: how many control volumes to put between each diffuser
     interior_walls: an InteriorWalls for determining whether thermal diffusers
       are allocated in walls. This measure is intended for cases in which one
-      needs to provide a interior_walls and zone_map to the Building class, and
+      needs to provide an interior_walls and zone_map to the Building class, and
       they may not line up correctly on account of being from different photo
       sources.
     buffer_from_walls: how far to place a thermal diffuser away from a wall.
@@ -234,7 +234,7 @@ def diffuser_allocation_switch(
 
     ## TODO(spangher): This dilate function throws errors when
     # iterations is greater than 0, which takes away an effort I had
-    # started to make sure that thermal diffusers are not placed closed to
+    # started to make sure that thermal diffusers are not placed close to
     # walls. If data anchoring proceeds with trouble, please consider
     # restarting the effort to place a buffer in between diffusers and walls.
 

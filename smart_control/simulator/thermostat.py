@@ -28,7 +28,7 @@ class Thermostat:
 
   Is constructed by passing in a SetpointSchedule, which, for any timestamp,
   provides heating and cooling setpoints, as well as whether the thermostat
-  should operate in Eco mode/.
+  should operate in Eco mode.
 
   Attributes:
     _setpoint_schedule: SetpointSchedule to determine temperature windows.
@@ -122,7 +122,7 @@ class Thermostat:
         and self._setpoint_schedule.is_comfort_mode(self._previous_timestamp)
     ):
       self._current_mode = self.Mode.PASSIVE_COOL
-    # Been in eco mod
+    # Been in eco mode
     else:
       if (
           self._current_mode == self.Mode.PASSIVE_COOL

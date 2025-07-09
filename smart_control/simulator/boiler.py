@@ -263,11 +263,11 @@ class Boiler(smart_device.SmartDevice):
   ) -> float:
     """Returns the amount of thermal loss in W from a boiler tank.
 
-    Thermal dissipation is the loss of heat due from the tank to the environment
+    Thermal dissipation is the loss of heat from the tank to the environment
     due to imperfect insulation, measured in Watts.
 
     The tank is assumed to be a cylindrical annulus, with an internal radius
-    internal length, and an insulation thickness. Heat is dissapated only
+    internal length, and an insulation thickness. Heat is dissipated only
     through the cylinder walls, and no heat is lost through the ends/caps.
 
     The equation is computed by applying an energy balance of:

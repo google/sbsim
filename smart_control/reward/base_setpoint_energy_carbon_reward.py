@@ -16,7 +16,7 @@ class BaseSetpointEnergyCarbonRewardFunction(BaseRewardFunction):
 
   Attributes:
     max_productivity_personhour_usd: max productivity for average occupancy in $
-    productivity_midpoint_delta: temp difference from setpoint of half prod.
+    productivity_midpoint_delta: temperature difference from setpoint of half productivity.
     productivity_decay_stiffness: midpoint slope of the decay curve
   """
 
@@ -155,7 +155,7 @@ class BaseSetpointEnergyCarbonRewardFunction(BaseRewardFunction):
   def _sum_natural_gas_energy_rate(
       self, energy_reward_info: smart_control_reward_pb2.RewardInfo
   ) -> float:
-    """Returns the sum of nat gas energy rate over the interval in W."""
+    """Returns the sum of natural gas energy rate over the interval in W."""
 
     # Sum up the power in Watts for the total power.
     gas_energy_rate = 0.0

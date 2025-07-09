@@ -5,7 +5,7 @@ spaces. However, SM control requires a hybrid action space (continuous pressures
 and temperatures, and a discrete on/off run command.
 
 Multiple attempts have failed to train an agent to manage the hybrid action
-space effectively, but given pressure and temperature setting, it is easy to
+space effectively, but given pressure and temperature settings, it is easy to
 train a classifier to estimate the run command for both air conditioners and
 hot water systems. This CL adds in the RunCommand predictor that predicts if
 the device is on or off based on its temp and pressure features.

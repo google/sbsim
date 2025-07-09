@@ -199,7 +199,7 @@ class HvacTest(absltest.TestCase):
 
     self.assertListEqual(vav_ids, expected_vav_ids)
 
-  def test_id_comfort_mode(self):
+  def test_is_comfort_mode(self):
     zone_coordinates = [(0, 0), (1, 0), (1, 1), (0, 1)]
     handler = _get_default_air_handler()
     b = _get_default_boiler()

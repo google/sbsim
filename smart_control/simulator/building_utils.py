@@ -129,7 +129,7 @@ def save_images_to_cns_for_debugging(
 def guarantee_air_padding_in_frame(
     floor_plan: FileInputFloorPlan,
 ) -> FileInputFloorPlan:
-  """Adds a row or column of air if a building is abuts its frame edge.
+  """Adds a row or column of air if a building abuts its frame edge.
 
   Future computation relies on buildings being surrounded by at least one
     layer of air CVs between them and the edge of the floor plan frame.
@@ -175,7 +175,7 @@ def guarantee_air_padding_in_frame(
     )
 
   def determine_column_size_of_exterior_space_to_add() -> np.ndarray:
-    """A helper function to recompute a columns row to add from floor plan dim.
+    """A helper function to recompute a column row to add from floor plan dim.
 
     Returns:
       a column of constants.EXTERIOR_SPACE_VALUE_IN_FILE_INPUT's to concat if
@@ -283,7 +283,7 @@ def _set_exterior_space_neg(
   """Modifies the connections array so that exterior space is negative.
 
   Encoding the exterior space as negative is important in the connections array
-  as it will encode an aribtrarily large number of rooms as positive integers.
+  as it will encode an arbitrarily large number of rooms as positive integers.
   Thus, setting the exterior space as negative ensures that we will always be
   able to deal with it as its own category of space.
 

@@ -807,7 +807,7 @@ class BuildingTest(parameterized.TestCase):
         [0, 0, 0, 0, 0, 0, 0],
     ])
 
-    expexted_interior_output = np.array([
+    expected_interior_output = np.array([
         [0, 0, 0, 0, 0, 0, 0],
         [0, 0, 0, 0, 0, 0, 0],
         [0, 0, 0, 0, 0, 0, 0],
@@ -823,7 +823,7 @@ class BuildingTest(parameterized.TestCase):
     with self.subTest("exterior_output"):
       np.testing.assert_array_equal(exterior_output, expected_exterior_output)
     with self.subTest("interior_output"):
-      np.testing.assert_array_equal(interior_output, expexted_interior_output)
+      np.testing.assert_array_equal(interior_output, expected_interior_output)
 
   def test_interior_air_values(self):
     initial_temp = 292.0
@@ -1691,7 +1691,7 @@ class BuildingTest(parameterized.TestCase):
           continue
         self.assertEqual(b.temp[i][j], 292.0)
 
-    # lets reset and try again, to make sure the chache works
+    # lets reset and try again, to make sure the cache works
     # now lets change the temps in a room
     b.temp[2][2] = 1
     b.temp[2][3] = 2

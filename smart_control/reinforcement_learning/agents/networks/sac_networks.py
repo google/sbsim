@@ -106,7 +106,7 @@ def create_sequential_critic_network(
 class _TanhNormalProjectionNetworkWrapper(
     tanh_normal_projection_network.TanhNormalProjectionNetwork
 ):
-  """Wrapper to pass predefined `outer_rank` to underlying projection net."""
+  """Wrapper to pass predefined `outer_rank` to underlying projection network."""
 
   def __init__(self, sample_spec, predefined_outer_rank=1):
     super(_TanhNormalProjectionNetworkWrapper, self).__init__(sample_spec)

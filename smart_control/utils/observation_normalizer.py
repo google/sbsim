@@ -20,7 +20,7 @@ class StandardScoreObservationNormalizer(
   """Normalizes and denormalizes ObservationResponses and ActionResponses.
 
   Normalization is simply a shift by mean and scale by sqrt(variance).
-  Native variable: variable value in original form, before normlization.
+  Native variable: variable value in original form, before normalization.
   Normalized variable: variable shifted and scaled, after normalization.
 
   Attributes:
@@ -106,7 +106,7 @@ class StandardScoreObservationNormalizer(
 
     Args:
       obs_in: input ObservationResponse
-      transform_func: normallization or denormlization function
+      transform_func: normalization or denormalization function
 
     Returns:
       an ObservationResponse with the same fields, but transformed values.

@@ -150,7 +150,7 @@ def get_replay_temperatures(
 
 @gin.configurable
 class ReplayWeatherController:
-  """Weather controller that interplolates real weather from past observations.
+  """Weather controller that interpolates real weather from past observations.
 
   Attributes:
     local_weather_path: Path to local weather file.
@@ -182,7 +182,7 @@ class ReplayWeatherController:
     if timestamp < min_time:
 
       raise ValueError(
-          f'Attempting to get weather data at {timestamp}, before the latest'
+          f'Attempting to get weather data at {timestamp}, before the earliest'
           f' timestamp {min_time}.'
       )
     max_time = max(self._weather_data['Time'])

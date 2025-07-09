@@ -156,7 +156,7 @@ class EnergyUtilsTest(parameterized.TestCase):
   def test_get_water_pump_power_valid(
       self,
       pump_duty_cycle,
-      pump_speed_percantage,
+      pump_speed_percentage,
       brake_horse_power,
       design_horse_power,
       motor_factor,
@@ -165,7 +165,7 @@ class EnergyUtilsTest(parameterized.TestCase):
   ):
     p1 = energy_utils.get_water_pump_power(
         pump_duty_cycle=pump_duty_cycle,
-        pump_speed_percentage=pump_speed_percantage,
+        pump_speed_percentage=pump_speed_percentage,
         brake_horse_power=brake_horse_power,
         design_motor_horse_power=design_horse_power,
         motor_factor=motor_factor,
