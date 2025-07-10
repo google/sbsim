@@ -2,26 +2,40 @@
 
 ## Configuration Generation
 
+By default, when training an RL agent, it will use configuration options defined
+in the base gin config file (see
+"smart_control/configs/resources/\<dataset_id>/sim_config.gin").
+
+However if you would like to use different configuration options, you can use
+the configuration generation script to flexibly create alternative config files
+with slight modifications to the base config file.
+
+Generate different configuration files to use during training:
+
 ```sh
 python -m smart_control.reinforcement_learning.scripts.generate_gin_configs
 ```
 
-```sh
-python -m smart_control.reinforcement_learning.scripts.generate_gin_configs \
-  /home/gabriel-user/projects/sbsim/smart_control/configs/resources/sb1/sim_config.gin \
-  --output-dir /home/gabriel-user/projects/sbsim/smart_control/configs/resources/sb1/generated_configs \
-  --time-steps 900 \
-  --num-days 14 \
-  --start-timestamps 2023-07-21,2023-08-21,2023-10-21,2023-11-21 \
-```
+By default, the script will use the following parameter grid:
+
+- `time_steps`: `['300']`
+- `num_days`: `['1', '7', '14', '30']`
+- `start_timestamps`: ['2023-07-06']
+
+Optionally pass any of these command line flags to customize the parameter grid:
 
 ```sh
-python scripts/generate_gin_config_files.py /home/gabriel-user/projects/sbsim/smart_control/configs/resources/sb1/sim_config.gin \
-  --output-dir /home/gabriel-user/projects/sbsim/smart_control/configs/resources/sb1/generated_configs \
-  --time-steps 300,600,900 \
-  --num-days 1,7,14 \
-  --start-timestamps 2023-07-06,2023-08-06,2023-10-06
+python -m smart_control.reinforcement_learning.scripts.generate_gin_configs \
+  --time_steps 300,600,900 \
+  --num_days 1,7,14 \
+  --start_timestamps 2023-07-06,2023-08-06,2023-10-06
 ```
+
+This script will generate a different file for each combination of custom
+parameter values you specify. The files will be written to the
+"smart_control/configs/resources/\<dataset_id>/train_sim_configs/generated"
+directory. Each file name will contain the parameter values you choose (e.g.
+"step_300_days_1_start_20230706.gin").
 
 ## Starter Buffer Population
 
