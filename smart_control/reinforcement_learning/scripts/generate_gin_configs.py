@@ -171,7 +171,8 @@ def generate_configs(
 
       clean_name = param_filename_aliases.get(param_name) or param_name.replace('_', '')  # pylint:disable=line-too-long
       if param_name == 'start_timestamp':
-        filename_part = f'{clean_name}_{param_value[0:11]}'.replace('-', '')
+        param_value = param_value.replace("'", '')
+        filename_part = f'{clean_name}_{param_value[0:10]}'.replace('-', '')
       else:
         filename_part = f'{clean_name}_{param_value}'
       filename_parts.append(filename_part.strip())
