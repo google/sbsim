@@ -4,10 +4,11 @@ This creates a starter buffer with exploration data that can be used to
 bootstrap the training process.
 """
 
-import argparse
 import logging
 import os
 
+from absl import app
+from absl import flags
 import tensorflow as tf
 from tf_agents.environments import tf_py_environment
 from tf_agents.policies import py_tf_eager_policy
@@ -24,12 +25,52 @@ from smart_control.reinforcement_learning.utils.environment import create_and_se
 from smart_control.utils.constants import ROOT_DIR
 from smart_control.utils.constants import SB1_TRAIN_CONFIGS_DIR
 
-# Configure logging
+DEFAULT_CONFIG_FILEPATH = os.path.join(
+    SB1_TRAIN_CONFIGS_DIR, 'sim_config_1_day.gin'
+)
+
+# LOGGING
+
+# logging.basicConfig(
+#    level=logging.INFO,
+#    format='[%(levelname)s] [%(filename)s:%(lineno)d] [%(message)s]',
+# )
 logging.basicConfig(
     level=logging.INFO,
-    format='[%(levelname)s] [%(filename)s:%(lineno)d] [%(message)s]',
+    format='[%(message)s]',
 )
 logger = logging.getLogger(__name__)
+
+
+# FLAGS
+
+FLAGS = flags.FLAGS
+
+BUFFER_NAME = flags.DEFINE_string(
+    name='buffer_name',
+    default=None,
+    help='Name used to identify the replay buffer',
+    # required=True,
+)
+CAPACITY = flags.DEFINE_integer(
+    name='capacity', default=50000, help='Replay buffer capacity'
+)
+STEPS_PER_RUN = flags.DEFINE_integer(
+    name='steps_per_run', default=100, help='Number of steps per actor run'
+)
+NUM_RUNS = flags.DEFINE_integer(
+    name='num_runs', default=5, help='Number of actor runs to perform'
+)
+SEQUENCE_LENGTH = flags.DEFINE_integer(
+    name='sequence_length',
+    default=2,
+    help='Sequence length for the replay buffer',
+)
+ENV_GIN_CONFIG_FILEPATH = flags.DEFINE_string(
+    name='env_gin_config_filepath',
+    default=DEFAULT_CONFIG_FILEPATH,
+    help='Environment config file',
+)
 
 
 def populate_replay_buffer(
@@ -175,38 +216,60 @@ def populate_replay_buffer(
   return replay_buffer
 
 
-if __name__ == '__main__':
+def main():
+  config_filepath = FLAGS.env_gin_config_filepath
+  if not os.path.isabs(config_filepath):
+    config_filepath = os.path.join(ROOT_DIR, config_filepath)
 
-  config_filepath = os.path.join(SB1_TRAIN_CONFIGS_DIR, 'sim_config_1_day.gin')
-
-  # fmt: off
-  # pylint: disable=line-too-long
-  parser = argparse.ArgumentParser(description='Populate a replay buffer with initial exploration data')
-  parser.add_argument('--buffer-name', type=str, required=True, help='Name used to identify the replay buffer')
-  parser.add_argument('--capacity', type=int, default=50000, help='Replay buffer capacity')
-  parser.add_argument('--steps-per-run', type=int, default=100, help='Number of steps per actor run')
-  parser.add_argument('--num-runs', type=int, default=5, help='Number of actor runs to perform')
-  parser.add_argument('--sequence-length', type=int, default=2, help='Sequence length for the replay buffer')
-  parser.add_argument('--env-gin-config-file-path', type=str, default=config_filepath, help='Environment config file')
-  # pylint: enable=line-too-long
-  # fmt: on
-  args = parser.parse_args()
-
-  # This makes it work for both relative and absolute paths
-  if not os.path.isabs(args.env_gin_config_file_path):
-    args.env_gin_config_file_path = os.path.join(
-        ROOT_DIR, args.env_gin_config_file_path
-    )
-
-  buffer_path_ = args.buffer_name
-  if not os.path.isabs(args.buffer_name):
-    buffer_path_ = os.path.join(RL_STARTER_BUFFERS_DIR, args.buffer_name)
+  buffer_path = FLAGS.buffer_name
+  if not os.path.isabs(buffer_path):
+    buffer_path = os.path.join(RL_STARTER_BUFFERS_DIR, buffer_path)
 
   populate_replay_buffer(
-      buffer_path=buffer_path_,
-      buffer_capacity=args.capacity,
-      steps_per_run=args.steps_per_run,
-      num_runs=args.num_runs,
-      sequence_length=args.sequence_length,
-      env_gin_config_file_path=args.env_gin_config_file_path,
+      buffer_path=buffer_path,
+      buffer_capacity=FLAGS.capacity,
+      steps_per_run=FLAGS.steps_per_run,
+      num_runs=FLAGS.num_runs,
+      sequence_length=FLAGS.sequence_length,
+      env_gin_config_file_path=config_filepath,
   )
+
+
+if __name__ == '__main__':
+
+  ## fmt: off
+  ## pylint: disable=line-too-long
+
+  # config_filepath = os.path.join(SB1_TRAIN_CONFIGS_DIR, 'sim_config_1_day.gin')
+
+  # parser = argparse.ArgumentParser(description='Populate a replay buffer with initial exploration data')
+  # parser.add_argument('--buffer-name', type=str, required=True, help='Name used to identify the replay buffer')
+  # parser.add_argument('--capacity', type=int, default=50000, help='Replay buffer capacity')
+  # parser.add_argument('--steps-per-run', type=int, default=100, help='Number of steps per actor run')
+  # parser.add_argument('--num-runs', type=int, default=5, help='Number of actor runs to perform')
+  # parser.add_argument('--sequence-length', type=int, default=2, help='Sequence length for the replay buffer')
+  # parser.add_argument('--env-gin-config-file-path', type=str, default=config_filepath, help='Environment config file')
+  ## pylint: enable=line-too-long
+  ## fmt: on
+  # args = parser.parse_args()
+
+  # This makes it work for both relative and absolute paths
+  # if not os.path.isabs(args.env_gin_config_file_path):
+  #  args.env_gin_config_file_path = os.path.join(
+  #      ROOT_DIR, args.env_gin_config_file_path
+  #  )
+  #
+  # buffer_path_ = args.buffer_name
+  # if not os.path.isabs(args.buffer_name):
+  #  buffer_path_ = os.path.join(RL_STARTER_BUFFERS_DIR, args.buffer_name)
+  #
+  # populate_replay_buffer(
+  #    buffer_path=buffer_path_,
+  #    buffer_capacity=args.capacity,
+  #    steps_per_run=args.steps_per_run,
+  #    num_runs=args.num_runs,
+  #    sequence_length=args.sequence_length,
+  #    env_gin_config_file_path=args.env_gin_config_file_path,
+  # )
+
+  app.run(main)
