@@ -16,7 +16,7 @@ class BaseSetpointEnergyCarbonRewardFunction(BaseRewardFunction):
 
   Attributes:
     max_productivity_personhour_usd: max productivity for average occupancy in $
-    productivity_midpoint_delta: temperature difference from setpoint of half productivity.
+    productivity_midpoint_delta: temp difference from setpoint of half prod.
     productivity_decay_stiffness: midpoint slope of the decay curve
   """
 

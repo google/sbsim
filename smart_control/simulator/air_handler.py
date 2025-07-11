@@ -13,7 +13,8 @@ from smart_control.utils import constants
 
 @gin.configurable
 class AirHandler(smart_device.SmartDevice):
-  """Models an air handler with heating/cooling, input/exhaust and recirculation.
+  """
+  Models an air handler with heating/cooling, input/exhaust and recirculation.
 
   Attributes:
     recirculation: Proportion of air recirculated.

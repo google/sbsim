@@ -281,8 +281,8 @@ class Simulator:
       convection_coefficient: Current wind convection coefficient (W/m2/K).
 
     Returns:
-      Maximum difference in temperature_estimates across all CVs before and after
-      operation.
+      Maximum difference in temperature_estimates across all CVs
+      before and after operation.
     """
     nrows, ncols = temperature_estimates.shape
     max_delta = 0.0
