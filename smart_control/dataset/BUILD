@@ -13,6 +13,7 @@
 # limitations under the License.
 
 load("//devtools/python/blaze:pytype.bzl", "pytype_strict_library")
+load("//devtools/python/blaze:strict.bzl", "py_strict_test")
 
 package(
     default_applicable_licenses = ["//third_party/py/smart_buildings:license"],
@@ -23,7 +24,58 @@ pytype_strict_library(
     name = "dataset",
     srcs = ["dataset.py"],
     deps = [
+        "//third_party/py/matplotlib",
         "//third_party/py/numpy",
+        "//third_party/py/pandas",
+        "//third_party/py/smart_buildings/smart_control/utils:constants",
         "//third_party/py/requests",
+    ],
+)
+
+pytype_strict_library(
+    name = "partition",
+    srcs = ["partition.py"],
+    deps = [
+        ":dataset",
+        "//third_party/py/numpy",
+        "//third_party/py/pandas",
+    ],
+)
+
+pytype_strict_library(
+    name = "conftest",
+    testonly = True,
+    srcs = ["conftest.py"],
+    deps = [
+        ":dataset",
+        ":partition",
+        "//third_party/py/dotenv"
+        "//third_party/py/pytest",
+    ],
+)
+
+py_strict_test(
+    name = "dataset_test",
+    srcs = ["dataset_test.py"],
+    deps = [
+        ":dataset",
+        ":conftest",
+        "//third_party/py/absl/testing:absltest",
+        "//third_party/py/numpy",
+        "//third_party/py/pandas",
+        "//third_party/py/pytest",
+    ],
+)
+
+py_strict_test(
+    name = "partition_test",
+    srcs = ["partition_test.py"],
+    deps = [
+        ":partition",
+        ":conftest",
+        "//third_party/py/absl/testing:absltest",
+        "//third_party/py/numpy",
+        "//third_party/py/pandas",
+        "//third_party/py/pytest",
     ],
 )

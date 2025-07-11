@@ -82,11 +82,21 @@ pytest
 # disable warnings:
 pytest --disable-pytest-warnings
 
+# show print statements:
+pytest --disable-pytest-warnings -s
+
 # run specific test files:
 pytest --disable-pytest-warnings path/to/your/test.py
 
+# run specific test class:
+pytest --disable-pytest-warnings path/to/your/test.py::YourUnittestClass
+
 # run specific tests:
 pytest --disable-pytest-warnings -k your_test_name_here
+
+# ignore specific test files and directories:
+pytest --ignore=path/to/your/test.py --ignore=path/to/other/
+
 ```
 
 ## Linting

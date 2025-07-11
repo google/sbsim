@@ -81,7 +81,9 @@ nav:
     - 'Documentation Site': docs-site.md
   - 'API Reference':
     - api/config.md
-    - api/dataset.md
+    - 'Dataset':
+      - api/dataset/dataset.md
+      - api/dataset/partition.md
     - api/environment.md
     - api/models.md
     - 'Reinforcement Learning':
@@ -132,6 +134,8 @@ extra_javascript:
 
 plugins:
   - search
+
+  - autorefs # enables linking to other methods (maybe not working?)
 
   #
   # API DOCS

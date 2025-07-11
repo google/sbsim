@@ -19,6 +19,11 @@ __pycache__/
 sb1.zip
 sb1/
 
+data/*
+!data/.gitkeep
+data/sb1.zip
+data/sb1/
+
 # results files:
 */**/output_data/
 */**/metrics/
