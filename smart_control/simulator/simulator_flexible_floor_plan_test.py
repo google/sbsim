@@ -195,6 +195,7 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
       initial_temp,
       match_diffusers=False,
       include_radiative_heat_transfer=False,
+      floor_plan=None,
   ):
     """Returns building with specified initial temperature.
 
@@ -206,6 +207,8 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
       initial_temp: Initial temperature of all CVs in building.
       match_diffusers: borrow the diffuser allocation scheme of the deprecated
         building (for testing purposes)
+      include_radiative_heat_transfer: include radiative heat transfer
+      floor_plan: floor plan to use
     """
     cv_size_cm = 20.0
     floor_height_cm = 300.0
@@ -219,7 +222,9 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
         conductivity=0.05, heat_capacity=500.0, density=3000.0
     )
 
-    floor_plan = self._create_dummy_floor_plan_small()
+    if floor_plan is None:
+      floor_plan = self._create_dummy_floor_plan_small()
+
     zone_map = copy.deepcopy(floor_plan)
 
     if include_radiative_heat_transfer:
@@ -1479,6 +1484,60 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
         initial_temp=292.0, include_radiative_heat_transfer=True
     )
     # temperature_estimates = building.temp.copy()
+
+    simulator = simulator_py.SimulatorFlexibleGeometries(
+        building,
+        hvac,
+        weather_controller,
+        time_step_sec,
+        convergence_threshold,
+        iteration_limit,
+        iteration_warning,
+        start_timestamp,
+    )
+
+    converged = simulator.finite_differences_timestep(
+        ambient_temperature=292, convection_coefficient=12.0
+    )
+
+    self.assertTrue(
+        converged,
+        msg=(
+            "finite_differences_timestep converged with radiative heat"
+            " transfer."
+        ),
+    )
+
+  def test_update_temperature_estimates_return_value_with_radiative_heat_transfer_no_interior_walls(  # pylint: disable=line-too-long
+      self,
+  ):
+    weather_controller = mock.create_autospec(
+        weather_controller_py.WeatherController
+    )
+    time_step_sec = 300.0
+    hvac = self._create_small_hvac()
+    convergence_threshold = 0.1
+    iteration_limit = 100
+    iteration_warning = 10
+    start_timestamp = pd.Timestamp("2012-12-21")
+
+    plan = np.array([
+        [2, 2, 2, 2, 2, 2, 2, 2, 2],
+        [2, 1, 1, 1, 1, 1, 1, 1, 2],
+        [2, 1, 0, 0, 1, 0, 0, 1, 2],
+        [2, 1, 0, 0, 1, 0, 0, 1, 2],
+        [2, 1, 1, 1, 1, 1, 1, 1, 2],
+        [2, 1, 0, 0, 1, 0, 0, 1, 2],
+        [2, 1, 0, 0, 1, 0, 0, 1, 2],
+        [2, 1, 1, 1, 1, 1, 1, 1, 2],
+        [2, 2, 2, 2, 2, 2, 2, 2, 2],
+    ])
+
+    building = self._create_small_building(
+        initial_temp=292.0,
+        include_radiative_heat_transfer=True,
+        floor_plan=plan,
+    )
 
     simulator = simulator_py.SimulatorFlexibleGeometries(
         building,

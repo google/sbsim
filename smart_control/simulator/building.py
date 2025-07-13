@@ -819,11 +819,21 @@ class FloorPlanBasedBuilding(BaseSimulatorBuilding):
 
     if include_radiative_heat_transfer:
       # Beginning of radiation-related calculation
-      self.indexed_floor_plan = (
-          self._exterior_space.copy()
-          + exterior_walls.copy()
-          + interior_walls.copy()
-      )
+      # self.indexed_floor_plan = (
+      #     self._exterior_space.copy()
+      #     + exterior_walls.copy()
+      #     + interior_walls.copy()
+      # )
+      self.indexed_floor_plan = self.floor_plan.copy()
+      # 2=>-1
+      self.indexed_floor_plan[
+          self.indexed_floor_plan
+          == constants.EXTERIOR_SPACE_VALUE_IN_FILE_INPUT
+      ] = constants.EXTERIOR_SPACE_VALUE_IN_FUNCTION
+      # 1 to -3
+      self.indexed_floor_plan[
+          self.indexed_floor_plan == constants.INTERIOR_WALL_VALUE_IN_FILE_INPUT
+      ] = constants.INTERIOR_WALL_VALUE_IN_FUNCTION
 
       self.interior_wall_mask = (
           building_radiation_utils.mark_interior_wall_adjacent_to_air(

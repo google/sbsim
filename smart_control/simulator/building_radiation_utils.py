@@ -48,20 +48,9 @@ def calculate_IFAinv(F: np.ndarray, A_inv: np.ndarray) -> np.ndarray:
   r"""
   Calculates the $IFA_{inv}$ matrix.
 
-  Main equation:
+  $$IFA_{inv} = (I - F) \tilde{A}^{-1}$$
 
-  $$IFA_{inv} = (I - F) @ \tilde{A}^{-1}$$
-
-  Where:
-
-    + $q=(I-F)@J$
-    + $J=\tilde{A}^{-1}@E_b$
-    + $E_b=sigma*T^4$
-    + $\tilde{A}_{ij} = \frac{\delta_{ij}-(1-\epsilon_i)F_{ij}}{\epsilon_i}$
-
-  So:
-
-  $$q=sigma*(I-F)@\tilde{A}^{-1}@T^4$$
+  See net_radiative_heatflux_function_of_T for more details.
 
   Args:
       F (np.ndarray): The view factor matrix.
@@ -81,13 +70,83 @@ def calculate_IFAinv(F: np.ndarray, A_inv: np.ndarray) -> np.ndarray:
 def net_radiative_heatflux_function_of_T(
     T: np.ndarray, IFAinv: np.ndarray
 ) -> np.array:
-  """
-  Calculates the net radiative heat flux and radiosity for given surface
-    temperatures.
+  r"""
+  Calculates the net radiative heat flux and radiosity for all surfaces given
+    surface temperatures.
+
+  Equations:
+  --------------------
+  The net radiative heat flux leaving surface $i$ is:
+
+  $$q_i = J_i - G_i$$
+
+  where:
+  - $J_i$ is the radiosity (total outgoing radiative flux) from surface $i$,
+  - $G_i$ is the irradiation (total incoming radiative flux) onto surface $i$.
+
+  The radiosity is given by:
+
+  $$J_i = \epsilon_i E_{b,i} + \rho_i G_i$$
+
+  where $\epsilon_i$ is the emissivity, $\rho_i = 1 - \epsilon_i$ is the
+    reflectivity (for opaque surfaces), and $E_{b,i}$ is the blackbody
+    emission from $i$ surface.
+
+  The irradiation for the $i$ surface is:
+
+  $$G_i A_i = \sum_{j=1,\, j\neq i}^n J_j A_j F_{ji}$$
+
+  where $F_{ji}$ is the view factor from surface $j$ to $i$.
+
+  Combining these, the radiosity equation for all surfaces can be written in
+    vector-matrix form as:
+
+  $$\tilde{\mathbf{A}}\, \mathbf{J} = \mathbf{E}_b$$
+
+  where $\tilde{A}_{ij} =
+    \delta_{ij} - \frac{(1-\epsilon_i) F_{ij}}{\epsilon_i}$.
+
+  Solving for $\mathbf{J}$:
+
+  $$\mathbf{J} = \tilde{\mathbf{A}}^{-1} \mathbf{E}_b$$
+
+  The net heat flux vector for all surfaces is:
+
+  $$\mathbf{q}=
+  (\mathbf{I}-\tilde{\mathbf{F}})\tilde{\mathbf{A}}^{-1}\mathbf{E}_b$$
+
+  where $\tilde{\mathbf{F}}$ is the matrix of view factors,
+    $F_{ij}$ and$\mathbf{E}_b$ is $\sigma \mathbf{T}^4$.
+
+  Nomenclature and Units:
+  -----------------------
+  - $q_i$        : Net radiative heat flux from surface $i$ [$\mathrm{W/m^2}$]
+  - $\mathbf{q}$ : Vector of $q_i$ for all $i=1..n$ [$\mathrm{W/m^2}$]
+  - $J_i$        : Radiosity of surface $i$ [$\mathrm{W/m^2}$]
+  - $\mathbf{J}$ : Vector of $J_i$ for all $i=1..n$ [$\mathrm{W/m^2}$]
+  - $G_i$        : Irradiation on surface $i$ [$\mathrm{W/m^2}$]
+  - $E_{b,i}$    : Blackbody emissive power of surface $i$ [$\mathrm{W/m^2}$]$
+  - $\mathbf{E}_b$: Vector of $E_{b,i}$ for all $i=1..n$ [$\mathrm{W/m^2}$]
+  - $\epsilon_i$ : Emissivity of surface $i$ [dimensionless]
+  - $\rho_i$     : Reflectivity of surface $i$ [dimensionless],
+                    ($\rho_i=1-\epsilon_i$)
+  - $A_i$        : Area of surface $i$ [$\mathrm{m^2}$]
+  - $F_{ij}$     : View factor from surface $i$ to $j$ [dimensionless]
+  - $\tilde{\mathbf{A}}$: Matrix with elements
+    ($\tilde{A}_{ij} = \delta_{ij} - \frac{(1-\epsilon_i) F_{ij}}{\epsilon_i}$)
+  - $\mathbf{I}$ : $n \times n$ identity matrix
+  - $\tilde{\mathbf{F}}$: Matrix of $F_{ij}$ (view factors)
+  - $\delta_{ij}$: Kronecker delta ($=1$ if $i=j$, $=0$ otherwise)
+  - $\sigma$: Stefan-Boltzmann constant [$\mathrm{W/m^2K^4}$]
+  - $\mathbf{T}$: Vector of surface temperatures [K]
+
+  References:
+  -----------
+  - Incropera, F.P., DeWitt, D.P., "Fundamentals of Heat and Mass Transfer"
 
   Args:
-      T (np.ndarray): Surface temperatures in Celsius.
-      IFAinv (np.ndarray): (I - F) @ A_inv.
+    T (np.ndarray): Surface temperatures in Kelvin.
+    IFAinv (np.ndarray): (I - F) @ A_inv.
 
   Returns:
       q : Net radiative heat flux [W/m^2]
