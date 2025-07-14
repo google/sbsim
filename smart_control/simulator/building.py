@@ -722,8 +722,7 @@ class FloorPlanBasedBuilding(BaseSimulatorBuilding):
         heat transfer.
       view_factor_method: str to note the method to use for view factors.
         Either "ScriptF" or "CarrollMRT". See
-        https://bigladdersoftware.com/epx/docs/9-6/engineering-reference/
-        inside-heat-balance.html#lw-radiation-exchange-among-zone-surfaces
+        [LW Radiation Exchange Among Zone Surfaces](https://bigladdersoftware.com/epx/docs/9-6/engineering-reference/inside-heat-balance.html#lw-radiation-exchange-among-zone-surfaces)
         for more details.
     """
 
