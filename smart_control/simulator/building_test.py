@@ -1716,11 +1716,30 @@ class BuildingTest(parameterized.TestCase):
     self.assertEqual(b.temp[3][2], vals[2])
     self.assertEqual(b.temp[3][3], vals[3])
 
-  def test_radiation_properties_default_values(self):
-    props = building.RadiationProperties()
-    self.assertEqual(props.alpha, 0)
-    self.assertEqual(props.epsilon, 0)
-    self.assertEqual(props.tau, 0)
+  def test_radiation_properties(self):
+    with self.subTest("default values are zero"):
+      props = building.RadiationProperties()
+      self.assertEqual(props.alpha, 0)
+      self.assertEqual(props.epsilon, 0)
+      self.assertEqual(props.tau, 0)
+
+    with self.subTest("alpha should be between 0 and 1"):
+      with self.assertRaises(ValueError):
+        building.RadiationProperties(alpha=-0.5)
+      with self.assertRaises(ValueError):
+        building.RadiationProperties(alpha=1.5)
+
+    with self.subTest("epsilon should be between 0 and 1"):
+      with self.assertRaises(ValueError):
+        building.RadiationProperties(epsilon=-0.5)
+      with self.assertRaises(ValueError):
+        building.RadiationProperties(epsilon=1.5)
+
+    with self.subTest("tau should be between 0 and 1"):
+      with self.assertRaises(ValueError):
+        building.RadiationProperties(tau=-0.5)
+      with self.assertRaises(ValueError):
+        building.RadiationProperties(tau=1.5)
 
   def _create_building_with_radiative_properties(
       self, view_factor_method="ScriptF", floor_plan=None

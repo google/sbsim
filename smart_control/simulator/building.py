@@ -34,6 +34,10 @@ class MaterialProperties:
 class RadiationProperties:
   """Holds the radiative properties for a material.
 
+  All property values should be between 0 and 1 (inclusive).
+
+  By default, all property values are set to 0.
+
   Args:
     alpha (float): absorptivity
     epsilon (float): emissivity
@@ -43,6 +47,16 @@ class RadiationProperties:
   alpha: float = 0.0  # absorptivity
   epsilon: float = 0.0  # emissivity
   tau: float = 0.0  # transmittance
+
+  def __post_init__(self):
+    if self.alpha < 0 or self.alpha > 1:
+      raise ValueError("The value for alpha should be between 0 and 1.")
+
+    if self.epsilon < 0 or self.epsilon > 1:
+      raise ValueError("The value for epsilon should be between 0 and 1.")
+
+    if self.tau < 0 or self.tau > 1:
+      raise ValueError("The value for tau should be between 0 and 1.")
 
 
 def _check_room_sizes(matrix_shape: Shape2D, room_shape: Shape2D):
