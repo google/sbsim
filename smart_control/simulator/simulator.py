@@ -206,7 +206,6 @@ class Simulator:
     input_q = self.building.input_q[x][y]
     neighbors = self.building.neighbors[x][y]
     neighbor_temps = [temperature_estimates[nx][ny] for nx, ny in neighbors]
-    include_radiative_heat_transfer = self.building.include_radiative_heat_transfer  # pylint: disable=line-too-long
     # Ensure interior CV.
     assert len(neighbors) == 4
 
@@ -221,7 +220,13 @@ class Simulator:
     retained_heat = t0 * last_temp
 
     thermal_source = input_q / conductivity / z
-    if include_radiative_heat_transfer:
+
+    # checking for implementation of `include_radiative_heat_transfer` because
+    # the `FloorPlanBasedBuilding` implements it, but the `Building` doesn't
+    if (
+        hasattr(self.building, 'include_radiative_heat_transfer')
+        and self.building.include_radiative_heat_transfer
+    ):
       # Radiative heat transfer
       q_lwx_array = (
           self.building.apply_longwave_interior_radiative_heat_transfer(
