@@ -732,6 +732,7 @@ class FloorPlanBasedBuilding(BaseSimulatorBuilding):
     self._convection_simulator = convection_simulator
     self._reset_temp_values = reset_temp_values
     self.include_radiative_heat_transfer = include_radiative_heat_transfer
+
     # below is new code, to derive necessary artifacts from the floor plan.
     # TODO(spangher): neaten code by turning the next twenty lines into a
     #   private method.
@@ -816,13 +817,29 @@ class FloorPlanBasedBuilding(BaseSimulatorBuilding):
     self.neighbors = self._calculate_neighbors()
     self.len_neighbors = self._calculate_length_of_neighbors()
 
-    if include_radiative_heat_transfer:
-      # Beginning of radiation-related calculation
-      # self.indexed_floor_plan = (
-      #     self._exterior_space.copy()
-      #     + exterior_walls.copy()
-      #     + interior_walls.copy()
-      # )
+    self._assign_radiative_heat_transfer_properties(
+        view_factor_method,
+        exterior_walls,
+        interior_walls,
+        inside_wall_radiative_properties,
+        building_exterior_radiative_properties,
+        inside_air_radiative_properties,
+    )
+
+    self.reset()
+
+  def _assign_radiative_heat_transfer_properties(
+      self,
+      view_factor_method,
+      exterior_walls,
+      interior_walls,
+      inside_wall_radiative_properties,
+      building_exterior_radiative_properties,
+      inside_air_radiative_properties,
+  ):
+    if self.include_radiative_heat_transfer:
+      self.view_factor_method = view_factor_method
+
       self.indexed_floor_plan = self.floor_plan.copy()
       # 2=>-1
       self.indexed_floor_plan[
@@ -854,18 +871,18 @@ class FloorPlanBasedBuilding(BaseSimulatorBuilding):
 
       # radiative properties
       # by default, all radiative properties are 0.0
-      if inside_wall_radiative_properties is None:
-        inside_wall_radiative_properties = RadiationProperties(
-            epsilon=0.0, alpha=0.0, tau=0.0
-        )
-      if building_exterior_radiative_properties is None:
-        building_exterior_radiative_properties = RadiationProperties(
-            epsilon=0.0, alpha=0.0, tau=0.0
-        )
-      if inside_air_radiative_properties is None:
-        inside_air_radiative_properties = RadiationProperties(
-            epsilon=0.0, alpha=0.0, tau=0.0
-        )
+      inside_wall_radiative_properties = (
+          inside_wall_radiative_properties
+          or RadiationProperties(epsilon=0.0, alpha=0.0, tau=0.0)
+      )
+      building_exterior_radiative_properties = (
+          building_exterior_radiative_properties
+          or RadiationProperties(epsilon=0.0, alpha=0.0, tau=0.0)
+      )
+      inside_air_radiative_properties = (
+          inside_air_radiative_properties
+          or RadiationProperties(epsilon=0.0, alpha=0.0, tau=0.0)
+      )
 
       # emissivity
       self._epsilon = _assign_interior_and_exterior_values(
@@ -899,9 +916,16 @@ class FloorPlanBasedBuilding(BaseSimulatorBuilding):
           self.interior_wall_VF, A_tilde_inv
       )
 
-      ## End of radiation-related calculation
-
-    self.reset()
+    else:
+      self.view_factor_method = None
+      self.indexed_floor_plan = None
+      self.interior_wall_mask = None
+      self.interior_wall_index = None
+      self.interior_wall_VF = None
+      self._alpha = None
+      self._epsilon = None
+      self._tau = None
+      self.IFAinv = None
 
   @property
   def density(self) -> np.ndarray:
