@@ -1716,6 +1716,12 @@ class BuildingTest(parameterized.TestCase):
     self.assertEqual(b.temp[3][2], vals[2])
     self.assertEqual(b.temp[3][3], vals[3])
 
+  def test_radiation_properties_default_values(self):
+    props = building.RadiationProperties()
+    self.assertEqual(props.alpha, 0)
+    self.assertEqual(props.epsilon, 0)
+    self.assertEqual(props.tau, 0)
+
   def _create_building_with_radiative_properties(
       self, view_factor_method="ScriptF", floor_plan=None
   ):
