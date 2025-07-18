@@ -665,7 +665,7 @@ class FloorPlanBasedBuilding(BaseSimulatorBuilding):
       walls of the building. Used only for calculating interior radiative
       heat transfer.
     interior_wall_VF: matrix representing the view factors of the
-      interior walls of the building, which is denoted as F in eqatuion.
+      interior walls of the building, which is denoted as F in the equation.
       Used only for calculating interior radiative heat transfer.
     epsilon: matrix representing the emissivity of the nodes of
       the building. Used only for calculating radiative heat transfer.
@@ -674,9 +674,15 @@ class FloorPlanBasedBuilding(BaseSimulatorBuilding):
     tau: matrix representing the transmittance of the nodes of
       the building. Used only for calculating radiative heat transfer.
     IFAinv: matrix representing the inverse of the IFA matrix of the nodes of
-      the building. q_lwx=sigma(I-F)@A_tilde_inv@T^4, and
-      IFAinv=(I-F)@A_tilde_inv. Used only for calculating radiative heat
-      transfer.
+      the building. Used only for calculating radiative heat transfer.
+
+      The longwave radiation ($q_{lwx}$) is calculated as:
+
+      $$q_{lwx} = \\sigma(I-F)\\tilde{A}_{inv}T^4$$
+
+      Where the term $(I-F)\\tilde{A}_{inv}$ can be pre-calculated as:
+
+      $$IFA_{inv} = (I-F)\\tilde{A}_{inv}$$
   """
 
   def __init__(
