@@ -50,7 +50,7 @@ def calculate_IFAinv(F: np.ndarray, A_inv: np.ndarray) -> np.ndarray:
 
   $$IFA_{inv} = (I - F) \tilde{A}^{-1}$$
 
-  See net_radiative_heatflux_function_of_T for more details.
+  See [`net_radiative_heatflux_function_of_T`](./#smart_control.simulator.building_radiation_utils.net_radiative_heatflux_function_of_T) for more details.
 
   Args:
       F (np.ndarray): The view factor matrix.
