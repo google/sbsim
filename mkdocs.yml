@@ -119,6 +119,19 @@ markdown_extensions:
   #- pymdownx.snippets
   - pymdownx.superfences
 
+  # MATHJAX EQUATIONS CONFIG, PART 1 OF 2
+  # https://mrkeo.github.io/reference/mathjax/
+  # https://squidfunk.github.io/mkdocs-material/reference/math/#mathjax-mkdocsyml
+  # https://www.mathjax.org/
+  - pymdownx.arithmatex:
+      generic: true
+
+extra_javascript:
+  # MATHJAX EQUATIONS CONFIG, PART 2 OF 2
+  - assets/javascripts/mathjax_config.js
+  - https://polyfill.io/v3/polyfill.min.js?features=es6
+  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
+
 plugins:
   - search
 

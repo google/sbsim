@@ -222,7 +222,19 @@ class Simulator:
 
     thermal_source = input_q / conductivity / z
 
-    return (neighbor_transfer + thermal_source + retained_heat) / denominator
+    # Radiative heat transfer
+    q_lwx_array = self.building.apply_longwave_interior_radiative_heat_transfer(
+        temperature_estimates
+    )
+    # q_lwx_idx is -1 if the CV does not have LWX
+    q_lwx_idx = self.building.interior_wall_index[x, y]
+    q_lwx = (
+        (q_lwx_array[q_lwx_idx] / conductivity / z) if q_lwx_idx != -1 else 0.0
+    )
+
+    return (
+        neighbor_transfer + thermal_source + retained_heat + q_lwx
+    ) / denominator
 
   def _get_cv_temp_estimate(
       self,

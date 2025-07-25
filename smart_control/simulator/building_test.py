@@ -4,12 +4,15 @@ import random
 
 from absl.testing import absltest
 from absl.testing import parameterized
+from np.testing import assert_array_equal
 import numpy as np
 
 from smart_control.simulator import building
 from smart_control.simulator import building_utils
 from smart_control.simulator import constants
 from smart_control.simulator import stochastic_convection_simulator
+from smart_control.simulator.building import enlarge_exterior_walls
+from smart_control.simulator.constants import EXPAND_EXTERIOR_WALLS_BY_CV_AMOUNT
 
 
 def _create_dummy_floor_plan():
@@ -1713,6 +1716,314 @@ class BuildingTest(parameterized.TestCase):
     self.assertEqual(b.temp[2][3], vals[1])
     self.assertEqual(b.temp[3][2], vals[2])
     self.assertEqual(b.temp[3][3], vals[3])
+
+
+# =============================
+# MJR
+
+# fmt: off
+
+_EXTERIOR_WALLS = np.array([
+  [ 0,  0,  0,  0,  0,  0,  0,  0,  0],
+  [ 0, -2, -2, -2, -2, -2, -2, -2,  0],
+  [ 0, -2,  0,  0,  0,  0,  0, -2,  0],
+  [ 0, -2,  0,  0,  0,  0,  0, -2,  0],
+  [ 0, -2,  0,  0,  0,  0,  0, -2,  0],
+  [ 0, -2,  0,  0,  0,  0,  0, -2,  0],
+  [ 0, -2,  0,  0,  0,  0,  0, -2,  0],
+  [ 0, -2, -2, -2, -2, -2, -2, -2,  0],
+  [ 0,  0,  0,  0,  0,  0,  0,  0,  0]]
+)
+
+_INTERIOR_WALLS = np.array([
+  [ 0,  0,  0,  0,  0,  0,  0,  0,  0],
+  [ 0,  0,  0,  0,  0,  0,  0,  0,  0],
+  [ 0,  0,  0,  0, -3,  0,  0,  0,  0],
+  [ 0,  0,  0,  0, -3,  0,  0,  0,  0],
+  [ 0,  0, -3, -3, -3, -3, -3,  0,  0],
+  [ 0,  0,  0,  0, -3,  0,  0,  0,  0],
+  [ 0,  0,  0,  0, -3,  0,  0,  0,  0],
+  [ 0,  0,  0,  0,  0,  0,  0,  0,  0],
+  [ 0,  0,  0,  0,  0,  0,  0,  0,  0]
+])
+
+
+_EXTERIOR_WALLS_EXPANDED = np.array([
+  [ 0,  0,  0,  0,  0,  0,  0,  0,  0],
+  [ 0, -2, -2, -2, -2, -2, -2, -2,  0],
+  [ 0, -2,  0,  0, -2,  0,  0, -2,  0],
+  [ 0, -2,  0,  0, -2,  0,  0, -2,  0],
+  [ 0, -2, -2, -2,  0, -2, -2, -2,  0],
+  [ 0, -2,  0,  0, -2,  0,  0, -2,  0],
+  [ 0, -2,  0,  0, -2,  0,  0, -2,  0],
+  [ 0, -2, -2, -2, -2, -2, -2, -2,  0],
+  [ 0,  0,  0,  0,  0,  0,  0,  0,  0]
+])
+
+_INTERIOR_WALLS_SHRUNK = np.array([
+  [ 0,  0,  0,  0,  0,  0,  0,  0,  0],
+  [ 0,  0,  0,  0,  0,  0,  0,  0,  0],
+  [ 0,  0,  0,  0,  0,  0,  0,  0,  0],
+  [ 0,  0,  0,  0,  0,  0,  0,  0,  0],
+  [ 0,  0,  0,  0, -3,  0,  0,  0,  0],
+  [ 0,  0,  0,  0,  0,  0,  0,  0,  0],
+  [ 0,  0,  0,  0,  0,  0,  0,  0,  0],
+  [ 0,  0,  0,  0,  0,  0,  0,  0,  0],
+  [ 0,  0,  0,  0,  0,  0,  0,  0,  0]
+])
+# fmt: on
+
+
+class BuildingWallsTest(parameterized.TestCase):
+
+  def test_enlarge_exterior_walls(self):
+
+    # we will consider two layers of walls to be exterior walls:
+    self.assertEqual(EXPAND_EXTERIOR_WALLS_BY_CV_AMOUNT, 2)
+
+    # expands exterior walls by EXPAND_EXTERIOR_WALLS_BY_CV_AMOUNT:
+    # shrinks interior walls by EXPAND_EXTERIOR_WALLS_BY_CV_AMOUNT:
+    exterior_walls, interior_walls = enlarge_exterior_walls(
+        exterior_walls=_EXTERIOR_WALLS, interior_walls=_INTERIOR_WALLS
+    )
+
+    with self.subTest("enlarges_exterior_walls"):
+      assert_array_equal(exterior_walls, _EXTERIOR_WALLS_EXPANDED)
+
+    with self.subTest("shrinks_interior_walls"):
+      assert_array_equal(interior_walls, _INTERIOR_WALLS_SHRUNK)
+
+
+_FLOOR_PLAN = np.array([
+    [2, 2, 2, 2, 2, 2, 2, 2, 2],
+    [2, 1, 1, 1, 1, 1, 1, 1, 2],
+    [2, 1, 0, 0, 1, 0, 0, 1, 2],
+    [2, 1, 0, 0, 1, 0, 0, 1, 2],
+    [2, 1, 1, 1, 1, 1, 1, 1, 2],
+    [2, 1, 0, 0, 1, 0, 0, 1, 2],
+    [2, 1, 0, 0, 1, 0, 0, 1, 2],
+    [2, 1, 1, 1, 1, 1, 1, 1, 2],
+    [2, 2, 2, 2, 2, 2, 2, 2, 2],
+])
+
+
+class FloorPlanBasedBuildingTest(parameterized.TestCase):
+
+  @staticmethod
+  def _create_floor_plan_based_building():
+    return building.FloorPlanBasedBuilding(
+        cv_size_cm=20.0,
+        floor_height_cm=300.0,
+        initial_temp=292.0,
+        inside_air_properties=building.MaterialProperties(
+            conductivity=50.0, heat_capacity=700.0, density=1.0
+        ),
+        inside_wall_properties=building.MaterialProperties(
+            conductivity=2.0, heat_capacity=1000.0, density=1800.0
+        ),
+        building_exterior_properties=building.MaterialProperties(
+            conductivity=0.05, heat_capacity=1000.0, density=3000.0
+        ),
+        floor_plan=_FLOOR_PLAN,
+        floor_plan_filepath=None,
+        zone_map=_FLOOR_PLAN,
+        zone_map_filepath=None,
+        buffer_from_walls=0,
+    )
+
+  def setUp(self):
+    self.b = self._create_floor_plan_based_building()
+
+  def test_floor_plan(self):
+    with self.subTest("floor_plan"):
+      assert_array_equal(self.b.floor_plan, _FLOOR_PLAN)
+
+  # ZONE MAP IS NOT USED???
+  def test_zone_map(self):
+    with self.subTest("zone_map"):
+      assert_array_equal(self.b.zone_map, _FLOOR_PLAN)
+
+  def test_rooms_map(self):
+    # fmt: off
+    rooms_map = {
+        "exterior_space": [
+            (0, 0), (0, 1), (0, 2), (0, 3), (0, 4), (0, 5), (0, 6), (0, 7), (0, 8), # pylint: disable=line-too-long
+            (1, 0), (1, 8),
+            (2, 0), (2, 8),
+            (3, 0), (3, 8),
+            (4, 0), (4, 8),
+            (5, 0), (5, 8),
+            (6, 0), (6, 8),
+            (7, 0), (7, 8),
+            (8, 0), (8, 1), (8, 2), (8, 3), (8, 4), (8, 5), (8, 6), (8, 7), (8, 8), # pylint: disable=line-too-long
+        ],
+        "interior_wall": [
+            (1, 1), (1, 2), (1, 3), (1, 4), (1, 5), (1, 6), (1, 7),
+            (2, 1), (2, 4), (2, 7),
+            (3, 1), (3, 4), (3, 7),
+            (4, 1), (4, 2), (4, 3), (4, 4), (4, 5), (4, 6), (4, 7),
+            (5, 1), (5, 4), (5, 7),
+            (6, 1), (6, 4), (6, 7),
+            (7, 1), (7, 2), (7, 3), (7, 4), (7, 5), (7, 6), (7, 7),
+        ],
+        "room_1": [(2, 2), (2, 3), (3, 2), (3, 3)],
+        "room_2": [(2, 5), (2, 6), (3, 5), (3, 6)],
+        "room_3": [(5, 2), (5, 3), (6, 2), (6, 3)],
+        "room_4": [(5, 5), (5, 6), (6, 5), (6, 6)],
+    }
+    # fmt: on
+    self.assertEqual(dict(self._room_dict), rooms_map)
+
+  def test_exterior_space(self):
+    # fmt: off
+    exterior_space = np.array([
+        [-1, -1, -1, -1, -1, -1, -1, -1, -1],
+        [-1,  0,  0,  0,  0,  0,  0,  0, -1],
+        [-1,  0,  0,  0,  0,  0,  0,  0, -1],
+        [-1,  0,  0,  0,  0,  0,  0,  0, -1],
+        [-1,  0,  0,  0,  0,  0,  0,  0, -1],
+        [-1,  0,  0,  0,  0,  0,  0,  0, -1],
+        [-1,  0,  0,  0,  0,  0,  0,  0, -1],
+        [-1,  0,  0,  0,  0,  0,  0,  0, -1],
+        [-1, -1, -1, -1, -1, -1, -1, -1, -1],
+    ])
+    # fmt: on
+    with self.subTest("exterior_space"):
+      assert_array_equal(self.b._exterior_space, exterior_space)
+
+  def test_exterior_walls(self):
+    # fmt: off
+    exterior_walls = np.array([
+        [0,  0,  0,  0,  0,  0,  0,  0, 0],
+        [0, -2, -2, -2, -2, -2, -2, -2, 0],
+        [0, -2,  0,  0, -2,  0,  0, -2, 0],
+        [0, -2,  0,  0, -2,  0,  0, -2, 0],
+        [0, -2, -2, -2,  0, -2, -2, -2, 0],
+        [0, -2,  0,  0, -2,  0,  0, -2, 0],
+        [0, -2,  0,  0, -2,  0,  0, -2, 0],
+        [0, -2, -2, -2, -2, -2, -2, -2, 0],
+        [0,  0,  0,  0,  0,  0,  0,  0, 0],
+    ])
+    # fmt: on
+    with self.subTest("exterior_walls"):
+      assert_array_equal(self.b._exterior_walls, exterior_walls)
+
+  def test_interior_walls(self):
+    # fmt: off
+    interior_walls = np.array([
+        [0, 0, 0, 0,  0, 0, 0, 0, 0],
+        [0, 0, 0, 0,  0, 0, 0, 0, 0],
+        [0, 0, 0, 0,  0, 0, 0, 0, 0],
+        [0, 0, 0, 0,  0, 0, 0, 0, 0],
+        [0, 0, 0, 0, -3, 0, 0, 0, 0],
+        [0, 0, 0, 0,  0, 0, 0, 0, 0],
+        [0, 0, 0, 0,  0, 0, 0, 0, 0],
+        [0, 0, 0, 0,  0, 0, 0, 0, 0],
+        [0, 0, 0, 0,  0, 0, 0, 0, 0],
+    ])
+    # fmt: on
+    with self.subTest("interior_walls"):
+      assert_array_equal(self.b._interior_walls, interior_walls)
+
+  # RADIATIVE HEAT TRANSFER METHODS
+
+  def test_default_radiative_properties(self):
+    # by default, all radiative properties are 0.0:
+    with self.subTest("radiative_properties"):
+      self.assertEqual(self.b.inside_wall_radiative_properties.epsilon, 0)
+      self.assertEqual(self.b.inside_wall_radiative_properties.alpha, 0)
+      self.assertEqual(self.b.inside_wall_radiative_properties.tau, 0)
+
+      self.assertEqual(self.b.building_exterior_radiative_properties.epsilon, 0)
+      self.assertEqual(self.b.building_exterior_radiative_properties.alpha, 0)
+      self.assertEqual(self.b.building_exterior_radiative_properties.tau, 0)
+
+      self.assertEqual(self.b.inside_air_radiative_properties.epsilon, 0)
+      self.assertEqual(self.b.inside_air_radiative_properties.alpha, 0)
+      self.assertEqual(self.b.inside_air_radiative_properties.tau, 0)
+
+    # breakpoint()
+    with self.subTest("emissivity"):
+      pass
+      # self.assertEqual(b._epsilon, "TODO")
+
+    with self.subTest("absorptivity"):
+      pass
+      # self.assertEqual(b._alpha, "TODO")
+
+    with self.subTest("transmittance"):
+      pass
+      # self.assertEqual(b._tau, "TODO")
+
+
+#  def test_apply_longwave_interior_radiative_heat_transfer(self):
+#
+#    b = _create_floor_plan_based_building()
+#
+#    # fmt: off
+#    # pylint:disable=line-too-long
+#    temp_estimates = np.array([
+#      [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+#      [0.0, 197.93288590604027, 235.74786577181206, 235.82349573154363, 235.8236469914631, 235.82364729398293, 235.82364729458797, 235.82364729458916, 235.82364729458916, 235.82364729458916, 197.74437465535098, 0.0],
+#      [0.0, 235.74786577181206, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0],
+#      [292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0],
+#      [292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0],
+#      [292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0],
+#      [292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0],
+#      [292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0],
+#      [292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0],
+#      #[292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0],
+#      #[292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0],
+#      #[292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0],
+#      #[292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0],
+#      #[292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0],
+#      #[292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0],
+#      #[292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0],
+#      #[292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0],
+#      #[292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0],
+#      #[292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0],
+#      #[292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0],
+#      #[292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0],
+#      #[292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0],
+#      #[292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0, 292.0]
+#    ])
+#
+#    expected_result = np.array([
+#        3.49101174,   3.49101174,   3.49101174,   3.49101174,
+#        3.49101174,   3.49101174,   3.49101174,   3.49101174,
+#        3.49101174,   3.49101174,   3.49101174,   3.49101174,
+#        3.49101174,   3.49101174,   3.49101174,   3.49101174,
+#        3.49101174,   3.49101174,   3.49101174,   3.49101174,
+#        3.49101174,   3.49101174,   3.49101174,   3.49101174,
+#      -30.61224876, -30.61224876, -30.61224876, -30.61224876,
+#      -30.61224876, -30.61224876, -30.61224876, -30.61224876,
+#        3.49101174,   3.49101174,   3.49101174,   3.49101174,
+#        3.49101174,   3.49101174,   3.49101174,   3.49101174,
+#        3.49101174,   3.49101174,   3.49101174,   3.49101174,
+#        3.49101174,   3.49101174,   3.49101174,   3.49101174,
+#        3.49101174,   3.49101174,   3.49101174,   3.49101174,
+#        3.49101174,   3.49101174,   3.49101174,   3.49101174
+#    ])
+#    # fmt: on
+#    # pylint:enable=line-too-long
+#
+#    # breakpoint()
+#    result = b.apply_longwave_interior_radiative_heat_transfer(temp_estimates)
+#
+#    self.assertEqual(result, expected_result)
+
+
+# interior_wall_mask = np.array([
+#  [False, False, False, False, False, False, False, False, False],
+#  [False, False, False, False, False, False, False, False, False],
+#  [False, False, False, False,  True, False, False, False, False],
+#  [False, False, False, False,  True, False, False, False, False],
+#  [False, False,  True,  True,  True,  True,  True, False, False],
+#  [False, False, False, False,  True, False, False, False, False],
+#  [False, False, False, False,  True, False, False, False, False],
+#  [False, False, False, False, False, False, False, False, False],
+#  [False, False, False, False, False, False, False, False, False]
+# ])
 
 
 if __name__ == "__main__":
