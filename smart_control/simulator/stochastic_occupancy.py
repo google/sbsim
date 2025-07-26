@@ -54,13 +54,22 @@ class ZoneOccupant:
       random_state: np.random.RandomState,
       time_zone: Union[datetime.tzinfo, str] = "UTC",
   ):
-    assert (
+    # Validate that the time bounds are in chronological order
+    if not (
         earliest_expected_arrival_hour
         < latest_expected_arrival_hour
         < earliest_expected_departure_hour
         < latest_expected_departure_hour
-    )
-    assert lunch_start_hour < lunch_end_hour
+    ):
+      raise ValueError(
+          "Time bounds must be in chronological order i.e., "
+          "expected arrival/departure hours must be strictly increasing:" "earliest_expected_arrival_hour < latest_expected_arrival_hour "
+          "< earliest_expected_departure_hour < latest_expected_departure_hour."
+      )
+
+    # Validate lunch time bounds
+    if lunch_start_hour >= lunch_end_hour:
+      raise ValueError("lunch_start_hour must be before lunch_end_hour.")
 
     self._earliest_expected_arrival_hour = earliest_expected_arrival_hour
     self._latest_expected_arrival_hour = latest_expected_arrival_hour
