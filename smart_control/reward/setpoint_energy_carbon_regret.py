@@ -124,10 +124,10 @@ class SetpointEnergyCarbonRegretFunction(
     self._energy_cost_weight = energy_cost_weight
     self._carbon_emission_weight = carbon_emission_weight
 
-    assert (
-        self._max_productivity_personhour_usd
-        > self._min_productivity_personhour_usd
-    )
+    if self._max_productivity_personhour_usd <= self._min_productivity_personhour_usd:
+      raise ValueError(
+          "Maximum productivity per person-hour must be greater than minimum productivity."
+      )
 
   def compute_reward(
       self, reward_info: smart_control_reward_pb2.RewardInfo

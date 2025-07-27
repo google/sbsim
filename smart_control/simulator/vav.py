@@ -108,7 +108,8 @@ class Vav(smart_device.SmartDevice):
 
   @max_air_flow_rate.setter
   def max_air_flow_rate(self, value: float):
-    assert value > 0
+    if value <= 0:
+      raise ValueError(f"Maximum air flow rate must be greater than 0 (got {value}).")
     self._max_air_flow_rate = value
 
   @property
@@ -162,12 +163,20 @@ class Vav(smart_device.SmartDevice):
       supply_air_temp: Temperature in K of input air.
       input_water_temp: Temperature in K of input water.
     """
-    assert self.damper_setting > 0
-    assert self._max_air_flow_rate > 0
+
     reheat_flow_rate = (
         self._reheat_valve_setting * self._reheat_max_water_flow_rate
     )
     air_flow_rate = self._damper_setting * self._max_air_flow_rate
+
+    # This single check replaces the two individual asserts
+    # It directly ensures air_flow_rate is positive to avoid ZeroDivisionError
+    if air_flow_rate <= 0:
+      raise ValueError(
+          "Calculated air flow rate must be greater than 0 to compute zone supply temperature. "
+          f"Current damper_setting={self.damper_setting} and max_air_flow_rate={self._max_air_flow_rate} "
+          "resulted in a non-positive air flow rate."
+      )
 
     heat_difference = (
         constants.AIR_HEAT_CAPACITY * air_flow_rate

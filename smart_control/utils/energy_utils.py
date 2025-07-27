@@ -63,7 +63,20 @@ def get_humidity_ratio(
 
   Returns: water mass to air mass ratio in kg Water / kg Air
   """
-  assert len(temps) == len(relative_humidities) == len(pressures)
+  if not (len(temps) == len(relative_humidities) == len(pressures)):
+        raise ValueError(
+        "Input sequences (temps, relative_humidities, pressures) must have the same length. "
+        f"Got lengths: temps={len(temps)}, relative_humidities={len(relative_humidities)}, pressures={len(pressures)}."
+    )
+
+  # Sanity-check each RH and pressure
+  for i, rh in enumerate(relative_humidities):
+    if not (0.0 < rh <= 1.0):
+      raise ValueError(f"relative_humidities[{i}] must be in [0,1], got {rh}.")
+  for i, p in enumerate(pressures):
+    if p <= 0.0:
+      raise ValueError(f"pressures[{i}] must be greater than 0 (bar), got {p}.")
+
   psat = [p / 1000.0 for p in get_water_vapor_partial_pressure(temps)]
   return [
       0.622 * psat[i] / (pressures[i] / relative_humidities[i] - psat[i])
@@ -97,13 +110,22 @@ def get_air_conditioning_energy_rate(
   Returns: Thermal power applied to heat the air to supply temp [W]
   """
 
-  assert (
+  # Combined check for all input vector lengths
+  if not (
       len(air_flow_rates)
       == len(outside_temps)
       == len(outside_relative_humidities)
       == len(supply_temps)
       == len(ambient_pressures)
-  ), 'All input vectors must be of the same length.'
+  ):
+    raise ValueError(
+        "All input vectors must be of the same length. "
+        f"Got lengths: air_flow_rates={len(air_flow_rates)}, "
+        f"outside_temps={len(outside_temps)}, "
+        f"outside_relative_humidities={len(outside_relative_humidities)}, "
+        f"supply_temps={len(supply_temps)}, "
+        f"ambient_pressures={len(ambient_pressures)}."
+    )
 
   x = get_humidity_ratio(
       temps=outside_temps,
@@ -168,11 +190,12 @@ def get_fan_power(
   if motor_factor is None:
     motor_factor = 0.85
 
-  if brake_hp:
+  # If the caller explicitly passed brake_hp (even if 0.0), honor it
+  # otherwise fall back to design_hp × motor_factor
+  if brake_hp is not None:
     hp = brake_hp
   else:
     hp = motor_factor * design_hp
-
   # Fan is operational if the supply_static_pressure > threshold for
   # supply fan. Exhaust fan doesn't report static pressure, so assume on
   # when fan_speed_percentage is > 0.

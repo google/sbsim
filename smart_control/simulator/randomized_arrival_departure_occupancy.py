@@ -45,12 +45,20 @@ class ZoneOccupant:
       random_state: np.random.RandomState,
       time_zone: Union[datetime.tzinfo, str] = 'UTC',
   ):
-    assert (
+
+    if not (
         earliest_expected_arrival_hour
         < latest_expected_arrival_hour
         < earliest_expected_departure_hour
         < latest_expected_departure_hour
-    )
+    ):
+      raise ValueError(
+          "Expected arrival/departure hours must be strictly increasing: "
+          f"earliest_expected_arrival_hour={earliest_expected_arrival_hour}, "
+          f"latest_expected_arrival_hour={latest_expected_arrival_hour}, "
+          f"earliest_expected_departure_hour={earliest_expected_departure_hour}, "
+          f"latest_expected_departure_hour={latest_expected_departure_hour}"
+      )
 
     self._earliest_expected_arrival_hour = earliest_expected_arrival_hour
     self._latest_expected_arrival_hour = latest_expected_arrival_hour
@@ -76,7 +84,13 @@ class ZoneOccupant:
 
   def _get_event_probability(self, start_hour, end_hour):
     """Returns the probability of an event based on the number of time steps."""
-    assert start_hour < end_hour
+
+    if start_hour >= end_hour:
+      raise ValueError(
+          "Start hour must be less than end hour to calculate event probability: "
+          f"start_hour={start_hour}, end_hour={end_hour}"
+      )
+
     # The window is the number of Bernoulli trials (i.e. tests for arrival).
     window = pd.Timedelta(end_hour - start_hour, unit='hour')
     # The halfway point is the firts half of the trials.
