@@ -1,127 +1,120 @@
 # Docker Setup Guide
 
-To get the repository set up on non-Linux environments, you can use the
-pre-configured Docker environment ("Linux/amd64") specified by the "Dockerfile".
+To get the repository set up on **non-Linux** environments (e.g. macOS on Apple Silicon), use the pre-configured Docker environment (`linux/amd64`) defined in the `Dockerfile`.
 
-## Installing Docker
+## 1. Prerequisites
 
-First, install
-[Docker Desktop](https://www.docker.com/products/docker-desktop/), and accept
-the terms.
+1. **Docker Desktop**: Download and install from [docker.com](https://www.docker.com/products/docker-desktop).
+2. **Rosetta on Apple Silicon**: In Docker Desktop, enable **Use Rosetta for x86/amd64 images** under **Settings ▶ Experimental Features**.
+3. **Verify** installation:
 
-Open Docker Desktop, and wait until it is running before proceeding.
+   ```bash
+   docker --version
+   docker run --platform linux/amd64 hello-world
+   ```
 
-Verify the installation:
+If `hello-world` succeeds, you’re ready to proceed.
 
-```sh
-docker --version
+---
 
-docker run hello-world
-```
+## 2. Build the Docker Image
 
-### Troubleshooting Installation Issues on Mac
-
-On Mac, if verification fails, try:
-
-```sh
-/Applications/Docker.app/Contents/Resources/bin/docker --version
-```
-
-If that works, as a one time setup step, update the ".zshrc" file to add the
-installed location to the path:
-
-```sh
-# this is the "~/.zshrc" file...
-export PATH="/Applications/Docker.app/Contents/Resources/bin:$PATH"
-```
-
-Remember to restart your shell afterwards:
-
-```sh
-source ~/.zshrc
-```
-
-Now you should be able to verify the installation:
-
-```sh
-docker --version
-
-docker run hello-world
-```
-
-## Image Operations
-
-Ensure you have navigated to the root directory of the repository, where the
-"Dockerfile" is located, before proceeding.
-
-Build the image:
+From the project root (where `Dockerfile` lives), run:
 
 ```bash
-docker build -t sbsim-docker-env .
+# Build for x86_64 and tag it
+docker build --platform linux/amd64 \
+  -t sbsim:latest \
+  .
 ```
 
-Listing images:
-
-```sh
-docker images
-```
-
-Removing the image, as necessary:
-
-```sh
-docker rmi sbsim-docker-env
-```
-
-## Container Operations
-
-After the image is built, run the container (in interactive mode, with open
-ports):
+Confirm the image exists:
 
 ```bash
-docker run -it -p 8888:8888 -v $(pwd):/workspace sbsim-docker-env
+docker images sbsim:latest
 ```
 
-> NOTE: the container will copy the repository into "/workspace/sbsim" on the
-> first run. Use -v to persist changes.
+---
 
-To access Jupyter notebooks, visit
-[http://localhost:8888](http://localhost:8888) in the browser.
+## 3. Run the Container in Detached Mode
 
-To run scripts or tests inside the actively running docker container:
+We recommend running the container _detached_ so you can open shells, run tests, and launch Jupyter without tying up your terminal:
 
-```sh
-# activate the virtual environment:
+```bash
+docker run -d \
+  --name sbsim-container \
+  -p 8888:8888 \
+  -v "$(pwd)":/workspace \
+  sbsim:latest
+```
+
+> **Note:** This mounts your local code into `/workspace` in the container, enabling live edits.
+
+### 3.1 Access Jupyter
+
+Open your browser at:
+
+```
+http://localhost:8888
+```
+
+Because we disable the token in our `CMD`, no password is needed. If you see a deprecation warning for `NotebookApp.token`, you can instead use:
+
+```bash
+jupyter notebook --no-browser --ServerApp.token=''
+```
+
+---
+
+## 4. Exec into the Running Container
+
+To run commands inside the live container:
+
+```bash
+# Open a shell in the container
+docker exec -it sbsim-container bash
+
+# Activate Poetry’s virtualenv
 source /opt/venv/bin/activate
 
-# navigate to the repository:
-cd /workspace/sbsim
-
-# running scripts:
-python path/to/script.py
-
-# running tests:
-pytest
+# Change into the workspace
+cd /workspace
 ```
 
-To stop the container:
+Then you can:
 
-```sh
-docker stop sbsim-docker-env
+- **Run tests**: `poetry run pytest`
+- **Execute scripts**: `python path/to/script.py`
+- **Launch a notebook**: `jupyter notebook --no-browser --ServerApp.token=''`
+
+---
+
+## 5. Stop & Clean Up
+
+```bash
+# Stop the container
+docker stop sbsim-container
+
+# Remove the container
+docker rm sbsim-container
+
+# Remove the image
+docker rmi sbsim:latest
 ```
 
-Listing containers (to get their identifiers):
+---
 
-```sh
-docker ps -a
-```
+## 6. Troubleshooting
 
-Removing a container:
+- **Daemon not running**: If you see `Cannot connect to the Docker daemon`, open Docker Desktop or run:
 
-```sh
-docker rm <container-id>
-```
+  ```bash
+  /Applications/Docker.app/Contents/Resources/bin/docker --version
+  ```
 
-> NOTE: in the future we would like to further update these instructions and
-> improve the Dockerfile. See
-> [issue #80](https://github.com/google/sbsim/issues/80) (contributions
-> welcome)!
+- **Platform mismatch**: If you still get a warning about `linux/amd64` vs `arm64`, ensure Rosetta support is enabled in Docker Desktop.
+- **Permission errors**: By default, files created inside the container are owned by `root`. To write files to your host, either adjust volume permissions or run with `--user=$(id -u):$(id -g)`.
+
+---
+
+_For ongoing improvements and discussion, see Issue [#80](https://github.com/google/sbsim/issues/80)._
