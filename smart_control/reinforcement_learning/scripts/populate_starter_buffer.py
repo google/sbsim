@@ -4,8 +4,10 @@ This creates a starter buffer with exploration data that can be used to
 bootstrap the training process.
 """
 
+from datetime import datetime
 import logging
 import os
+from typing import Sequence
 
 from absl import app
 from absl import flags
@@ -25,21 +27,29 @@ from smart_control.reinforcement_learning.utils.environment import create_and_se
 from smart_control.utils.constants import ROOT_DIR
 from smart_control.utils.constants import SB1_TRAIN_CONFIGS_DIR
 
+# pylint:disable-next=unused-import
+from smart_control.reinforcement_learning.utils.config import get_histogram_path  # isort:skip
+
 DEFAULT_CONFIG_FILEPATH = os.path.join(
     SB1_TRAIN_CONFIGS_DIR, 'sim_config_1_day.gin'
 )
 
 # LOGGING
 
-# logging.basicConfig(
-#    level=logging.INFO,
-#    format='[%(levelname)s] [%(filename)s:%(lineno)d] [%(message)s]',
-# )
-logging.basicConfig(
-    level=logging.INFO,
-    format='[%(message)s]',
-)
 logger = logging.getLogger(__name__)
+
+# VERBOSE_LOGGING = bool(os.getenv('VERBOSE_LOGGING', default='false') == 'true') # pylint:disable=line-too-long
+#
+# if VERBOSE_LOGGING:
+#  logging.basicConfig(
+#      level=logging.INFO,
+#      format='[%(levelname)s] [%(filename)s:%(lineno)d] [%(message)s]',
+#  )
+# else:
+#  logging.basicConfig(
+#      level=logging.INFO,
+#      format='[%(message)s]',
+#  )
 
 
 # FLAGS
@@ -49,8 +59,10 @@ FLAGS = flags.FLAGS
 BUFFER_NAME = flags.DEFINE_string(
     name='buffer_name',
     default=None,
-    help='Name used to identify the replay buffer',
-    # required=True,
+    help=(
+        'Name used to identify the replay buffer. If omitted, will use current'
+        ' timestamp.'
+    ),
 )
 CAPACITY = flags.DEFINE_integer(
     name='capacity', default=50000, help='Replay buffer capacity'
@@ -66,51 +78,50 @@ SEQUENCE_LENGTH = flags.DEFINE_integer(
     default=2,
     help='Sequence length for the replay buffer',
 )
-ENV_GIN_CONFIG_FILEPATH = flags.DEFINE_string(
-    name='env_gin_config_filepath',
+CONFIG_FILEPATH = flags.DEFINE_string(
+    name='config_filepath',
     default=DEFAULT_CONFIG_FILEPATH,
     help='Environment config file',
 )
 
 
 def populate_replay_buffer(
-    buffer_path,
-    buffer_capacity,
-    steps_per_run,
-    num_runs,
-    sequence_length,
-    env_gin_config_file_path,
+    buffer_filepath: str,
+    config_filepath: str,
+    buffer_capacity: int,
+    steps_per_run: int,
+    num_runs: int,
+    sequence_length: int,
 ):
   """Populates a replay buffer with initial exploration data.
 
   Args:
-    buffer_path: Path where the replay buffer will be saved.
-    buffer_capacity: Maximum size of the replay buffer
-    steps_per_run: Number of steps per actor run
-    num_runs: Number of actor runs to perform
-    sequence_length: Length of sequences to store in the replay buffer
-    env_gin_config_file_path: Path to the environment configuration file
+    buffer_filepath: Path where the replay buffer will be saved.
+    config_filepath: Path to the environment gin configuration file.
+    buffer_capacity: Maximum size of the replay buffer.
+    steps_per_run: Number of steps per actor run.
+    num_runs: Number of actor runs to perform.
+    sequence_length: Length of sequences to store in the replay buffer.
 
   Returns:
     The replay buffer.
   """
-  logger.info('Buffer path: %s', buffer_path)
+  logger.info('Buffer filepath: %s', os.path.abspath(buffer_filepath))
 
   # Create directory if it doesn't exist
   try:
-    os.makedirs(buffer_path, exist_ok=False)
+    os.makedirs(buffer_filepath, exist_ok=False)
   except FileExistsError as err:
-    logger.exception(
-        'This buffer path already exists. This would override the existing'
-        ' buffer. Please use another path'
+    error_message = (
+        'Buffer path already exists. This would override the existing buffer.'
+        ' Please use another path.'
     )
-    raise FileExistsError('Buffer path already exists, would be overridden') from err  # pylint: disable=line-too-long
+    logger.exception(error_message)
+    raise FileExistsError(error_message) from err
 
   # Load environment
   logger.info('Loading environment from standard config')
-  collect_env = create_and_setup_environment(
-      env_gin_config_file_path, metrics_path=None
-  )
+  collect_env = create_and_setup_environment(config_filepath, metrics_path=None)
 
   # Wrap in TF environment
   collect_tf_env = tf_py_environment.TFPyEnvironment(collect_env)
@@ -123,7 +134,7 @@ def populate_replay_buffer(
   collection_policy = create_baseline_schedule_policy(collect_tf_env)
 
   # Initialize replay buffer
-  logger.info('Creating replay buffer at: %s', buffer_path)
+  logger.info('Creating replay buffer at: %s', buffer_filepath)
   logger.info(
       'Buffer capacity: %d, Sequence length: %d',
       buffer_capacity,
@@ -148,7 +159,7 @@ def populate_replay_buffer(
   replay_manager = ReplayBufferManager(
       collect_data_spec,  # Use the complete data spec
       buffer_capacity,
-      buffer_path,
+      buffer_filepath,
       sequence_length=sequence_length,
   )
 
@@ -216,60 +227,38 @@ def populate_replay_buffer(
   return replay_buffer
 
 
-def main():
-  config_filepath = FLAGS.env_gin_config_filepath
+def main(argv: Sequence[str]):
+  """When running absl app, we need the `argv` param, even though it is unused.
+
+  See:
+
+    + https://abseil.io/docs/python/guides/app
+    + https://google.github.io/styleguide/pyguide.html#317-main
+    + go/python-readability-advice#unused_argv
+  """
+  if len(argv) > 1:
+    raise app.UsageError('Too many command-line arguments.')
+
+  config_filepath = FLAGS.config_filepath
   if not os.path.isabs(config_filepath):
     config_filepath = os.path.join(ROOT_DIR, config_filepath)
 
-  buffer_path = FLAGS.buffer_name
-  if not os.path.isabs(buffer_path):
-    buffer_path = os.path.join(RL_STARTER_BUFFERS_DIR, buffer_path)
+  buffer_filename = FLAGS.buffer_name
+  if buffer_filename is None:
+    buffer_filename = 'buffer_' + datetime.now().strftime('%Y%m%d_%H%M%S')
+  if not os.path.isabs(buffer_filename):
+    buffer_filepath = os.path.join(RL_STARTER_BUFFERS_DIR, buffer_filename)
 
   populate_replay_buffer(
-      buffer_path=buffer_path,
+      buffer_filepath=buffer_filepath,  # pylint:disable=possibly-used-before-assignment
+      config_filepath=config_filepath,
       buffer_capacity=FLAGS.capacity,
       steps_per_run=FLAGS.steps_per_run,
       num_runs=FLAGS.num_runs,
       sequence_length=FLAGS.sequence_length,
-      env_gin_config_file_path=config_filepath,
   )
 
 
 if __name__ == '__main__':
-
-  ## fmt: off
-  ## pylint: disable=line-too-long
-
-  # config_filepath = os.path.join(SB1_TRAIN_CONFIGS_DIR, 'sim_config_1_day.gin')
-
-  # parser = argparse.ArgumentParser(description='Populate a replay buffer with initial exploration data')
-  # parser.add_argument('--buffer-name', type=str, required=True, help='Name used to identify the replay buffer')
-  # parser.add_argument('--capacity', type=int, default=50000, help='Replay buffer capacity')
-  # parser.add_argument('--steps-per-run', type=int, default=100, help='Number of steps per actor run')
-  # parser.add_argument('--num-runs', type=int, default=5, help='Number of actor runs to perform')
-  # parser.add_argument('--sequence-length', type=int, default=2, help='Sequence length for the replay buffer')
-  # parser.add_argument('--env-gin-config-file-path', type=str, default=config_filepath, help='Environment config file')
-  ## pylint: enable=line-too-long
-  ## fmt: on
-  # args = parser.parse_args()
-
-  # This makes it work for both relative and absolute paths
-  # if not os.path.isabs(args.env_gin_config_file_path):
-  #  args.env_gin_config_file_path = os.path.join(
-  #      ROOT_DIR, args.env_gin_config_file_path
-  #  )
-  #
-  # buffer_path_ = args.buffer_name
-  # if not os.path.isabs(args.buffer_name):
-  #  buffer_path_ = os.path.join(RL_STARTER_BUFFERS_DIR, args.buffer_name)
-  #
-  # populate_replay_buffer(
-  #    buffer_path=buffer_path_,
-  #    buffer_capacity=args.capacity,
-  #    steps_per_run=args.steps_per_run,
-  #    num_runs=args.num_runs,
-  #    sequence_length=args.sequence_length,
-  #    env_gin_config_file_path=args.env_gin_config_file_path,
-  # )
 
   app.run(main)

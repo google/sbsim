@@ -79,6 +79,11 @@ def modify_config(config_content, param_name, param_value):
   Matches parameter assignments with literal values (numbers or quoted strings)
   but not function calls that start with @ or contain parentheses.
   Returns the modified config content.
+
+  TODO: instead of doing regex string parsing, which may be brittle and limited,
+    let's consider using gin.parse_config_file() to get the config values,
+    then update them as desired, then write the updated config to file.
+    Or maybe use gin.bind_parameter().
   """
   # This pattern has several components:
   # 1. Match line start or after newline
