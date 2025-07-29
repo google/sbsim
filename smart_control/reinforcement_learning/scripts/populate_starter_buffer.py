@@ -4,7 +4,7 @@ This creates a starter buffer with exploration data that can be used to
 bootstrap the training process.
 """
 
-from datetime import datetime
+# from datetime import datetime
 import logging
 import os
 from typing import Sequence
@@ -14,6 +14,7 @@ from absl import flags
 import tensorflow as tf
 from tf_agents.environments import tf_py_environment
 from tf_agents.policies import py_tf_eager_policy
+from tf_agents.replay_buffers.reverb_replay_buffer import ReverbReplayBuffer
 from tf_agents.train import actor
 from tf_agents.train.utils import spec_utils
 from tf_agents.trajectories import trajectory
@@ -22,17 +23,15 @@ from smart_control.reinforcement_learning.observers.composite_observer import Co
 from smart_control.reinforcement_learning.observers.print_status_observer import PrintStatusObserver
 from smart_control.reinforcement_learning.policies.schedule_policy import create_baseline_schedule_policy
 from smart_control.reinforcement_learning.replay_buffer.replay_buffer import ReplayBufferManager
+from smart_control.reinforcement_learning.utils.constants import DEFAULT_CONFIG_FILEPATH
 from smart_control.reinforcement_learning.utils.constants import RL_STARTER_BUFFERS_DIR
 from smart_control.reinforcement_learning.utils.environment import create_and_setup_environment
 from smart_control.utils.constants import ROOT_DIR
-from smart_control.utils.constants import SB1_TRAIN_CONFIGS_DIR
 
+# this is used by the gin config (see "")
 # pylint:disable-next=unused-import
 from smart_control.reinforcement_learning.utils.config import get_histogram_path  # isort:skip
 
-DEFAULT_CONFIG_FILEPATH = os.path.join(
-    SB1_TRAIN_CONFIGS_DIR, 'sim_config_1_day.gin'
-)
 
 # LOGGING
 
@@ -51,6 +50,16 @@ logger = logging.getLogger(__name__)
 #      format='[%(message)s]',
 #  )
 
+# logging.basicConfig(
+#    level=logging.INFO,
+#    format='[%(levelname)s] [%(filename)s:%(lineno)d] [%(message)s]',
+# )
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='[%(message)s]',
+)
+
 
 # FLAGS
 
@@ -58,11 +67,16 @@ FLAGS = flags.FLAGS
 
 BUFFER_NAME = flags.DEFINE_string(
     name='buffer_name',
-    default=None,
+    default='default',
     help=(
-        'Name used to identify the replay buffer. If omitted, will use current'
-        ' timestamp.'
+        'Name used to identify the replay buffer. Corresponds with directory'
+        ' name where files will be saved.'
     ),
+)
+CONFIG_FILEPATH = flags.DEFINE_string(
+    name='config_filepath',
+    default=DEFAULT_CONFIG_FILEPATH,
+    help='Environment config file',
 )
 CAPACITY = flags.DEFINE_integer(
     name='capacity', default=50000, help='Replay buffer capacity'
@@ -78,25 +92,20 @@ SEQUENCE_LENGTH = flags.DEFINE_integer(
     default=2,
     help='Sequence length for the replay buffer',
 )
-CONFIG_FILEPATH = flags.DEFINE_string(
-    name='config_filepath',
-    default=DEFAULT_CONFIG_FILEPATH,
-    help='Environment config file',
-)
 
 
 def populate_replay_buffer(
-    buffer_filepath: str,
+    buffer_dirpath: str,
     config_filepath: str,
     buffer_capacity: int,
     steps_per_run: int,
     num_runs: int,
     sequence_length: int,
-):
+) -> ReverbReplayBuffer:
   """Populates a replay buffer with initial exploration data.
 
   Args:
-    buffer_filepath: Path where the replay buffer will be saved.
+    buffer_dirpath: Path where the replay buffer will be saved.
     config_filepath: Path to the environment gin configuration file.
     buffer_capacity: Maximum size of the replay buffer.
     steps_per_run: Number of steps per actor run.
@@ -106,18 +115,25 @@ def populate_replay_buffer(
   Returns:
     The replay buffer.
   """
-  logger.info('Buffer filepath: %s', os.path.abspath(buffer_filepath))
+  logger.info('Buffer dirpath: %s', os.path.abspath(buffer_dirpath))
 
   # Create directory if it doesn't exist
-  try:
-    os.makedirs(buffer_filepath, exist_ok=False)
-  except FileExistsError as err:
-    error_message = (
-        'Buffer path already exists. This would override the existing buffer.'
-        ' Please use another path.'
-    )
-    logger.exception(error_message)
-    raise FileExistsError(error_message) from err
+  # try:
+  #  os.makedirs(buffer_dirpath, exist_ok=False)
+  # except FileExistsError as err:
+  #  error_message = (
+  #      'Buffer path already exists. This would override the existing buffer.'
+  #      ' Please use another path.'
+  #  )
+  #  logger.exception(error_message)
+  #  raise FileExistsError(error_message) from err
+
+  # UPDATE: only stop if there is a "DONE" file inside this dir
+  os.makedirs(buffer_dirpath, exist_ok=True)
+  done_filepath = os.path.join(buffer_dirpath, 'DONE')
+  if os.path.isfile(done_filepath):
+    raise FileExistsError('Starter buffer already exists, would be overwritten')
+    # todo: consider using a flag or user input to override
 
   # Load environment
   logger.info('Loading environment from standard config')
@@ -134,7 +150,7 @@ def populate_replay_buffer(
   collection_policy = create_baseline_schedule_policy(collect_tf_env)
 
   # Initialize replay buffer
-  logger.info('Creating replay buffer at: %s', buffer_filepath)
+  logger.info('Creating replay buffer at: %s', os.path.abspath(buffer_dirpath))
   logger.info(
       'Buffer capacity: %d, Sequence length: %d',
       buffer_capacity,
@@ -157,9 +173,9 @@ def populate_replay_buffer(
 
   # Use this data spec when creating the replay buffer
   replay_manager = ReplayBufferManager(
-      collect_data_spec,  # Use the complete data spec
-      buffer_capacity,
-      buffer_filepath,
+      data_spec=collect_data_spec,  # Use the complete data spec
+      capacity=buffer_capacity,
+      checkpoint_dir=buffer_dirpath,
       sequence_length=sequence_length,
   )
 
@@ -178,8 +194,8 @@ def populate_replay_buffer(
   # Create collect actor
   logger.info('Setting up collect actor')
   collect_actor = actor.Actor(
-      collect_tf_env.pyenv.envs[0],  # Use underlying PyEnv
-      py_tf_eager_policy.PyTFEagerPolicy(collection_policy),
+      env=collect_tf_env.pyenv.envs[0],  # Use underlying PyEnv
+      policy=py_tf_eager_policy.PyTFEagerPolicy(collection_policy),
       steps_per_run=steps_per_run,
       train_step=train_step,
       observers=[observers],
@@ -243,14 +259,14 @@ def main(argv: Sequence[str]):
   if not os.path.isabs(config_filepath):
     config_filepath = os.path.join(ROOT_DIR, config_filepath)
 
-  buffer_filename = FLAGS.buffer_name
-  if buffer_filename is None:
-    buffer_filename = 'buffer_' + datetime.now().strftime('%Y%m%d_%H%M%S')
-  if not os.path.isabs(buffer_filename):
-    buffer_filepath = os.path.join(RL_STARTER_BUFFERS_DIR, buffer_filename)
+  buffer_name = FLAGS.buffer_name
+  # if buffer_filename is None:
+  #  buffer_filename = 'buffer_' + datetime.now().strftime('%Y%m%d_%H%M%S')
+  if not os.path.isabs(buffer_name):
+    buffer_dirpath = os.path.join(RL_STARTER_BUFFERS_DIR, buffer_name)
 
   populate_replay_buffer(
-      buffer_filepath=buffer_filepath,  # pylint:disable=possibly-used-before-assignment
+      buffer_dirpath=buffer_dirpath,  # pylint:disable=possibly-used-before-assignment
       config_filepath=config_filepath,
       buffer_capacity=FLAGS.capacity,
       steps_per_run=FLAGS.steps_per_run,
