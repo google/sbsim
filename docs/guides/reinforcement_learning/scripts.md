@@ -39,13 +39,16 @@ directory. Each file name will contain the parameter values you choose (e.g.
 
 ## Starter Buffer Population
 
+Populate an initial replay buffer with initial exploration data, to provide a
+starting point when training RL agents:
+
 ```sh
 python -m smart_control.reinforcement_learning.scripts.populate_starter_buffer
 ```
 
 ```sh
 python -m smart_control.reinforcement_learning.scripts.populate_starter_buffer \
-    --buffer-name default-starter-buffer
+    --buffer_name example-1 --num_runs 1 --steps_per_run 10
 ```
 
 ## Training
