@@ -60,6 +60,28 @@ _SIN_RAD = 'sin'
 _COS_RAD = 'cos'
 
 
+def get_nearest_timestamp_index(
+    target_timestamp: pd.Timestamp, timestamps: list[pd.Timestamp]
+) -> int:
+  """Returns the index of the nearest timestamp in timestamps to target_timestamp."""
+  deltas = [
+      np.abs((ts - target_timestamp).total_seconds()) for ts in timestamps
+  ]
+  return np.argmin(deltas)
+
+
+def drop_tz(ts: pd.Timestamp) -> pd.Timestamp:
+  """Drops the Timezone information, but keeps local time.
+
+  Args:
+    ts: A timestamp in local time in any timezone.
+
+  Returns:
+    A timestamp in local time without timezone.
+  """
+  return ts.tz_localize(None)
+
+
 @gin.configurable
 def get_consolidated_time_features(
     n_hod: int, n_dow: int
@@ -250,11 +272,11 @@ def get_action_map(
   action_map[_TIMESTAMP] = timestamp
 
   for single_action_response in action_response.single_action_responses:
+    request = single_action_response.request
     if (
         single_action_response.response_type
         == smart_control_building_pb2.SingleActionResponse.ACCEPTED
     ):
-      request = single_action_response.request
 
       action_map[(_ACTION_PREFIX, request.device_id, request.setpoint_name)] = (
           request.continuous_value
