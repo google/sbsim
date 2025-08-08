@@ -16,10 +16,11 @@ limitations under the License.
 """
 
 import abc
-from typing import Any, TypeAlias, Mapping
+from typing import Any, List, Mapping, TypeAlias
+import numpy as np
 import tensorflow as tf
 from tf_agents.environments import py_environment
-
+from tf_agents.environments import tf_py_environment
 
 StateKey: TypeAlias = str
 StateValue: TypeAlias = Any
@@ -29,6 +30,19 @@ DiscreteActionMapping: TypeAlias = dict[int, list[float]]
 
 class BaseWorldModel(abc.ABC):
   """Abstract base class for a world model used by the MPPI planner."""
+
+  def __init__(self):
+    """Initializes the world model's parameters."""
+    self.all_z_dim: int = 0
+    self.all_z_max: List[float] = []
+    self.all_z_min: List[float] = []
+    self.continuous_action_normalizers: Mapping[str, Any] = {}
+    self.discrete_action_normalizers: Mapping[str, Any] = {}
+    self.k_dim: int = 0
+    self.offset: List[int] = []
+    self.par_size: List[int] = []
+    self.z_max: List[float] = []
+    self.z_min: List[float] = []
 
   @abc.abstractmethod
   def next(
@@ -93,3 +107,11 @@ class BaseWorldModel(abc.ABC):
   @abc.abstractmethod
   def discrete_action_mapping(self, value: DiscreteActionMapping):
     pass
+
+  @abc.abstractmethod
+  def create_action_dict(self, k: int, z: np.ndarray) -> Mapping[str, Any]:
+    """Creates a dictionary of actions for the environment."""
+
+  @abc.abstractmethod
+  def synchronize(self, source_env: tf_py_environment.TFPyEnvironment):
+    """Synchronizes the planning environment with the acting environment."""

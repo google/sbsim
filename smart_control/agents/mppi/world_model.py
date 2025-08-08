@@ -30,6 +30,7 @@ from smart_buildings.smart_control.environment import environment
 from smart_buildings.smart_control.models import base_world_model
 from smart_buildings.smart_control.utils import bounded_action_normalizer
 import tensorflow as tf
+from tf_agents.environments import tf_py_environment
 from tf_agents.trajectories import policy_step as tf_policy_step
 
 
@@ -90,6 +91,44 @@ class EnvWorldModel(base_world_model.BaseWorldModel):
         supervisor_to_params,
     )
     self._create_flattened_mappings(params_for_k, unique_param_key_to_idx)
+
+  def synchronize(self, source_env: tf_py_environment.TFPyEnvironment):
+    """Synchronizes the planning environment with the acting environment.
+
+    This copies the state from the acting environment's building to the
+    planning environment's building, ensuring the planner starts its
+    simulation from the correct state.
+
+    Args:
+      source_env: The main TF-Agents environment to synchronize with.
+    """
+    # The source_env could be a TFPyEnvironment wrapper or a raw Python env.
+    py_env = source_env.pyenv if hasattr(source_env, 'pyenv') else source_env
+
+    # Access the underlying Python environment's building instance.
+    if not hasattr(py_env, 'building') or not hasattr(self.env, 'building'):
+      return
+
+    source_building = py_env.building
+    target_building = self.env.building
+
+    # Copy all relevant state attributes
+    target_building._native_inputs = source_building._native_inputs.copy()  # pylint: disable=protected-access
+    target_building._current_observation_mapping = (  # pylint: disable=protected-access
+        source_building._current_observation_mapping.copy()  # pylint: disable=protected-access
+    )
+    target_building._current_timestamp = source_building._current_timestamp  # pylint: disable=protected-access
+    target_building._observation_index = source_building._observation_index  # pylint: disable=protected-access
+
+    if (
+        hasattr(source_building, '_current_action_mapping')
+        and source_building._current_action_mapping is not None  # pylint: disable=protected-access
+    ):
+      target_building._current_action_mapping = (  # pylint: disable=protected-access
+          source_building._current_action_mapping.copy()  # pylint: disable=protected-access
+      )
+    else:
+      target_building._current_action_mapping = None  # pylint: disable=protected-access
 
   def _initialize_unique_continuous_params(
       self,
@@ -284,14 +323,14 @@ class EnvWorldModel(base_world_model.BaseWorldModel):
     # Execute the trajectory of actions for each step of the horizon.
     for _, (k_action, z_action) in enumerate(action_trajectory):
       # Call the new, centralized helper method
-      action_dict = self._create_action_dict(k_action, z_action.numpy())
+      action_dict = self.create_action_dict(k_action, z_action.numpy())
       time_step = self.env.step(action_dict)
       predicted_states.append(time_step.observation)
       predicted_rewards.append(time_step.reward)
 
     return predicted_states, predicted_rewards
 
-  def _create_action_dict(
+  def create_action_dict(
       self, k: int, z_native: np.ndarray
   ) -> dict[str, np.ndarray]:
     """Builds the final action dictionary required by the environment.
@@ -384,7 +423,7 @@ class EnvWorldModel(base_world_model.BaseWorldModel):
     )
 
     # 3. Delegate final formatting to the helper function
-    return self._create_action_dict(k_tensor.numpy(), z_native.numpy())
+    return self.create_action_dict(k_tensor.numpy(), z_native.numpy())
 
   def next(self, a: tf.Tensor):
     """Mimics the learned world_model's `next` method."""
