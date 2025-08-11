@@ -6,10 +6,20 @@ This script sets up the training process with separate collection and evaluation
 components.
 """
 
+# OK so we are running into an error
+# TypeError: this __dict__ descriptor does not support '_DictWrapper' objects
+# https://github.com/tensorflow/tensorflow/issues/59869
+# As a workaround, we need to set this env var before loading tensorflow
+# https://github.com/GrahamDumpleton/wrapt/issues/231#issuecomment-1455800902
+# fmt: off
+import os  # isort:skip
+os.environ['WRAPT_DISABLE_EXTENSIONS'] = 'true'
+# fmt: on
+
+# pylint:disable=wrong-import-position
 from datetime import datetime
 import json
 import logging
-import os
 import shutil
 from typing import Sequence
 
@@ -43,8 +53,8 @@ from smart_control.reinforcement_learning.utils.environment import create_and_se
 # pylint:disable-next=unused-import
 from smart_control.reinforcement_learning.utils.config import get_histogram_path  # isort:skip
 
+# pylint:enable=wrong-import-position
 
-os.environ['WRAPT_DISABLE_EXTENSIONS'] = 'true'
 
 # LOGGING
 
