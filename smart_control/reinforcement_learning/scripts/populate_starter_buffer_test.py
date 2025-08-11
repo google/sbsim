@@ -12,7 +12,7 @@ from tf_agents.specs import TensorSpec
 from tf_agents.trajectories.trajectory import Trajectory
 
 from smart_control.reinforcement_learning.scripts.populate_starter_buffer import populate_replay_buffer
-from smart_control.reinforcement_learning.utils.constants import DEFAULT_CONFIG_FILEPATH
+from smart_control.reinforcement_learning.utils.constants import ONE_DAY_CONFIG_FILEPATH
 
 
 class StarterBufferPopulationTest(absltest.TestCase):
@@ -34,7 +34,7 @@ class StarterBufferPopulationTest(absltest.TestCase):
     steps_per_run = 5  # default:100
     replay_buffer = populate_replay_buffer(
         buffer_dirpath=self.buffer_dirpath,
-        config_filepath=DEFAULT_CONFIG_FILEPATH,
+        config_filepath=ONE_DAY_CONFIG_FILEPATH,
         buffer_capacity=capacity,
         steps_per_run=steps_per_run,
         num_runs=1,  # default:5

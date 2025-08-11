@@ -4,7 +4,7 @@ This creates a starter buffer with exploration data that can be used to
 bootstrap the training process.
 """
 
-# from datetime import datetime
+from datetime import datetime
 import logging
 import os
 from typing import Sequence
@@ -23,7 +23,7 @@ from smart_control.reinforcement_learning.observers.composite_observer import Co
 from smart_control.reinforcement_learning.observers.print_status_observer import PrintStatusObserver
 from smart_control.reinforcement_learning.policies.schedule_policy import create_baseline_schedule_policy
 from smart_control.reinforcement_learning.replay_buffer.replay_buffer import ReplayBufferManager
-from smart_control.reinforcement_learning.utils.constants import DEFAULT_CONFIG_FILEPATH
+from smart_control.reinforcement_learning.utils.constants import ONE_DAY_CONFIG_FILEPATH
 from smart_control.reinforcement_learning.utils.constants import RL_STARTER_BUFFERS_DIR
 from smart_control.reinforcement_learning.utils.environment import create_and_setup_environment
 from smart_control.utils.constants import ROOT_DIR
@@ -75,7 +75,7 @@ BUFFER_NAME = flags.DEFINE_string(
 )
 CONFIG_FILEPATH = flags.DEFINE_string(
     name='config_filepath',
-    default=DEFAULT_CONFIG_FILEPATH,
+    default=ONE_DAY_CONFIG_FILEPATH,
     help='Environment config file',
 )
 CAPACITY = flags.DEFINE_integer(
@@ -260,10 +260,9 @@ def main(argv: Sequence[str]):
     config_filepath = os.path.join(ROOT_DIR, config_filepath)
 
   buffer_name = FLAGS.buffer_name
-  # if buffer_filename is None:
-  #  buffer_filename = 'buffer_' + datetime.now().strftime('%Y%m%d_%H%M%S')
-  if not os.path.isabs(buffer_name):
-    buffer_dirpath = os.path.join(RL_STARTER_BUFFERS_DIR, buffer_name)
+  if buffer_name is None:
+    buffer_name = 'buffer_' + datetime.now().strftime('%Y%m%d_%H%M%S')
+  buffer_dirpath = os.path.join(RL_STARTER_BUFFERS_DIR, buffer_name)
 
   populate_replay_buffer(
       buffer_dirpath=buffer_dirpath,  # pylint:disable=possibly-used-before-assignment
