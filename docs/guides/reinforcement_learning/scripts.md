@@ -53,6 +53,14 @@ python -m smart_control.reinforcement_learning.scripts.populate_starter_buffer \
 
 ## Training
 
+Train a reinforcement learning agent.
+
+Using default configuration:
+
+```sh
+python -m smart_control.reinforcement_learning.scripts.train --experiment_name my-experiment-1
+```
+
 ```sh
 python -m smart_control.reinforcement_learning.scripts.train \
     --starter-buffer-path path/to/the/starter/buffer

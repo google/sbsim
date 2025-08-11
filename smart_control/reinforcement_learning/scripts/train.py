@@ -11,7 +11,10 @@ import json
 import logging
 import os
 import shutil
+from typing import Sequence
 
+from absl import app
+from absl import flags
 import tensorflow as tf
 from tf_agents.environments import tf_py_environment
 from tf_agents.metrics import tf_metrics
@@ -28,20 +31,111 @@ from smart_control.reinforcement_learning.agents.sac_agent import create_sac_age
 from smart_control.reinforcement_learning.observers.composite_observer import CompositeObserver
 from smart_control.reinforcement_learning.observers.print_status_observer import PrintStatusObserver
 from smart_control.reinforcement_learning.replay_buffer.replay_buffer import ReplayBufferManager
+from smart_control.reinforcement_learning.utils.constants import ONE_DAY_CONFIG_FILEPATH
 from smart_control.reinforcement_learning.utils.constants import RL_EXPERIMENT_RESULTS_DIR
+from smart_control.reinforcement_learning.utils.constants import RL_STARTER_BUFFERS_DIR
 from smart_control.reinforcement_learning.utils.environment import create_and_setup_environment
-from smart_control.utils.constants import ROOT_DIR
-from smart_control.utils.constants import SB1_GIN_CONFIG_FILEPATH
-from smart_control.utils.constants import SB1_TRAIN_CONFIGS_DIR
+
+# from smart_control.utils.constants import ROOT_DIR
+# from smart_control.utils.constants import DEFAULT_CONFIG_FILEPATH
+
+# this is used by the gin config (see "sim_config_day1.gin")
+# pylint:disable-next=unused-import
+from smart_control.reinforcement_learning.utils.config import get_histogram_path  # isort:skip
+
 
 os.environ['WRAPT_DISABLE_EXTENSIONS'] = 'true'
 
-# Configure logging
+# LOGGING
+
 logging.basicConfig(
     level=logging.INFO,
-    format='[%(levelname)s] [%(filename)s:%(lineno)d] [%(message)s]',
+    # format='[%(levelname)s] [%(filename)s:%(lineno)d] [%(message)s]',
+    format='[%(message)s]',
 )
 logger = logging.getLogger(__name__)
+
+# FLAGS
+
+flags.DEFINE_string(
+    name='experiment_name',
+    default=None,
+    help='Name of the experiment. This is used to save TensorBoard summaries',
+    required=True,
+)
+flags.DEFINE_string(
+    name='starter_buffer_path',
+    default=None,
+    help=(
+        'Path to the starter replay buffer (e.g. "/path/to/my_buffer"). If not'
+        ' supplied, will check the "starter_buffers" dir and use the most'
+        ' recently generated buffer. Use the starter buffer generation script'
+        ' to generate a starter buffer.'
+    ),
+    # required=True,
+)
+flags.DEFINE_string(
+    name='scenario_config_path',
+    default=ONE_DAY_CONFIG_FILEPATH,  # DEFAULT_CONFIG_FILEPATH,
+    help='Path to the scenario config file (e.g. "/path/to/sim_config.gin")',
+)
+flags.DEFINE_enum(
+    name='agent_type',
+    default='sac',
+    enum_values=['sac', 'td3', 'ddpg'],
+    help='Type of agent to train (sac, td3, or ddpg)',
+)
+flags.DEFINE_integer(
+    name='train_iterations',
+    default=300,
+    help='Number of training iterations',
+)
+flags.DEFINE_integer(
+    name='collect_steps_per_training_iteration',
+    default=50,
+    help='Number of collection steps per iteration',
+)
+flags.DEFINE_integer(
+    name='batch_size',
+    default=256,
+    help=(
+        'Batch size for training (each gradient update uses this many '
+        'elements from the replay buffer batched)'
+    ),
+)
+flags.DEFINE_integer(
+    name='eval_interval',
+    default=10,
+    help='Interval for evaluating the agent',
+)
+flags.DEFINE_integer(
+    name='num_eval_episodes',
+    default=1,
+    help='Number of episodes for evaluation',
+)
+flags.DEFINE_integer(
+    name='log_interval',
+    default=1,
+    help='Interval for logging training metrics',
+)
+flags.DEFINE_integer(
+    name='checkpoint_interval',
+    default=10,
+    help='Interval for checkpointing the replay buffer',
+)
+flags.DEFINE_integer(
+    name='learner_iterations',
+    default=200,
+    help=(
+        'Number of iterations (gradient updates) to run the agent '
+        'learner per training loop'
+    ),
+)
+
+
+FLAGS = flags.FLAGS
+
+# SCRIPT
 
 
 def save_experiment_parameters(params, save_path):
@@ -77,50 +171,48 @@ def save_experiment_parameters(params, save_path):
 
 
 def train_agent(
-    starter_buffer_path,
-    experiment_name,
-    agent_type='sac',
-    train_iterations=100000,
-    collect_steps_per_iteration=1,
-    batch_size=256,
-    log_interval=100,
-    eval_interval=1000,
-    num_eval_episodes=5,
-    checkpoint_interval=1000,
-    learner_iterations=200,
-    scenario_config_path=None,
+    experiment_name: str,
+    starter_buffer_path: str,
+    scenario_config_path: str = ONE_DAY_CONFIG_FILEPATH,
+    agent_type: str = 'sac',
+    train_iterations: int = 100000,
+    collect_steps_per_iteration: int = 1,
+    batch_size: int = 256,
+    log_interval: int = 100,
+    eval_interval: int = 1000,
+    num_eval_episodes: int = 5,
+    checkpoint_interval: int = 1000,
+    learner_iterations: int = 200,
 ):
   """
   Trains a reinforcement learning agent using a pre-populated replay buffer.
 
   Args:
-      starter_buffer_path: Path to the pre-populated replay buffer
       experiment_name: Name of the experiment
+      starter_buffer_path: Path to the pre-populated replay buffer
+      scenario_config_path: Path to the scenario configuration file
       agent_type: Type of agent to train ('sac' or 'td3')
       train_iterations: Number of training iterations
       collect_steps_per_iteration: Number of collection steps per training
-      iteration
+        iteration
       batch_size: Batch size for training
       log_interval: Interval for logging training metrics
       eval_interval: Interval for evaluating the agent
       num_eval_episodes: Number of episodes for evaluation
       checkpoint_interval: Interval for checkpointing the replay buffer
       learner_iterations: Number of iterations to run the agent learner per
-      training loop
-      scenario_config_path: Path to the scenario configuration file (optional)
+        training loop
   """
-  # Set up scenario config path if not provided
-  if scenario_config_path is None:
-    scenario_config_path = os.path.join(
-        SB1_TRAIN_CONFIGS_DIR, 'sim_config_1_day.gin'
-    )
+
+  # SETUP
 
   # Generate timestamp for summary directory
-  current_time = datetime.now().strftime('%Y_%m_%d-%H:%M:%S')
-  summary_dir = os.path.join(
-      RL_EXPERIMENT_RESULTS_DIR, f'{experiment_name}_{current_time}'
+  current_time = datetime.now().strftime('%Y%m%d_%H%M%S')
+  experiment_dirname = f'{experiment_name}_{current_time}'
+  summary_dir = os.path.join(RL_EXPERIMENT_RESULTS_DIR, experiment_dirname)
+  logger.info(
+      'Experiment results will be saved to %s', os.path.abspath(summary_dir)
   )
-  logger.info('Experiment results will be saved to %s', summary_dir)
 
   try:
     os.makedirs(summary_dir, exist_ok=False)
@@ -147,13 +239,16 @@ def train_agent(
   }
   save_experiment_parameters(experiment_params, summary_dir)
 
+  # ENVIRONMENTS
+
   # Create train and eval environments
   logger.info(
       'Creating train and eval environments with scenario config path: %s',
       scenario_config_path,
   )
+  metrics_dirpath = os.path.join(summary_dir, 'metrics')
   train_env = create_and_setup_environment(
-      scenario_config_path, metrics_path=os.path.join(summary_dir, 'metrics')
+      scenario_config_path, metrics_path=metrics_dirpath
   )
   eval_env = create_and_setup_environment(
       scenario_config_path, metrics_path=None
@@ -168,6 +263,8 @@ def train_agent(
 
   # Get specs
   _, action_spec, time_step_spec = spec_utils.get_tensor_specs(train_tf_env)
+
+  # AGENT
 
   # Create agent based on type
   logger.info('Creating %s agent', agent_type)
@@ -202,6 +299,8 @@ def train_agent(
       tf_metrics.AverageEpisodeLengthMetric(buffer_size=num_eval_episodes),
   ]
 
+  # REPLAY BUFFER
+
   # Create a new buffer path in the experiment directory
   new_buffer_path = os.path.join(summary_dir, 'replay_buffer')
   os.makedirs(new_buffer_path, exist_ok=True)
@@ -209,8 +308,8 @@ def train_agent(
   # Copy the original buffer to the new location
   logger.info(
       'Creating a copy of replay buffer from %s to %s',
-      starter_buffer_path,
-      new_buffer_path,
+      os.path.abspath(starter_buffer_path),
+      os.path.abspath(new_buffer_path),
   )
 
   # First check if starter_buffer_path is a file or directory
@@ -255,6 +354,8 @@ def train_agent(
       sample_batch_size=batch_size, num_steps=2, num_parallel_calls=3
   ).prefetch(3)
 
+  # OBSERVERS
+
   # Create print observer for collection
   print_observer = PrintStatusObserver(
       status_interval_steps=1,  # Print status every step
@@ -272,6 +373,8 @@ def train_agent(
   collect_observers = CompositeObserver(
       [print_observer, replay_buffer_observer]
   )
+
+  # ACTORS
 
   # Create collect actor
   logger.info('Creating collect and eval actors')
@@ -299,7 +402,19 @@ def train_agent(
       summary_interval=1,
   )
 
+  # LEARNER
+
   # Create learner
+  saved_model_dirpath = os.path.join(summary_dir, 'policies')
+  saved_model_trigger = triggers.PolicySavedModelTrigger(
+      saved_model_dir=saved_model_dirpath,
+      agent=agent,
+      train_step=train_step,
+      interval=eval_interval,
+  )
+  log_trigger = triggers.StepPerSecondLogTrigger(
+      train_step=train_step, interval=log_interval
+  )
   logger.info('Creating learner')
   agent_learner = learner.Learner(
       root_dir=summary_dir,
@@ -307,16 +422,9 @@ def train_agent(
       agent=agent,
       experience_dataset_fn=lambda: dataset,
       summary_interval=1,
-      triggers=[
-          triggers.PolicySavedModelTrigger(
-              os.path.join(summary_dir, 'policies'),
-              agent,
-              train_step,
-              interval=eval_interval,
-          ),
-          triggers.StepPerSecondLogTrigger(train_step, interval=log_interval),
-      ],
+      triggers=[saved_model_trigger, log_trigger],
   )
+  # > https://github.com/tensorflow/tensorflow/issues/59869
 
   # Main training loop
   logger.info('Starting training for %d iterations', train_iterations)
@@ -387,116 +495,45 @@ def train_agent(
   return agent
 
 
-if __name__ == '__main__':
-  import argparse
+def main(argv: Sequence[str]):
+  if len(argv) > 1:
+    raise app.UsageError('Too many command-line arguments.')
 
-  parser = argparse.ArgumentParser(
-      description=(
-          'Train a reinforcement learning agent using a pre-populated replay'
-          ' buffer'
+  experiment_name = FLAGS.experiment_name
+  experiment_name = experiment_name.replace(' ', '_')
+
+  # STARTER BUFFER DIRPATH:
+  buffer_dirpath = FLAGS.starter_buffer_path
+  if not buffer_dirpath:
+    buffer_names = [d for d in os.listdir(RL_STARTER_BUFFERS_DIR) if 'buffer' in d]  # pylint:disable=line-too-long
+    if any(buffer_names):
+      buffer_name = buffer_names[-1]
+      print('USING MOST RECENTLY GENERATED STARTER BUFFER:', buffer_name)
+      buffer_dirpath = os.path.join(RL_STARTER_BUFFERS_DIR, buffer_name)
+    else:
+      raise ValueError(
+          'There are no starter buffer files available. Please generate one'
+          ' using the starter buffer generation script.'
       )
-  )
-  parser.add_argument(
-      '--starter-buffer-path',
-      type=str,
-      required=True,
-      help='Path to the starter replay buffer',
-  )
-  parser.add_argument(
-      '--agent-type',
-      type=str,
-      default='sac',
-      choices=['sac', 'td3', 'ddpg'],
-      help='Type of agent to train (sac or td3)',
-  )
-  parser.add_argument(
-      '--train-iterations',
-      type=int,
-      default=300,
-      help='Number of training iterations',
-  )
-  parser.add_argument(
-      '--collect-steps-per-training-iteration',
-      type=int,
-      default=50,
-      help='Number of collection steps per iteration',
-  )
-  parser.add_argument(
-      '--batch-size',
-      type=int,
-      default=256,
-      help=(
-          'Batch size for training (each gradient update uses this many'
-          ' elements from the replay buffer batched)'
-      ),
-  )
-
-  parser.add_argument(
-      '--eval-interval',
-      type=int,
-      default=10,
-      help='Interval for evaluating the agent',
-  )
-  parser.add_argument(
-      '--num-eval-episodes',
-      type=int,
-      default=1,
-      help='Number of episodes for evaluation',
-  )
-  parser.add_argument(
-      '--log-interval',
-      type=int,
-      default=1,
-      help='Interval for logging training metrics',
-  )
-  parser.add_argument(
-      '--experiment-name',
-      type=str,
-      required=True,
-      help='Name of the experiment. This is used to save TensorBoard summaries',
-  )
-  parser.add_argument(
-      '--checkpoint-interval',
-      type=int,
-      default=10,
-      help='Interval for checkpointing the replay buffer',
-  )
-  parser.add_argument(
-      '--learner-iterations',
-      type=int,
-      default=200,
-      help=(
-          'Number of iterations (gradient updates) to run the agent'
-          ' learner per training loop'
-      ),
-  )
-  parser.add_argument(
-      '--scenario-config-path',
-      type=str,
-      default=SB1_GIN_CONFIG_FILEPATH,
-      help='Path to the scenario config file (sim_config.gin)',
-  )
-
-  args = parser.parse_args()
-
-  # Make it work for both relative and absolute paths
-  if not os.path.isabs(args.starter_buffer_path):
-    args.starter_buffer_path = os.path.join(ROOT_DIR, args.starter_buffer_path)
-
-  if not os.path.isabs(args.scenario_config_path):
-    args.scenario_config_path = os.path.join(ROOT_DIR, args.scenario_config_path)  # pylint: disable=line-too-long
+  if not os.path.isabs(buffer_dirpath):
+    buffer_dirpath = os.path.join(RL_STARTER_BUFFERS_DIR, buffer_dirpath)
 
   train_agent(
-      starter_buffer_path=args.starter_buffer_path,
-      experiment_name=args.experiment_name,
-      agent_type=args.agent_type,
-      train_iterations=args.train_iterations,
-      collect_steps_per_iteration=args.collect_steps_per_training_iteration,
-      batch_size=args.batch_size,
-      eval_interval=args.eval_interval,
-      num_eval_episodes=args.num_eval_episodes,
-      log_interval=args.log_interval,
-      checkpoint_interval=args.checkpoint_interval,
-      learner_iterations=args.learner_iterations,
-      scenario_config_path=args.scenario_config_path,
+      starter_buffer_path=buffer_dirpath,
+      scenario_config_path=FLAGS.scenario_config_path,
+      experiment_name=experiment_name,
+      agent_type=FLAGS.agent_type,
+      train_iterations=FLAGS.train_iterations,
+      collect_steps_per_iteration=FLAGS.collect_steps_per_training_iteration,
+      batch_size=FLAGS.batch_size,
+      eval_interval=FLAGS.eval_interval,
+      num_eval_episodes=FLAGS.num_eval_episodes,
+      log_interval=FLAGS.log_interval,
+      checkpoint_interval=FLAGS.checkpoint_interval,
+      learner_iterations=FLAGS.learner_iterations,
   )
+
+
+if __name__ == '__main__':
+
+  app.run(main)
