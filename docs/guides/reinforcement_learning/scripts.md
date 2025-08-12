@@ -48,35 +48,63 @@ python -m smart_control.reinforcement_learning.scripts.populate_starter_buffer
 
 ```sh
 python -m smart_control.reinforcement_learning.scripts.populate_starter_buffer \
-    --buffer_name example-1 --num_runs 1 --steps_per_run 10
+    --buffer_name buffer_xyz
+    --config_path smart_control/configs/resources/sb1/sim_config.gin
 ```
 
-## Training
+This creates a directory corresponding with the buffer name in
+"smart_control/reinforcement_learning/data/starter_buffers".
+
+A "default" starter buffer has been created for example purposes:
+
+```sh
+python -m smart_control.reinforcement_learning.scripts.populate_starter_buffer \
+    --buffer_name default \
+    --num_runs 5 \
+    --capacity 50000 \
+    --steps_per_run 100 \
+    --sequence_length 2
+```
+
+A "test" starter buffer has been created for testing purposes:
+
+```sh
+python -m smart_control.reinforcement_learning.scripts.populate_starter_buffer \
+    --buffer_name test \
+    --num_runs 1 \
+    --steps_per_run 3 \
+    --capacity 100 \
+    --sequence_length 2
+```
+
+## RL Agent Training
 
 Train a reinforcement learning agent.
 
-Using default configuration:
-
 ```sh
-python -m smart_control.reinforcement_learning.scripts.train --experiment_name my-experiment-1
+python -m smart_control.reinforcement_learning.scripts.train \
+    --experiment_name my-experiment-1
 ```
 
 ```sh
 python -m smart_control.reinforcement_learning.scripts.train \
-    --starter-buffer-path path/to/the/starter/buffer
-    --experiment-name my-experiment-1
+    --experiment_name my-experiment-1 \
+    --agent_type="sac"
+    --learner_iterations=3 \
+    --train_iterations=10 \
+    --collect_steps_per_training_iteration=5
 ```
 
-```sh
-python scripts/train.py \
-    --starter-buffer-path data/starter_buffers/default_starter_buffer_seqlen2_exp6720/2025-04-04T06\:30\:49.808661634-04\:00/ \
-    --experiment-name sac_multiple_episodes \
-    --scenario-config-path "/home/gabriel-user/projects/sbsim/smart_control/configs/resources/sb1/generated_configs/config_timestepsec-900_numdaysinepisode-14_starttimestamp-2023-07-06.gin" \
-                           "/home/gabriel-user/projects/sbsim/smart_control/configs/resources/sb1/generated_configs/config_timestepsec-900_numdaysinepisode-14_starttimestamp-2023-08-06.gin" \
-                           "/home/gabriel-user/projects/sbsim/smart_control/configs/resources/sb1/generated_configs/config_timestepsec-900_numdaysinepisode-14_starttimestamp-2023-10-06.gin" \
-                           "/home/gabriel-user/projects/sbsim/smart_control/configs/resources/sb1/generated_configs/config_timestepsec-900_numdaysinepisode-14_starttimestamp-2023-11-06.gin" \
-    --eval-scenario-config-path "/home/gabriel-user/projects/sbsim/smart_control/configs/resources/sb1/generated_configs/config_timestepsec-900_numdaysinepisode-14_starttimestamp-2023-10-21.gin"
-```
+This will generate a new experiment results directory under
+"smart_control/reinforcement_learning/data/experiment_results/`experiment_name`".
+In the experiment results directory will be the following files and directories:
+
+- "collect" directory
+- "eval" directory
+- "metrics" directory
+- "replay_buffer" directory
+- "experiment_parameters.json" file
+- "experiment_parameters.txt" file
 
 ## Evaluation
 

@@ -11,7 +11,7 @@ from tf_agents.specs import BoundedTensorSpec
 from tf_agents.specs import TensorSpec
 from tf_agents.trajectories.trajectory import Trajectory
 
-from smart_control.reinforcement_learning.scripts.populate_starter_buffer import populate_replay_buffer
+from smart_control.reinforcement_learning.scripts.populate_starter_buffer import StarterBufferGenerator
 from smart_control.reinforcement_learning.utils.constants import ONE_DAY_CONFIG_FILEPATH
 
 
@@ -32,14 +32,16 @@ class StarterBufferPopulationTest(absltest.TestCase):
     # using small arbitrary values for faster completion:
     capacity = 100  # default:50_000
     steps_per_run = 5  # default:100
-    replay_buffer = populate_replay_buffer(
-        buffer_dirpath=self.buffer_dirpath,
+    buffer_generator = StarterBufferGenerator(
+        buffer_name="testing-123",
         config_filepath=ONE_DAY_CONFIG_FILEPATH,
         buffer_capacity=capacity,
         steps_per_run=steps_per_run,
         num_runs=1,  # default:5
         sequence_length=2,  # default:2
     )
+    buffer_generator.buffer_dirpath = self.buffer_dirpath  # use temp dir
+    replay_buffer = buffer_generator.populate()
 
     with self.subTest("returns a replay buffer"):
       self.assertIsInstance(replay_buffer, ReverbReplayBuffer)

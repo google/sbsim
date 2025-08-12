@@ -66,6 +66,7 @@ class ConfigGenerationTest(parameterized.TestCase):
     self.assertIn(expected_content, modified)
 
   def test_generate_configs(self):
+    # TODO: use temp dir instead!!!
     # setup, using separate temporary directory for generating test files:
     test_output_dir = os.path.join(SB1_TRAIN_CONFIGS_DIR, "generation_test")
     if os.path.isdir(test_output_dir):
