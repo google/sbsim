@@ -32,14 +32,15 @@ data/sb1/
 #**/eval/
 
 smart_control/configs/resources/sb1/train_sim_configs/generated/
+# todo: use temp dir instead:
 smart_control/configs/resources/sb1/train_sim_configs/generation_test/
 
 smart_control/simulator/videos
 
 smart_control/reinforcement_learning/data/starter_buffers/*
 !smart_control/reinforcement_learning/data/starter_buffers/.gitkeep
-
-smart_control/reinforcement_learning/experiment_results/*
+!smart_control/reinforcement_learning/data/starter_buffers/default
+!smart_control/reinforcement_learning/data/starter_buffers/test
 
 smart_control/reinforcement_learning/data/experiment_results/*
 !smart_control/reinforcement_learning/data/experiment_results/.gitkeep
