@@ -6,20 +6,12 @@ This script sets up the training process with separate collection and evaluation
 components.
 """
 
-# OK so we are running into an error
-# TypeError: this __dict__ descriptor does not support '_DictWrapper' objects
-# https://github.com/tensorflow/tensorflow/issues/59869
-# As a workaround, we need to set this env var before loading tensorflow
-# https://github.com/GrahamDumpleton/wrapt/issues/231#issuecomment-1455800902
-# fmt: off
-import os  # isort:skip
-os.environ['WRAPT_DISABLE_EXTENSIONS'] = 'true'
-# fmt: on
+import smart_control.reinforcement_learning.tf_import_fix  # isort:skip # pylint:disable=bad-import-order,unused-import
 
-# pylint:disable=wrong-import-position
 from datetime import datetime
 import json
 import logging
+import os
 import shutil
 from typing import Sequence
 
@@ -47,16 +39,9 @@ from smart_control.reinforcement_learning.utils.constants import RL_EXPERIMENT_R
 from smart_control.reinforcement_learning.utils.constants import RL_STARTER_BUFFERS_DIR
 from smart_control.reinforcement_learning.utils.environment import create_and_setup_environment
 
-# from smart_control.utils.constants import ROOT_DIR
-# from smart_control.utils.constants import DEFAULT_CONFIG_FILEPATH
+# this is used by the gin config (see "sim_config_day1.gin"):
+from smart_control.reinforcement_learning.utils.config import get_histogram_path  # isort:skip # pylint:disable=unused-import
 
-# this is used by the gin config (see "sim_config_day1.gin")
-# pylint:disable-next=unused-import
-from smart_control.reinforcement_learning.utils.config import get_histogram_path  # isort:skip
-
-# pylint:enable=wrong-import-position
-
-DEFAULT_STARTER_BUFFER_DIRPATH = os.path.join(RL_STARTER_BUFFERS_DIR, 'default')
 
 # LOGGING
 
@@ -75,16 +60,18 @@ flags.DEFINE_string(
     name='experiment_name',
     default=None,
     help='Name of the experiment. This is used to save TensorBoard summaries',
-    required=True,
-)
-flags.DEFINE_string(
-    name='starter_buffer_path',
-    default=DEFAULT_STARTER_BUFFER_DIRPATH,
-    help='Path to the starter replay buffer (e.g. "/path/to/my_buffer").',
     # required=True,
 )
 flags.DEFINE_string(
-    name='config_filepath',
+    name='starter_buffer_name',
+    default='default',
+    help=(
+        'Name used to identify the replay buffer. Corresponds with directory'
+        ' name where the files have been saved.'
+    ),
+)
+flags.DEFINE_string(
+    name='train_config_filepath',
     default=ONE_DAY_CONFIG_FILEPATH,  # DEFAULT_CONFIG_FILEPATH,
     help='Path to the scenario config file (e.g. "/path/to/sim_config.gin")',
 )
@@ -166,7 +153,7 @@ class RLAgentTrainer:
   def __init__(
       self,
       experiment_name: str,
-      starter_buffer_path: str = DEFAULT_STARTER_BUFFER_DIRPATH,
+      starter_buffer_name: str = 'default',  # DEFAULT_STARTER_BUFFER_DIRPATH,
       config_filepath: str = ONE_DAY_CONFIG_FILEPATH,
       agent_type: str = 'sac',
       train_iterations: int = 100000,
@@ -179,7 +166,8 @@ class RLAgentTrainer:
       learner_iterations: int = 200,
   ):
     self.experiment_name = experiment_name
-    self.starter_buffer_dirpath = starter_buffer_path
+    self.starter_buffer_name = starter_buffer_name
+    # self.starter_buffer_dirpath = starter_buffer_path
     self.config_filepath = config_filepath
     self.agent_type = agent_type
     self.train_iterations = int(train_iterations)
@@ -191,6 +179,10 @@ class RLAgentTrainer:
     self.checkpoint_interval = int(checkpoint_interval)
     self.learner_iterations = int(learner_iterations)
 
+    self.starter_buffer_dirpath = os.path.join(
+        RL_STARTER_BUFFERS_DIR, self.starter_buffer_name
+    )
+
     if self.agent_type not in ['sac', 'ddpg']:
       raise ValueError(
           'Agent {self.agent_type} has not (yet) been implemented. Please'
@@ -199,33 +191,41 @@ class RLAgentTrainer:
 
     # todo: validate all integers are greater than zero
 
-    self.experiment_dirname = self.experiment_name.replace(' ', '')
+    experiment_dirname = self.experiment_name.replace(' ', '')
     self.results_dirpath = os.path.join(
-        RL_EXPERIMENT_RESULTS_DIR, self.experiment_dirname
+        RL_EXPERIMENT_RESULTS_DIR, experiment_dirname
     )
 
+    # allow customization of this env setup during testing:
+    self.create_and_setup_environment = create_and_setup_environment
+
     # these will be set later during training:
-    self.train_env = None
-    self.eval_env = None
+    # self.train_env = None
+    # self.eval_env = None
     self.agent = None
 
-  @property
-  def done_filepath(self):
-    """The DONE file is a convention for replay buffers. We are borrowing it.
-    After the agent is trained we will create this file.
-    """
-    return os.path.join(self.results_dirpath, 'DONE')
+  # @property
+  # def done_filepath(self):
+  #  """The DONE file is a convention for replay buffers. We are borrowing it.
+  #  After the agent is trained we will create this file.
+  #  """
+  #  return os.path.join(self.results_dirpath, 'DONE')
 
-  def mark_as_complete(self):
-    """Create the DONE file to indicate the agent has completed its training."""
-    with open(self.done_filepath, 'w', encoding='utf-8') as f:
-      f.write('Training Complete!')
+  # def mark_as_complete(self):
+  #  """Create the DONE file to indicate the agent has completed its training.
+  #  """
+  #  with open(self.done_filepath, 'w', encoding='utf-8') as f:
+  #    f.write('Training Complete!')
 
   def setup_results_dir(self):
     logger.info(
         'Experiment results will be saved to %s',
         os.path.abspath(self.results_dirpath),
     )
+
+    ## clear previous results if they exist
+    # if os.path.isdir(self.saved_model_dirpath):
+    #  shutil.rmtree(self.saved_model_dirpath)
 
     # try:
     #  os.makedirs(self.results_dirpath, exist_ok=False)
@@ -238,7 +238,9 @@ class RLAgentTrainer:
     #  ) from exc
     os.makedirs(self.results_dirpath, exist_ok=True)
     # when testing we are creating the dir beforehand, check for results instead
-    if os.path.isfile(self.done_filepath):
+    # if os.path.isfile(self.done_filepath):
+
+    if os.path.isdir(self.saved_model_dirpath):
       raise FileExistsError('Results directory already exists')
 
   @property
@@ -275,7 +277,7 @@ class RLAgentTrainer:
         save_path: Path to save the parameters file.
     """
     params = params or self.experiment_params
-    params['timestamp'] = datetime.now().strftime('%Y_%m_%d-%H:%M:%S')
+    params['timestamp'] = datetime.now().strftime('%Y%m%d_%H%M%S')
 
     save_path = save_path or self.results_dirpath
 
@@ -296,7 +298,7 @@ class RLAgentTrainer:
       for key, value in params.items():
         f.write(f'{key}: {value}\n')
 
-  def copy_replay_buffer(self):
+  def copy_starter_buffer(self):
     # Create a new buffer path in the experiment directory
     new_buffer_path = os.path.join(self.results_dirpath, 'replay_buffer')
     os.makedirs(new_buffer_path, exist_ok=True)
@@ -314,8 +316,8 @@ class RLAgentTrainer:
       shutil.copy2(self.starter_buffer_dirpath, new_buffer_path)
     else:
       # If it's a directory, copy all contents
-      for item in os.listdir(self.starter_buffer_path):
-        source_item = os.path.join(self.starter_buffer_path, item)
+      for item in os.listdir(self.starter_buffer_dirpath):
+        source_item = os.path.join(self.starter_buffer_dirpath, item)
         dest_item = os.path.join(new_buffer_path, item)
         if os.path.isfile(source_item):
           shutil.copy2(source_item, dest_item)
@@ -361,7 +363,7 @@ class RLAgentTrainer:
 
   def train_agent(self) -> tf_agent.TFAgent:
     self.setup_results_dir()
-    self.save_experiment_parameters()
+    self.save_experiment_params()
 
     # ENVIRONMENTS
 
@@ -369,11 +371,10 @@ class RLAgentTrainer:
         'Creating train and eval environments with scenario config path: %s',
         self.config_filepath,
     )
-    # metrics_dirpath = os.path.join(self.results_dirpath, 'metrics')
-    train_env = create_and_setup_environment(
+    train_env = self.create_and_setup_environment(
         self.config_filepath, metrics_path=self.metrics_dirpath
     )
-    eval_env = create_and_setup_environment(
+    eval_env = self.create_and_setup_environment(
         self.config_filepath, metrics_path=None
     )
 
@@ -466,11 +467,10 @@ class RLAgentTrainer:
 
     # Create collect actor
     logger.info('Creating collect actor...')
-    # collect_dirpath = os.path.join(self.results_dirpath, 'collect')
     collect_actor = actor.Actor(
-        train_env,
-        py_tf_eager_policy.PyTFEagerPolicy(collect_policy),
-        train_step,
+        env=train_env,
+        policy=py_tf_eager_policy.PyTFEagerPolicy(collect_policy),
+        train_step=train_step,
         steps_per_run=self.collect_steps_per_iteration,
         metrics=actor.collect_metrics(1),
         observers=[collect_observers],
@@ -480,7 +480,6 @@ class RLAgentTrainer:
 
     # Create eval actor
     logger.info('Creating eval actor...')
-    # eval_dirpath = os.path.join(self.results_dirpath, 'eval')
     eval_actor = actor.Actor(
         env=eval_env,
         policy=py_tf_eager_policy.PyTFEagerPolicy(eval_policy),
@@ -581,7 +580,7 @@ class RLAgentTrainer:
         logger.info('Final Eval %s: %s', m.name, m.result())
       eval_actor.summary_writer.flush()
 
-    self.mark_as_complete()
+    # self.mark_as_complete()
     logger.info(
         'Agent training completed. Saved models in %s',
         os.path.abspath(self.results_dirpath),
@@ -593,29 +592,29 @@ def main(argv: Sequence[str]):
   if len(argv) > 1:
     raise app.UsageError('Too many command-line arguments.')
 
-  experiment_name = FLAGS.experiment_name
-  experiment_name = experiment_name.replace(' ', '_')
+  # experiment_name = FLAGS.experiment_name
+  # experiment_name = experiment_name.replace(' ', '_')
 
   # STARTER BUFFER DIRPATH:
-  buffer_dirpath = FLAGS.starter_buffer_path
-  if not buffer_dirpath:
-    buffer_names = [d for d in os.listdir(RL_STARTER_BUFFERS_DIR) if 'buffer' in d]  # pylint:disable=line-too-long
-    if any(buffer_names):
-      buffer_name = buffer_names[-1]
-      print('USING MOST RECENTLY GENERATED STARTER BUFFER:', buffer_name)
-      buffer_dirpath = os.path.join(RL_STARTER_BUFFERS_DIR, buffer_name)
-    else:
-      raise ValueError(
-          'There are no starter buffer files available. Please generate one'
-          ' using the starter buffer generation script.'
-      )
-  if not os.path.isabs(buffer_dirpath):
-    buffer_dirpath = os.path.join(RL_STARTER_BUFFERS_DIR, buffer_dirpath)
+  # buffer_dirpath = FLAGS.starter_buffer_path
+  # if not buffer_dirpath:
+  #  buffer_names = os.listdir(RL_STARTER_BUFFERS_DIR)
+  #  if any(buffer_names):
+  #    buffer_name = buffer_names[-1]
+  #    print('USING MOST RECENTLY GENERATED STARTER BUFFER:', buffer_name)
+  #    buffer_dirpath = os.path.join(RL_STARTER_BUFFERS_DIR, buffer_name)
+  #  else:
+  #    raise ValueError(
+  #        'There are no starter buffer files available. Please generate one'
+  #        ' using the starter buffer generation script.'
+  #    )
+  # if not os.path.isabs(buffer_dirpath):
+  #  buffer_dirpath = os.path.join(RL_STARTER_BUFFERS_DIR, buffer_dirpath)
 
   trainer = RLAgentTrainer(
-      starter_buffer_path=buffer_dirpath,
-      config_filepath=FLAGS.config_filepath,
-      experiment_name=experiment_name,
+      starter_buffer_name=FLAGS.starter_buffer_name,
+      config_filepath=FLAGS.train_config_filepath,
+      experiment_name=FLAGS.experiment_name,
       agent_type=FLAGS.agent_type,
       train_iterations=FLAGS.train_iterations,
       collect_steps_per_iteration=FLAGS.collect_steps_per_training_iteration,
