@@ -1,5 +1,6 @@
 """Simulator of a simplified thermodynamic system for flexible geometries."""
 
+import os
 from typing import Mapping, Optional, Tuple
 
 from absl import logging
@@ -176,7 +177,8 @@ class SimulatorFlexibleGeometries(simulator.Simulator):
     self._log_and_plotter.log(self.building.temp)
 
     if self.current_timestamp == self._start_timestamp + pd.Timedelta(days=4):
-      self.get_video(path=constants.SIM_VIDEOS_DIR + video_filename)
+      video_filepath = os.path.join(constants.SIM_VIDEOS_DIR, video_filename)
+      self.get_video(path=video_filepath)
 
   def _get_zone_reward_info(
       self,

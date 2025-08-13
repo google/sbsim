@@ -83,16 +83,27 @@ Train a reinforcement learning agent.
 
 ```sh
 python -m smart_control.reinforcement_learning.scripts.train \
-    --experiment_name my-experiment-1
+    --experiment_name="my-experiment-1"
 ```
 
 ```sh
 python -m smart_control.reinforcement_learning.scripts.train \
-    --experiment_name my-experiment-1 \
-    --agent_type="sac"
+    --experiment_name=my-experiment-1 \
+    --starter_buffer_name="default" \
+    --agent_type="sac" \
     --learner_iterations=3 \
     --train_iterations=10 \
     --collect_steps_per_training_iteration=5
+```
+
+```sh
+python -m smart_control.reinforcement_learning.scripts.train \
+    --experiment_name="experiment-test-2" \
+    --starter_buffer_name="test" \
+    --agent_type="sac" \
+    --learner_iterations=1 \
+    --train_iterations=1 \
+    --collect_steps_per_training_iteration=1
 ```
 
 This will generate a new experiment results directory under
