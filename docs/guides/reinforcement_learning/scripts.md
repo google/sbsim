@@ -72,7 +72,7 @@ A "test" starter buffer has been created for testing purposes:
 python -m smart_control.reinforcement_learning.scripts.populate_starter_buffer \
     --buffer_name test \
     --num_runs 1 \
-    --steps_per_run 3 \
+    --steps_per_run 1 \
     --capacity 100 \
     --sequence_length 2
 ```
