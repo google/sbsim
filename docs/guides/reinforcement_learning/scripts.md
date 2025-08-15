@@ -119,8 +119,13 @@ In the experiment results directory will be the following files and directories:
 
 ## Evaluation
 
+Evaluate a previously trained agent:
+
 ```sh
 python -m smart_control.reinforcement_learning.scripts.eval
+
+python -m smart_control.reinforcement_learning.scripts.eval \
+    --eval_experiment_name my-experiment-1
 ```
 
 ```sh

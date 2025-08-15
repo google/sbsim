@@ -13,6 +13,8 @@ RL_EXPERIMENT_RESULTS_DIR = os.path.join(RL_DIR, 'data', 'experiment_results')
 RL_EXPERIMENT_METRICS_DIR = os.path.join(RL_EXPERIMENT_RESULTS_DIR, 'metrics')
 RL_EXPERIMENT_RENDERS_DIR = os.path.join(RL_EXPERIMENT_RESULTS_DIR, 'renders')
 
+RL_EXPERIMENT_EVAL_DIR = os.path.join(RL_DIR, 'data', 'experiment_eval')
+
 ONE_DAY_CONFIG_FILEPATH = os.path.join(
     SB1_TRAIN_CONFIGS_DIR, 'sim_config_1_day.gin'
 )
