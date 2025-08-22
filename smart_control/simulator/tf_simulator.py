@@ -545,6 +545,11 @@ class TFSimulator(simulator.SimulatorFlexibleGeometries):
     ) = get_oriented_conductivity_tensors(
         self.building.conductivity, self._boundary_cv_mapping
     )
+    # radiative heat transfer addition
+    self.include_radiative_heat_transfer = (
+        building.include_radiative_heat_transfer
+    )
+    # self.interior_wall_mask = building.interior_wall_mask
 
   def _get_tensor_exterior_mask(
       self, building: building_py.Building
@@ -605,6 +610,20 @@ class TFSimulator(simulator.SimulatorFlexibleGeometries):
           building.heat_capacity, dtype=tf.float32
       )
       t_z = tf.constant(building.floor_height_cm / 100.0, dtype=tf.float32)
+      if self.include_radiative_heat_transfer:
+        t_ifainv = tf.convert_to_tensor(building.IFAinv, dtype=tf.float32)
+        t_temp_interior_wall = tf.convert_to_tensor(
+            temperature_estimates[building.interior_wall_mask], dtype=tf.float32
+        )
+        # Ensure t_temp_interior_wall is a column vector for matrix
+        # multiplication
+        t_temp_interior_wall = tf.reshape(t_temp_interior_wall, [-1, 1])
+      else:
+        # Create minimal zero tensors with appropriate shapes
+        # These won't be used when radiative heat transfer is disabled
+        t_ifainv = tf.zeros((1, 1), dtype=tf.float32)  # Minimal shape
+        t_temp_interior_wall = tf.zeros((1,), dtype=tf.float32)  # Minimal shape
+
       return (
           t_temp,
           t_temp_old,
@@ -613,6 +632,8 @@ class TFSimulator(simulator.SimulatorFlexibleGeometries):
           t_density,
           t_heat_capacity,
           t_z,
+          t_ifainv,
+          t_temp_interior_wall,
       )
 
     def _get_neighbor_temps(
@@ -700,6 +721,8 @@ class TFSimulator(simulator.SimulatorFlexibleGeometries):
         t_temp_inf: tf.Tensor,
         t_input_q: tf.Tensor,
         t_temp_minus: tf.Tensor,
+        t_ifainv: tf.Tensor,
+        t_temp_interior_wall: tf.Tensor,
     ) -> tf.Tensor:
       """Returns the numerator matrix from Eqn 22 as a tensor."""
 
@@ -736,10 +759,34 @@ class TFSimulator(simulator.SimulatorFlexibleGeometries):
       nt3 = tf.math.multiply(nt3, t_temp_minus)
       nt3 = tf.math.divide(nt3, t_delta_t)
 
+      # add ratdative heat transfer sigma*ifAinv@(T-)^4
+      nt4 = tf.zeros_like(t_temp_minus)
+      if self.include_radiative_heat_transfer:
+        sigma = tf.constant(5.67e-8, dtype=tf.float32)
+        t_temp_interior_wall_4 = tf.math.pow(t_temp_interior_wall, 4)
+        # Ensure both tensors have the same dtype for matrix multiplication
+        nt4_temp = tf.linalg.matmul(t_ifainv, t_temp_interior_wall_4)
+        nt4_temp = tf.math.multiply(nt4_temp, sigma)
+
+        # Use tensor_scatter_nd_update to update specific indices
+        indices = tf.where(self.building.interior_wall_index >= 0)
+        # Extract the specific elements from nt4_temp and flatten to match nt4
+        # shape
+        updates = tf.gather(
+            tf.squeeze(
+                nt4_temp
+            ),  # Remove the extra dimension from [26,1] to [26]
+            self.building.interior_wall_index[
+                self.building.interior_wall_index >= 0
+            ],
+        )
+        nt4 = tf.tensor_scatter_nd_update(nt4, indices, updates)
+
       # Add the u-z, u-v surface transfer, absorption and external source terms.
       t_numer = tf.math.add(nt1, nt2)
       t_numer = tf.math.add(t_numer, nt3)
       t_numer = tf.math.add(t_numer, t_input_q)
+      t_numer = tf.math.add(t_numer, nt4)
       return t_numer
 
     # Get the inputs to the equation as Tensors from the building.
@@ -751,6 +798,8 @@ class TFSimulator(simulator.SimulatorFlexibleGeometries):
         t_density,
         t_heat_capacity,
         t_z,
+        t_ifainv,
+        t_temp_interior_wall,
     ) = _get_input_tensors(self.building)
 
     (
@@ -825,6 +874,8 @@ class TFSimulator(simulator.SimulatorFlexibleGeometries):
         t_temp_inf,
         t_input_q,
         t_temp_minus,
+        t_ifainv,
+        t_temp_interior_wall,
     )
 
     # Finally, perform an elementwise division - not a matrix inversion.

@@ -124,6 +124,54 @@ class TFSimulatorTest(absltest.TestCase):
 
     return b
 
+  def _create_test_building_radiative(self):
+    cv_size_cm = 20.0
+    floor_height_cm = 300.0
+    initial_temp = 292.0
+    inside_air_properties = building_py.MaterialProperties(
+        conductivity=50.0, heat_capacity=700.0, density=1.0
+    )
+    inside_wall_properties = building_py.MaterialProperties(
+        conductivity=2.0, heat_capacity=1000.0, density=1800.0
+    )
+    building_exterior_properties = building_py.MaterialProperties(
+        conductivity=0.05, heat_capacity=1000.0, density=3000.0
+    )
+
+    floor_plan = self._create_test_floor_plan()
+    zone_map = self._create_test_floor_plan()
+
+    inside_air_radiative_properties = building_py.RadiationProperties(
+        epsilon=0.0, alpha=0.0, tau=0.0
+    )
+    inside_wall_radiative_properties = building_py.RadiationProperties(
+        epsilon=0.4, alpha=0.0, tau=0.0
+    )
+    building_exterior_radiative_properties = building_py.RadiationProperties(
+        epsilon=0.3, alpha=0.2, tau=0.0
+    )
+
+    b = building_py.FloorPlanBasedBuilding(
+        cv_size_cm=cv_size_cm,
+        floor_height_cm=floor_height_cm,
+        initial_temp=initial_temp,
+        inside_air_properties=inside_air_properties,
+        inside_wall_properties=inside_wall_properties,
+        building_exterior_properties=building_exterior_properties,
+        floor_plan=floor_plan,
+        floor_plan_filepath=None,
+        zone_map=zone_map,
+        zone_map_filepath=None,
+        buffer_from_walls=0,
+        inside_air_radiative_properties=inside_air_radiative_properties,
+        inside_wall_radiative_properties=inside_wall_radiative_properties,
+        building_exterior_radiative_properties=building_exterior_radiative_properties,  # pylint: disable=line-too-long
+        include_radiative_heat_transfer=True,
+        view_factor_method="ScriptF",
+    )
+
+    return b
+
   def _create_small_hvac(self):
     """Returns hvac matching zones for small test building."""
     reheat_water_setpoint = 260
@@ -691,6 +739,37 @@ class TFSimulatorTest(absltest.TestCase):
     start_timestamp = pd.Timestamp("2012-12-21")
 
     building = self._create_test_building()
+
+    tf_simulator = tf_simulator_py.TFSimulator(
+        building,
+        hvac,
+        weather_controller,
+        time_step_sec,
+        convergence_threshold,
+        iteration_limit,
+        iteration_warning,
+        start_timestamp,
+    )
+
+    result = tf_simulator.finite_differences_timestep(
+        ambient_temperature=285.0, convection_coefficient=12.0
+    )
+    self.assertTrue(result)
+
+  def test_finite_difference_convergence_with_radiative_heat_transfer(self):
+    """Tests that the FD problem with radiative heat transfer converges within
+    a fixed number of steps."""
+    weather_controller = mock.create_autospec(
+        weather_controller_py.WeatherController
+    )
+    time_step_sec = 300.0
+    hvac = self._create_small_hvac()
+    convergence_threshold = 0.1
+    iteration_limit = 100
+    iteration_warning = 2
+    start_timestamp = pd.Timestamp("2012-12-21")
+
+    building = self._create_test_building_radiative()
 
     tf_simulator = tf_simulator_py.TFSimulator(
         building,
