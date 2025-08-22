@@ -360,7 +360,6 @@ class Environment(py_environment.PyEnvironment):
       image_generator: (
           building_image_generator.BuildingImageGenerator | None
       ) = None,
-      step_interval: pd.Timedelta = pd.Timedelta(5, unit="minutes"),
       writer_factory: writer_lib.BaseWriterFactory | None = None,
   ) -> None:
     """Environment constructor.
@@ -413,7 +412,9 @@ class Environment(py_environment.PyEnvironment):
     self._end_timestamp: pd.Timestamp = self._start_timestamp + pd.Timedelta(
         num_days_in_episode, unit="days"
     )
-    self._step_interval = step_interval
+    self._step_interval = self.building.time_step_sec * pd.Timedelta(
+        1, unit="seconds"
+    )
     self._num_timesteps_in_episode = int(
         (self._end_timestamp - self._start_timestamp) / self._step_interval
     )

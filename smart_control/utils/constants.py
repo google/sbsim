@@ -8,6 +8,13 @@ from typing import Final
 # Path to the root directory of the project (where the main README is):
 ROOT_DIR = os.path.join(os.path.dirname(__file__), '..', '..')
 
+# Configs:
+CONFIGS_DIR = os.path.join(ROOT_DIR, 'smart_control', 'configs')
+SB1_CONFIG_DIR = os.path.join(CONFIGS_DIR, 'resources', 'sb1')
+SB1_GIN_CONFIG_FILEPATH = os.path.join(SB1_CONFIG_DIR, 'sim_config.gin')
+SB1_TRAIN_CONFIGS_DIR = os.path.join(SB1_CONFIG_DIR, 'train_sim_configs')
+
+
 # --------- Thermal Constants ---------------
 
 AIR_HEAT_CAPACITY = 1006.0  # J/kg/K, standard atmosphere
@@ -21,6 +28,11 @@ JOULES_PER_BTU: float = 1055.06
 W_PER_KW: float = 1000.0  # Number of Watts in a kW.
 WATTS_PER_BTU_HR: float = 0.29307107  # Number of Watts in a BTU/hr
 HZ_PERCENT: float = 100.0 / 60.0  # Converts blower/pump Hz to Percentage Power
+
+# kelvin to celsius...
+# prefer to use the related conversion functions in utils.conversion_utils
+# to make sure you are converting in the right direction
+_KELVIN_TO_CELSIUS = 273.15
 
 # https://www.rapidtables.com/convert/power/hp-to-watt.html
 WATTS_PER_HORSEPOWER = 746.0

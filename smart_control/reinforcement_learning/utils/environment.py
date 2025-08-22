@@ -3,6 +3,8 @@
 import gin
 
 from smart_control.environment.environment import Environment
+# importing the config fixes config errors looking for get_histogram_path, etc.:
+import smart_control.reinforcement_learning.utils.config  # pylint: disable=unused-import
 from smart_control.reinforcement_learning.utils.constants import DEFAULT_OCCUPANCY_NORMALIZATION_CONSTANT
 
 

@@ -7,6 +7,8 @@ import pandas as pd
 
 from smart_control.proto import smart_control_reward_pb2
 from smart_control.utils import conversion_utils
+from smart_control.utils.conversion_utils import convert_celsius_to_kelvin as c_to_k
+from smart_control.utils.conversion_utils import convert_kelvin_to_celsius as k_to_c
 
 
 class ConversionUtilsTest(parameterized.TestCase):
@@ -62,30 +64,6 @@ class ConversionUtilsTest(parameterized.TestCase):
         ),
         expected_radian,
     )
-
-  @parameterized.parameters(
-      (32.0, 273.15), (-10.0, 249.817), (70.0, 294.261), (110.0, 316.483)
-  )
-  def test_kelvin_to_fahrenheit(self, fahrenheit, kelvin):
-    self.assertAlmostEqual(
-        fahrenheit, conversion_utils.kelvin_to_fahrenheit(kelvin), places=2
-    )
-
-  def test_kelvin_to_fahrenheit_invalid(self):
-    with self.assertRaises(ValueError):
-      _ = conversion_utils.kelvin_to_fahrenheit(0.0)
-
-  @parameterized.parameters(
-      (32.0, 273.15), (-10.0, 249.817), (70.0, 294.261), (110.0, 316.483)
-  )
-  def test_fahrenheit_to_kelvin(self, fahrenheit, kelvin):
-    self.assertAlmostEqual(
-        kelvin, conversion_utils.fahrenheit_to_kelvin(fahrenheit), places=2
-    )
-
-  def test_fahrenheit_to_kelvin_invalid(self):
-    with self.assertRaises(ValueError):
-      _ = conversion_utils.fahrenheit_to_kelvin(-495.67)
 
   @parameterized.parameters(
       (pd.Timestamp('2021-09-27 00:00:00+01'), 0),
@@ -149,6 +127,62 @@ class ConversionUtilsTest(parameterized.TestCase):
 
     for field, value in expected_energy_use.items():
       self.assertAlmostEqual(value, energy_use[field], places=5)
+
+
+class TemperatureConversionTest(parameterized.TestCase):
+
+  @parameterized.parameters(
+      (32.0, 273.15), (-10.0, 249.817), (70.0, 294.261), (110.0, 316.483)
+  )
+  def test_kelvin_to_fahrenheit(self, fahrenheit, kelvin):
+    self.assertAlmostEqual(
+        fahrenheit, conversion_utils.kelvin_to_fahrenheit(kelvin), places=2
+    )
+
+  def test_kelvin_to_fahrenheit_invalid(self):
+    with self.assertRaises(ValueError):
+      _ = conversion_utils.kelvin_to_fahrenheit(0.0)
+
+  @parameterized.parameters(
+      (32.0, 273.15), (-10.0, 249.817), (70.0, 294.261), (110.0, 316.483)
+  )
+  def test_fahrenheit_to_kelvin(self, fahrenheit, kelvin):
+    self.assertAlmostEqual(
+        kelvin, conversion_utils.fahrenheit_to_kelvin(fahrenheit), places=2
+    )
+
+  def test_fahrenheit_to_kelvin_invalid(self):
+    with self.assertRaises(ValueError):
+      _ = conversion_utils.fahrenheit_to_kelvin(-495.67)
+
+  KELVIN_AND_CELSIUS_FLOAT_PARAMS = [
+      # (kelvin, celsius)
+      (50.0, -223.15),
+      (0.0, -273.15),  # Absolute zero in Celsius
+      (-50.0, -323.15),
+  ]
+
+  @parameterized.parameters(KELVIN_AND_CELSIUS_FLOAT_PARAMS)
+  def test_kelvin_to_celsius_floats(self, kelvin, celsius):
+    self.assertAlmostEqual(k_to_c(kelvin), celsius, places=10)
+
+  @parameterized.parameters(KELVIN_AND_CELSIUS_FLOAT_PARAMS)
+  def test_celsius_to_kelvin_floats(self, kelvin, celsius):
+    self.assertAlmostEqual(c_to_k(celsius), kelvin, places=10)
+
+  KELVIN_AND_CELSIUS_SERIES_PARAMS = [
+      (pd.Series([50.0, 0, -50]), pd.Series([-223.15, -273.15, -323.15])),
+  ]
+
+  @parameterized.parameters(KELVIN_AND_CELSIUS_SERIES_PARAMS)
+  def test_kelvin_to_celsius_series(self, kelvin_series, celsius_series):
+    with self.subTest('Kelvin to Celsius series'):
+      pd.testing.assert_series_equal(k_to_c(kelvin_series), celsius_series)
+
+  @parameterized.parameters(KELVIN_AND_CELSIUS_SERIES_PARAMS)
+  def test_celsius_to_kelvin_series(self, kelvin_series, celsius_series):
+    with self.subTest('Kelvin to Celsius series'):
+      pd.testing.assert_series_equal(c_to_k(celsius_series), kelvin_series)
 
 
 if __name__ == '__main__':

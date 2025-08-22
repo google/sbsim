@@ -12,7 +12,7 @@ from matplotlib.ticker import MaxNLocator
 import numpy as np
 import pandas as pd
 
-K_TO_C = 273.0  # TODO: https://github.com/google/sbsim/issues/25 - consider importing and using `int(KELVIN_TO_CELSIUS)` constant here # pylint:disable=line-too-long
+from smart_control.utils.conversion_utils import convert_kelvin_to_celsius as k_to_c
 
 
 def get_temp_colors(min_k, max_k):
@@ -188,9 +188,9 @@ def render_building_subplot(
 
     temp_label = (
         f'({zi}, {zj}) '
-        f'min {(temp_min - K_TO_C):3.1f} C, '
-        f'max {(temp_max - K_TO_C):3.1f} C, '
-        f'avg {(temp_avg - K_TO_C):3.1f} C'
+        f'min {k_to_c(temp_min):3.1f} C, '
+        f'max {k_to_c(temp_max):3.1f} C, '
+        f'avg {k_to_c(temp_avg):3.1f} C'
     )
 
     ax.text(
@@ -273,7 +273,7 @@ def render_building_subplot(
 
   label = (
       f"Local time {current_time.strftime('%Y-%m-%d %H:%M')}, "
-      f'Ambient temp {(ambient_temp - K_TO_C):3.1f} C'
+      f'Ambient temp {k_to_c(ambient_temp):3.1f} C'
   )
   ax.text(
       0.01,
@@ -294,7 +294,7 @@ def plot_zone_temp_timeline(ax1, schedule, temps_timeseries_df, end_timestamp):
   )
   for _, row in setpoint_windows.iterrows():
     left = mdates.date2num(row['start_time'])
-    bottom = row['heating_setpoint'] - K_TO_C
+    bottom = k_to_c(row['heating_setpoint'])
     width = mdates.date2num(row['end_time']) - left
     height = row['cooling_setpoint'] - row['heating_setpoint']
     face_color = 'white'
@@ -314,7 +314,7 @@ def plot_zone_temp_timeline(ax1, schedule, temps_timeseries_df, end_timestamp):
   for zone in zone_temps_cols:
     ax1.plot(
         temps_timeseries_df.index,
-        temps_timeseries_df[zone] - K_TO_C,
+        k_to_c(temps_timeseries_df[zone]),
         color='yellow',
         marker=None,
         alpha=1,
@@ -324,7 +324,7 @@ def plot_zone_temp_timeline(ax1, schedule, temps_timeseries_df, end_timestamp):
 
   ax1.plot(
       temps_timeseries_df.index,
-      temps_timeseries_df['ambient'] - K_TO_C,
+      k_to_c(temps_timeseries_df['ambient']),
       color='blue',
       marker=None,
       alpha=1,

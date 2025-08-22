@@ -116,6 +116,10 @@ class _TanhNormalProjectionNetworkWrapper(
     kwargs['outer_rank'] = self.predefined_outer_rank
     if 'step_type' in kwargs:
       del kwargs['step_type']
+    del kwargs[
+        'network_state'
+    ]  # was getting error saying that this argument was unexpected in
+    # the call below
     return super(_TanhNormalProjectionNetworkWrapper, self).call(
         inputs, **kwargs
     )
