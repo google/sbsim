@@ -41,6 +41,9 @@ smart_control/reinforcement_learning/data/starter_buffers/*
 smart_control/reinforcement_learning/data/experiment_results/*
 !smart_control/reinforcement_learning/data/experiment_results/.gitkeep
 
+smart_control/reinforcement_learning/data/experiment_eval/*
+!smart_control/reinforcement_learning/data/experiment_eval/.gitkeep
+
 # jupyter notebook checkpoints:
 smart_control/notebooks/.ipynb_checkpoints/
 
