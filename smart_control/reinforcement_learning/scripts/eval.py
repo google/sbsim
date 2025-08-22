@@ -327,7 +327,199 @@ def evaluate_policy(
       shutil.rmtree(temp_policy_dirpath)
 
 
-def main(argv: Sequence[str]):
+class ExperimentEvaluator:
+  """
+  Evaluates a trained model policy against a configured environment.
+
+  Also evaluates a schedule policy against the same environment, for comparison.
+
+  Args:
+      experiment_name: Name of the experiment to evaluate. Corresponds with an
+        existing directory in the "experiment_results" directory.
+      config_filepath: Path to the .gin config file to use for evaluation.
+      num_eval_episodes: Number of episodes to use for evaluation.
+      save_trajectory: Whether to save trajectory data for each episode.
+  """
+
+  def __init__(
+      self,
+      experiment_name: str,
+      config_filepath: str,
+      num_eval_episodes: int = 10,
+      save_trajectory: bool = True,
+  ):
+    self.experiment_name = experiment_name
+    self.config_filepath = config_filepath
+    self.num_eval_episodes = int(num_eval_episodes)
+    self.save_trajectory = bool(save_trajectory)
+
+    # SET UP DIRECTORIES:
+
+    os.makedirs(RL_EXPERIMENT_EVAL_DIR, exist_ok=True)
+
+    self.experiment_dirname = experiment_name.replace(" ", "")
+    self.experiment_eval_dirpath = os.path.join(
+        RL_EXPERIMENT_EVAL_DIR, self.experiment_dirname
+    )
+    os.makedirs(self.experiment_eval_dirpath, exist_ok=True)
+
+    # for environment:
+    self.metrics_dirpath = os.path.join(self.experiment_eval_dirpath, "metrics")
+    os.makedirs(self.metrics_dirpath, exist_ok=True)
+
+    # for saved model policy:
+    self.saved_model_policy_dirpath = os.path.join(
+        RL_EXPERIMENT_RESULTS_DIR, self.experiment_dirname, "policies"
+    )
+    self.temp_saved_model_policy_dirpath = create_merged_saved_model(
+        self.saved_model_policy_dirpath
+    )
+
+    # for trajectories:
+    self.trajectory_dirpath = None
+    if self.save_trajectory:
+      self.trajectory_dirpath = os.path.join(
+          self.experiment_eval_dirpath, "trajectories"
+      )
+      os.makedirs(self.trajectory_dirpath, exist_ok=True)
+
+    # SET UP ENVIRONMENT:
+
+    self.eval_env = create_and_setup_environment(
+        gin_config_file=self.config_filepath, metrics_path=self.metrics_dirpath
+    )
+    self.eval_tf_env = tf_py_environment.TFPyEnvironment(self.eval_env)
+    self.eval_step = tf.Variable(0, trainable=False, dtype=tf.int64)
+
+  @property
+  def schedule_policy(self):
+    return create_baseline_schedule_policy(self.eval_tf_env)
+
+  @property
+  def saved_model_policy(self):
+    logger.info(
+        "Loading saved model from %s",
+        os.path.abspath(self.temp_saved_model_policy_dirpath),
+    )
+    return SavedModelPolicy(
+        saved_model_path=self.temp_saved_model_policy_dirpath,
+        time_step_spec=self.eval_tf_env.time_step_spec(),
+        action_spec=self.eval_tf_env.action_spec(),
+    )
+
+  @property
+  def observers(self):
+    observers_list = []
+
+    print_observer = PrintStatusObserver(
+        status_interval_steps=1,
+        environment=self.eval_tf_env,
+        replay_buffer=None,
+    )
+    observers_list.append(print_observer)
+
+    if self.save_trajectory and self.trajectory_dirpath:
+      trajectory_observer = TrajectoryRecorderObserver(
+          save_dir=self.trajectory_dirpath, environment=self.eval_tf_env
+      )
+      observers_list.append(trajectory_observer)
+
+    return CompositeObserver(observers_list)
+
+  def create_actor(self, policy, policy_dirname):
+    policy_eval_dirpath = os.path.join(
+        self.experiment_eval_dirpath, policy_dirname, "eval"
+    )
+    return actor.Actor(
+        env=self.eval_env,
+        policy=py_tf_eager_policy.PyTFEagerPolicy(policy),
+        train_step=self.eval_step,
+        episodes_per_run=self.num_eval_episodes,
+        metrics=actor.eval_metrics(self.num_eval_episodes),
+        observers=[self.observers],
+        summary_dir=policy_eval_dirpath,
+        summary_interval=1,
+    )
+
+  @property
+  def schedule_policy_actor(self):
+    return self.create_actor(
+        policy=self.schedule_policy, policy_dirname="schedule"
+    )
+
+  @property
+  def saved_model_policy_actor(self):
+    return self.create_actor(
+        policy=self.saved_model_policy, policy_dirname="saved_model"
+    )
+
+  @property
+  def eval_metrics(self):
+    buffer_size = self.num_eval_episodes
+    return [
+        tf_metrics.AverageReturnMetric(buffer_size=buffer_size),
+        tf_metrics.AverageEpisodeLengthMetric(buffer_size=buffer_size),
+        tf_metrics.MaxReturnMetric(buffer_size=buffer_size),
+        tf_metrics.MinReturnMetric(buffer_size=buffer_size),
+        tf_metrics.NumberOfEpisodes(),
+        tf_metrics.EnvironmentSteps(),
+    ]
+
+  # def evaluate_policy(self, eval_actor):
+  #  logger.info("-------------------------------")
+  #  logger.info("Starting evaluation for %d episodes", self.num_eval_episodes)
+  #
+  #  eval_actor.run()
+  #
+  #  # Write evaluation summaries:
+  #  with eval_actor.summary_writer.as_default():
+  #    for metric in self.eval_metrics:
+  #      tf.summary.scalar(
+  #          name=metric.name,
+  #          data=metric.result(),
+  #          step=self.eval_step.numpy(),
+  #      )
+  #      logger.info("Eval %s: %s", metric.name, metric.result())
+  #    eval_actor.summary_writer.flush()
+  #
+  # def evaluate(self):
+  #  # todo: consider running both actors in parallel, instead of sequentially:
+  #  self.evaluate_policy(self.schedule_policy_actor)
+  #  self.evaluate_policy(self.saved_model_policy_actor)
+
+  def evaluate(self):
+    # todo: consider running both actors in parallel, instead of sequentially:
+    eval_actors = [self.schedule_policy_actor, self.saved_model_policy_actor]
+
+    for eval_actor in eval_actors:
+      logger.info("-------------------------------")
+      logger.info("Starting evaluation for %d episodes", self.num_eval_episodes)
+
+      eval_actor.run()
+
+      # Write evaluation summaries:
+      with eval_actor.summary_writer.as_default():
+        for metric in self.eval_metrics:
+          tf.summary.scalar(
+              name=metric.name,
+              data=metric.result(),
+              step=self.eval_step.numpy(),
+          )
+          logger.info("Eval %s: %s", metric.name, metric.result())
+        eval_actor.summary_writer.flush()
+
+    ## Clean up temporary directory if created
+    ## todo: use an actual tempdir that will automatically be deleted
+    # if (self.temp_saved_model_policy_dirpath and
+    #     os.path.exists(self.temp_saved_model_policy_dirpath)):
+    #  logger.info(
+    #      "Cleaning up temporary directory: %s",
+    #      os.path.abspath(self.temp_saved_model_policy_dirpath),
+    #  )
+    #  shutil.rmtree(self.temp_saved_model_policy_dirpath)
+
+
+def old_main(argv: Sequence[str]):
   if len(argv) > 1:
     raise app.UsageError("Too many command-line arguments.")
 
@@ -350,6 +542,23 @@ def main(argv: Sequence[str]):
       config_filepath=config_filepath,
       num_eval_episodes=FLAGS.num_eval_episodes,
   )
+
+
+def main(argv: Sequence[str]):
+  if len(argv) > 1:
+    raise app.UsageError("Too many command-line arguments.")
+
+  # handle relative and absolute filepaths:
+  config_filepath = FLAGS.eval_config_filepath
+  if not os.path.isabs(config_filepath):
+    config_filepath = os.path.join(ROOT_DIR, config_filepath)
+
+  evaluator = ExperimentEvaluator(
+      experiment_name=FLAGS.eval_experiment_name,
+      config_filepath=config_filepath,
+      num_eval_episodes=FLAGS.num_eval_episodes,
+  )
+  evaluator.evaluate()
 
 
 if __name__ == "__main__":
