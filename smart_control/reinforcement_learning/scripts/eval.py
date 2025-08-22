@@ -123,7 +123,10 @@ def create_merged_saved_model(policy_dir):
     model_structure_dir = os.path.join(policy_dir, "greedy_policy")
     logger.info("Using model structure from greedy_policy directory")
   else:
-    raise ValueError(f"No policy structure directories found in {policy_dir}")
+    raise ValueError(
+        "No policy structure directories found in"
+        f" {os.path.abspath(policy_dir)}"
+    )
 
   # Find latest checkpoint for variables
   latest_checkpoint = find_latest_checkpoint(policy_dir)
@@ -197,13 +200,16 @@ def evaluate_policy(
   experiment_dirname = experiment_name.replace(" ", "")
   results_dir = os.path.join(RL_EXPERIMENT_EVAL_DIR, experiment_dirname)
   logger.info("Evaluation results will be saved to %s", results_dir)
-  try:
-    os.makedirs(results_dir, exist_ok=False)
-  except FileExistsError as exc:
-    logger.exception("Directory %s already exists. Exiting.", results_dir)
-    raise FileExistsError(
-        f"Directory {results_dir} already exists. Exiting."
-    ) from exc
+  # try:
+  #  os.makedirs(results_dir, exist_ok=False)
+  # except FileExistsError as exc:
+  #  logger.exception(
+  #      "Directory %s already exists. Exiting.", os.path.abspath(results_dir)
+  #  )
+  #  raise FileExistsError(
+  #      f"Directory {os.path.abspath(results_dir)} already exists. Exiting."
+  #  ) from exc
+  os.makedirs(results_dir, exist_ok=True)
 
   # ENV
 
@@ -314,7 +320,10 @@ def evaluate_policy(
   finally:
     # Clean up temporary directory if created
     if temp_policy_dirpath and os.path.exists(temp_policy_dirpath):
-      logger.info("Cleaning up temporary directory: %s", temp_policy_dirpath)
+      logger.info(
+          "Cleaning up temporary directory: %s",
+          os.path.abspath(temp_policy_dirpath),
+      )
       shutil.rmtree(temp_policy_dirpath)
 
 
