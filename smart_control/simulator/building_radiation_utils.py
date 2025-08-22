@@ -196,6 +196,12 @@ def mark_air_connected_interior_walls(
 
   Raises:
       ValueError: If the starting position is out of bounds of the floor plan.
+
+  Note:
+      This function is used as the first step in radiative heat transfer
+      calculations to identify all interior wall nodes that are connected to the
+      same air space. The marked_value (-33) indicates walls that can
+      potentially participate in radiative heat transfer with each other.
   """
   # Make a copy to avoid modifying the original
   floor_plan = indexed_floor_plan.copy()
@@ -699,6 +705,10 @@ def is_line_blocked(
           values represent different types of cells (walls, air, etc.).
       start: Starting point of the line as (x, y) coordinates.
       end: Ending point of the line as (x, y) coordinates.
+      interior_wall_value: Value used to represent interior walls in the floor
+          plan. Defaults to -3 (from constants.py).
+      marked_value: Value used to represent marked wall nodes. Defaults: -33.
+      blocked_value: Value used to represent blocked wall nodes. Default: -34.
 
   Returns:
       True if the line is blocked by walls, False if the line of sight is clear.
@@ -785,6 +795,8 @@ def mark_directly_seeing_nodes(
       floor_plan: 2D numpy array representing the floor plan where different
           values represent different types of cells (walls, air, etc.).
       base_node: Position of the base node as (row, col) coordinates.
+      interior_wall_value: Value used to represent interior walls in the floor
+          plan. Defaults to -3 (from constants.py).
       marked_value: Value used to represent connected wall nodes that should
           be checked for line of sight. Defaults to -33.
       blocked_value: Value used to mark nodes that cannot directly see the
@@ -802,6 +814,12 @@ def mark_directly_seeing_nodes(
       - For non-neighboring nodes, the function checks if the line of sight
         is blocked by walls using is_line_blocked().
       - The base node itself is marked with a special value to distinguish it.
+      - Value meanings for radiative heat transfer:
+        * marked_value (-33): Interior wall nodes connected to the same air
+          space (can participate in radiative transfer)
+        * blocked_value (-34): Interior wall nodes that cannot see the base node
+          (blocked from radiative transfer)
+        * blocked_value + marked_value (-67): The starting node itself
   """
   floor_plan_copy = floor_plan.copy()
   base_row, base_col = base_node

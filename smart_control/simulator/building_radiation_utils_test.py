@@ -18,6 +18,15 @@ from smart_control.simulator.building_radiation_utils import net_radiative_heatf
 class RadiationUtilsTest(absltest.TestCase):
 
   def test_calculate_A_tilde_inv_and_IFAinv(self):
+    """Test calculation of A-tilde inverse and IFA inverse matrices.
+
+    Tests the core matrix calculations used in radiative heat transfer:
+    - A_tilde_inv: Matrix relating radiosity to blackbody emissive power
+    - IFAinv: Matrix used to calculate net radiative heat flux
+
+    Uses a 3-surface system with different emissivities (0.8, 0.4, 0.8)
+    and symmetric view factors.
+    """
     epsilon = np.array([0.8, 0.4, 0.8])
     F = np.array([[0, 0.5, 0.5], [0.5, 0, 0.5], [0.5, 0.5, 0]])
     expected_A_tilde_inv = np.array([
@@ -45,6 +54,14 @@ class RadiationUtilsTest(absltest.TestCase):
       assert_array_almost_equal(IFAinv, expected_IFAinv, decimal=3)
 
   def test_net_radiative_heatflux_function_of_T(self):
+    """Test calculation of net radiative heat flux from surface temperatures.
+
+    Tests the main radiative heat transfer equation that calculates net heat
+    flux for each surface given their temperatures and the IFA inverse matrix.
+
+    Uses a 3-surface system with temperatures [1200, 500, 1102] K and
+    the IFA inverse matrix from the previous test.
+    """
     # fmt: off
     #pylint:disable=line-too-long
     temperatures=np.array([1200,500,1102])#  [K]
@@ -65,6 +82,30 @@ class RadiationUtilsTest(absltest.TestCase):
       )
 
   def test_mark_air_connected_interior_walls(self):
+    """Test identification of interior walls connected through air spaces.
+
+    This test verifies that interior wall nodes connected to the same air space
+    are correctly identified and marked. This is the first step in radiative
+    heat transfer calculations to determine which walls can potentially
+    exchange heat through radiation.
+
+    Test case:
+    - Starting node at (2,3) - tests connectivity from a top-left corner
+      position.
+
+    Value meanings:
+    - -33: Interior wall nodes that are connected to the same air space through
+          4-directional connectivity (can potentially participate in radiative
+          transfer)
+    - 0: Air spaces that connect the interior walls
+    - -3: Interior wall nodes that are not connected to the starting air space
+    - -2: Exterior wall nodes (not part of the interior space)
+    - -1: Exterior space (outside the building)
+
+    The function uses 4-directional connectivity to find all air cells connected
+    to the starting wall, then marks all interior walls adjacent to those air
+    cells.
+    """
     # fmt: off
     #pylint:disable=line-too-long
 
@@ -120,6 +161,9 @@ class RadiationUtilsTest(absltest.TestCase):
                 [ -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1]])
     # fmt: on
     # pylint:enable=line-too-long
+    # Test case: Starting node at (2,3) - top-left corner
+    # Tests 4-directional connectivity to find all interior walls connected
+    #  to the same air space
     result, _ = mark_air_connected_interior_walls(
         indexed_floor_plan=indexed_floor_plan,
         start_pos=(2, 3),
@@ -131,10 +175,27 @@ class RadiationUtilsTest(absltest.TestCase):
     self.assertEqual(result.shape, indexed_floor_plan.shape)
 
     # result has same shape as the temperatures array:
-    with self.subTest("result as expected"):
+    with self.subTest("air-connected interior walls correctly marked"):
       assert_array_almost_equal(result, expected_result)
 
   def test_mark_directly_seeing_nodes(self):
+    """Test line-of-sight calculations for radiative heat transfer.
+
+    This test verifies that wall nodes are correctly classified based on their
+    visibility to a starting node for radiative heat transfer calculations.
+
+    Test cases:
+    - case_23: Starting node at (2,3) - tests visibility from top-left corner
+    - case_27: Starting node at (2,7) - tests visibility from top-right corner
+    - case_116: Starting node at (11,6) - tests visibility from bottom-center
+
+    Value meanings:
+    - -33: Interior wall nodes connected to the same air space
+           (can participate in radiative transfer)
+    - -34: Interior wall nodes that cannot see the starting node
+           (blocked from radiative transfer)
+    - -67: The starting node itself (marked_value + blocked_value)
+    """
     # fmt: off
     #pylint:disable=line-too-long
 
@@ -243,6 +304,9 @@ class RadiationUtilsTest(absltest.TestCase):
                 [ -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1]])
     # fmt: on
     # pylint:enable=line-too-long
+    # Test case 1: Starting node at (2,3) - top-left corner
+    # Tests visibility from a corner position with clear line of sight to
+    # some walls
     result23_, _ = mark_air_connected_interior_walls(
         indexed_floor_plan=indexed_floor_plan,
         start_pos=(2, 3),
@@ -256,9 +320,12 @@ class RadiationUtilsTest(absltest.TestCase):
     )
 
     # result has same shape as the temperatures array:
-    with self.subTest("result as expected"):
+    with self.subTest("case_23 - top-left corner visibility"):
       assert_array_almost_equal(result23, expected_result_23)
 
+    # Test case 2: Starting node at (2,7) - top-right corner
+    # Tests visibility from another corner position with different line of
+    # sight patterns
     result27_, _ = mark_air_connected_interior_walls(
         indexed_floor_plan=indexed_floor_plan,
         start_pos=(2, 7),
@@ -272,9 +339,12 @@ class RadiationUtilsTest(absltest.TestCase):
     )
 
     # result has same shape as the temperatures array:
-    with self.subTest("result as expected"):
+    with self.subTest("case_27 - top-right corner visibility"):
       assert_array_almost_equal(result27, expected_result_27)
 
+    # Test case 3: Starting node at (11,6) - bottom-center
+    # Tests visibility from a center position with complex line of sight
+    # through interior walls
     result116_, _ = mark_air_connected_interior_walls(
         indexed_floor_plan=indexed_floor_plan,
         start_pos=(11, 6),
@@ -288,7 +358,7 @@ class RadiationUtilsTest(absltest.TestCase):
     )
 
     # result has same shape as the temperatures array:
-    with self.subTest("result as expected"):
+    with self.subTest("case_116 - bottom-center visibility"):
       assert_array_almost_equal(result116, expected_result_116)
 
 
