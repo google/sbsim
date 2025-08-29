@@ -197,8 +197,15 @@ class RandomizedArrivalDepartureOccupancy(BaseOccupancy):
             )
         )
 
-    num_occupants = 0.0
-    for occupant in self._zone_occupants[zone_id]:
-      if occupant.peek(start_time) == OccupancyStateEnum.WORK:
-        num_occupants += 1.0
-    return num_occupants
+    current_time = start_time
+    total_occupants = 0.0
+    steps = 0
+    while current_time < end_time:
+      num_occupants = 0.0
+      for occupant in self._zone_occupants[zone_id]:
+        if occupant.peek(current_time) == OccupancyStateEnum.WORK:
+          num_occupants += 1.0
+      total_occupants += num_occupants
+      steps += 1
+      current_time += self._step_size
+    return total_occupants / steps if steps > 0 else 0.0
