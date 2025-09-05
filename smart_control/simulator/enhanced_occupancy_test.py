@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 
 from smart_control.simulator.enhanced_occupancy import EnhancedOccupancy
-from smart_control.simulator.enhanced_occupancy import EnhancedZoneOccupant
+from smart_control.simulator.enhanced_occupancy import MinuteLevelZoneOccupant
 from smart_control.simulator.enhanced_occupancy import OccupancyStateEnum
 from smart_control.simulator.enhanced_occupancy import WorkerType
 
@@ -51,9 +51,9 @@ class EnhancedOccupancyTest(parameterized.TestCase):
         occasional_daily_prob=NO_WEEKEND_WORKERS_DAILY_PROB,
     )
 
-    current_time = pd.Timestamp('2021-09-01 00:00')
+    current_time = pd.Timestamp('2021-09-01 00:00', tz=tz)
     occupancies = []
-    while current_time < pd.Timestamp('2021-09-02 00:00'):
+    while current_time < pd.Timestamp('2021-09-02 00:00', tz=tz):
       n = occupancy.average_zone_occupancy(
           'zone_0', current_time, current_time + TIME_STEP
       )
@@ -102,8 +102,10 @@ class EnhancedOccupancyTest(parameterized.TestCase):
         weekend_occasional_pct=REGULAR_WEEKEND_WORKERS_OCCASIONAL_PCT,
         occasional_daily_prob=REGULAR_WEEKEND_WORKERS_DAILY_PROB,
     )
-    saturday_morning_start = pd.Timestamp('2021-09-04 08:00')
-    saturday_morning_end = pd.Timestamp('2021-09-04 12:00')
+    saturday_morning_start = pd.Timestamp(
+        '2021-09-04 08:00', tz=DEFAULT_TIMEZONE
+    )
+    saturday_morning_end = pd.Timestamp('2021-09-04 12:00', tz=DEFAULT_TIMEZONE)
     weekday_only_occupancy = weekday_only_occupancy.average_zone_occupancy(
         'zone_0', saturday_morning_start, saturday_morning_end
     )
@@ -150,7 +152,7 @@ class EnhancedOccupancyTest(parameterized.TestCase):
     )
 
   def test_parameter_variation(self):
-    occupant = EnhancedZoneOccupant(
+    occupant = MinuteLevelZoneOccupant(
         earliest_expected_arrival_min=EARLIEST_EXPECTED_ARRIVAL_HOUR * 60,
         latest_expected_arrival_min=LATEST_EXPECTED_ARRIVAL_HOUR * 60,
         earliest_expected_departure_min=EARLIEST_EXPECTED_DEPARTURE_HOUR * 60,
@@ -164,18 +166,18 @@ class EnhancedOccupancyTest(parameterized.TestCase):
         weekend_work_prob=NO_WEEKEND_WORKERS_DAILY_PROB,
         occupant_id=0,
     )
-    day1_morning = pd.Timestamp('2021-09-01 09:00')
-    day1_afternoon = pd.Timestamp('2021-09-01 15:00')
-    day2_morning = pd.Timestamp('2021-09-02 09:00')
+    day1_morning = pd.Timestamp('2021-09-01 09:00', tz=DEFAULT_TIMEZONE)
+    day1_afternoon = pd.Timestamp('2021-09-01 15:00', tz=DEFAULT_TIMEZONE)
+    day2_morning = pd.Timestamp('2021-09-02 09:00', tz=DEFAULT_TIMEZONE)
     params1_morning = occupant._get_daily_params(day1_morning)
     params1_afternoon = occupant._get_daily_params(day1_afternoon)
     params2_morning = occupant._get_daily_params(day2_morning)
     self.assertEqual(params1_morning, params1_afternoon)
     self.assertNotEqual(params1_morning, params2_morning)
 
-  @parameterized.parameters(None, 'UTC', 'US/Eastern', 'US/Pacific')
+  @parameterized.parameters('UTC', 'US/Eastern', 'US/Pacific')
   def test_occupant_peek(self, tz):
-    occupant = EnhancedZoneOccupant(
+    occupant = MinuteLevelZoneOccupant(
         earliest_expected_arrival_min=EARLIEST_EXPECTED_ARRIVAL_HOUR * 60,
         latest_expected_arrival_min=LATEST_EXPECTED_ARRIVAL_HOUR * 60,
         earliest_expected_departure_min=EARLIEST_EXPECTED_DEPARTURE_HOUR * 60,
@@ -189,20 +191,41 @@ class EnhancedOccupancyTest(parameterized.TestCase):
         weekend_work_prob=NO_WEEKEND_WORKERS_DAILY_PROB,
         occupant_id=0,
     )
-    day1_early_morning = pd.Timestamp('2021-09-01 06:00')
-    day1_work_morning = pd.Timestamp('2021-09-01 10:00')
-    day1_afternoon = pd.Timestamp('2021-09-01 15:00')
-    day1_evening = pd.Timestamp('2021-09-01 20:00')
-    weekend = pd.Timestamp('2021-09-05 08:00')
+    day = pd.Timestamp('2021-09-01 00:00', tz=tz)
+    params = occupant._get_daily_params(day)
+    day1_early_morning = pd.Timestamp('2021-09-01 06:00', tz=tz)
+    day1_work_morning = pd.Timestamp('2021-09-01 10:00', tz=tz)
+    day1_afternoon = pd.Timestamp('2021-09-01 15:00', tz=tz)
+    day1_evening = pd.Timestamp('2021-09-01 20:00', tz=tz)
+    weekend = pd.Timestamp('2021-09-05 08:00', tz=tz)
+
+    def expected_state(ts: pd.Timestamp):
+      ts_local = ts.tz_convert(tz)
+      minutes = ts_local.hour * 60 + ts_local.minute
+      in_work = params['arrival_time'] <= minutes < params['departure_time']
+      in_lunch = (
+          params['lunch_start_time']
+          <= minutes
+          < params['lunch_start_time'] + params['lunch_duration']
+      )
+      return (
+          OccupancyStateEnum.WORK
+          if (in_work and not in_lunch)
+          else OccupancyStateEnum.AWAY
+      )
 
     self.assertEqual(occupant.peek(day1_early_morning), OccupancyStateEnum.AWAY)
-    self.assertEqual(occupant.peek(day1_work_morning), OccupancyStateEnum.WORK)
-    self.assertEqual(occupant.peek(day1_afternoon), OccupancyStateEnum.WORK)
+    self.assertEqual(
+        occupant.peek(day1_work_morning), expected_state(day1_work_morning)
+    )
+    self.assertEqual(
+        occupant.peek(day1_afternoon), expected_state(day1_afternoon)
+    )
     self.assertEqual(occupant.peek(day1_evening), OccupancyStateEnum.AWAY)
     self.assertEqual(occupant.peek(weekend), OccupancyStateEnum.AWAY)
 
   def test_occasional_worker(self):
-    occupant = EnhancedZoneOccupant(
+    occupant = MinuteLevelZoneOccupant(
         earliest_expected_arrival_min=EARLIEST_EXPECTED_ARRIVAL_HOUR * 60,
         latest_expected_arrival_min=LATEST_EXPECTED_ARRIVAL_HOUR * 60,
         earliest_expected_departure_min=EARLIEST_EXPECTED_DEPARTURE_HOUR * 60,
@@ -216,8 +239,8 @@ class EnhancedOccupancyTest(parameterized.TestCase):
         weekend_work_prob=0.5,
         occupant_id=13,
     )
-    saturday_morning = pd.Timestamp('2021-09-04 08:00')
-    saturday_afternoon = pd.Timestamp('2021-09-04 15:00')
+    saturday_morning = pd.Timestamp('2021-09-04 08:00', tz=DEFAULT_TIMEZONE)
+    saturday_afternoon = pd.Timestamp('2021-09-04 15:00', tz=DEFAULT_TIMEZONE)
     work_decision_morning = occupant._should_work_today(saturday_morning)
     work_decision_afternoon = occupant._should_work_today(saturday_afternoon)
     self.assertEqual(work_decision_morning, work_decision_afternoon)

@@ -1,11 +1,11 @@
-"""A enhanced stochastic occupancy model for building simulation
-with minute-level control and different worker types.This model is based on the
+"""An enhanced stochastic occupancy model for building simulation
+with minute-level control and different worker types. This model is based on the
 LIGHTSWITCHOccupancy model from stochastic_occupancy.py to include minute-level
 control instead of hour-level control. It has the same arrival/departure/lunch
 logic but it provides more fine-grained control and realistic occupant
 behaviour, such as optional weekend work and daily changing work hours and lunch
 break times (instead of a constant set of parameters for each occupant leading
-to a static occupancy profile that repreats itself every weekday of the year).
+to a static occupancy profile that repeats itself every weekday of the year).
 The model samples new work and lunch time parameters for each occupant every
 day, caches them for the day and clears the cache on the next day to ensure
 consistency. It is possible to model low occupancy levels on the weekends by
@@ -16,6 +16,7 @@ import datetime
 import enum
 from typing import Dict, Union
 
+from absl import logging
 import gin
 import numpy as np
 import pandas as pd
@@ -23,7 +24,9 @@ import pandas as pd
 from smart_control.models.base_occupancy import BaseOccupancy
 from smart_control.utils import conversion_utils
 
-debug_print = False  # Set to False to disable debugging
+# Seeds for np.random.RandomState must be integers in [0, 2**32 - 1].
+# We use modulo SEED_MOD_32 to constrain hashes into this valid range.
+SEED_MOD_32 = 2**32
 
 
 class OccupancyStateEnum(enum.Enum):
@@ -39,9 +42,20 @@ class WorkerType(enum.Enum):
   )
 
 
-class EnhancedZoneOccupant:
-  """EnhancedZone Occupant with minute-level contril and day-specific
-  parameters."""
+class MinuteLevelZoneOccupant:
+  """MinuteLevelZoneOccupant with minute-level control and day-specific
+  parameters.
+  This class samples a full daily schedule (arrival, lunch, departure) at minute
+  resolution, caches it per occupant per day, and supports weekend worker types.
+  We intentionally do not inherit from the legacy occupant classes because their
+  semantics differ:
+  - stochastic_occupancy.ZoneOccupant: samples fixed hour‑level times once at
+  initialisation and repeats the same schedule every workday.
+  - randomized_arrival_departure_occupancy.ZoneOccupant: uses independent
+  per-step Bernoulli draws in hour-level arrival/departure windows.
+  Inheritance would require overriding most behaviours and would reduce clarity,
+  so we keep the implementations separate.
+  """
 
   def __init__(
       self,
@@ -57,14 +71,28 @@ class EnhancedZoneOccupant:
       worker_type: WorkerType = WorkerType.WEEKDAY_ONLY,
       weekend_work_prob: float = 0.10,
       occupant_id: int = 0,
+      lunch_duration_min: int = 30,
+      lunch_duration_max: int = 90,
   ):
-    assert (
+    if not (
         earliest_expected_arrival_min
         < latest_expected_arrival_min
         < earliest_expected_departure_min
         < latest_expected_departure_min
-    )
-    assert lunch_start_min < lunch_end_min
+    ):
+      raise ValueError(
+          "Expected arrival/departure minutes to satisfy:"
+          " earliest_expected_arrival_min < latest_expected_arrival_min <"
+          " earliest_expected_departure_min < latest_expected_departure_min"
+          f" (got {earliest_expected_arrival_min},"
+          f" {latest_expected_arrival_min}, {earliest_expected_departure_min},"
+          f" {latest_expected_departure_min})."
+      )
+    if not lunch_start_min < lunch_end_min:
+      raise ValueError(
+          f"Expected lunch_start_min < lunch_end_min (got {lunch_start_min} >="
+          f" {lunch_end_min})."
+      )
 
     self._earliest_expected_arrival_min = earliest_expected_arrival_min
     self._latest_expected_arrival_min = latest_expected_arrival_min
@@ -74,14 +102,25 @@ class EnhancedZoneOccupant:
     self._lunch_end_min = lunch_end_min
     self._step_size = step_size
     self._random_state = random_state
+
+    if time_zone is None:
+      raise ValueError(
+          "time_zone must be provided (e.g., 'UTC' or an IANA zone)."
+      )
+    try:
+      _ = pd.Timestamp("2000-01-01", tz=time_zone)
+    except Exception as e:
+      raise ValueError(f"Invalid time_zone: {time_zone!r}") from e
+
     self._time_zone = time_zone
     self.state = OccupancyStateEnum.AWAY
     self.daily_cache = {}
     self.worker_type = worker_type
     self.weekend_work_prob = weekend_work_prob
     self.occupant_id = occupant_id
-    self.id = occupant_id
     self.daily_work_cache = {}
+    self._lunch_duration_min = lunch_duration_min
+    self._lunch_duration_max = lunch_duration_max
 
   def _generate_cpf(self, start, end, random_state=None):
     if random_state is None:
@@ -99,45 +138,46 @@ class EnhancedZoneOccupant:
     )
     random_value = random_state.rand()
     index = np.searchsorted(cumulative_probabilities, random_value)
-    if debug_print:
-      print(
-          f"Sampled event time: start={start}, end={end}, value={values[index]}"
-      )
+    logging.info(
+        "Sampled event time: start=%s, end=%s, value=%s",
+        start,
+        end,
+        values[index],
+    )
     return values[index]
 
   def _sample_lunch_duration(self, random_state=None):
     if random_state is None:
       random_state = self._random_state
-    values, cumulative_probabilities = self._generate_cpf(30, 90, random_state)
+    values, cumulative_probabilities = self._generate_cpf(
+        self._lunch_duration_min, self._lunch_duration_max, random_state
+    )
     random_value = random_state.rand()
     index = np.searchsorted(cumulative_probabilities, random_value)
-    if debug_print:
-      print(f"Sampled lunch duration: {values[index]} minutes")
+    logging.info("Sampled lunch duration: %s minutes", values[index])
     return values[index]
 
   def _to_local_time(self, timestamp: pd.Timestamp) -> pd.Timestamp:
+    """Return timestamp localised/converted to this occupant's time zone."""
     if timestamp.tz is None:
-      if self._time_zone is None:
-        return timestamp
       return timestamp.tz_localize(self._time_zone)
     return timestamp.tz_convert(self._time_zone)
 
-  def _get_daily_params(
-      self, timestamp: pd.Timestamp, local_timestamp: pd.Timestamp = None
-  ) -> Dict[str, int]:
-    if local_timestamp is None:
-      local_timestamp = self._to_local_time(timestamp)
-
+  def _get_daily_params(self, timestamp: pd.Timestamp) -> Dict[str, int]:
+    local_timestamp = self._to_local_time(timestamp)
     date_key = local_timestamp.date()
 
     if self.daily_cache and list(self.daily_cache.keys())[0] != date_key:
       self.daily_cache.clear()
+      logging.info(
+          "MinuteLevelZoneOccupant: cleared day cache for new date %s", date_key
+      )
 
     if date_key in self.daily_cache:
       return self.daily_cache[date_key]
 
     day_seed = hash(str(date_key) + str(self.occupant_id) + "daily_params") % (
-        2**32
+        SEED_MOD_32
     )
     day_random_state = np.random.RandomState(day_seed)
 
@@ -167,11 +207,8 @@ class EnhancedZoneOccupant:
   def _minutes_since_midnight(self, local_timestamp: pd.Timestamp) -> int:
     return local_timestamp.hour * 60 + local_timestamp.minute
 
-  def _should_work_today(
-      self, timestamp: pd.Timestamp, local_timestamp: pd.Timestamp = None
-  ) -> bool:
-    if local_timestamp is None:
-      local_timestamp = self._to_local_time(timestamp)
+  def _should_work_today(self, timestamp: pd.Timestamp) -> bool:
+    local_timestamp = self._to_local_time(timestamp)
 
     day = pd.Timestamp(
         year=local_timestamp.year,
@@ -196,7 +233,7 @@ class EnhancedZoneOccupant:
       return True
 
     elif self.worker_type == WorkerType.WEEKEND_OCCASIONAL:
-      seed = hash(str(date_key) + str(self.id)) % 2**32
+      seed = hash(str(date_key) + str(self.occupant_id)) % SEED_MOD_32
       random_state = np.random.RandomState(seed)
       work_today = random_state.rand() < self.weekend_work_prob
       self.daily_work_cache[date_key] = work_today
@@ -205,38 +242,34 @@ class EnhancedZoneOccupant:
     self.daily_work_cache[date_key] = False
     return False
 
-  def _occupant_arrived(
-      self, timestamp: pd.Timestamp, local_timestamp: pd.Timestamp = None
-  ) -> bool:
-    if local_timestamp is None:
-      local_timestamp = self._to_local_time(timestamp)
+  def _occupant_arrived(self, timestamp: pd.Timestamp) -> bool:
+    local_timestamp = self._to_local_time(timestamp)
 
     current_min = self._minutes_since_midnight(local_timestamp)
-    params = self._get_daily_params(timestamp, local_timestamp)
+    params = self._get_daily_params(timestamp)
 
     arrived = current_min >= params["arrival_time"]
-    if debug_print:
-      print(
-          f"Check arrival: local_time_hour={local_timestamp.hour},"
-          f" arrival_time={params['arrival_time']}, arrived={arrived}"
-      )
+    logging.info(
+        "Arrival check: hour=%s, arrival_time=%s, arrived=%s",
+        local_timestamp.hour,
+        params["arrival_time"],
+        arrived,
+    )
     return arrived
 
-  def _occupant_departed(
-      self, timestamp: pd.Timestamp, local_timestamp: pd.Timestamp = None
-  ) -> bool:
-    if local_timestamp is None:
-      local_timestamp = self._to_local_time(timestamp)
+  def _occupant_departed(self, timestamp: pd.Timestamp) -> bool:
+    local_timestamp = self._to_local_time(timestamp)
 
     current_min = self._minutes_since_midnight(local_timestamp)
-    params = self._get_daily_params(timestamp, local_timestamp)
+    params = self._get_daily_params(timestamp)
 
     departed = current_min >= params["departure_time"]
-    if debug_print:
-      print(
-          f"Check departure: local_time_hour={local_timestamp.hour},"
-          f" departure_time={params['departure_time']}, departed={departed}"
-      )
+    logging.info(
+        "Departure check: hour=%s, departure_time=%s, departed=%s",
+        local_timestamp.hour,
+        params["departure_time"],
+        departed,
+    )
     return departed
 
   def peek(self, current_time: pd.Timestamp) -> OccupancyStateEnum:
@@ -254,36 +287,34 @@ class EnhancedZoneOccupant:
     """
     local_timestamp = self._to_local_time(current_time)
 
-    if debug_print:
-      print(
-          f"Peek called: current_time={current_time},"
-          f" local_time={local_timestamp}, state={self.state}"
-      )
+    logging.info(
+        "Peek called: current_time=%s, local_time=%s, state_before=%s",
+        current_time,
+        local_timestamp,
+        self.state,
+    )
 
-    if not self._should_work_today(current_time, local_timestamp):
+    if not self._should_work_today(current_time):
       self.state = OccupancyStateEnum.AWAY
       return self.state
 
-    # Check arrival and departure
-    if self._occupant_arrived(
-        current_time, local_timestamp
-    ) and not self._occupant_departed(current_time, local_timestamp):
+    if self._occupant_arrived(current_time) and not self._occupant_departed(
+        current_time
+    ):
       self.state = OccupancyStateEnum.WORK
     else:
       self.state = OccupancyStateEnum.AWAY
 
-    # Handle lunch break
     if self.state == OccupancyStateEnum.WORK:
       current_min = self._minutes_since_midnight(local_timestamp)
-      params = self._get_daily_params(current_time, local_timestamp)
+      params = self._get_daily_params(current_time)
       lunch_start = params["lunch_start_time"]
       lunch_end = lunch_start + params["lunch_duration"]
       if lunch_start <= current_min < lunch_end:
         self.state = OccupancyStateEnum.AWAY
         return OccupancyStateEnum.AWAY
 
-    if debug_print:
-      print(f"Occupancy state: {self.state}")
+    logging.info("Peek result state=%s", self.state)
 
     return self.state
 
@@ -291,7 +322,8 @@ class EnhancedZoneOccupant:
 @gin.configurable
 class EnhancedOccupancy(BaseOccupancy):
   """Enhanced occupancy model with minute-level control and different
-  worker types."""
+  worker types.
+  """
 
   def __init__(
       self,
@@ -328,8 +360,7 @@ class EnhancedOccupancy(BaseOccupancy):
     total_pct = weekend_regular_pct + weekend_occasional_pct
     if total_pct > 1.0:
       raise ValueError(
-          "Total percentage of weekend workers must be less than or equal"
-          " to 1.0"
+          "Total percentage of weekend workers must be less than or equal to 1"
       )
 
   def _initialize_zone(self, zone_id: str):
@@ -337,7 +368,7 @@ class EnhancedOccupancy(BaseOccupancy):
       self._zone_occupants[zone_id] = []
       for i in range(self._zone_assignment):
         worker_random_state = np.random.RandomState(
-            hash(f"{zone_id}_{i}") % 2**32
+            hash(f"{zone_id}_{i}") % SEED_MOD_32
         )
         u = worker_random_state.rand()
         if u < self._weekend_regular_pct:
@@ -351,11 +382,11 @@ class EnhancedOccupancy(BaseOccupancy):
           weekend_prob = 0.0
 
         occupant_random_state = np.random.RandomState(
-            (hash(f"{zone_id}_{i}_behavior") % 2**32)
+            (hash(f"{zone_id}_{i}_behaviour") % SEED_MOD_32)
         )
 
         self._zone_occupants[zone_id].append(
-            EnhancedZoneOccupant(
+            MinuteLevelZoneOccupant(
                 self._earliest_expected_arrival,
                 self._latest_expected_arrival,
                 self._earliest_expected_departure,
@@ -381,10 +412,19 @@ class EnhancedOccupancy(BaseOccupancy):
         start_time: **local time** with TZ for the beginning of the interval.
         end_time: **local time** with TZ for the end of the interval.
 
+    Raises:
+        ValueError: If start_time or end_time is timezone-naive, or if end_time
+        is not after start_time.
+
     Returns:
         Average number of people in the zone for the interval.
     """
     self._initialize_zone(zone_id)
+
+    if start_time.tz is None or end_time.tz is None:
+      raise ValueError("start_time and end_time must be timezone-aware.")
+    if start_time >= end_time:
+      raise ValueError("end_time must be after start_time.")
 
     current_time = start_time
     total_occupancy = 0
@@ -404,6 +444,19 @@ class EnhancedOccupancy(BaseOccupancy):
     return total_occupancy / steps if steps > 0 else 0.0
 
   def get_worker_distribution(self, zone_id: str) -> Dict[str, int]:
+    """Returns the distribution of worker types in the given zone.
+
+    Args:
+        zone_id: The specific zone identifier for the building.
+
+    Returns:
+        A dictionary with counts for each worker type:
+        {
+            "weekday_only": int,
+            "weekend_regular": int,
+            "weekend_occasional": int,
+        }.
+    """
     self._initialize_zone(zone_id)
     counts = {"weekday_only": 0, "weekend_regular": 0, "weekend_occasional": 0}
     for occupant in self._zone_occupants[zone_id]:

@@ -6,6 +6,8 @@ import numpy as np
 import pandas as pd
 
 from smart_control.simulator import randomized_arrival_departure_occupancy
+from smart_control.simulator.randomized_arrival_departure_occupancy import OccupancyStateEnum
+from smart_control.simulator.randomized_arrival_departure_occupancy import RandomizedArrivalDepartureOccupancy
 
 # fmt: off
 # pylint: disable=bad-continuation
@@ -138,6 +140,43 @@ class RandomizedArrivalDepartureOccupancyTest(parameterized.TestCase):
             state,
         )
       current_time += pd.Timedelta(5, unit='minute')
+
+  def test_average_zone_occupancy_matches_manual_two_steps(self):
+    """average_zone_occupancy should equal the mean of per-step counts."""
+    step = pd.Timedelta(minutes=5)
+    tz = 'UTC'
+
+    occ = RandomizedArrivalDepartureOccupancy(
+        zone_assignment=7,
+        earliest_expected_arrival_hour=8,
+        latest_expected_arrival_hour=12,
+        earliest_expected_departure_hour=16,
+        latest_expected_departure_hour=20,
+        time_step_sec=step.total_seconds(),
+        seed=55213,
+        time_zone=tz,
+    )
+
+    t0 = pd.Timestamp('2021-09-01 10:00', tz=tz)
+    t1 = t0 + 2 * step
+
+    # initialise the zone
+    _ = occ.average_zone_occupancy('zone_0', t0, t0 + step)
+
+    manual_counts = []
+    for cur in (t0, t0 + step):
+      c = 0.0
+      for zocc in occ._zone_occupants['zone_0']:
+        if zocc.peek(cur) == OccupancyStateEnum.WORK:
+          c += 1.0
+      manual_counts.append(c)
+    manual_avg = sum(manual_counts) / 2.0
+
+    result = occ.average_zone_occupancy('zone_0', t0, t1)
+
+    # In the old implementation this would have returned manual_counts[0]
+    # and the assertion would fail. With the fix, it matches the average.
+    assert result == manual_avg
 
 
 if __name__ == '__main__':
