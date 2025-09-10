@@ -883,9 +883,8 @@ class FloorPlanBasedBuilding(BaseSimulatorBuilding):
           np.sum(self.interior_wall_mask)
       )
       self.interior_wall_VF = building_radiation_utils.get_VF(  # pylint: disable=invalid-name
-          self.indexed_floor_plan,
-          self.interior_wall_mask,
-          constants.INTERIOR_WALL_VALUE_IN_FUNCTION,
+          indexed_floor_plan=self.indexed_floor_plan,
+          interior_wall_mask=self.interior_wall_mask,
           view_factor_method=view_factor_method,
       )
 

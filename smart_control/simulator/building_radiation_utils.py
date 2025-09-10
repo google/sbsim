@@ -14,6 +14,8 @@ from smart_control.simulator import constants
 # we are choosing to keep the mathematical notation names for the functions and
 # variables in this file
 # pylint: disable=invalid-name
+TEMPORARY_MARKED_VALUE = -33
+TEMPORARY_BLOCKED_VALUE = -34
 
 
 def calculate_A_tilde_inv(epsilon: np.ndarray, F: np.ndarray) -> np.ndarray:
@@ -162,7 +164,7 @@ def mark_air_connected_interior_walls(
     indexed_floor_plan: np.ndarray,
     start_pos: Tuple[int, int],
     interior_wall_value: int = constants.INTERIOR_WALL_VALUE_IN_FUNCTION,
-    marked_value: int = -33,
+    marked_value: int = TEMPORARY_MARKED_VALUE,
     air_value: int = constants.INTERIOR_SPACE_VALUE_IN_FUNCTION,
 ) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
   """
@@ -180,7 +182,7 @@ def mark_air_connected_interior_walls(
     interior_wall_value (int, optional): Value used to represent interior walls
         in the floor plan. Defaults to -3 (from constants.py).
     marked_value (int, optional): Value used to mark connected interior walls.
-        Defaults to -33.
+        Only used internally. Defaults to -33.
     air_value (int, optional): Value used to represent air spaces in the floor
         plan. Defaults to 0 (from constants.py).
 
@@ -510,8 +512,8 @@ def fix_view_factors(F: np.ndarray, A: np.ndarray = None) -> np.ndarray:
 def get_VF(
     indexed_floor_plan: np.ndarray,
     interior_wall_mask: np.ndarray,
-    marked_value: int = -33,
     view_factor_method: str = 'ScriptF',
+    marked_value: int = TEMPORARY_MARKED_VALUE,
 ) -> np.ndarray:
   """
   Calculate view factors between interior walls in the floor plan.
@@ -519,10 +521,10 @@ def get_VF(
   Args:
       indexed_floor_plan (np.ndarray): 2D array representing the floor plan with
           indexed values.
-      marked_value (int, optional): Value to mark connected walls. Defaults to
-          -33.
       view_factor_method (str, optional): Method to use for view factors.
           Defaults to 'ScriptF'. Either "ScriptF" or "CarrollMRT".
+      marked_value (int, optional): Value used to mark connected interior walls.
+          Only used internally. Defaults to -33.
 
   Returns:
       View factor matrix where `VF[i,j]` represents the view factor from wall
@@ -544,7 +546,7 @@ def get_VF(
       result_floor_plan, _ = mark_air_connected_interior_walls(
           indexed_floor_plan, interior_wall_tuples[i]
       )
-      # for now, the view factor is just 1/# of seen surfaces.
+
       result_floor_plan = mark_directly_seeing_nodes(
           floor_plan=result_floor_plan, base_node=interior_wall_tuples[i]
       )
@@ -690,8 +692,8 @@ def is_line_blocked(
     start: Tuple[float, float],
     end: Tuple[float, float],
     interior_wall_value: int = constants.INTERIOR_WALL_VALUE_IN_FUNCTION,
-    marked_value: int = -33,
-    blocked_value: int = -34,
+    marked_value: int = TEMPORARY_MARKED_VALUE,
+    blocked_value: int = TEMPORARY_BLOCKED_VALUE,
 ) -> bool:
   """Check if the line between start and end is blocked by walls.
 
@@ -707,8 +709,11 @@ def is_line_blocked(
       end: Ending point of the line as (x, y) coordinates.
       interior_wall_value: Value used to represent interior walls in the floor
           plan. Defaults to -3 (from constants.py).
-      marked_value: Value used to represent marked wall nodes. Defaults: -33.
-      blocked_value: Value used to represent blocked wall nodes. Default: -34.
+      marked_value: Value used to represent marked wall nodes. Only used
+        internally. Defaults: -33. Only used internally.
+      blocked_value: Value used to represent blocked wall nodes. Only used
+        internally. Default: -34. Only used internally.
+
 
   Returns:
       True if the line is blocked by walls, False if the line of sight is clear.
@@ -781,8 +786,8 @@ def mark_directly_seeing_nodes(
     floor_plan: np.ndarray,
     base_node: Tuple[int, int],
     interior_wall_value: int = constants.INTERIOR_WALL_VALUE_IN_FUNCTION,
-    marked_value: int = -33,
-    blocked_value: int = -34,
+    marked_value: int = TEMPORARY_MARKED_VALUE,
+    blocked_value: int = TEMPORARY_BLOCKED_VALUE,
 ) -> np.ndarray:
   """Mark nodes that are directly seeing the base node as blocked_value.
 
@@ -798,9 +803,9 @@ def mark_directly_seeing_nodes(
       interior_wall_value: Value used to represent interior walls in the floor
           plan. Defaults to -3 (from constants.py).
       marked_value: Value used to represent connected wall nodes that should
-          be checked for line of sight. Defaults to -33.
+          be checked for line of sight. Only used internally. Defaults to -33.
       blocked_value: Value used to mark nodes that cannot directly see the
-          base node. Defaults to -34.
+          base node. Only used internally. Defaults to -34.
 
   Returns:
       Copy of the floor plan with nodes marked according to their visibility
