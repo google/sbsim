@@ -144,14 +144,14 @@ class TFSimulatorTest(absltest.TestCase):
     floor_plan = self._create_test_floor_plan()
     zone_map = self._create_test_floor_plan()
 
-    inside_air_radiative_properties = building_py.RadiationProperties(
-        epsilon=0.0, alpha=0.0, tau=0.0
+    inside_air_radiative_properties = (
+        building_py.DefaultInsideAirRadiationProperties()
     )
-    inside_wall_radiative_properties = building_py.RadiationProperties(
-        epsilon=0.4, alpha=0.0, tau=0.0
+    inside_wall_radiative_properties = (
+        building_py.DefaultInsideWallRadiationProperties()
     )
-    building_exterior_radiative_properties = building_py.RadiationProperties(
-        epsilon=0.3, alpha=0.2, tau=0.0
+    building_exterior_radiative_properties = (
+        building_py.DefaultExteriorWallRadiationProperties()
     )
 
     b = building_py.FloorPlanBasedBuilding(

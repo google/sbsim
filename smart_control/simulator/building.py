@@ -29,14 +29,40 @@ class MaterialProperties:
   density: float
 
 
-@gin.configurable
-@dataclasses.dataclass
 class RadiationProperties:
   """Holds the radiative properties for a material.
 
   All property values should be between 0 and 1 (inclusive).
 
-  By default, all property values are set to 0.
+  Source: Table 16-6, Cengel, Y.A. (2007) Heat and Mass Transfer
+    (a Practical Approach). 3rd Edition, McGraw-Hill.
+  +---------------------------------+-------+-------+
+  | Surface                         |epsilon| alpha |
+  +---------------------------------+-------+-------+
+  | Natural Surfaces                |       |       |
+  |---------------------------------|-------|-------|
+  | Fresh snow                      | 0.75  | 0.25  |
+  | Soils (clay, loam, etc.)        | 0.14  | 0.86  |
+  | Water                           | 0.07  | 0.93  |
+  +---------------------------------+-------+-------+
+  | Artificial Surfaces             |       |       |
+  |---------------------------------|-------|-------|
+  | Bituminous and gravel roof      | 0.13  | 0.87  |
+  | Blacktop, old                   | 0.10  | 0.90  |
+  | Dark building surfaces          | 0.27  | 0.73  |
+  | Light building surfaces         | 0.60  | 0.40  |
+  | New concrete                    | 0.35  | 0.65  |
+  | Old concrete                    | 0.25  | 0.75  |
+  | Crushed rock surface            | 0.20  | 0.80  |
+  | Earth roads                     | 0.04  | 0.96  |
+  +---------------------------------+-------+-------+
+  | Vegetation                      |       |       |
+  |---------------------------------|-------|-------|
+  | Coniferous forest (winter)      | 0.07  | 0.93  |
+  | Dead leaves                     | 0.30  | 0.70  |
+  | Forests in autumn, ripe crops   | 0.26  | 0.74  |
+  | Dry grass                       | 0.20  | 0.80  |
+  +---------------------------------+-------+-------+
 
   Args:
     alpha (float): absorptivity
@@ -44,11 +70,15 @@ class RadiationProperties:
     tau (float): transmittance
   """
 
-  alpha: float = 0.0  # absorptivity
-  epsilon: float = 0.0  # emissivity
-  tau: float = 0.0  # transmittance
+  alpha: float  # absorptivity
+  epsilon: float  # emissivity
+  tau: float  # transmittance
 
-  def __post_init__(self):
+  def __init__(self, alpha: float, epsilon: float, tau: float):
+    self.alpha = alpha
+    self.epsilon = epsilon
+    self.tau = tau
+
     if self.alpha < 0 or self.alpha > 1:
       raise ValueError("The value for alpha should be between 0 and 1.")
 
@@ -57,6 +87,32 @@ class RadiationProperties:
 
     if self.tau < 0 or self.tau > 1:
       raise ValueError("The value for tau should be between 0 and 1.")
+
+    # Check that the sum of radiative properties is either 0 or 1
+    total = self.alpha + self.epsilon + self.tau
+    if not (abs(total - 0.0) < 1e-10 or abs(total - 1.0) < 1e-10):
+      raise ValueError(
+          f"The sum of alpha ({self.alpha}), epsilon ({self.epsilon}), "
+          f"and tau ({self.tau}) must be either 0 or 1, but got {total}."
+      )
+
+
+class DefaultInsideAirRadiationProperties(RadiationProperties):
+  # air
+  def __init__(self):
+    super().__init__(alpha=0.0, epsilon=0.0, tau=1.0)
+
+
+class DefaultInsideWallRadiationProperties(RadiationProperties):
+  # light building surfaces
+  def __init__(self):
+    super().__init__(alpha=0.4, epsilon=0.6, tau=0.0)
+
+
+class DefaultExteriorWallRadiationProperties(RadiationProperties):
+  # new concrete
+  def __init__(self):
+    super().__init__(alpha=0.65, epsilon=0.35, tau=0.0)
 
 
 def _check_room_sizes(matrix_shape: Shape2D, room_shape: Shape2D):
@@ -892,15 +948,15 @@ class FloorPlanBasedBuilding(BaseSimulatorBuilding):
       # by default, all radiative properties are 0.0
       inside_wall_radiative_properties = (
           inside_wall_radiative_properties
-          or RadiationProperties(epsilon=0.0, alpha=0.0, tau=0.0)
+          or DefaultInsideWallRadiationProperties()
       )
       building_exterior_radiative_properties = (
           building_exterior_radiative_properties
-          or RadiationProperties(epsilon=0.0, alpha=0.0, tau=0.0)
+          or DefaultExteriorWallRadiationProperties()
       )
       inside_air_radiative_properties = (
           inside_air_radiative_properties
-          or RadiationProperties(epsilon=0.0, alpha=0.0, tau=0.0)
+          or DefaultInsideAirRadiationProperties()
       )
 
       # emissivity
