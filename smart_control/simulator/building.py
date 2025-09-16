@@ -34,50 +34,46 @@ class RadiationProperties:
 
   All property values should be between 0 and 1 (inclusive).
 
-  Source: Table 16-6, Cengel, Y.A. (2007) Heat and Mass Transfer
-    (a Practical Approach). 3rd Edition, McGraw-Hill.
-  +---------------------------------+-------+-------+
-  | Surface                         |epsilon| alpha |
-  +---------------------------------+-------+-------+
-  | Natural Surfaces                |       |       |
-  |---------------------------------|-------|-------|
-  | Fresh snow                      | 0.75  | 0.25  |
-  | Soils (clay, loam, etc.)        | 0.14  | 0.86  |
-  | Water                           | 0.07  | 0.93  |
-  +---------------------------------+-------+-------+
-  | Artificial Surfaces             |       |       |
-  |---------------------------------|-------|-------|
-  | Bituminous and gravel roof      | 0.13  | 0.87  |
-  | Blacktop, old                   | 0.10  | 0.90  |
-  | Dark building surfaces          | 0.27  | 0.73  |
-  | Light building surfaces         | 0.60  | 0.40  |
-  | New concrete                    | 0.35  | 0.65  |
-  | Old concrete                    | 0.25  | 0.75  |
-  | Crushed rock surface            | 0.20  | 0.80  |
-  | Earth roads                     | 0.04  | 0.96  |
-  +---------------------------------+-------+-------+
-  | Vegetation                      |       |       |
-  |---------------------------------|-------|-------|
-  | Coniferous forest (winter)      | 0.07  | 0.93  |
-  | Dead leaves                     | 0.30  | 0.70  |
-  | Forests in autumn, ripe crops   | 0.26  | 0.74  |
-  | Dry grass                       | 0.20  | 0.80  |
-  +---------------------------------+-------+-------+
+  Source: Table 4.5, Mitchell, John W., and James E. Braun. Principles of
+  heating, ventilation, and air conditioning in buildings. John Wiley & Sons,
+  2012.
+  Table 4.5 Long-wave and solar emissivity for building surfaces
+  | Material            |epsilon Long-wave emissivity|alpha Solar absorptivity|
+  |---------------------|----------------------------|------------------------|
+  | Building materials  | 0.90-0.96                  | 0.6-0.7                |
+  | Wood                | 0.9                        | 0.9-0.96               |
+  | Dark-colored paints | 0.91-0.95                  | 0.98                   |
+  | Light-colored paints| 0.8                        | 0.2                    |
+  | Galvanized metal    | 0.28                       | 0.8                    |
+  | Aluminum, polished  | 0.03                       | 0.09                   |
+  | Window glass        | 0.9-0.95                   | 0.02-0.04              |
+  | Water               | 0.96                       | 0.1-1*                 |
+  | Ice                 | 0.95                       | 0.3-0.4                |
+  * Depends strongly on zenith angle; is close to unity for small angles and
+    close to zero for large angles.
 
   Args:
     alpha (float): absorptivity
+    rho (float): reflectivity
     epsilon (float): emissivity
     tau (float): transmittance
   """
 
   alpha: float  # absorptivity
+  rho: float  # reflectivity
   epsilon: float  # emissivity
   tau: float  # transmittance
 
-  def __init__(self, alpha: float, epsilon: float, tau: float):
+  def __init__(
+      self, alpha: float, epsilon: float, tau: float, rho: float = None
+  ):
     self.alpha = alpha
+    self.rho = rho
     self.epsilon = epsilon
     self.tau = tau
+
+    if self.rho is None:
+      self.rho = 1 - self.alpha - self.tau
 
     if self.alpha < 0 or self.alpha > 1:
       raise ValueError("The value for alpha should be between 0 and 1.")
@@ -88,11 +84,14 @@ class RadiationProperties:
     if self.tau < 0 or self.tau > 1:
       raise ValueError("The value for tau should be between 0 and 1.")
 
+    if self.rho < 0 or self.rho > 1:
+      raise ValueError("The value for rho should be between 0 and 1.")
+
     # Check that the sum of radiative properties is either 0 or 1
-    total = self.alpha + self.epsilon + self.tau
+    total = self.alpha + self.rho + self.tau
     if not (abs(total - 0.0) < 1e-10 or abs(total - 1.0) < 1e-10):
       raise ValueError(
-          f"The sum of alpha ({self.alpha}), epsilon ({self.epsilon}), "
+          f"The sum of alpha ({self.alpha}), rho ({self.rho}), "
           f"and tau ({self.tau}) must be either 0 or 1, but got {total}."
       )
 
@@ -100,19 +99,19 @@ class RadiationProperties:
 class DefaultInsideAirRadiationProperties(RadiationProperties):
   # air
   def __init__(self):
-    super().__init__(alpha=0.0, epsilon=0.0, tau=1.0)
+    super().__init__(alpha=0.0, epsilon=0.0, tau=1.0, rho=0.0)
 
 
 class DefaultInsideWallRadiationProperties(RadiationProperties):
-  # light building surfaces
+  # light colored paints
   def __init__(self):
-    super().__init__(alpha=0.4, epsilon=0.6, tau=0.0)
+    super().__init__(alpha=0.2, epsilon=0.8, tau=0.0, rho=0.8)
 
 
 class DefaultExteriorWallRadiationProperties(RadiationProperties):
-  # new concrete
+  # Building materials
   def __init__(self):
-    super().__init__(alpha=0.65, epsilon=0.35, tau=0.0)
+    super().__init__(alpha=0.65, epsilon=0.93, tau=0.0, rho=0.35)
 
 
 def _check_room_sizes(matrix_shape: Shape2D, room_shape: Shape2D):

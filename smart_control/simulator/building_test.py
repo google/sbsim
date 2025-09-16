@@ -1736,11 +1736,11 @@ class BuildingTest(parameterized.TestCase):
       with self.assertRaises(ValueError):
         building.RadiationProperties(tau=1.5, alpha=0.0, epsilon=0.0)
 
-    with self.subTest("sum of alpha, epsilon, and tau should be 1"):
+    with self.subTest("sum of alpha, rho, and tau should be 1"):
       with self.assertRaises(ValueError):
-        building.RadiationProperties(alpha=0.5, epsilon=0.5, tau=0.5)
+        building.RadiationProperties(alpha=0.5, epsilon=0.5, tau=0.6, rho=None)
       with self.assertRaises(ValueError):
-        building.RadiationProperties(alpha=0.5, epsilon=0.5, tau=0.5)
+        building.RadiationProperties(alpha=0.5, epsilon=0.5, tau=0.5, rho=0.1)
 
   def _create_building_with_radiative_properties(
       self, view_factor_method="ScriptF", floor_plan=None
@@ -1784,14 +1784,14 @@ class BuildingTest(parameterized.TestCase):
         conductivity=0.05, heat_capacity=500.0, density=3000.0
     )
 
-    inside_air_radiative_properties = (
-        building.DefaultInsideAirRadiationProperties()
+    inside_air_radiative_properties = building.RadiationProperties(
+        alpha=0.0, epsilon=0.0, tau=1.0, rho=None
     )
-    inside_wall_radiative_properties = (
-        building.DefaultInsideWallRadiationProperties()
+    inside_wall_radiative_properties = building.RadiationProperties(
+        alpha=0.4, epsilon=0.6, tau=0.0, rho=None
     )
-    building_exterior_radiative_properties = (
-        building.DefaultExteriorWallRadiationProperties()
+    building_exterior_radiative_properties = building.RadiationProperties(
+        alpha=0.65, epsilon=0.35, tau=0.0, rho=None
     )
 
     zone_map = copy.deepcopy(floor_plan)
@@ -1919,7 +1919,7 @@ class BuildingTest(parameterized.TestCase):
 
       expected_epsilon = np.array([
           [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-          [0.0,0.35, 0.35, 0.35,0.35,0.35,0.35,0.35, 0.35,0.35,0.35,0.0],
+          [0.0, 0.35, 0.35, 0.35,0.35,0.35,0.35,0.35, 0.35,0.35,0.35,0.0],
           [0.0, 0.35, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.35, 0.0],
           [0.0, 0.35, 0.6, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.6, 0.35, 0.0],
           [0.0, 0.35, 0.6, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.6, 0.35, 0.0],

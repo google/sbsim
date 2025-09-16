@@ -228,14 +228,14 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
     zone_map = copy.deepcopy(floor_plan)
 
     if include_radiative_heat_transfer:
-      inside_air_radiative_properties = (
-          building_py.DefaultInsideAirRadiationProperties()
+      inside_air_radiative_properties = building_py.RadiationProperties(
+          alpha=0.0, epsilon=0.0, tau=1.0, rho=None
       )
-      inside_wall_radiative_properties = (
-          building_py.DefaultInsideWallRadiationProperties()
+      inside_wall_radiative_properties = building_py.RadiationProperties(
+          alpha=0.4, epsilon=0.6, tau=0.0, rho=None
       )
-      building_exterior_radiative_properties = (
-          building_py.DefaultExteriorWallRadiationProperties()
+      building_exterior_radiative_properties = building_py.RadiationProperties(
+          alpha=0.65, epsilon=0.35, tau=0.0, rho=None
       )
 
       building = building_py.FloorPlanBasedBuilding(
