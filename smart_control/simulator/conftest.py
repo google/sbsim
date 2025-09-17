@@ -39,6 +39,9 @@ def create_building_with_radiative_properties(
     initial_temp: float = 292.0,
     cv_size_cm: float = 20.0,
     floor_height_cm: float = 300.0,
+    inside_air_radiative_properties: building.RadiationProperties = None,
+    inside_wall_radiative_properties: building.RadiationProperties = None,
+    building_exterior_radiative_properties: building.RadiationProperties = None,
 ):
 
   inside_air_properties = building.MaterialProperties(
@@ -51,14 +54,15 @@ def create_building_with_radiative_properties(
       conductivity=0.05, heat_capacity=500.0, density=3000.0
   )
 
-  inside_air_radiative_properties = (
+  inside_air_radiative_properties = inside_air_radiative_properties or (
       building.DefaultInsideAirRadiationProperties()
   )
-  inside_wall_radiative_properties = (
+  inside_wall_radiative_properties = inside_wall_radiative_properties or (
       building.DefaultInsideWallRadiationProperties()
   )
   building_exterior_radiative_properties = (
-      building.DefaultExteriorWallRadiationProperties()
+      building_exterior_radiative_properties
+      or building.DefaultExteriorWallRadiationProperties()
   )
 
   zone_map = copy.deepcopy(floor_plan)
