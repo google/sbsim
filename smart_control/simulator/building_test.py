@@ -1716,7 +1716,11 @@ class BuildingTest(parameterized.TestCase):
     self.assertEqual(b.temp[3][2], vals[2])
     self.assertEqual(b.temp[3][3], vals[3])
 
-  def test_radiation_properties(self):
+  #
+  # RADIATION TESTS
+  #
+
+  def test_radiation_property_validations(self):
 
     with self.subTest("alpha should be between 0 and 1"):
       with self.assertRaises(ValueError):
@@ -1741,6 +1745,28 @@ class BuildingTest(parameterized.TestCase):
         building.RadiationProperties(alpha=0.5, epsilon=0.5, tau=0.6, rho=None)
       with self.assertRaises(ValueError):
         building.RadiationProperties(alpha=0.5, epsilon=0.5, tau=0.5, rho=0.1)
+
+  def test_radiation_property_defaults(self):
+    with self.subTest("inside air defaults:"):
+      props = building.DefaultInsideAirRadiationProperties()
+      self.assertEqual(props.alpha, 0)
+      self.assertEqual(props.epsilon, 0)
+      self.assertEqual(props.tau, 1)
+      self.assertEqual(props.rho, 0)
+
+    with self.subTest("inside wall defaults:"):
+      props = building.DefaultInsideWallRadiationProperties()
+      self.assertEqual(props.alpha, 0.2)
+      self.assertEqual(props.epsilon, 0.8)
+      self.assertEqual(props.tau, 0)
+      self.assertEqual(props.rho, 0.8)
+
+    with self.subTest("exterior wall defaults"):
+      props = building.DefaultExteriorWallRadiationProperties()
+      self.assertEqual(props.alpha, 0.65)
+      self.assertEqual(props.epsilon, 0.93)
+      self.assertEqual(props.tau, 0)
+      self.assertEqual(props.rho, 0.35)
 
   def _create_building_with_radiative_properties(
       self, view_factor_method="ScriptF", floor_plan=None
@@ -1784,14 +1810,14 @@ class BuildingTest(parameterized.TestCase):
         conductivity=0.05, heat_capacity=500.0, density=3000.0
     )
 
-    inside_air_radiative_properties = building.RadiationProperties(
-        alpha=0.0, epsilon=0.0, tau=1.0, rho=None
+    inside_air_radiative_properties = (
+        building.DefaultInsideAirRadiationProperties()
     )
-    inside_wall_radiative_properties = building.RadiationProperties(
-        alpha=0.4, epsilon=0.6, tau=0.0, rho=None
+    inside_wall_radiative_properties = (
+        building.DefaultInsideWallRadiationProperties()
     )
-    building_exterior_radiative_properties = building.RadiationProperties(
-        alpha=0.65, epsilon=0.35, tau=0.0, rho=None
+    building_exterior_radiative_properties = (
+        building.DefaultExteriorWallRadiationProperties()
     )
 
     zone_map = copy.deepcopy(floor_plan)

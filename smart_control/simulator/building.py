@@ -29,48 +29,98 @@ class MaterialProperties:
   density: float
 
 
+@gin.configurable
+# @dataclasses.dataclass
 class RadiationProperties:
   """Holds the radiative properties for a material.
 
-  All property values should be between 0 and 1 (inclusive).
-
-  Source: Table 4.5, Mitchell, John W., and James E. Braun. Principles of
-  heating, ventilation, and air conditioning in buildings. John Wiley & Sons,
-  2012.
-  Table 4.5 Long-wave and solar emissivity for building surfaces
-  | Material            |epsilon Long-wave emissivity|alpha Solar absorptivity|
-  |---------------------|----------------------------|------------------------|
-  | Building materials  | 0.90-0.96                  | 0.6-0.7                |
-  | Wood                | 0.9                        | 0.9-0.96               |
-  | Dark-colored paints | 0.91-0.95                  | 0.98                   |
-  | Light-colored paints| 0.8                        | 0.2                    |
-  | Galvanized metal    | 0.28                       | 0.8                    |
-  | Aluminum, polished  | 0.03                       | 0.09                   |
-  | Window glass        | 0.9-0.95                   | 0.02-0.04              |
-  | Water               | 0.96                       | 0.1-1*                 |
-  | Ice                 | 0.95                       | 0.3-0.4                |
-  * Depends strongly on zenith angle; is close to unity for small angles and
-    close to zero for large angles.
-
   Args:
-    alpha (float): absorptivity
-    rho (float): reflectivity
-    epsilon (float): emissivity
-    tau (float): transmittance
+    alpha (float): absorptivity. Absorptivity is the fraction of incident
+      radiative heat that is absorbed by a surface. When radiation strikes a
+      surface, a portion of its energy is converted into internal thermal
+      energy, causing the temperature of the surface to rise.
+      A value of 1 means the surface is a "black body" and absorbs all incident
+      radiation, while a value of 0 means it absorbs none.
+    epsilon (float): emissivity. Emissivity is a measure of a surface's ability
+      to emit thermal radiation. It is the ratio of the radiation emitted by a
+      surface to the radiation emitted by a perfect black body at the same
+      temperature. A black body has an emissivity of 1, as it is a perfect
+      emitter. A surface with an emissivity of 0 is a theoretical "white body"
+      that cannot emit radiation. High emissivity surfaces (like matte black
+      paint) are excellent radiators of heat, while low emissivity surfaces
+      (like polished metal) are poor radiators.
+    tau (float): transmittance. Transmittance is the fraction of incident
+      radiative heat that passes through a medium without being absorbed or
+      reflected. This property is particularly relevant for modeling radiation
+      through transparent or semi-transparent materials, such as glass, air, or
+      other gases. For an opaque surface, the transmittance is always 0 because
+      no radiation passes through it. For a perfectly transparent medium, the
+      transmittance is always 1.
+    rho (float): reflectivity. Reflectivity is the fraction of incident
+      radiative heat that is reflected away from a surface. When radiation hits
+      a surface, some of it bounces off. A highly polished, shiny surface will
+      have a high reflectivity (approaching 1), while a dull, dark surface will
+      have low reflectivity (approaching 0).
+
+  Relationship between the properties:
+
+    + For any surface, the sum of absorptivity, reflectivity, and transmittance
+      must equal 1, as all incident radiation is either absorbed, reflected, or
+      transmitted.
+    + For an opaque (non-transparent) surface, where transmittance is 0, the sum
+      of absorptivity and reflectivity must equal 1, as all incident radiation
+      is either absorbed or reflected.
+
+  Each of the property values should be between 0 and 1 (inclusive). Example
+  values for various common materials are displayed in the tables below.
+
+  Natural Surfaces:
+
+  | Surface                  | epsilon | alpha |
+  |--------------------------|---------|-------|
+  | Fresh snow               | 0.75    | 0.25  |
+  | Soils (clay, loam, etc.) | 0.14    | 0.86  |
+  | Water                    | 0.07    | 0.93  |
+
+  Artificial Surfaces:
+
+  | Surface                    | epsilon | alpha |
+  |----------------------------|---------|-------|
+  | Bituminous and gravel roof | 0.13    | 0.87  |
+  | Blacktop, old              | 0.10    | 0.90  |
+  | Dark building surfaces     | 0.27    | 0.73  |
+  | Light building surfaces    | 0.60    | 0.40  |
+  | New concrete               | 0.35    | 0.65  |
+  | Old concrete               | 0.25    | 0.75  |
+  | Crushed rock surface       | 0.20    | 0.80  |
+  | Earth roads                | 0.04    | 0.96  |
+
+  Vegetation:
+
+  | Surface                       | epsilon | alpha |
+  |-------------------------------|---------|-------|
+  | Coniferous forest (winter)    | 0.07    | 0.93  |
+  | Dead leaves                   | 0.30    | 0.70  |
+  | Forests in autumn, ripe crops | 0.26    | 0.74  |
+  | Dry grass                     | 0.20    | 0.80  |
+
+  Source:
+    Table 16-6, Cengel, Y.A. (2007). *Heat and Mass Transfer (a Practical
+    Approach)*. 3rd Edition, McGraw-Hill.
   """
 
-  alpha: float  # absorptivity
-  rho: float  # reflectivity
-  epsilon: float  # emissivity
-  tau: float  # transmittance
+  # alpha: float  # absorptivity
+  # rho: float  # reflectivity
+  # epsilon: float  # emissivity
+  # tau: float  # transmittance
 
   def __init__(
       self, alpha: float, epsilon: float, tau: float, rho: float = None
   ):
-    self.alpha = alpha
+    self.alpha = float(alpha)
+    self.epsilon = float(epsilon)
+    self.tau = float(tau)
     self.rho = rho
-    self.epsilon = epsilon
-    self.tau = tau
 
     if self.rho is None:
       self.rho = 1 - self.alpha - self.tau
@@ -87,29 +137,34 @@ class RadiationProperties:
     if self.rho < 0 or self.rho > 1:
       raise ValueError("The value for rho should be between 0 and 1.")
 
-    # Check that the sum of radiative properties is either 0 or 1
+    # Check that the sum of certain radiative properties is equal to 1:
     total = self.alpha + self.rho + self.tau
-    if not (abs(total - 0.0) < 1e-10 or abs(total - 1.0) < 1e-10):
+    # if (abs(total - 0.0) < 1e-10 or abs(total - 1.0) < 1e-10):
+    # if not total == 1: #
+    if abs(total - 1.0) > 1e-10:
       raise ValueError(
           f"The sum of alpha ({self.alpha}), rho ({self.rho}), "
-          f"and tau ({self.tau}) must be either 0 or 1, but got {total}."
+          f"and tau ({self.tau}) must equal 1, but got {total}."
       )
 
 
 class DefaultInsideAirRadiationProperties(RadiationProperties):
-  # air
+  """The default radiation properties for inside air."""
+
   def __init__(self):
     super().__init__(alpha=0.0, epsilon=0.0, tau=1.0, rho=0.0)
 
 
 class DefaultInsideWallRadiationProperties(RadiationProperties):
-  # light colored paints
+  """The default radiation properties for light colored paints."""
+
   def __init__(self):
     super().__init__(alpha=0.2, epsilon=0.8, tau=0.0, rho=0.8)
 
 
 class DefaultExteriorWallRadiationProperties(RadiationProperties):
-  # Building materials
+  """The default radiation properties for building materials."""
+
   def __init__(self):
     super().__init__(alpha=0.65, epsilon=0.93, tau=0.0, rho=0.35)
 
