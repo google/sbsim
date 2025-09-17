@@ -30,7 +30,7 @@ class MaterialProperties:
 
 
 @gin.configurable
-# @dataclasses.dataclass
+@dataclasses.dataclass
 class RadiationProperties:
   """Holds the radiative properties for a material.
 
@@ -109,19 +109,12 @@ class RadiationProperties:
     Approach)*. 3rd Edition, McGraw-Hill.
   """
 
-  # alpha: float  # absorptivity
-  # rho: float  # reflectivity
-  # epsilon: float  # emissivity
-  # tau: float  # transmittance
+  alpha: float  # absorptivity
+  epsilon: float  # emissivity
+  tau: float  # transmittance
+  rho: float | None = None  # reflectivity
 
-  def __init__(
-      self, alpha: float, epsilon: float, tau: float, rho: float = None
-  ):
-    self.alpha = float(alpha)
-    self.epsilon = float(epsilon)
-    self.tau = float(tau)
-    self.rho = rho
-
+  def __post_init__(self):
     if self.rho is None:
       self.rho = 1 - self.alpha - self.tau
 
@@ -139,8 +132,6 @@ class RadiationProperties:
 
     # Check that the sum of certain radiative properties is equal to 1:
     total = self.alpha + self.rho + self.tau
-    # if (abs(total - 0.0) < 1e-10 or abs(total - 1.0) < 1e-10):
-    # if not total == 1: #
     if abs(total - 1.0) > 1e-10:
       raise ValueError(
           f"The sum of alpha ({self.alpha}), rho ({self.rho}), "
@@ -148,6 +139,7 @@ class RadiationProperties:
       )
 
 
+@dataclasses.dataclass
 class DefaultInsideAirRadiationProperties(RadiationProperties):
   """The default radiation properties for inside air."""
 
@@ -155,6 +147,7 @@ class DefaultInsideAirRadiationProperties(RadiationProperties):
     super().__init__(alpha=0.0, epsilon=0.0, tau=1.0, rho=0.0)
 
 
+@dataclasses.dataclass
 class DefaultInsideWallRadiationProperties(RadiationProperties):
   """The default radiation properties for light colored paints."""
 
@@ -162,6 +155,7 @@ class DefaultInsideWallRadiationProperties(RadiationProperties):
     super().__init__(alpha=0.2, epsilon=0.8, tau=0.0, rho=0.8)
 
 
+@dataclasses.dataclass
 class DefaultExteriorWallRadiationProperties(RadiationProperties):
   """The default radiation properties for building materials."""
 
