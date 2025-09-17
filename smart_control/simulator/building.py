@@ -1192,9 +1192,7 @@ class FloorPlanBasedBuilding(BaseSimulatorBuilding):
 
     This function calculates the net radiative heat flux and radiosity for each
     interior wall.
-
     """
-
     q_lwx = building_radiation_utils.net_radiative_heatflux_function_of_T(
         temperature_estimates[self.interior_wall_mask], self.IFAinv
     )
