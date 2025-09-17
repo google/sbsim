@@ -1190,7 +1190,6 @@ class FloorPlanBasedBuilding(BaseSimulatorBuilding):
     if self._convection_simulator is not None:
       self._convection_simulator.apply_convection(self._room_dict, self.temp)
 
-  # Radiative heat transfer
   def apply_longwave_interior_radiative_heat_transfer(
       self, temperature_estimates: np.ndarray
   ) -> np.ndarray:

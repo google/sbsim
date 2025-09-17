@@ -4,18 +4,14 @@ from absl.testing import absltest
 import numpy as np
 from numpy.testing import assert_array_almost_equal
 
+from smart_control.simulator import building_radiation_utils as utils
 from smart_control.simulator import constants
-from smart_control.simulator.building_radiation_utils import calculate_A_tilde_inv
-from smart_control.simulator.building_radiation_utils import calculate_IFAinv
-from smart_control.simulator.building_radiation_utils import mark_air_connected_interior_walls
-from smart_control.simulator.building_radiation_utils import mark_directly_seeing_nodes
-from smart_control.simulator.building_radiation_utils import net_radiative_heatflux_function_of_T
 
 # we are choosing to keep the mathematical notation names
 # pylint: disable=invalid-name
 
 
-class RadiationUtilsTest(absltest.TestCase):
+class BuildingRadiationUtilsTest(absltest.TestCase):
 
   def test_calculate_A_tilde_inv_and_IFAinv(self):
     """Test calculation of A-tilde inverse and IFA inverse matrices.
@@ -41,8 +37,8 @@ class RadiationUtilsTest(absltest.TestCase):
         [-0.45021645, -0.19047619, 0.64069264],
     ])
 
-    A_tilde_inv = calculate_A_tilde_inv(epsilon, F)
-    IFAinv = calculate_IFAinv(F, A_tilde_inv)
+    A_tilde_inv = utils.calculate_A_tilde_inv(epsilon, F)
+    IFAinv = utils.calculate_IFAinv(F, A_tilde_inv)
     with self.subTest("A_tilde_inv shape"):
       self.assertEqual(A_tilde_inv.shape, F.shape)
     with self.subTest("IFAinv shape"):
@@ -74,7 +70,7 @@ class RadiationUtilsTest(absltest.TestCase):
     # pylint:enable=line-too-long
     expected_q = np.array([3.70061961e04, -3.69724724e04, -3.37237040e01])
 
-    q = net_radiative_heatflux_function_of_T(temperatures, IFAinv)
+    q = utils.net_radiative_heatflux_function_of_T(temperatures, IFAinv)
 
     with self.subTest("q results as expected"):
       assert_array_almost_equal(
@@ -164,7 +160,7 @@ class RadiationUtilsTest(absltest.TestCase):
     # Test case: Starting node at (2,3) - top-left corner
     # Tests 4-directional connectivity to find all interior walls connected
     #  to the same air space
-    result, _ = mark_air_connected_interior_walls(
+    result, _ = utils.mark_air_connected_interior_walls(
         indexed_floor_plan=indexed_floor_plan,
         start_pos=(2, 3),
         interior_wall_value=constants.INTERIOR_WALL_VALUE_IN_FUNCTION,
@@ -307,7 +303,7 @@ class RadiationUtilsTest(absltest.TestCase):
     # Test case 1: Starting node at (2,3) - top-left corner
     # Tests visibility from a corner position with clear line of sight to
     # some walls
-    result23_, _ = mark_air_connected_interior_walls(
+    result23_, _ = utils.mark_air_connected_interior_walls(
         indexed_floor_plan=indexed_floor_plan,
         start_pos=(2, 3),
         interior_wall_value=constants.INTERIOR_WALL_VALUE_IN_FUNCTION,
@@ -315,7 +311,7 @@ class RadiationUtilsTest(absltest.TestCase):
         air_value=constants.INTERIOR_SPACE_VALUE_IN_FUNCTION,
     )
 
-    result23 = mark_directly_seeing_nodes(
+    result23 = utils.mark_directly_seeing_nodes(
         floor_plan=result23_, base_node=(2, 3)
     )
 
@@ -326,7 +322,7 @@ class RadiationUtilsTest(absltest.TestCase):
     # Test case 2: Starting node at (2,7) - top-right corner
     # Tests visibility from another corner position with different line of
     # sight patterns
-    result27_, _ = mark_air_connected_interior_walls(
+    result27_, _ = utils.mark_air_connected_interior_walls(
         indexed_floor_plan=indexed_floor_plan,
         start_pos=(2, 7),
         interior_wall_value=constants.INTERIOR_WALL_VALUE_IN_FUNCTION,
@@ -334,7 +330,7 @@ class RadiationUtilsTest(absltest.TestCase):
         air_value=constants.INTERIOR_SPACE_VALUE_IN_FUNCTION,
     )
 
-    result27 = mark_directly_seeing_nodes(
+    result27 = utils.mark_directly_seeing_nodes(
         floor_plan=result27_, base_node=(2, 7)
     )
 
@@ -345,7 +341,7 @@ class RadiationUtilsTest(absltest.TestCase):
     # Test case 3: Starting node at (11,6) - bottom-center
     # Tests visibility from a center position with complex line of sight
     # through interior walls
-    result116_, _ = mark_air_connected_interior_walls(
+    result116_, _ = utils.mark_air_connected_interior_walls(
         indexed_floor_plan=indexed_floor_plan,
         start_pos=(11, 6),
         interior_wall_value=constants.INTERIOR_WALL_VALUE_IN_FUNCTION,
@@ -353,7 +349,7 @@ class RadiationUtilsTest(absltest.TestCase):
         air_value=constants.INTERIOR_SPACE_VALUE_IN_FUNCTION,
     )
 
-    result116 = mark_directly_seeing_nodes(
+    result116 = utils.mark_directly_seeing_nodes(
         floor_plan=result116_, base_node=(11, 6)
     )
 

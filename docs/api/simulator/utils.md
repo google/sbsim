@@ -4,7 +4,7 @@
 
 ::: smart_control.simulator.building_utils
 
-::: smart_control.simulator.building_radiation_utils
+::: smart_control.simulator.building_radiation.radiation_utils
     options:
       members_order: source
 

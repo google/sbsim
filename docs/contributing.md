@@ -64,7 +64,7 @@ See existing test files for example structure. Here is a simplified example:
 
 from absl.testing import absltest
 
-class TestCalculate(absltest.TestCase):
+class CalculatorTest(absltest.TestCase):
 
   def test_addition(self):
     self.assertEqual(2+2, 4)

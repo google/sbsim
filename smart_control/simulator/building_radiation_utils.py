@@ -11,11 +11,11 @@ import numpy as np
 
 from smart_control.simulator import constants
 
-# we are choosing to keep the mathematical notation names for the functions and
-# variables in this file
-# pylint: disable=invalid-name
 TEMPORARY_MARKED_VALUE = -33
 TEMPORARY_BLOCKED_VALUE = -34
+
+# we are choosing to keep the mathematical notation in this file
+# pylint: disable=invalid-name
 
 
 def calculate_A_tilde_inv(epsilon: np.ndarray, F: np.ndarray) -> np.ndarray:
