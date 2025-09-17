@@ -965,12 +965,12 @@ class FloorPlanBasedBuilding(BaseSimulatorBuilding):
       self.view_factor_method = view_factor_method
 
       self.indexed_floor_plan = self.floor_plan.copy()
-      # 2=>-1
+      # convert values from 2 to -1:
       self.indexed_floor_plan[
           self.indexed_floor_plan
           == constants.EXTERIOR_SPACE_VALUE_IN_FILE_INPUT
       ] = constants.EXTERIOR_SPACE_VALUE_IN_FUNCTION
-      # 1 to -3
+      # convert values from 1 to -3:
       self.indexed_floor_plan[
           self.indexed_floor_plan == constants.INTERIOR_WALL_VALUE_IN_FILE_INPUT
       ] = constants.INTERIOR_WALL_VALUE_IN_FUNCTION
@@ -993,7 +993,6 @@ class FloorPlanBasedBuilding(BaseSimulatorBuilding):
       )
 
       # radiative properties
-      # by default, all radiative properties are 0.0
       inside_wall_radiative_properties = (
           inside_wall_radiative_properties
           or DefaultInsideWallRadiationProperties()
@@ -1031,6 +1030,7 @@ class FloorPlanBasedBuilding(BaseSimulatorBuilding):
           exterior_wall_value=building_exterior_radiative_properties.tau,
           interior_and_exterior_space_value=inside_air_radiative_properties.tau,
       )
+
       epsilon_vector = self._epsilon[self.interior_wall_mask]
       A_tilde_inv = building_radiation_utils.calculate_A_tilde_inv(  # pylint: disable=invalid-name
           epsilon_vector, self.interior_wall_VF
