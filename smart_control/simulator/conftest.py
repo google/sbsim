@@ -34,12 +34,12 @@ FLOOR_PLAN = np.array([
 
 
 def create_building_with_radiative_properties(
-    view_factor_method="ScriptF", floor_plan=FLOOR_PLAN
+    view_factor_method: str = "ScriptF",
+    floor_plan: np.array = FLOOR_PLAN,
+    initial_temp: float = 292.0,
+    cv_size_cm: float = 20.0,
+    floor_height_cm: float = 300.0,
 ):
-
-  initial_temp = 292.0
-  cv_size_cm = 20.0
-  floor_height_cm = 300.0
 
   inside_air_properties = building.MaterialProperties(
       conductivity=50.0, heat_capacity=700.0, density=1.0
