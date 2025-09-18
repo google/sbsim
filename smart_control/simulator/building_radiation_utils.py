@@ -583,7 +583,7 @@ def mark_interior_wall_adjacent_to_air(
     arr: 2D array representing the floor plan with interior walls marked as
       interior_wall_value and air spaces as 0.
     interior_wall_value: Value used to represent interior walls in the floor
-    plan. Defaults to -3 (constants.INTERIOR_WALL_VALUE_IN_FUNCTION).
+      plan. Defaults to -3 (constants.INTERIOR_WALL_VALUE_IN_FUNCTION).
 
   Returns:
     Boolean mask array where True indicates an interior wall that is adjacent to
@@ -710,9 +710,9 @@ def is_line_blocked(
       interior_wall_value: Value used to represent interior walls in the floor
           plan. Defaults to -3 (from constants.py).
       marked_value: Value used to represent marked wall nodes. Only used
-        internally. Defaults: -33. Only used internally.
+          internally. Defaults: -33. Only used internally.
       blocked_value: Value used to represent blocked wall nodes. Only used
-        internally. Default: -34. Only used internally.
+          internally. Default: -34. Only used internally.
 
 
   Returns:

@@ -271,7 +271,7 @@ def get_cv_mapping(
 def get_cv_dimension_tensors(
     control_volume_cm: float,
     boundary_cv_mapping: BoundaryCVMapping,
-    shape=tuple[int, int],
+    shape: tuple[int, int],
 ) -> tuple[tf.Tensor, tf.Tensor]:
   """Returns horizontal and vertical CV dimension tensors.
 
