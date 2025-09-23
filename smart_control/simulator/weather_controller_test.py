@@ -25,7 +25,7 @@ import pandas as pd
 from smart_buildings.smart_control.simulator import weather_controller
 
 
-# pylint: disable=g-long-lambda
+# pylint: disable=g-long-lambda, unnecessary-lambda-assignment # TODO: consider using named functions instead
 class WeatherControllerTest(parameterized.TestCase):
 
   def test_init_attributes(self):

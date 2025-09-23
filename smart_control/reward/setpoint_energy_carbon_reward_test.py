@@ -13,13 +13,13 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
-
 """
 
 from absl import logging
 from absl.testing import absltest
 from absl.testing import parameterized
 import pandas as pd
+
 from smart_buildings.smart_control.models.base_energy_cost import BaseEnergyCost
 from smart_buildings.smart_control.proto import smart_control_reward_pb2
 from smart_buildings.smart_control.reward import setpoint_energy_carbon_reward
@@ -231,11 +231,19 @@ class SetpointEnergyCarbonRewardTest(parameterized.TestCase):
 
 
 class TestEnergyCost(BaseEnergyCost):
+  """Calculates energy cost and carbon emissions based on fixed rates.
+
+  Used for testing purposes.
+
+  TODO: https://github.com/google/sbsim/issues/49 - refactor identical classes:
+    smart_control/reward/base_setpoint_energy_carbon_reward_test.py
+    smart_control/reward/setpoint_energy_carbon_regret_test.py
+  """
 
   def __init__(self, usd_per_kwh: float, kg_per_kwh: float):
     # Energy price in USD/Watt second (fixed schedule)
     # To convert denominator units hours to seconds, divide by 3600.0, and to
-    # convert kW to W, divide by 1000. This leaves us with an enegy price
+    # convert kW to W, divide by 1000. This leaves us with an energy price
     # in USD /W /s and carbon rate of kg /W /s.
     self._energy_price = usd_per_kwh / 3600.0 / 1000.0
     self._carbon_rate = kg_per_kwh / 3600.0 / 1000.0

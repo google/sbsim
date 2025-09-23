@@ -13,12 +13,13 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
-
 """
 
 import math
 from typing import Callable, Mapping, NewType
+
 import gin
+
 from smart_buildings.smart_control.models import base_normalizer
 from smart_buildings.smart_control.proto import smart_control_building_pb2
 from smart_buildings.smart_control.proto import smart_control_normalization_pb2
@@ -131,7 +132,7 @@ class StandardScoreObservationNormalizer(
 
     for single_observation_response in obs_out.single_observation_responses:
       field_name = (
-          single_observation_response.single_observation_request.measurement_name
+          single_observation_response.single_observation_request.measurement_name  # pylint: disable=line-too-long
       )
       value = single_observation_response.continuous_value
       single_observation_response.continuous_value = transform_func(
