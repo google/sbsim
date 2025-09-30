@@ -32,7 +32,8 @@ class MaterialProperties:
 @gin.configurable
 @dataclasses.dataclass
 class RadiationProperties:
-  """Holds the radiative properties for a material.
+  # pylint: disable=line-too-long
+  r"""Holds the radiative properties for a material.
 
   Args:
     alpha (float): absorptivity. Absorptivity is the fraction of incident
@@ -74,21 +75,21 @@ class RadiationProperties:
   Each of the property values should be between 0 and 1 (inclusive). Example
   values for various common materials are displayed in the tables below.
 
-  Table 4.5 Long-wave and solar emissivity for building surfaces:
+  Long-wave and solar emissivity for building surfaces:
 
-  | Material            |epsilon Long-wave emissivity|alpha Solar absorptivity|
-  |---------------------|----------------------------|------------------------|
-  | Building materials  | 0.90-0.96                  | 0.6-0.7                |
-  | Wood                | 0.9                        | 0.9-0.96               |
-  | Dark-colored paints | 0.91-0.95                  | 0.98                   |
-  | Light-colored paints| 0.8                        | 0.2                    |
-  | Galvanized metal    | 0.28                       | 0.8                    |
-  | Aluminum, polished  | 0.03                       | 0.09                   |
-  | Window glass        | 0.9-0.95                   | 0.02-0.04              |
-  | Water               | 0.96                       | 0.1-1*                 |
-  | Ice                 | 0.95                       | 0.3-0.4                |
+  | Material            | Long-wave emissivity (epsilon) | Solar absorptivity (alpha) |
+  |---------------------|--------------------------------|------------------------------|
+  | Building materials  | 0.90 - 0.96                    | 0.6 - 0.7                    |
+  | Wood                | 0.9                            | 0.9 - 0.96                   |
+  | Dark-colored paints | 0.91 - 0.95                    | 0.98                         |
+  | Light-colored paints| 0.8                            | 0.2                          |
+  | Galvanized metal    | 0.28                           | 0.8                          |
+  | Aluminum, polished  | 0.03                           | 0.09                         |
+  | Window glass        | 0.9 - 0.95                     | 0.02 - 0.04                  |
+  | Water               | 0.96                           | 0.1 - 1*                     |
+  | Ice                 | 0.95                           | 0.3 - 0.4                    |
 
-  * Depends strongly on zenith angle; is close to unity for small angles and
+  \* Depends strongly on zenith angle; is close to unity for small angles and
     close to zero for large angles.
 
   Source:
@@ -96,6 +97,7 @@ class RadiationProperties:
     heating, ventilation, and air conditioning in buildings. John Wiley & Sons,
     2012.
   """
+  # pylint: enable=line-too-long
 
   alpha: float  # absorptivity
   epsilon: float  # emissivity
