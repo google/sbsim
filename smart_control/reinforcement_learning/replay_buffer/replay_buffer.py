@@ -90,15 +90,18 @@ class ReplayBufferManager:
 
     else:
       # ------ TFUniform fallback path ------
-      # For unbatched envs, batch_size=1 is standard.
       replay_buffer = TFUniformReplayBuffer(
           data_spec=self.data_spec,
-          batch_size=1,
+          batch_size=1,           # keep 1 since we’ll add a batch dim
           max_length=self.capacity,
       )
 
-      # In TFUniform, the driver observer is simply `replay_buffer.add_batch`.
-      observer = replay_buffer.add_batch
+      # Wrap observer to add a batch dimension expected by add_batch
+      def _uniform_observer(traj):
+          batched = tf.nest.map_structure(lambda t: tf.expand_dims(t, 0), traj)
+          replay_buffer.add_batch(batched)
+
+      observer = _uniform_observer
 
       self.server = None
       self.replay_buffer = replay_buffer
