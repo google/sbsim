@@ -1,4 +1,4 @@
-"""Single location for all constants related to the simulation and RL environment.
+"""Single location for constants related to the simulation and RL environment.
 
 Copyright 2022 Google LLC
 
@@ -16,6 +16,7 @@ limitations under the License.
 """
 
 from typing import Final
+
 # --------- Thermal Constants ---------------
 
 AIR_HEAT_CAPACITY = 1006.0  # J/kg/K, standard atmosphere
@@ -29,6 +30,9 @@ JOULES_PER_BTU: float = 1055.06
 W_PER_KW: float = 1000.0  # Number of Watts in a kW.
 WATTS_PER_BTU_HR: float = 0.29307107  # Number of Watts in a BTU/hr
 HZ_PERCENT: float = 100.0 / 60.0  # Converts blower/pump Hz to Percentage Power
+
+# --------- Pressure Constants ---------------
+PASCALS_PER_BAR: float = 100000.0  # Number of Pascals in a bar.
 
 # https://www.rapidtables.com/convert/power/hp-to-watt.html
 WATTS_PER_HORSEPOWER = 746.0
