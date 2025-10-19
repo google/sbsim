@@ -24,7 +24,6 @@ package(
 py_strict_test(
     name = "air_handler_test",
     srcs = ["air_handler_test.py"],
-    python_version = "PY3",
     deps = [
         ":air_handler",
         ":weather_controller",
@@ -39,7 +38,6 @@ py_strict_test(
 py_strict_test(
     name = "boiler_test",
     srcs = ["boiler_test.py"],
-    python_version = "PY3",
     deps = [
         ":boiler",
         "//third_party/py/absl/testing:absltest",
@@ -54,7 +52,6 @@ py_strict_test(
 py_strict_test(
     name = "building_test",
     srcs = ["building_test.py"],
-    python_version = "PY3",
     deps = [
         ":building",
         ":building_utils",
@@ -72,6 +69,7 @@ py_strict_test(
     srcs = ["building_utils_test.py"],
     deps = [
         ":building_utils",
+        "//third_party/py/absl/flags",
         "//third_party/py/absl/testing:absltest",
         "//third_party/py/absl/testing:parameterized",
         "//third_party/py/google/protobuf:use_fast_cpp_protos",  # Automatically added go/proto_python_upb_flip
@@ -97,7 +95,6 @@ py_strict_test(
 py_strict_test(
     name = "hvac_test",
     srcs = ["hvac_test.py"],
-    python_version = "PY3",
     deps = [
         ":air_handler",
         ":boiler",
@@ -113,7 +110,6 @@ py_strict_test(
 py_strict_test(
     name = "randomized_arrival_departure_occupancy_test",
     srcs = ["randomized_arrival_departure_occupancy_test.py"],
-    python_version = "PY3",
     deps = [
         ":randomized_arrival_departure_occupancy",
         "//third_party/py/absl/testing:absltest",
@@ -127,7 +123,6 @@ py_strict_test(
 py_strict_test(
     name = "rejection_simulator_building_test",
     srcs = ["rejection_simulator_building_test.py"],
-    python_version = "PY3",
     deps = [
         ":rejection_simulator_building",
         ":simulator_building",
@@ -142,7 +137,6 @@ py_strict_test(
 py_strict_test(
     name = "setpoint_schedule_test",
     srcs = ["setpoint_schedule_test.py"],
-    python_version = "PY3",
     deps = [
         ":setpoint_schedule",
         "//third_party/py/absl/testing:absltest",
@@ -156,7 +150,6 @@ py_strict_test(
 py_strict_test(
     name = "simulator_building_test",
     srcs = ["simulator_building_test.py"],
-    python_version = "PY3",
     deps = [
         ":simulator_building",
         ":simulator_building_test_lib",
@@ -190,7 +183,6 @@ py_strict_test(
 py_strict_test(
     name = "simulator_test",
     srcs = ["simulator_test.py"],
-    python_version = "PY3",
     deps = [
         ":air_handler",
         ":boiler",
@@ -212,7 +204,6 @@ py_strict_test(
 py_strict_test(
     name = "smart_device_test",
     srcs = ["smart_device_test.py"],
-    python_version = "PY3",
     deps = [
         ":smart_device",
         "//third_party/py/absl/testing:absltest",
@@ -225,7 +216,6 @@ py_strict_test(
 py_strict_test(
     name = "step_function_occupancy_test",
     srcs = ["step_function_occupancy_test.py"],
-    python_version = "PY3",
     deps = [
         ":step_function_occupancy",
         "//third_party/py/absl/testing:absltest",
@@ -250,7 +240,6 @@ py_strict_test(
 py_strict_test(
     name = "thermostat_test",
     srcs = ["thermostat_test.py"],
-    python_version = "PY3",
     deps = [
         ":setpoint_schedule",
         ":thermostat",
@@ -263,7 +252,6 @@ py_strict_test(
 pytype_strict_library(
     name = "air_handler",
     srcs = ["air_handler.py"],
-    srcs_version = "PY3",
     deps = [
         ":smart_device",
         ":weather_controller",
@@ -276,7 +264,6 @@ pytype_strict_library(
 pytype_strict_library(
     name = "boiler",
     srcs = ["boiler.py"],
-    srcs_version = "PY3",
     deps = [
         ":smart_device",
         "//third_party/py/gin",
@@ -290,7 +277,6 @@ pytype_strict_library(
 pytype_strict_library(
     name = "building",
     srcs = ["building.py"],
-    srcs_version = "PY3",
     deps = [
         ":base_convection_simulator",
         ":building_utils",
@@ -321,7 +307,6 @@ pytype_strict_library(
 pytype_strict_library(
     name = "hvac",
     srcs = ["hvac.py"],
-    srcs_version = "PY3",
     deps = [
         ":air_handler",
         ":boiler",
@@ -355,7 +340,6 @@ pytype_strict_library(
 pytype_strict_library(
     name = "randomized_arrival_departure_occupancy",
     srcs = ["randomized_arrival_departure_occupancy.py"],
-    srcs_version = "PY3",
     deps = [
         "//third_party/py/gin",
         "//third_party/py/numpy",
@@ -368,7 +352,6 @@ pytype_strict_library(
 pytype_strict_library(
     name = "rejection_simulator_building",
     srcs = ["rejection_simulator_building.py"],
-    srcs_version = "PY3",
     deps = [
         "//third_party/py/gin",
         "//third_party/py/pandas",
@@ -381,7 +364,6 @@ pytype_strict_library(
 pytype_strict_library(
     name = "setpoint_schedule",
     srcs = ["setpoint_schedule.py"],
-    srcs_version = "PY3",
     deps = [
         "//third_party/py/gin",
         "//third_party/py/pandas",
@@ -392,7 +374,6 @@ pytype_strict_library(
 pytype_strict_library(
     name = "simulator",
     srcs = ["simulator.py"],
-    srcs_version = "PY3",
     deps = [
         ":building",
         ":hvac",
@@ -410,7 +391,6 @@ pytype_strict_library(
 pytype_strict_library(
     name = "tf_simulator",
     srcs = ["tf_simulator.py"],
-    srcs_version = "PY3",
     deps = [
         ":building",
         ":hvac_floorplan_based",
@@ -427,7 +407,6 @@ pytype_strict_library(
 py_strict_test(
     name = "tf_simulator_test",
     srcs = ["tf_simulator_test.py"],
-    python_version = "PY3",
     deps = [
         "tf_simulator",
         ":air_handler",
@@ -447,7 +426,6 @@ py_strict_test(
 pytype_strict_library(
     name = "simulator_building",
     srcs = ["simulator_building.py"],
-    srcs_version = "PY3",
     deps = [
         ":simulator",
         ":simulator_flexible_floor_plan",
@@ -467,7 +445,6 @@ pytype_strict_library(
 pytype_strict_library(
     name = "simulator_building_test_lib",
     srcs = ["simulator_building_test_lib.py"],
-    srcs_version = "PY3",
     deps = [
         ":air_handler",
         ":boiler",
@@ -508,7 +485,6 @@ pytype_strict_library(
 pytype_strict_library(
     name = "smart_device",
     srcs = ["smart_device.py"],
-    srcs_version = "PY3",
     deps = [
         "//third_party/py/pandas",
         "//third_party/py/smart_buildings/smart_control/proto:smart_control_building_py_pb2",
@@ -518,7 +494,6 @@ pytype_strict_library(
 pytype_strict_library(
     name = "step_function_occupancy",
     srcs = ["step_function_occupancy.py"],
-    srcs_version = "PY3",
     deps = [
         "//third_party/py/gin",
         "//third_party/py/pandas",
@@ -541,7 +516,6 @@ pytype_strict_library(
 pytype_strict_library(
     name = "thermostat",
     srcs = ["thermostat.py"],
-    srcs_version = "PY3",
     deps = [
         ":setpoint_schedule",
         "//third_party/py/pandas",
@@ -551,7 +525,6 @@ pytype_strict_library(
 pytype_strict_library(
     name = "vav",
     srcs = ["vav.py"],
-    srcs_version = "PY3",
     deps = [
         ":boiler",
         ":smart_device",
@@ -565,7 +538,10 @@ pytype_strict_library(
 pytype_strict_library(
     name = "weather_controller",
     srcs = ["weather_controller.py"],
-    srcs_version = "PY3",
+    data = [
+        # load "local_weather_moffett_field_20230701_20231122.csv" for replay weather controller:
+        "//third_party/py/smart_buildings/smart_control/configs/resources/sb1:config_data",
+    ],
     deps = [
         "//third_party/py/gin",
         "//third_party/py/numpy",
@@ -591,10 +567,32 @@ pytype_strict_library(
     deps = ["//third_party/py/numpy"],
 )
 
+pytype_strict_library(
+    name = "dbo_pump",
+    srcs = ["dbo_pump.py"],
+    deps = [
+        ":smart_device",
+        "//third_party/py/gin",
+        "//third_party/py/smart_buildings/smart_control/proto:smart_control_building_py_pb2",
+        "//third_party/py/smart_buildings/smart_control/utils:constants",
+    ],
+)
+
+py_strict_test(
+    name = "dbo_pump_test",
+    srcs = ["dbo_pump_test.py"],
+    deps = [
+        ":dbo_pump",
+        "//testing/pybase",
+        "//third_party/py/absl/testing:absltest",
+        "//third_party/py/absl/testing:parameterized",
+        "//third_party/py/smart_buildings/smart_control/utils:constants",
+    ],
+)
+
 py_strict_test(
     name = "vav_test",
     srcs = ["vav_test.py"],
-    python_version = "PY3",
     deps = [
         ":boiler",
         ":setpoint_schedule",

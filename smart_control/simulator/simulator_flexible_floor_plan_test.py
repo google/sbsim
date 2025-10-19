@@ -22,6 +22,7 @@ from absl.testing import absltest
 from absl.testing import parameterized
 import numpy as np
 import pandas as pd
+
 from smart_buildings.smart_control.proto import smart_control_reward_pb2
 from smart_buildings.smart_control.simulator import air_handler as air_handler_py
 from smart_buildings.smart_control.simulator import boiler as boiler_py
@@ -494,7 +495,7 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
         start_timestamp,
     )
 
-    self.assertEqual(simulator._building, building)
+    self.assertEqual(simulator.building, building)
     self.assertEqual(simulator._weather_controller, weather_controller)
     self.assertEqual(simulator._time_step_sec, time_step_sec)
     self.assertEqual(simulator.time_step_sec, time_step_sec)
@@ -527,10 +528,10 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
         start_timestamp,
     )
 
-    simulator._building.temp[2][2] += 10.0
-    simulator._building.temp[0][3] += 10.0
-    simulator._building.input_q[2][2] = 1000.0
-    simulator._building.input_q[0][3] = 1000.0
+    simulator.building.temp[2][2] += 10.0
+    simulator.building.temp[0][3] += 10.0
+    simulator.building.input_q[2][2] = 1000.0
+    simulator.building.input_q[0][3] = 1000.0
 
     simulator.hvac.boiler._return_water_temperature_sensor += 10.0
     simulator.hvac.boiler._water_pump_differential_head += 100.0
@@ -548,7 +549,7 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
 
     simulator._current_timestamp += pd.Timedelta(360.0, unit="seconds")
     simulator.reset()
-    self.assertEqual(simulator._building, building)
+    self.assertEqual(simulator.building, building)
     expected_hvac = self._create_small_hvac()
     expected_air_handler = expected_hvac.air_handler
     self.assertEqual(
@@ -588,10 +589,10 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
     self.assertEqual(simulator._hvac.boiler._total_flow_rate, 0)
 
     self.assertEqual(simulator._current_timestamp, start_timestamp)
-    self.assertEqual(simulator._building.temp[2][2], initial_temp)
-    self.assertEqual(simulator._building.temp[0][3], initial_temp)
-    self.assertEqual(simulator._building.input_q[2][2], 0)
-    self.assertEqual(simulator._building.input_q[0][3], 0)
+    self.assertEqual(simulator.building.temp[2][2], initial_temp)
+    self.assertEqual(simulator.building.temp[0][3], initial_temp)
+    self.assertEqual(simulator.building.input_q[2][2], 0)
+    self.assertEqual(simulator.building.input_q[0][3], 0)
 
   def test_get_cv_temp_estimate_cell_no_change(self):
     """This tests that temperatures don"t change in stable conditions.
@@ -1383,7 +1384,7 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
           .thermostat.get_setpoint_schedule()
           .get_temperature_window(sim._current_timestamp)
       )
-      zone_temperature = sim._building.get_zone_average_temps()[coords]
+      zone_temperature = sim.building.get_zone_average_temps()[coords]
 
       expected_zone_info = smart_control_reward_pb2.RewardInfo.ZoneRewardInfo(
           heating_setpoint_temperature=heating_setpoint,
@@ -1411,7 +1412,7 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
         air_handler_reward_info.blower_electrical_energy_rate,
     )
 
-    recirculation_temp = sim._building.temp.mean()
+    recirculation_temp = sim.building.temp.mean()
     ambient_temp = sim._weather_controller.get_current_temp(
         sim._current_timestamp
     )

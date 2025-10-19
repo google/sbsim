@@ -21,6 +21,7 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 import gin
 import numpy as np
+
 from smart_buildings.smart_control.simulator import base_convection_simulator
 from smart_buildings.smart_control.simulator import building_utils
 from smart_buildings.smart_control.simulator import constants
@@ -547,7 +548,9 @@ class Building(BaseSimulatorBuilding):
   def get_zone_thermal_energy_rate(
       self, zone_coordinates: Coordinates2D
   ) -> float:
-    """Returns energy rate in W being input to specified zone, summing its CVs contributions.
+    """Returns energy rate in W being input to specified zone.
+
+    Sums its CVs contributions.
 
     Calculates and returns sum of input_q of all air CVs in a given zone.
 
@@ -577,7 +580,10 @@ class Building(BaseSimulatorBuilding):
     return np.min(submat), np.max(submat), np.mean(submat)
 
   def get_zone_average_temps(self) -> Dict[Tuple[int, int], Any]:
-    """Returns a dict of zone average temps, with key (zone_coordinates) and val: temp."""
+    """Returns a dict of zone average temps.
+
+    The dict is formatted as {`zone_coordinates`: `temp`}.
+    """
     avg_temps = {}
     for zone_x in range(self.building_shape[0]):
       for zone_y in range(self.building_shape[1]):
@@ -589,11 +595,13 @@ class Building(BaseSimulatorBuilding):
   def apply_thermal_power_zone(
       self, zone_coordinates: Coordinates2D, power: float
   ):
-    """Applies thermal power [W] to zone zone_x, zone_y spread evenly to all diffusers.
+    """Applies thermal power to zones, spread evenly across diffusers.
+
+    The thermal power [W] is applied to zones `zone_x` and `zone_y`.
 
     Args:
-      zone_coordinates: Tuple containing x and y coordinates for zone.
-      power: Watts to apply to zone.
+       zone_coordinates: Tuple containing x and y coordinates for zone.
+       power: Watts to apply to zone.
     """
 
     x_min, x_max, y_min, y_max = get_zone_bounds(
@@ -617,9 +625,10 @@ class FloorPlanBasedBuilding(BaseSimulatorBuilding):
       width and length of each room.
     building_shape: 2-Tuple representing the number of rooms in the width and
       length of the building.
+    floor_plan: an np.ndarray representing the building's floor plan.
     temp: The current temp in K of each control volume.
     conductivity: Thermal conductivity in of each control volume W/m/K.
-    heat_capacity: Thermal heat cpacity of each control volume in J/kg/K.
+    heat_capacity: Thermal heat capacity of each control volume in J/kg/K.
     density: Material density in kg/m3 of each control volume.
     input_q: Heat energy applied (sign indicates heating/cooling) at the CV in W
       (J/s).
@@ -689,12 +698,12 @@ class FloorPlanBasedBuilding(BaseSimulatorBuilding):
       )
 
     elif floor_plan is None and floor_plan_filepath:
-      self._floor_plan = building_utils.read_floor_plan_from_filepath(
+      self.floor_plan = building_utils.read_floor_plan_from_filepath(
           floor_plan_filepath
       )
 
     elif floor_plan is not None and floor_plan_filepath is None:
-      self._floor_plan = floor_plan
+      self.floor_plan = floor_plan
 
     else:
       raise ValueError("floor_plan and floor_plan_filepath ")
@@ -716,7 +725,7 @@ class FloorPlanBasedBuilding(BaseSimulatorBuilding):
 
     (self._room_dict, exterior_walls, interior_walls, self._exterior_space) = (
         building_utils.construct_building_data_types(
-            floor_plan=self._floor_plan, zone_map=zone_map
+            floor_plan=self.floor_plan, zone_map=zone_map
         )
     )
 
@@ -823,7 +832,9 @@ class FloorPlanBasedBuilding(BaseSimulatorBuilding):
     return len_neighbors
 
   def get_zone_thermal_energy_rate(self, zone_name: str) -> float:  # pylint: disable=arguments-renamed
-    """Returns energy rate in W being input to specified zone, summing its CVs contributions.
+    """Returns energy rate in W being input to specified zone.
+
+    Sums its CVs contributions.
 
     Calculates and returns sum of input_q of all air CVs in a given zone.
 
@@ -861,7 +872,10 @@ class FloorPlanBasedBuilding(BaseSimulatorBuilding):
     return np.min(temps), np.max(temps), np.mean(temps)
 
   def get_zone_average_temps(self) -> Dict[str, Any]:
-    """Returns a dict of zone average temps, with key (zone_coordinates) and val: temp."""
+    """Returns a dict of zone average temps.
+
+    The dict is formatted as: {`zone_coordinates`: `temp`}.
+    """
     avg_temps = {}
 
     for zone in self._room_dict.keys():
@@ -871,7 +885,9 @@ class FloorPlanBasedBuilding(BaseSimulatorBuilding):
     return avg_temps
 
   def apply_thermal_power_zone(self, zone_name: str, power: float):  # pylint: disable=arguments-renamed
-    """Applies thermal power [W] to zone zone_x, zone_y spread evenly to all diffusers.
+    """Applies thermal power to zones, spread evenly across diffusers.
+
+    The thermal power [W] is applied to zones `zone_x` and `zone_y`.
 
     Args:
       zone_name: a string with the name of the zone to calculate over. Needs to

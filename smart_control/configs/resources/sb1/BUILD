@@ -20,6 +20,7 @@ package(
 filegroup(
     name = "config_data",
     srcs = [
+        "demo_temps.npy",
         "double_resolution_zone_1_2.npy",
         "local_weather_moffett_field_20230701_20231122.csv",
         "observation_response_2024.08.29.00",

@@ -25,8 +25,8 @@ import cv2
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy import ndimage
-from smart_buildings.smart_control.simulator import constants
 
+from smart_buildings.smart_control.simulator import constants
 
 Coordinates2D = Tuple[int, int]
 RoomIndicesDict = collections.defaultdict[str, Any]
@@ -120,7 +120,7 @@ def save_images_to_cns_for_debugging(
         ConnectionReadyFloorPlan,
     ],
     path_ending: str,
-    path_to_simulator_cns: str = "/cns/oi-d/home/smart_buildings/control/configs/simulation/",
+    path_to_simulator_cns: str = "/cns/oi-d/home/smart_buildings/control/configs/simulation/",  # pylint: disable=line-too-long
 ) -> None:
   """Saves a .png of a floorplan array to CNS for visual debugging.
 
