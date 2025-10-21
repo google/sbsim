@@ -25,6 +25,16 @@ from smart_buildings.smart_control.utils import bounded_action_normalizer
 
 class ActionNormalizerTest(parameterized.TestCase):
 
+  def test_properties(self):
+    normalizer = bounded_action_normalizer.BoundedActionNormalizer(
+        min_native_value=200, max_native_value=300,
+        min_normalized_value=-1, max_normalized_value=1,
+    )
+    self.assertEqual(normalizer.min_native_value, 200)
+    self.assertEqual(normalizer.max_native_value, 300)
+    self.assertEqual(normalizer.min_normalized_value, -1)
+    self.assertEqual(normalizer.max_normalized_value, 1)
+
   @parameterized.named_parameters(
       ('min_native_value', -1, 200),
       ('mid_value', 0, 250),

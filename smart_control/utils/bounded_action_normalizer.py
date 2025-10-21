@@ -118,10 +118,36 @@ class BoundedActionNormalizer(base_normalizer.BaseActionNormalizer):
 
   @property
   def setpoint_min(self) -> float:
-    """Returns the minimum setpoint value."""
+    """Returns the minimum setpoint value.
+
+    Deprecated alias. Prefer `min_native_value` instead.
+    """
     return self._min_native_value
 
   @property
   def setpoint_max(self) -> float:
+    """Returns the maximum setpoint value.
+
+    Deprecated alias. Prefer `max_native_value` instead.
+    """
+    return self._max_native_value
+
+  @property
+  def min_native_value(self) -> float:
+    """Returns the minimum setpoint value."""
+    return self._min_native_value
+
+  @property
+  def max_native_value(self) -> float:
     """Returns the maximum setpoint value."""
     return self._max_native_value
+
+  @property
+  def min_normalized_value(self) -> float:
+    """Returns a normalized version of the minimum native value."""
+    return self._min_normalized_value
+
+  @property
+  def max_normalized_value(self) -> float:
+    """Returns a normalized version of the maximum setpoint value."""
+    return self._max_normalized_value
