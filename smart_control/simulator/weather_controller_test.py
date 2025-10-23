@@ -158,6 +158,191 @@ class WeatherControllerTest(parameterized.TestCase):
 
     self.assertRaises(ValueError, weather_fn)
 
+  def test_get_current_irradiance_weather_controller(self):
+    """Test clearsky irradiance calculation for WeatherController."""
+    low_temp = 273.15
+    high_temp = 298.15
+    # Mountain View, CA coordinates
+    latitude = 37.4
+    longitude = -122.1
+
+    weather = weather_controller.WeatherController(
+        low_temp,
+        high_temp,
+        latitude=latitude,
+        longitude=longitude,
+        tz='America/Los_Angeles',
+    )
+
+    # Test at noon on a summer day
+    timestamp = pd.Timestamp('2023-07-01 12:00:00', tz='America/Los_Angeles')
+    irrad = weather.get_current_irradiance(timestamp)
+
+    # Check that all components are present and positive
+    self.assertIn('ghi', irrad)
+    self.assertIn('dni', irrad)
+    self.assertIn('dhi', irrad)
+    self.assertGreater(irrad['ghi'], 0)
+    self.assertGreater(irrad['dni'], 0)
+    self.assertGreater(irrad['dhi'], 0)
+    # At noon in summer, GHI should be substantial (> 500 W/m2)
+    self.assertGreater(irrad['ghi'], 500)
+    self.assertEqual(round(irrad['ghi']), 934)
+    self.assertEqual(round(irrad['dni']), 872)
+    self.assertEqual(round(irrad['dhi']), 121)
+
+  def test_get_current_irradiance_no_location(self):
+    """Test that irradiance calculation raises error without location."""
+    low_temp = 273.15
+    high_temp = 298.15
+
+    weather = weather_controller.WeatherController(low_temp, high_temp)
+
+    timestamp = pd.Timestamp('2023-07-01 12:00:00', tz='UTC')
+
+    with self.assertRaises(ValueError):
+      weather.get_current_irradiance(timestamp)
+
+  def test_get_irradiance_poa_weather_controller(self):
+    """Test POA irradiance calculation for WeatherController."""
+    low_temp = 273.15
+    high_temp = 298.15
+    latitude = 37.4
+    longitude = -122.1
+
+    weather = weather_controller.WeatherController(
+        low_temp,
+        high_temp,
+        latitude=latitude,
+        longitude=longitude,
+        tz='US/Pacific',
+    )
+
+    timestamp = pd.Timestamp('2023-07-01 12:00:00', tz='US/Pacific')
+    surface_tilt = 30.0  # 30 degrees tilt
+    surface_azimuth = 180.0  # South-facing
+
+    poa = weather.get_irradiance_poa(timestamp, surface_tilt, surface_azimuth)
+
+    # POA should be positive at noon
+    self.assertGreater(poa, 0)
+    # POA should be reasonable (between 0 and ~1200 W/m2)
+    self.assertLess(poa, 1200)
+
+  def test_get_current_cloud_cover(self):
+    """Test cloud cover interpolation from weather data."""
+    data_path = os.path.join(
+        os.path.dirname(__file__), 'local_weather_test_data.csv'
+    )
+    latitude = 37.4
+    longitude = -122.1
+    controller = weather_controller.ReplayWeatherController(
+        data_path, 10.0, latitude=latitude, longitude=longitude, tz='UTC'
+    )
+
+    # Test at a time with known cloud cover (0% at midnight)
+    timestamp = pd.Timestamp('2023-07-01 00:00:00+00:00')
+    cloud_cover = controller.get_current_cloud_cover(timestamp)
+
+    self.assertEqual(cloud_cover, 0.0)
+    timestamp = pd.Timestamp('2023-07-01 12:00:00+00:00')
+    cloud_cover = controller.get_current_cloud_cover(timestamp)
+    self.assertEqual(cloud_cover, 100.0)
+
+  def test_get_current_irradiance_replay_controller(self):
+    """Test irradiance calculation with cloud cover for
+    ReplayWeatherController.
+
+    """
+    data_path = os.path.join(
+        os.path.dirname(__file__), 'local_weather_test_data.csv'
+    )
+    latitude = 37.4
+    longitude = -122.1
+    controller = weather_controller.ReplayWeatherController(
+        data_path,
+        10.0,
+        latitude=latitude,
+        longitude=longitude,
+        tz='US/Pacific',
+        irradiance_method='campbell_norman',
+    )
+
+    # Test at noon
+    timestamp = pd.Timestamp('2023-07-01 12:00:00', tz='US/Pacific')
+    irrad = controller.get_current_irradiance(timestamp)
+
+    # Check that all components are present and non-negative
+    self.assertIn('ghi', irrad)
+    self.assertIn('dni', irrad)
+    self.assertIn('dhi', irrad)
+    self.assertGreaterEqual(irrad['ghi'], 0)
+    self.assertGreaterEqual(irrad['dni'], 0)
+    self.assertGreaterEqual(irrad['dhi'], 0)
+    self.assertEqual(round(irrad['ghi']), 523.0)
+    self.assertEqual(round(irrad['dni']), 235.0)
+    self.assertEqual(round(irrad['dhi']), 304.0)
+
+  def test_get_irradiance_poa_replay_controller(self):
+    """Test POA irradiance calculation for ReplayWeatherController."""
+    data_path = os.path.join(
+        os.path.dirname(__file__), 'local_weather_test_data.csv'
+    )
+    latitude = 37.4
+    longitude = -122.1
+    controller = weather_controller.ReplayWeatherController(
+        data_path, 10.0, latitude=latitude, longitude=longitude, tz='UTC'
+    )
+
+    timestamp = pd.Timestamp('2023-07-01 12:00:00+00:00')
+    surface_tilt = 30.0
+    surface_azimuth = 180.0
+
+    poa = controller.get_irradiance_poa(
+        timestamp, surface_tilt, surface_azimuth
+    )
+
+    # POA should be non-negative
+    self.assertGreaterEqual(poa, 0)
+
+  def test_get_sky_temperature_weather_controller(self):
+    """Test sky temperature calculation for WeatherController."""
+    low_temp = 273.15
+    high_temp = 298.15
+
+    weather = weather_controller.WeatherController(
+        low_temp, high_temp, dewpoint_depression=5.0
+    )
+
+    timestamp = pd.Timestamp('2023-07-01 12:00:00', tz='UTC')
+    temp_sky_k = weather.get_current_sky_temperature(timestamp)
+
+    # Sky temperature should be in Kelvin and reasonable
+    self.assertGreater(temp_sky_k, 200)  # Above absolute zero
+    self.assertLess(temp_sky_k, 350)  # Below very hot temps
+    # Sky temperature should be less than or equal to dry bulb temp
+    temp_k = weather.get_current_temp(timestamp)
+    self.assertLessEqual(temp_sky_k, temp_k)
+
+  def test_get_sky_temperature_replay_controller(self):
+    """Test sky temperature calculation for ReplayWeatherController."""
+    data_path = os.path.join(
+        os.path.dirname(__file__), 'local_weather_test_data.csv'
+    )
+    controller = weather_controller.ReplayWeatherController(
+        data_path, 10.0, tz='UTC'
+    )
+
+    timestamp = pd.Timestamp('2023-07-01 12:00:00+00:00')
+    temp_sky_k = controller.get_current_sky_temperature(timestamp)
+
+    # Sky temperature should be in Kelvin and reasonable
+    self.assertGreater(temp_sky_k, 200)
+    self.assertLess(temp_sky_k, 350)
+    # Sky temperature should be less than or equal to dry bulb temp
+    temp_k = controller.get_current_temp(timestamp)
+    self.assertLessEqual(temp_sky_k, temp_k)
+
 
 if __name__ == '__main__':
   absltest.main()

@@ -7,6 +7,8 @@ from typing import Final, Mapping, Optional, Sequence, Tuple
 import gin
 import numpy as np
 import pandas as pd
+from pvlib import irradiance
+from pvlib import location
 
 from smart_control.proto import smart_control_building_pb2
 from smart_control.utils import conversion_utils as utils
@@ -40,6 +42,11 @@ class WeatherController(BaseWeatherController):
     default_high_temp: Default high temperature in K at noon.
     special_days: Map of day of year (1-365) to 2-tuple (low_temp, high_temp).
     convection_coefficient: Air convection coefficient (W/m2/K).
+    tz: Time zone for the weather data.
+    latitude: Latitude for the weather data.
+    longitude: Longitude for the weather data.
+    dewpoint_depression: Difference between dry bulb and dew point temperatures
+      in K. Default is 5.0 K.
   """
 
   def __init__(
@@ -48,11 +55,27 @@ class WeatherController(BaseWeatherController):
       default_high_temp: float,
       special_days: Optional[Mapping[int, TemperatureBounds]] = None,
       convection_coefficient: float = 12.0,
+      tz: str = 'UTC',
+      latitude: float | None = None,
+      longitude: float | None = None,
+      dewpoint_depression: float = 5.0,
   ):
     self.default_low_temp = default_low_temp
     self.default_high_temp = default_high_temp
     self.special_days = special_days if special_days else {}
     self.convection_coefficient = convection_coefficient
+    self.tz = tz
+    self.latitude = latitude
+    self.longitude = longitude
+    self.dewpoint_depression = dewpoint_depression  # Dry bulb - dew point (K)
+
+    # Create location object if lat/lon are provided
+    if self.latitude is not None and self.longitude is not None:
+      self._location = location.Location(
+          self.latitude, self.longitude, tz=self.tz
+      )
+    else:
+      self._location = None
 
     if self.default_low_temp > self.default_high_temp:
       raise ValueError(
@@ -117,6 +140,108 @@ class WeatherController(BaseWeatherController):
     """
     return self.convection_coefficient
 
+  def get_current_irradiance(
+      self, timestamp: pd.Timestamp
+  ) -> Mapping[str, float]:
+    """Returns current irradiance (GHI, DNI, DHI) in W/m2 using clearsky model.
+
+    Args:
+      timestamp: Pandas timestamp to get irradiance for.
+
+    Returns:
+      Dictionary with 'ghi', 'dni', and 'dhi' keys.
+
+    Raises:
+      ValueError: If latitude/longitude not provided during initialization.
+    """
+    if self._location is None:
+      raise ValueError(
+          'Latitude and longitude must be provided to calculate irradiance.'
+      )
+
+    # Get clearsky irradiance
+    clearsky = self._location.get_clearsky(pd.DatetimeIndex([timestamp]))
+
+    return {
+        'ghi': float(clearsky['ghi'].iloc[0]),
+        'dni': float(clearsky['dni'].iloc[0]),
+        'dhi': float(clearsky['dhi'].iloc[0]),
+    }
+
+  def get_irradiance_poa(
+      self,
+      timestamp: pd.Timestamp,
+      surface_tilt: float,
+      surface_azimuth: float,
+  ) -> float:
+    """Returns plane-of-array (POA) irradiance in W/m2.
+
+    Args:
+      timestamp: Pandas timestamp to get irradiance for.
+      surface_tilt: Surface tilt angle in degrees.
+      surface_azimuth: Surface azimuth angle in degrees.
+
+    Returns:
+      POA global irradiance in W/m2.
+
+    Raises:
+      ValueError: If latitude/longitude not provided during initialization.
+    """
+    if self._location is None:
+      raise ValueError(
+          'Latitude and longitude must be provided to calculate irradiance.'
+      )
+
+    # Get irradiance components
+    irrad = self.get_current_irradiance(timestamp)
+
+    # Get solar position
+    solar_position = self._location.get_solarposition(
+        pd.DatetimeIndex([timestamp])
+    )
+
+    # Calculate POA irradiance
+    poa_irrad = irradiance.get_total_irradiance(
+        surface_tilt=surface_tilt,
+        surface_azimuth=surface_azimuth,
+        dni=irrad['dni'],
+        ghi=irrad['ghi'],
+        dhi=irrad['dhi'],
+        solar_zenith=solar_position['apparent_zenith'].iloc[0],
+        solar_azimuth=solar_position['azimuth'].iloc[0],
+    )
+
+    return float(poa_irrad['poa_global'])
+
+  def get_current_sky_temperature(self, timestamp: pd.Timestamp) -> float:
+    """Returns sky temperature in K using Clark & Allen formula.
+
+    Args:
+      timestamp: Pandas timestamp to get sky temperature for.
+
+    Returns:
+      Sky temperature in K.
+    """
+    # Stefan-Boltzmann constant
+    sigma = 5.6697e-8  # W/(m^2*K^4)
+
+    # Get dry bulb temperature
+    temp_k = self.get_current_temp(timestamp)
+
+    # Estimate dew point temperature
+    dp_k = temp_k - self.dewpoint_depression
+
+    # Calculate sky emissivity (Clark & Allen)
+    epsilon_sky = 0.787 + 0.764 * np.log(dp_k / 273.0)
+
+    # Calculate horizontal infrared radiation
+    ir_h = epsilon_sky * sigma * (temp_k**4)
+
+    # Calculate sky temperature
+    temp_sky_k = (ir_h / sigma) ** 0.25
+
+    return temp_sky_k
+
 
 def get_replay_temperatures(
     observation_responses: Sequence[
@@ -155,21 +280,198 @@ class ReplayWeatherController:
   Attributes:
     local_weather_path: Path to local weather file.
     convection_coefficient: Air convection coefficient (W/m2/K).
+    tz: Time zone for the weather data.
+    latitude: Latitude for the weather data.
+    longitude: Longitude for the weather data.
+    irradiance_method: Method for converting cloud cover to irradiance
+      ('linear' or 'campbell_norman'). Defaults to 'campbell_norman'.
   """
 
   def __init__(
       self,
       local_weather_path: str,
       convection_coefficient: float = 12.0,
+      tz: str = 'UTC',
+      latitude: float | None = None,
+      longitude: float | None = None,
+      irradiance_method: str = 'campbell_norman',
   ):
     self._weather_data = pd.read_csv(local_weather_path)
     self._weather_data['Time'] = [
-        pd.Timestamp(t, tz='UTC') for t in self._weather_data['Time']
+        pd.Timestamp(t, tz=tz) for t in self._weather_data['Time']
     ]
     self._weather_data.index = [
         (t - _EPOCH).total_seconds() for t in self._weather_data['Time']
     ]
     self.convection_coefficient = convection_coefficient
+    self.tz = tz
+    self.latitude = latitude
+    self.longitude = longitude
+
+    # Create location object if lat/lon are provided
+    if self.latitude is not None and self.longitude is not None:
+      self._location = location.Location(
+          self.latitude, self.longitude, tz=self.tz
+      )
+    else:
+      self._location = None
+
+    # Pre-calculate irradiance if location is provided
+    if self._location is not None:
+      self._calculate_irradiance_columns(irradiance_method)
+
+      # Pre-calculate sky temperature
+      self._calculate_sky_temperature_column()
+
+  def _calculate_sky_temperature_column(self):
+    """Pre-calculate sky temperature for all timestamps in weather data.
+
+    Uses Clark & Allen formula with dry bulb and dew point temperatures.
+    """
+    # Stefan-Boltzmann constant
+    sigma = 5.6697e-8  # W/(m^2*K^4)
+
+    # Get dry bulb temperature in Kelvin
+    if 'TempC' in self._weather_data:
+      temp_k = utils.celsius_to_kelvin(self._weather_data['TempC'].values)
+    elif 'TempF' in self._weather_data:
+      temp_k = utils.fahrenheit_to_kelvin(self._weather_data['TempF'].values)
+    else:
+      raise ValueError(
+          'Temperature column (TempC or TempF) not found in weather data.'
+      )
+
+    # Get dew point temperature in Kelvin
+    if 'DewPointC' in self._weather_data:
+      dp_k = utils.celsius_to_kelvin(self._weather_data['DewPointC'].values)
+    elif 'DewPointF' in self._weather_data:
+      dp_k = utils.fahrenheit_to_kelvin(self._weather_data['DewPointF'].values)
+    else:
+      raise ValueError(
+          'Dew point temperature column (DewPointC or DewPointF) not found in'
+          ' weather data.'
+      )
+
+    # Calculate sky emissivity (Clark & Allen)
+    epsilon_sky = 0.787 + 0.764 * np.log(dp_k / 273.0)
+
+    # Calculate horizontal infrared radiation
+    ir_h = epsilon_sky * sigma * (temp_k**4)
+
+    # Calculate sky temperature
+    temp_sky_k = (ir_h / sigma) ** 0.25
+
+    # Store in dataframe
+    self._weather_data['TempSkyC'] = temp_sky_k - 273.15  # Convert to Celsius
+
+  def _calculate_irradiance_columns(self, method: str = 'campbell_norman'):
+    """Pre-calculate irradiance (GHI, DNI, DHI) for all timestamps in weather
+       data.
+
+    Args:
+      method: Method for converting cloud cover to irradiance
+      ('linear' or 'campbell_norman').
+    """
+    # Handle SkyCoverage column
+    if 'SkyCoverage' not in self._weather_data:
+      # If no cloud cover data, use clearsky model
+      clearsky = self._location.get_clearsky(
+          self._weather_data['Time'], model='ineichen'
+      )
+      self._weather_data['ghi'] = clearsky['ghi'].values
+      self._weather_data['dni'] = clearsky['dni'].values
+      self._weather_data['dhi'] = clearsky['dhi'].values
+      return
+
+    # Replace invalid cloud coverage values with NaN
+    self._weather_data.loc[
+        (self._weather_data['SkyCoverage'] < 0)
+        | (self._weather_data['SkyCoverage'] > 100),
+        'SkyCoverage',
+    ] = np.nan
+
+    self._weather_data_ = self._weather_data.copy()
+    self._weather_data_.set_index('Time', inplace=True)
+    # If all SkyCoverage values are NaN, use clearsky model
+    if self._weather_data['SkyCoverage'].isna().all():
+      clearsky = self._location.get_clearsky(
+          self._weather_data_['Time'], model='ineichen'
+      )
+      self._weather_data['ghi'] = clearsky['ghi'].values
+      self._weather_data['dni'] = clearsky['dni'].values
+      self._weather_data['dhi'] = clearsky['dhi'].values
+      self._weather_data['SkyCoverage'] = 0
+      return
+
+    # Forward fill NaN values in cloud cover
+    self._weather_data['SkyCoverage'] = self._weather_data[
+        'SkyCoverage'
+    ].ffill()
+
+    # Get solar position for all timestamps
+    solar_position = self._location.get_solarposition(self._weather_data_.index)
+
+    if method == 'linear':
+      # Get clear sky irradiance
+      clearsky = self._location.get_clearsky(
+          self._weather_data['Time'], model='ineichen'
+      )
+
+      # Estimate GHI from cloud cover using linear relationship
+      ghi = clearsky['ghi'].values * (
+          1.0 - 0.8 * (self._weather_data['SkyCoverage'].values / 100.0)
+      )
+
+      # Estimate DNI using DISC model
+      from pvlib.irradiance import disc  # pylint: disable=import-outside-toplevel
+
+      dni_result = disc(
+          pd.Series(ghi, index=self._weather_data_.index),
+          solar_position['zenith'],
+          self._weather_data_.index,
+      )
+      dni = dni_result['dni'].values
+
+      # Calculate DHI
+      zenith_rad = np.radians(solar_position['zenith'].values)
+      dhi = ghi - dni * np.cos(zenith_rad)
+      dhi = np.maximum(0, dhi)  # Ensure non-negative
+
+    elif method == 'campbell_norman':
+      from pvlib.irradiance import campbell_norman  # pylint: disable=import-outside-toplevel
+      from pvlib.irradiance import get_extra_radiation  # pylint: disable=import-outside-toplevel
+
+      dni_extra = get_extra_radiation(self._weather_data_.index)
+      transmittance = 0.7 - 0.5 * (
+          self._weather_data['SkyCoverage'].values / 100.0
+      )
+
+      # Calculate irradiance for each timestamp
+      ghi_list = []
+      dni_list = []
+      dhi_list = []
+
+      for i in range(len(self._weather_data)):
+        irrads = campbell_norman(
+            solar_position['apparent_zenith'].iloc[i],
+            transmittance[i],
+            dni_extra=dni_extra.iloc[i],
+        )
+        ghi_list.append(0 if np.isnan(irrads['ghi']) else irrads['ghi'])
+        dni_list.append(0 if np.isnan(irrads['dni']) else irrads['dni'])
+        dhi_list.append(0 if np.isnan(irrads['dhi']) else irrads['dhi'])
+
+      ghi = np.array(ghi_list)
+      dni = np.array(dni_list)
+      dhi = np.array(dhi_list)
+
+    else:
+      raise ValueError(f'Invalid method: {method}')
+
+    # Store in dataframe
+    self._weather_data['ghi'] = np.maximum(0, ghi)
+    self._weather_data['dni'] = np.maximum(0, dni)
+    self._weather_data['dhi'] = np.maximum(0, dhi)
 
   def get_current_temp(self, timestamp: pd.Timestamp) -> float:
     """Returns current temperature in K.
@@ -177,7 +479,7 @@ class ReplayWeatherController:
     Args:
       timestamp: Pandas timestamp to get temperature for interpolation.
     """
-    timestamp = timestamp.tz_convert('UTC')
+    timestamp = timestamp.tz_convert(self.tz)
     min_time = min(self._weather_data['Time'])
     if timestamp < min_time:
 
@@ -195,10 +497,206 @@ class ReplayWeatherController:
 
     times = np.array(self._weather_data.index)
     target_timestamp = (timestamp - _EPOCH).total_seconds()
-    temps = self._weather_data['TempF']
-    temp_f = np.interp(target_timestamp, times, temps)
-    return utils.fahrenheit_to_kelvin(temp_f)
+
+    if 'TempC' in self._weather_data:
+      temps = self._weather_data['TempC']
+      temp_c = np.interp(target_timestamp, times, temps)
+      return utils.celsius_to_kelvin(temp_c)
+    else:
+      temps = self._weather_data['TempF']
+      temp_f = np.interp(target_timestamp, times, temps)
+      return utils.fahrenheit_to_kelvin(temp_f)
 
   # pylint: disable=unused-argument
   def get_air_convection_coefficient(self, timestamp: pd.Timestamp) -> float:
     return self.convection_coefficient
+
+  def get_current_cloud_cover(self, timestamp: pd.Timestamp) -> float:
+    """Returns current cloud cover in percent.
+
+    Args:
+      timestamp: Pandas timestamp to get cloud cover for.
+
+    Returns:
+      Cloud cover in percent (0-100).
+
+    Raises:
+      ValueError: If timestamp is outside weather data range or no SkyCoverage
+      column.
+    """
+    timestamp = timestamp.tz_convert(self.tz)
+    min_time = min(self._weather_data['Time'])
+    if timestamp < min_time:
+      raise ValueError(
+          f'Attempting to get weather data at {timestamp}, before the earliest'
+          f' timestamp {min_time}.'
+      )
+    max_time = max(self._weather_data['Time'])
+    if timestamp > max_time:
+      raise ValueError(
+          f'Attempting to get weather data at {timestamp}, after the latest'
+          f' timestamp {max_time}.'
+      )
+
+    if 'SkyCoverage' not in self._weather_data:
+      raise ValueError('SkyCoverage column not found in weather data.')
+
+    times = np.array(self._weather_data.index)
+    target_timestamp = (timestamp - _EPOCH).total_seconds()
+    cloud_cover = np.interp(
+        target_timestamp, times, self._weather_data['SkyCoverage']
+    )
+    return float(cloud_cover)
+
+  def get_current_irradiance(
+      self, timestamp: pd.Timestamp
+  ) -> Mapping[str, float]:
+    # pylint: disable=line-too-long
+    """Returns current irradiance (GHI, DNI, DHI) in W/m2 by interpolating
+       pre-calculated values.
+
+    Args:
+      timestamp: Pandas timestamp to get irradiance for.
+
+    Returns:
+      Dictionary with 'ghi', 'dni', and 'dhi' keys.
+
+    Raises:
+      ValueError: If latitude/longitude not provided or timestamp out of range
+      or irradiance not calculated.
+
+    Sources:
+      https://pvlib-python.readthedocs.io/en/v0.6.1/_modules/pvlib/forecast.html#ForecastModel.cloud_cover_to_irradiance
+
+    """
+    # pylint: enable=line-too-long
+    if self._location is None:
+      raise ValueError(
+          'Latitude and longitude must be provided to calculate irradiance.'
+      )
+
+    if (
+        'ghi' not in self._weather_data
+        or 'dni' not in self._weather_data
+        or 'dhi' not in self._weather_data
+    ):
+      raise ValueError(
+          'Irradiance data not available. Make sure latitude/longitude were'
+          ' provided during initialization.'
+      )
+
+    timestamp = timestamp.tz_convert(self.tz)
+    min_time = min(self._weather_data['Time'])
+    if timestamp < min_time:
+      raise ValueError(
+          f'Attempting to get weather data at {timestamp}, before the earliest'
+          f' timestamp {min_time}.'
+      )
+    max_time = max(self._weather_data['Time'])
+    if timestamp > max_time:
+      raise ValueError(
+          f'Attempting to get weather data at {timestamp}, after the latest'
+          f' timestamp {max_time}.'
+      )
+
+    times = np.array(self._weather_data.index)
+    target_timestamp = (timestamp - _EPOCH).total_seconds()
+
+    # Interpolate GHI, DNI, DHI from pre-calculated values
+    ghi = np.interp(target_timestamp, times, self._weather_data['ghi'])
+    dni = np.interp(target_timestamp, times, self._weather_data['dni'])
+    dhi = np.interp(target_timestamp, times, self._weather_data['dhi'])
+
+    return {
+        'ghi': float(ghi),
+        'dni': float(dni),
+        'dhi': float(dhi),
+    }
+
+  def get_irradiance_poa(
+      self,
+      timestamp: pd.Timestamp,
+      surface_tilt: float,
+      surface_azimuth: float,
+  ) -> float:
+    """Returns plane-of-array (POA) irradiance in W/m2.
+
+    Args:
+      timestamp: Pandas timestamp to get irradiance for.
+      surface_tilt: Surface tilt angle in degrees.
+      surface_azimuth: Surface azimuth angle in degrees.
+
+    Returns:
+      POA global irradiance in W/m2.
+
+    Raises:
+      ValueError: If latitude/longitude not provided or timestamp out of range.
+    """
+    if self._location is None:
+      raise ValueError(
+          'Latitude and longitude must be provided to calculate irradiance.'
+      )
+
+    # Get irradiance components from pre-calculated values
+    irrad = self.get_current_irradiance(timestamp)
+
+    # Get solar position
+    solar_position = self._location.get_solarposition(
+        pd.DatetimeIndex([timestamp])
+    )
+
+    # Calculate POA irradiance
+    poa_irrad = irradiance.get_total_irradiance(
+        surface_tilt=surface_tilt,
+        surface_azimuth=surface_azimuth,
+        dni=irrad['dni'],
+        ghi=irrad['ghi'],
+        dhi=irrad['dhi'],
+        solar_zenith=solar_position['apparent_zenith'].iloc[0],
+        solar_azimuth=solar_position['azimuth'].iloc[0],
+    )
+
+    return float(poa_irrad['poa_global'])
+
+  def get_current_sky_temperature(self, timestamp: pd.Timestamp) -> float:
+    """Returns sky temperature in K by interpolating pre-calculated values.
+
+    Args:
+      timestamp: Pandas timestamp to get sky temperature for.
+
+    Returns:
+      Sky temperature in K.
+
+    Raises:
+      ValueError: If timestamp is outside weather data range or sky temperature
+      not calculated.
+    """
+    if 'TempSkyC' not in self._weather_data:
+      raise ValueError(
+          'Sky temperature data not available. This should have been calculated'
+          ' during initialization.'
+      )
+
+    timestamp = timestamp.tz_convert(self.tz)
+    min_time = min(self._weather_data['Time'])
+    if timestamp < min_time:
+      raise ValueError(
+          f'Attempting to get weather data at {timestamp}, before the earliest'
+          f' timestamp {min_time}.'
+      )
+    max_time = max(self._weather_data['Time'])
+    if timestamp > max_time:
+      raise ValueError(
+          f'Attempting to get weather data at {timestamp}, after the latest'
+          f' timestamp {max_time}.'
+      )
+
+    times = np.array(self._weather_data.index)
+    target_timestamp = (timestamp - _EPOCH).total_seconds()
+
+    # Interpolate sky temperature from pre-calculated values
+    temp_sky_c = np.interp(
+        target_timestamp, times, self._weather_data['TempSkyC']
+    )
+    temp_sky_k = utils.celsius_to_kelvin(temp_sky_c)
+    return temp_sky_k
