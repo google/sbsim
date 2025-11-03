@@ -1714,6 +1714,61 @@ class BuildingTest(parameterized.TestCase):
     self.assertEqual(b.temp[3][2], vals[2])
     self.assertEqual(b.temp[3][3], vals[3])
 
+  def test_interior_mass_initialization(self):
+    """Test that interior mass is correctly initialized."""
+    cv_size_cm = 20.0
+    floor_height_cm = 300.0
+    initial_temp = 292.0
+    inside_air_properties = building.MaterialProperties(
+        conductivity=50.0, heat_capacity=700.0, density=1.0
+    )
+    inside_wall_properties = building.MaterialProperties(
+        conductivity=2.0, heat_capacity=1000.0, density=1800.0
+    )
+    building_exterior_properties = building.MaterialProperties(
+        conductivity=0.05, heat_capacity=1000.0, density=3000.0
+    )
+    interior_mass_properties = building.MaterialProperties(
+        conductivity=0.5, heat_capacity=1000.0, density=2000.0
+    )
+
+    floor_plan = _create_dummy_floor_plan()
+    zone_map = _create_dummy_floor_plan()
+
+    b = building.FloorPlanBasedBuilding(
+        cv_size_cm=cv_size_cm,
+        floor_height_cm=floor_height_cm,
+        initial_temp=initial_temp,
+        inside_air_properties=inside_air_properties,
+        inside_wall_properties=inside_wall_properties,
+        building_exterior_properties=building_exterior_properties,
+        floor_plan=floor_plan,
+        zone_map=zone_map,
+        buffer_from_walls=0,
+        interior_mass_properties=interior_mass_properties,
+        include_interior_mass=True,
+    )
+
+    # Check that interior mass is enabled
+    self.assertTrue(b.include_interior_mass)
+
+    # Check that interior mass mask exists and has correct shape
+    self.assertIsNotNone(b.interior_mass_mask)
+    self.assertEqual(b.interior_mass_mask.shape, floor_plan.shape)
+    # All interior space values should be 0 (air nodes)
+    self.assertEqual(np.sum(b.floor_plan[b.interior_mass_mask]), 0)
+    # Check that interior mass temperature array exists
+    self.assertIsNotNone(b.interior_mass_temp)
+    self.assertEqual(b.interior_mass_temp.shape, floor_plan.shape)
+
+    # Check that interior mass properties are assigned
+    self.assertIsNotNone(b.interior_mass_conductivity)
+    self.assertIsNotNone(b.interior_mass_heat_capacity)
+    self.assertIsNotNone(b.interior_mass_density)
+
+    # Check that interior mass is only assigned to air nodes
+    self.assertEqual(np.sum(b.interior_mass_mask), np.sum(b.floor_plan == 0))
+
 
 if __name__ == "__main__":
   absltest.main()

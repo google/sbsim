@@ -201,6 +201,7 @@ class Simulator:
     z = self.building.floor_height_cm / 100.0
     density = self.building.density[x][y]
     conductivity = self.building.conductivity[x][y]
+
     heat_capacity = self.building.heat_capacity[x][y]
     last_temp = self.building.temp[x][y]
     input_q = self.building.input_q[x][y]
@@ -213,13 +214,31 @@ class Simulator:
 
     t0 = delta_x**2 / delta_t / alpha
 
-    denominator = 4.0 + t0
-
     neighbor_transfer = sum(neighbor_temps)
 
     retained_heat = t0 * last_temp
 
     thermal_source = input_q / conductivity / z
+
+    # Interior mass heat transfer (adiabatic node connected only to air CV)
+    if (
+        hasattr(self.building, 'include_interior_mass')
+        and self.building.include_interior_mass
+        and self.building.interior_mass_mask[x, y]
+    ):
+      interior_mass_conductivity = self.building.interior_mass_conductivity[x][
+          y
+      ]
+      denominator = 4.0 + interior_mass_conductivity / conductivity + t0
+
+      # Heat transfer between air CV and its interior mass node
+      interior_mass_temp = self.building.interior_mass_temp[x, y]
+      # Heat flux from interior mass to air CV
+      neighbor_transfer += (
+          interior_mass_temp * interior_mass_conductivity / conductivity
+      )
+    else:
+      denominator = 4.0 + t0
 
     # checking for implementation of `include_radiative_heat_transfer` because
     # the `FloorPlanBasedBuilding` implements it, but the `Building` doesn't
@@ -326,6 +345,86 @@ class Simulator:
 
     return temperature_estimates, max_delta
 
+  def update_interior_mass_temperatures(
+      self, air_temperature_estimates: np.ndarray
+  ) -> tuple[np.ndarray, float]:
+    """Updates interior mass node temperatures based on heat transfer with air
+       CVs.
+
+    Interior mass nodes are adiabatic (no interaction with each other) and only
+    exchange heat with their corresponding air CV. The interior mass is treated
+    symmetrically with the air CV, where both exchange heat through conduction.
+
+    Energy balance for interior mass:
+      k_mass * (T_air - T_mass) / delta_x = rho_mass * c_mass * delta_x *
+                                        (T_mass^(n+1) - T_mass^n) / delta_t
+
+    Rearranging:
+      T_mass^(n+1) = (T_air + t0_mass * T_mass^n) / (1 + t0_mass)
+
+    where: t0_mass = (rho_mass * c_mass * delta_x^2) / (k_mass * delta_t)
+
+    Args:
+      air_temperature_estimates: Current air temperature estimates for each CV.
+
+    Returns:
+      Tuple of (updated interior mass temperatures, maximum temperature change)
+    """
+    if not (
+        hasattr(self.building, 'include_interior_mass')
+        and self.building.include_interior_mass
+    ):
+      return self.building.interior_mass_temp.copy(), 0.0
+
+    delta_x = self.building.cv_size_cm / 100.0
+    delta_t = self._time_step_sec
+
+    # Copy current interior mass temperatures for updates
+    interior_mass_temp_estimates = self.building.interior_mass_temp.copy()
+    max_delta = 0.0
+
+    # Iterate over all CVs that have interior mass nodes
+    for x in range(self.building.interior_mass_mask.shape[0]):
+      for y in range(self.building.interior_mass_mask.shape[1]):
+        if not self.building.interior_mass_mask[x, y]:
+          continue
+
+        # Get properties
+        air_temp = air_temperature_estimates[x, y]
+        interior_mass_temp = self.building.interior_mass_temp[x, y]
+        # Use same conductivity as air CV for consistency
+        # conductivity = self.building.conductivity[x, y]
+        interior_mass_conductivity = self.building.interior_mass_conductivity[
+            x
+        ][y]
+        interior_mass_density = self.building.interior_mass_density[x][y]
+        interior_mass_heat_capacity = self.building.interior_mass_heat_capacity[
+            x
+        ][y]
+
+        # Calculate thermal diffusivity for interior mass
+        alpha_mass = (
+            interior_mass_conductivity
+            / interior_mass_density
+            / interior_mass_heat_capacity
+        )
+
+        # Temperature update using finite difference
+        # Only heat exchange with air CV (adiabatic from other interior mass)
+        t0_mass = delta_x**2 / (delta_t * alpha_mass)
+        denominator = 1.0 + t0_mass
+
+        # New interior mass temperature (symmetric with air CV update)
+        new_temp = (air_temp + t0_mass * interior_mass_temp) / denominator
+
+        # Track maximum change
+        delta = abs(new_temp - interior_mass_temp)
+        max_delta = max(delta, max_delta)
+
+        interior_mass_temp_estimates[x, y] = new_temp
+
+    return interior_mass_temp_estimates, max_delta
+
   def finite_differences_timestep(
       self, *, ambient_temperature: float, convection_coefficient: float
   ) -> bool:
@@ -338,6 +437,8 @@ class Simulator:
     2.   For each CV, solve for temperature T, based on the current estimate
          for neighboring CVs and known thermal losses/gains.
     3.   Calculate the difference between previous T and new T.
+    4.   If interior mass is enabled, update interior mass temperatures and
+         check their convergence as well.
 
     If the maximum difference in the grid is less than some small constant,
     conversion_threshold, then quit. Otherwise, return to step 2.
@@ -355,29 +456,75 @@ class Simulator:
     # TODO(gusatb): Please provide a unit test for convergence.
     temp_estimate = self.building.temp.copy()
 
+    # Check if interior mass is enabled
+    include_interior_mass = (
+        hasattr(self.building, 'include_interior_mass')
+        and self.building.include_interior_mass
+    )
+
     converged_successfully = False
     for iteration_count in range(self._iteration_limit):
-      temp_estimate, max_delta = self.update_temperature_estimates(
+      # Update air CV temperatures
+      temp_estimate, max_delta_air = self.update_temperature_estimates(
           temp_estimate,
           ambient_temperature=ambient_temperature,
           convection_coefficient=convection_coefficient,
       )
-      if iteration_count + 1 == self._iteration_warning:
-        logging.warning(
-            'Step %d, not converged in %d steps, max_delta = %3.3f',
-            iteration_count,
-            self._iteration_warning,
-            max_delta,
+
+      # Update interior mass temperatures if enabled
+      if include_interior_mass:
+        # Update interior mass temperatures based on current air temperature
+        # estimates
+        interior_mass_temp_estimate, max_delta_mass = (
+            self.update_interior_mass_temperatures(temp_estimate)
         )
+        # Store the updated interior mass temperatures
+        self.building.interior_mass_temp = interior_mass_temp_estimate
+
+        # Combined convergence check
+        max_delta = max(max_delta_air, max_delta_mass)
+      else:
+        max_delta = max_delta_air
+
+      if iteration_count + 1 == self._iteration_warning:
+        if include_interior_mass:
+          logging.warning(
+              'Step %d, not converged in %d steps, '
+              'max_delta_air = %3.3f, max_delta_mass = %3.3f',
+              iteration_count,
+              self._iteration_warning,
+              max_delta_air,
+              max_delta_mass,
+          )
+        else:
+          logging.warning(
+              'Step %d, not converged in %d steps, max_delta = %3.3f',
+              iteration_count,
+              self._iteration_warning,
+              max_delta,
+          )
 
       if max_delta <= self._convergence_threshold:
         converged_successfully = True
         break
     else:
-      logging.warning(
-          'Max iteration count reached, max_delta = %3.3f', max_delta
-      )
+      if include_interior_mass:
+        logging.warning(
+            'Max iteration count reached, max_delta_air = %3.3f, '
+            'max_delta_mass = %3.3f',
+            max_delta_air,
+            max_delta_mass,
+        )
+      else:
+        logging.warning(
+            'Max iteration count reached, max_delta = %3.3f', max_delta
+        )
+
+    # Final update of building temperatures
     self.building.temp = temp_estimate
+
+    # Interior mass temperatures are already updated in the loop
+    # No need for additional update here
 
     return converged_successfully
 

@@ -12,6 +12,7 @@ from smart_control.proto import smart_control_reward_pb2
 from smart_control.simulator import air_handler as air_handler_py
 from smart_control.simulator import boiler as boiler_py
 from smart_control.simulator import building as building_py
+from smart_control.simulator import constants
 from smart_control.simulator import hvac_floorplan_based as floorplan_hvac_py
 from smart_control.simulator import setpoint_schedule
 from smart_control.simulator import simulator_flexible_floor_plan as simulator_py
@@ -1559,6 +1560,290 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
         msg=(
             "finite_differences_timestep converged with radiative heat"
             " transfer."
+        ),
+    )
+
+  def test_interior_mass_temperatures_update(self):
+    """Test that interior mass temperatures are updated during simulation."""
+    weather_controller = mock.create_autospec(
+        weather_controller_py.WeatherController
+    )
+    time_step_sec = 300.0
+    hvac = self._create_small_hvac()
+    convergence_threshold = 0.001
+    iteration_limit = 100
+    iteration_warning = 10
+    start_timestamp = pd.Timestamp("2012-12-21")
+
+    initial_temp = 292.0
+
+    # Create building with interior mass
+    cv_size_cm = 20.0
+    floor_height_cm = 300.0
+    inside_air_properties = building_py.MaterialProperties(
+        conductivity=50.0, heat_capacity=700.0, density=1.0
+    )
+    inside_wall_properties = building_py.MaterialProperties(
+        conductivity=2.0, heat_capacity=500.0, density=1800.0
+    )
+    building_exterior_properties = building_py.MaterialProperties(
+        conductivity=0.05, heat_capacity=500.0, density=3000.0
+    )
+    interior_mass_properties = building_py.MaterialProperties(
+        conductivity=0.5, heat_capacity=1000.0, density=2000.0
+    )
+
+    floor_plan = self._create_dummy_floor_plan_small()
+    zone_map = copy.deepcopy(floor_plan)
+
+    building = building_py.FloorPlanBasedBuilding(
+        cv_size_cm=cv_size_cm,
+        floor_height_cm=floor_height_cm,
+        initial_temp=initial_temp,
+        inside_air_properties=inside_air_properties,
+        inside_wall_properties=inside_wall_properties,
+        building_exterior_properties=building_exterior_properties,
+        floor_plan=floor_plan,
+        zone_map=zone_map,
+        buffer_from_walls=0,
+        interior_mass_properties=interior_mass_properties,
+        include_interior_mass=True,
+    )
+
+    simulator = simulator_py.SimulatorFlexibleGeometries(
+        building,
+        hvac,
+        weather_controller,
+        time_step_sec,
+        convergence_threshold,
+        iteration_limit,
+        iteration_warning,
+        start_timestamp,
+    )
+
+    # Store initial interior mass temperatures
+    initial_interior_mass_temps = building.interior_mass_temp.copy()
+
+    # Run a timestep with different ambient temperature to cause heat transfer
+    converged = simulator.finite_differences_timestep(
+        ambient_temperature=300.0, convection_coefficient=12.0
+    )
+
+    self.assertTrue(converged)
+
+    # Check that interior mass temperatures have changed
+    temps_changed = False
+    for x in range(building.interior_mass_mask.shape[0]):
+      for y in range(building.interior_mass_mask.shape[1]):
+        if building.interior_mass_mask[x, y]:
+          if (
+              abs(
+                  building.interior_mass_temp[x, y]
+                  - initial_interior_mass_temps[x, y]
+              )
+              > 1e-10
+          ):
+            temps_changed = True
+            break
+      if temps_changed:
+        break
+
+    self.assertTrue(
+        temps_changed,
+        msg="Interior mass temperatures should change during simulation",
+    )
+
+  def test_interior_mass_convergence(self):
+    """Test that simulation with interior mass converges."""
+    weather_controller = mock.create_autospec(
+        weather_controller_py.WeatherController
+    )
+    time_step_sec = 300.0
+    hvac = self._create_small_hvac()
+    convergence_threshold = 0.001
+    iteration_limit = 100
+    iteration_warning = 10
+    start_timestamp = pd.Timestamp("2012-12-21")
+
+    # Create building with interior mass
+    cv_size_cm = 20.0
+    floor_height_cm = 300.0
+    initial_temp = 292.0
+    inside_air_properties = building_py.MaterialProperties(
+        conductivity=50.0, heat_capacity=700.0, density=1.0
+    )
+    inside_wall_properties = building_py.MaterialProperties(
+        conductivity=2.0, heat_capacity=500.0, density=1800.0
+    )
+    building_exterior_properties = building_py.MaterialProperties(
+        conductivity=0.05, heat_capacity=500.0, density=3000.0
+    )
+    interior_mass_properties = building_py.MaterialProperties(
+        conductivity=0.5, heat_capacity=1000.0, density=2000.0
+    )
+
+    floor_plan = self._create_dummy_floor_plan_small()
+    zone_map = copy.deepcopy(floor_plan)
+
+    building = building_py.FloorPlanBasedBuilding(
+        cv_size_cm=cv_size_cm,
+        floor_height_cm=floor_height_cm,
+        initial_temp=initial_temp,
+        inside_air_properties=inside_air_properties,
+        inside_wall_properties=inside_wall_properties,
+        building_exterior_properties=building_exterior_properties,
+        floor_plan=floor_plan,
+        zone_map=zone_map,
+        buffer_from_walls=0,
+        interior_mass_properties=interior_mass_properties,
+        include_interior_mass=True,
+    )
+
+    simulator = simulator_py.SimulatorFlexibleGeometries(
+        building,
+        hvac,
+        weather_controller,
+        time_step_sec,
+        convergence_threshold,
+        iteration_limit,
+        iteration_warning,
+        start_timestamp,
+    )
+
+    # Test convergence with same temperature (should converge quickly)
+    converged = simulator.finite_differences_timestep(
+        ambient_temperature=292.0, convection_coefficient=12.0
+    )
+
+    self.assertTrue(
+        converged,
+        msg=(
+            "Simulation with interior mass should converge when ambient temp"
+            " equals initial temp"
+        ),
+    )
+
+  def test_interior_mass_affects_heat_transfer(self):
+    """Test that interior mass affects heat transfer in the building."""
+    weather_controller = mock.create_autospec(
+        weather_controller_py.WeatherController
+    )
+    time_step_sec = 300.0
+    hvac = self._create_small_hvac()
+    convergence_threshold = 0.1
+    iteration_limit = 100
+    iteration_warning = 10
+    start_timestamp = pd.Timestamp("2012-12-21")
+    initial_temp = 292.0
+
+    # Create two identical buildings, one with interior mass, one without
+    cv_size_cm = 20.0
+    floor_height_cm = 300.0
+    inside_air_properties = building_py.MaterialProperties(
+        conductivity=50.0, heat_capacity=700.0, density=1.0
+    )
+    inside_wall_properties = building_py.MaterialProperties(
+        conductivity=2.0, heat_capacity=500.0, density=1800.0
+    )
+    building_exterior_properties = building_py.MaterialProperties(
+        conductivity=0.05, heat_capacity=500.0, density=3000.0
+    )
+    interior_mass_properties = building_py.MaterialProperties(
+        conductivity=2.0, heat_capacity=1200.0, density=2500.0
+    )
+
+    floor_plan = self._create_dummy_floor_plan_small()
+    zone_map = copy.deepcopy(floor_plan)
+
+    # Building without interior mass
+    building_no_mass = building_py.FloorPlanBasedBuilding(
+        cv_size_cm=cv_size_cm,
+        floor_height_cm=floor_height_cm,
+        initial_temp=initial_temp,
+        inside_air_properties=inside_air_properties,
+        inside_wall_properties=inside_wall_properties,
+        building_exterior_properties=building_exterior_properties,
+        floor_plan=floor_plan,
+        zone_map=zone_map,
+        buffer_from_walls=0,
+        include_interior_mass=False,
+    )
+
+    # Building with interior mass
+    building_with_mass = building_py.FloorPlanBasedBuilding(
+        cv_size_cm=cv_size_cm,
+        floor_height_cm=floor_height_cm,
+        initial_temp=initial_temp,
+        inside_air_properties=inside_air_properties,
+        inside_wall_properties=inside_wall_properties,
+        building_exterior_properties=building_exterior_properties,
+        floor_plan=floor_plan,
+        zone_map=zone_map,
+        buffer_from_walls=0,
+        interior_mass_properties=interior_mass_properties,
+        include_interior_mass=True,
+    )
+
+    simulator_no_mass = simulator_py.SimulatorFlexibleGeometries(
+        building_no_mass,
+        hvac,
+        weather_controller,
+        time_step_sec,
+        convergence_threshold,
+        iteration_limit,
+        iteration_warning,
+        start_timestamp,
+    )
+
+    simulator_with_mass = simulator_py.SimulatorFlexibleGeometries(
+        building_with_mass,
+        self._create_small_hvac(),
+        weather_controller,
+        time_step_sec,
+        convergence_threshold,
+        iteration_limit,
+        iteration_warning,
+        start_timestamp,
+    )
+
+    # Run simulation with higher ambient temperature
+    ambient_temp = 300.0
+    convection_coeff = 12.0
+
+    simulator_no_mass.finite_differences_timestep(
+        ambient_temperature=ambient_temp,
+        convection_coefficient=convection_coeff,
+    )
+    simulator_with_mass.finite_differences_timestep(
+        ambient_temperature=ambient_temp,
+        convection_coefficient=convection_coeff,
+    )
+
+    # Compare average air temperatures
+    avg_temp_no_mass = np.mean(
+        building_no_mass.temp[
+            building_with_mass.floor_plan
+            == constants.INTERIOR_SPACE_VALUE_IN_FILE_INPUT
+        ]
+    )
+    avg_temp_with_mass = np.mean(
+        building_with_mass.temp[
+            building_with_mass.floor_plan
+            == constants.INTERIOR_SPACE_VALUE_IN_FILE_INPUT
+        ]
+    )
+
+    # Building with interior mass should heat up differently due to thermal
+    #  inertia
+    # The exact relationship depends on material properties, but they should
+    # differ
+    self.assertNotAlmostEqual(
+        avg_temp_no_mass,
+        avg_temp_with_mass,
+        places=8,
+        msg=(
+            "Buildings with and without interior mass should have different"
+            " average temperatures"
         ),
     )
 
