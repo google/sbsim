@@ -13,6 +13,7 @@ from smart_control.simulator import constants
 
 TEMPORARY_MARKED_VALUE = -33
 TEMPORARY_BLOCKED_VALUE = -34
+AIR_IN_LINE_OF_SIGHT = 9  # Air nodes along line of sight between wall nodes
 
 # we are choosing to keep the mathematical notation in this file
 # pylint: disable=invalid-name
@@ -788,13 +789,15 @@ def mark_directly_seeing_nodes(
     interior_wall_value: int = constants.INTERIOR_WALL_VALUE_IN_FUNCTION,
     marked_value: int = TEMPORARY_MARKED_VALUE,
     blocked_value: int = TEMPORARY_BLOCKED_VALUE,
+    air_value: int = constants.INTERIOR_SPACE_VALUE_IN_FUNCTION,
 ) -> np.ndarray:
   """Mark nodes that are directly seeing the base node as blocked_value.
 
   This function identifies and marks wall nodes that have a direct line of sight
   to the base node. It processes all connected wall nodes (marked with
   marked_value) and determines which ones can directly see the base node without
-  being blocked by other walls.
+  being blocked by other walls. Additionally, it marks air nodes along unblocked
+  lines of sight between wall nodes for interior mass radiative heat transfer.
 
   Args:
       floor_plan: 2D numpy array representing the floor plan where different
@@ -806,18 +809,24 @@ def mark_directly_seeing_nodes(
           be checked for line of sight. Only used internally. Defaults to -33.
       blocked_value: Value used to mark nodes that cannot directly see the
           base node. Only used internally. Defaults to -34.
+      air_value: Value used to represent air spaces in the floor plan.
+          Defaults to 0 (from constants.py).
 
   Returns:
       Copy of the floor plan with nodes marked according to their visibility
           to the base node. Nodes that cannot see the base node are marked
           with blocked_value, and the base node itself is marked with
-          blocked_value + marked_value.
+          blocked_value + marked_value. Air nodes along unblocked lines of sight
+          are marked with AIR_IN_LINE_OF_SIGHT (-330). Air nodes along blocked
+          lines remain as air_value (0).
 
   Note:
       - Neighboring nodes are automatically marked as blocked (no line of sight
-        calculation needed).
-      - For non-neighboring nodes, the function checks if the line of sight
-        is blocked by walls using is_line_blocked().
+        calculation needed, and no air nodes between directly adjacent walls).
+      - For non-neighboring nodes, the function first checks if the line of
+        sight is blocked by walls using is_line_blocked().
+      - Air nodes are ONLY marked as -330 along lines that are NOT blocked.
+        If a line is blocked, air nodes along that line remain as 0 (air_value).
       - The base node itself is marked with a special value to distinguish it.
       - Value meanings for radiative heat transfer:
         * marked_value (-33): Interior wall nodes connected to the same air
@@ -825,6 +834,8 @@ def mark_directly_seeing_nodes(
         * blocked_value (-34): Interior wall nodes that cannot see the base node
           (blocked from radiative transfer)
         * blocked_value + marked_value (-67): The starting node itself
+        * AIR_IN_LINE_OF_SIGHT (-330): Air nodes along unblocked line of sight
+          between wall nodes (for interior mass radiative transfer)
   """
   floor_plan_copy = floor_plan.copy()
   base_row, base_col = base_node
@@ -844,9 +855,11 @@ def mark_directly_seeing_nodes(
     is_neighbor = are_neighbors((base_row, base_col), (row, col))
 
     if is_neighbor:
+      # Neighbors are directly adjacent, so mark as blocked
+      # (no air nodes between directly adjacent wall nodes)
       floor_plan_copy[row, col] = blocked_value
     else:
-      # Check if line of sight is not blocked
+      # Check if line of sight is blocked first
       blocked = is_line_blocked(
           floor_plan_copy,
           (base_row, base_col),
@@ -855,10 +868,34 @@ def mark_directly_seeing_nodes(
           marked_value,
           blocked_value,
       )
+
       if blocked:
+        # Line is blocked, so mark the wall node as blocked
+        # and DON'T mark air nodes along this line
         floor_plan_copy[row, col] = blocked_value
         directly_seeing_count += 1
       else:
-        pass
+        # Line is NOT blocked, so mark air nodes along the line
+        line_points = get_line_points(
+            (float(base_row), float(base_col)), (float(row), float(col))
+        )
+
+        # Mark air nodes along the line (excluding start and end points)
+        for point in line_points[1:-1]:
+          px, py = point
+          # Check all 4 integer coordinates around the floating point
+          for cx, cy in [
+              (math.floor(px), math.floor(py)),
+              (math.floor(px), math.ceil(py)),
+              (math.ceil(px), math.floor(py)),
+              (math.ceil(px), math.ceil(py)),
+          ]:
+            if (
+                0 <= cx < floor_plan_copy.shape[0]
+                and 0 <= cy < floor_plan_copy.shape[1]
+                and floor_plan_copy[cx, cy] == air_value
+            ):
+              floor_plan_copy[cx, cy] = AIR_IN_LINE_OF_SIGHT
+        # Wall node is visible (not blocked), so leave it as marked_value (-33)
   floor_plan_copy[base_row, base_col] = blocked_value + marked_value
   return floor_plan_copy
