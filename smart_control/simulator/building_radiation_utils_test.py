@@ -30,31 +30,31 @@ class BuildingRadiationUtilsTest(absltest.TestCase):
     """
     epsilon = np.array([0.8, 0.4, 0.8])
     F = np.array([[0, 0.5, 0.5], [0.5, 0, 0.5], [0.5, 0.5, 0]])
-    expected_A_tilde_inv = np.array([
+    expected_a_tilde_inv = np.array([
         [0.83982684, 0.04761905, 0.11255411],
         [0.28571429, 0.42857143, 0.28571429],
         [0.11255411, 0.04761905, 0.83982684],
     ])
 
-    expected_IFAinv = np.array([
+    expected_ifainv = np.array([
         [0.64069264, -0.19047619, -0.45021645],
         [-0.19047619, 0.38095238, -0.19047619],
         [-0.45021645, -0.19047619, 0.64069264],
     ])
 
-    A_tilde_inv = utils.calculate_A_tilde_inv(epsilon, F)
-    IFAinv = utils.calculate_IFAinv(F, A_tilde_inv)
-    with self.subTest("A_tilde_inv shape"):
-      self.assertEqual(A_tilde_inv.shape, F.shape)
-    with self.subTest("IFAinv shape"):
-      self.assertEqual(IFAinv.shape, F.shape)
+    a_tilde_inv = utils.calculate_a_tilde_inv(epsilon, F)
+    ifainv = utils.calculate_ifainv(F, a_tilde_inv)
+    with self.subTest("a_tilde_inv shape"):
+      self.assertEqual(a_tilde_inv.shape, F.shape)
+    with self.subTest("ifainv shape"):
+      self.assertEqual(ifainv.shape, F.shape)
 
-    with self.subTest("A_tilde_inv"):
-      assert_array_almost_equal(A_tilde_inv, expected_A_tilde_inv, decimal=3)
-    with self.subTest("IFAinv"):
-      assert_array_almost_equal(IFAinv, expected_IFAinv, decimal=3)
+    with self.subTest("a_tilde_inv"):
+      assert_array_almost_equal(a_tilde_inv, expected_a_tilde_inv, decimal=3)
+    with self.subTest("ifainv"):
+      assert_array_almost_equal(ifainv, expected_ifainv, decimal=3)
 
-  def test_net_radiative_heatflux_function_of_T(self):
+  def test_net_radiative_heatflux_function_of_t(self):
     """Test calculation of net radiative heat flux from surface temperatures.
 
     Tests the main radiative heat transfer equation that calculates net heat
@@ -66,7 +66,7 @@ class BuildingRadiationUtilsTest(absltest.TestCase):
     # fmt: off
     #pylint:disable=line-too-long
     temperatures=np.array([1200,500,1102])#  [K]
-    IFAinv = np.array([
+    ifainv = np.array([
         [0.64069264, -0.19047619, -0.45021645],
         [-0.19047619, 0.38095238, -0.19047619],
         [-0.45021645, -0.19047619, 0.64069264],
@@ -75,7 +75,7 @@ class BuildingRadiationUtilsTest(absltest.TestCase):
     # pylint:enable=line-too-long
     expected_q = np.array([3.70061961e04, -3.69724724e04, -3.37237040e01])
 
-    q = utils.net_radiative_heatflux_function_of_T(temperatures, IFAinv)
+    q = utils.net_radiative_heatflux_function_of_t(temperatures, ifainv)
 
     with self.subTest("q results as expected"):
       assert_array_almost_equal(
@@ -189,13 +189,15 @@ class BuildingRadiationUtilsTest(absltest.TestCase):
     - case_23: Starting node at (2,3) - tests visibility from top-left corner
     - case_27: Starting node at (2,7) - tests visibility from top-right corner
     - case_116: Starting node at (11,6) - tests visibility from bottom-center
-
+    - case_33: Starting node at (3,3) - tests visibility from air node
+    - case_128: Starting node at (12,8) - tests visibility from air node
     Value meanings:
     - -33: Interior wall nodes connected to the same air space
            (can participate in radiative transfer)
     - -34: Interior wall nodes that cannot see the starting node
            (blocked from radiative transfer)
     - -67: The starting node itself (marked_value + blocked_value)
+    -   9: Air nodes along line of sight between wall nodes
     """
     # fmt: off
     #pylint:disable=line-too-long
@@ -227,8 +229,7 @@ class BuildingRadiationUtilsTest(absltest.TestCase):
         [ -1,  -1, -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1]]
       )
 
-
-
+    # Expected results for cases
     expected_result_23 = \
       np.array([[ -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1],
        [ -1,  -2,  -2,  -2,  -2,  -2,  -2,  -2,  -2,  -2,  -2,  -1],
@@ -303,6 +304,58 @@ class BuildingRadiationUtilsTest(absltest.TestCase):
                 [ -1,  -2,  -3, -33, -33, -33, -33, -33, -33,  -3,  -2,  -1],
                 [ -1,  -2,  -2,  -2,  -2,  -2,  -2,  -2,  -2,  -2,  -2,  -1],
                 [ -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1]])
+
+    # Additional test cases for (3,3) and (12,8)
+    expected_result_33 = \
+      np.array([[ -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1],
+                [ -1,  -2,  -2,  -2,  -2,  -2,  -2,  -2,  -2,  -2,  -2,  -1],
+                [ -1,  -2,  -3, -33, -33, -33, -33, -33, -33,  -3,  -2,  -1],
+                [ -1,  -2, -33, -67,   0,   0,   0,   0,   0, -33,  -2,  -1],
+                [ -1,  -2, -33,   0,   0,   0,   0,   0,   0, -33,  -2,  -1],
+                [ -1,  -2, -33,   0,   0,   0,   0,   0,   0, -33,  -2,  -1],
+                [ -1,  -2, -33,   0,   0, -33, -33, -33,   0, -33,  -2,  -1],
+                [ -1,  -2, -33,   0,   0, -33,   0, -34,   0, -33,  -2,  -1],
+                [ -1,  -2, -33,   0,   0, -33,   0, -34,   0, -34,  -2,  -1],
+                [ -1,  -2, -33,   0,   0, -33,   0, -34,   0, -34,  -2,  -1],
+                [ -1,  -2, -33,   0,   0, -33,   0,   0,   0, -34,  -2,  -1],
+                [ -1,  -2,  -3, -33, -33,  -3, -34, -34, -34,  -3,  -2,  -1],
+                [ -1,  -2,  -3,   0,  -3,   0,   0,   0,   0,  -3,  -2,  -1],
+                [ -1,  -2,  -3,   0,  -3,   0,   0,   0,   0,  -3,  -2,  -1],
+                [ -1,  -2,  -3,  -3,  -3,   0,   0,   0,   0,  -3,  -2,  -1],
+                [ -1,  -2,  -3,   0,   0,   0,   0,   0,   0,  -3,  -2,  -1],
+                [ -1,  -2,  -3,   0,   0,   0,   0,   0,   0,  -3,  -2,  -1],
+                [ -1,  -2,  -3,   0,   0,   0,   0,   0,   0,  -3,  -2,  -1],
+                [ -1,  -2,  -3,   0,   0,   0,   0,   0,   0,  -3,  -2,  -1],
+                [ -1,  -2,  -3,   0,   0,   0,   0,   0,   0,  -3,  -2,  -1],
+                [ -1,  -2,  -3,  -3,  -3,  -3,  -3,  -3,  -3,  -3,  -2,  -1],
+                [ -1,  -2,  -2,  -2,  -2,  -2,  -2,  -2,  -2,  -2,  -2,  -1],
+                [ -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1]])
+
+    expected_result_128 = \
+      np.array([[ -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1],
+                [ -1,  -2,  -2,  -2,  -2,  -2,  -2,  -2,  -2,  -2,  -2,  -1],
+                [ -1,  -2,  -3,  -3,  -3,  -3,  -3,  -3,  -3,  -3,  -2,  -1],
+                [ -1,  -2,  -3,   0,   0,   0,   0,   0,   0,  -3,  -2,  -1],
+                [ -1,  -2,  -3,   0,   0,   0,   0,   0,   0,  -3,  -2,  -1],
+                [ -1,  -2,  -3,   0,   0,   0,   0,   0,   0,  -3,  -2,  -1],
+                [ -1,  -2,  -3,   0,   0,  -3,  -3,  -3,   0,  -3,  -2,  -1],
+                [ -1,  -2,  -3,   0,   0,  -3,   0,  -3,   0,  -3,  -2,  -1],
+                [ -1,  -2,  -3,   0,   0,  -3,   0,  -3,   0,  -3,  -2,  -1],
+                [ -1,  -2,  -3,   0,   0,  -3,   0,  -3,   0,  -3,  -2,  -1],
+                [ -1,  -2,  -3,   0,   0,  -3,   0,   0,   0,  -3,  -2,  -1],
+                [ -1,  -2,  -3,  -3,  -3, -33, -33, -33, -33,  -3,  -2,  -1],
+                [ -1,  -2,  -3,   0, -33,   0,   0,   0, -67, -33,  -2,  -1],
+                [ -1,  -2,  -3,   0, -33,   0,   0,   0,   0, -33,  -2,  -1],
+                [ -1,  -2,  -3, -34, -33,   0,   0,   0,   0, -33,  -2,  -1],
+                [ -1,  -2, -34,   0,   0,   0,   0,   0,   0, -33,  -2,  -1],
+                [ -1,  -2, -33,   0,   0,   0,   0,   0,   0, -33,  -2,  -1],
+                [ -1,  -2, -33,   0,   0,   0,   0,   0,   0, -33,  -2,  -1],
+                [ -1,  -2, -33,   0,   0,   0,   0,   0,   0, -33,  -2,  -1],
+                [ -1,  -2, -33,   0,   0,   0,   0,   0,   0, -33,  -2,  -1],
+                [ -1,  -2,  -3, -33, -33, -33, -33, -33, -33,  -3,  -2,  -1],
+                [ -1,  -2,  -2,  -2,  -2,  -2,  -2,  -2,  -2,  -2,  -2,  -1],
+                [ -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1]])
+
     # fmt: on
     # pylint:enable=line-too-long
     # Test case 1: Starting node at (2,3) - top-left corner
@@ -419,6 +472,70 @@ class BuildingRadiationUtilsTest(absltest.TestCase):
       # Verify that some air nodes along lines are marked
       air_in_line = np.sum(result116 == AIR_IN_LINE_OF_SIGHT)
       self.assertGreater(air_in_line, 0, "Some air nodes should be marked")
+
+    # Test case 4: Starting node at (3,3) - mid air node
+    # Tests visibility from an air node to surrounding walls
+    result33_, _ = utils.mark_air_connected_interior_walls(
+        indexed_floor_plan=indexed_floor_plan,
+        start_pos=(3, 3),
+        interior_wall_value=constants.INTERIOR_WALL_VALUE_IN_FUNCTION,
+        marked_value=utils.TEMPORARY_MARKED_VALUE,
+        air_value=constants.INTERIOR_SPACE_VALUE_IN_FUNCTION,
+    )
+    result33 = utils.mark_directly_seeing_nodes(
+        floor_plan=result33_, base_node=(3, 3)
+    )
+    with self.subTest("case_33 - air node visibility"):
+      wall_mask = (
+          (result33 == TEMPORARY_MARKED_VALUE)
+          | (result33 == TEMPORARY_BLOCKED_VALUE)
+          | (result33 == TEMPORARY_MARKED_VALUE + TEMPORARY_BLOCKED_VALUE)
+      )
+      expected_wall_mask = (
+          (expected_result_33 == TEMPORARY_MARKED_VALUE)
+          | (expected_result_33 == TEMPORARY_BLOCKED_VALUE)
+          | (
+              expected_result_33
+              == TEMPORARY_MARKED_VALUE + TEMPORARY_BLOCKED_VALUE
+          )
+      )
+      assert_array_almost_equal(
+          result33[wall_mask], expected_result_33[expected_wall_mask]
+      )
+      air_in_line = np.sum(result33 == AIR_IN_LINE_OF_SIGHT)
+      self.assertEqual(air_in_line, 0, "No air in line of sight.")
+
+    # Test case 5: Starting node at (12,8) - air node
+    # Tests visibility from another air node deeper inside
+    result128_, _ = utils.mark_air_connected_interior_walls(
+        indexed_floor_plan=indexed_floor_plan,
+        start_pos=(12, 8),
+        interior_wall_value=constants.INTERIOR_WALL_VALUE_IN_FUNCTION,
+        marked_value=utils.TEMPORARY_MARKED_VALUE,
+        air_value=constants.INTERIOR_SPACE_VALUE_IN_FUNCTION,
+    )
+    result128 = utils.mark_directly_seeing_nodes(
+        floor_plan=result128_, base_node=(12, 8)
+    )
+    with self.subTest("case_128 - air node (deeper) visibility"):
+      wall_mask = (
+          (result128 == TEMPORARY_MARKED_VALUE)
+          | (result128 == TEMPORARY_BLOCKED_VALUE)
+          | (result128 == TEMPORARY_MARKED_VALUE + TEMPORARY_BLOCKED_VALUE)
+      )
+      expected_wall_mask = (
+          (expected_result_128 == TEMPORARY_MARKED_VALUE)
+          | (expected_result_128 == TEMPORARY_BLOCKED_VALUE)
+          | (
+              expected_result_128
+              == TEMPORARY_MARKED_VALUE + TEMPORARY_BLOCKED_VALUE
+          )
+      )
+      assert_array_almost_equal(
+          result128[wall_mask], expected_result_128[expected_wall_mask]
+      )
+      air_in_line = np.sum(result128 == AIR_IN_LINE_OF_SIGHT)
+      self.assertEqual(air_in_line, 0, "No air in line of sight.")
 
 
 if __name__ == "__main__":

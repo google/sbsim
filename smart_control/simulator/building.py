@@ -805,6 +805,7 @@ class FloorPlanBasedBuilding(BaseSimulatorBuilding):
       include_radiative_heat_transfer: bool = False,
       view_factor_method: str = "ScriptF",
       interior_mass_properties: MaterialProperties | None = None,
+      interior_mass_radiative_properties: RadiationProperties | None = None,
       include_interior_mass: bool = False,
   ):
     """Initializes the New Building.
@@ -856,8 +857,8 @@ class FloorPlanBasedBuilding(BaseSimulatorBuilding):
     self._reset_temp_values = reset_temp_values
     self.include_radiative_heat_transfer = include_radiative_heat_transfer
     self.include_interior_mass = include_interior_mass
-    self._interior_mass_properties = interior_mass_properties
-    self._inside_air_properties = inside_air_properties
+    # self._interior_mass_properties = interior_mass_properties
+    # self._inside_air_properties = inside_air_properties
 
     # below is new code, to derive necessary artifacts from the floor plan.
     # TODO(spangher): neaten code by turning the next twenty lines into a
@@ -893,6 +894,11 @@ class FloorPlanBasedBuilding(BaseSimulatorBuilding):
     if zone_map is None and zone_map_filepath is not None:
       zone_map = building_utils.read_floor_plan_from_filepath(zone_map_filepath)
       self._zone_map = zone_map
+    if include_interior_mass and interior_mass_properties is None:
+      raise ValueError(
+          "interior_mass_properties must be provided if include_interior_mass"
+          " is True"
+      )
 
     (self._room_dict, exterior_walls, interior_walls, self._exterior_space) = (
         building_utils.construct_building_data_types(
@@ -943,6 +949,11 @@ class FloorPlanBasedBuilding(BaseSimulatorBuilding):
     self.neighbors = self._calculate_neighbors()
     self.len_neighbors = self._calculate_length_of_neighbors()
 
+    self._assign_interior_mass_properties(
+        interior_mass_properties=interior_mass_properties,
+        interior_mass_radiative_properties=interior_mass_radiative_properties,
+    )
+
     self._assign_radiative_heat_transfer_properties(
         view_factor_method,
         exterior_walls,
@@ -984,14 +995,22 @@ class FloorPlanBasedBuilding(BaseSimulatorBuilding):
               constants.INTERIOR_SPACE_VALUE_IN_FUNCTION,
           )
       )
-      self.interior_wall_index = np.full(self.indexed_floor_plan.shape, -1)
-      self.interior_wall_index[self.interior_wall_mask] = np.arange(
-          np.sum(self.interior_wall_mask)
+      self.lwx_index = np.full(self.indexed_floor_plan.shape, -1)
+      # convert mask index => range for view factor matrix order.
+      if self.include_interior_mass:
+        interior_wall_mask_all = (
+            self.interior_wall_mask | self.interior_mass_mask
+        )
+      else:
+        interior_wall_mask_all = self.interior_wall_mask
+      self.lwx_index[interior_wall_mask_all] = np.arange(
+          np.sum(interior_wall_mask_all)
       )
-      self.interior_wall_VF = building_radiation_utils.get_VF(  # pylint: disable=invalid-name
+      self.interior_wall_vf = building_radiation_utils.get_vf(
           indexed_floor_plan=self.indexed_floor_plan,
           interior_wall_mask=self.interior_wall_mask,
           view_factor_method=view_factor_method,
+          interior_mass_mask=self.interior_mass_mask,
       )
 
       # radiative properties
@@ -1032,13 +1051,23 @@ class FloorPlanBasedBuilding(BaseSimulatorBuilding):
           exterior_wall_value=building_exterior_radiative_properties.tau,
           interior_and_exterior_space_value=inside_air_radiative_properties.tau,
       )
-
-      epsilon_vector = self._epsilon[self.interior_wall_mask]
-      A_tilde_inv = building_radiation_utils.calculate_A_tilde_inv(  # pylint: disable=invalid-name
-          epsilon_vector, self.interior_wall_VF
+      if self.include_interior_mass:
+        epsilon_temp = np.zeros_like(self._epsilon)
+        epsilon_temp[self.interior_mass_mask] = self._epsilon_interior_mass[
+            self.interior_mass_mask
+        ]
+        epsilon_temp[self.interior_wall_mask] = self._epsilon[
+            self.interior_wall_mask
+        ]
+        interior_mask_all = self.interior_mass_mask | self.interior_wall_mask
+        epsilon_vector = epsilon_temp[interior_mask_all]
+      else:
+        epsilon_vector = self._epsilon[self.interior_wall_mask]
+      a_tilde_inv = building_radiation_utils.calculate_a_tilde_inv(
+          epsilon_vector, self.interior_wall_vf
       )
-      self.IFAinv = building_radiation_utils.calculate_IFAinv(  # pylint: disable=invalid-name
-          self.interior_wall_VF, A_tilde_inv
+      self.ifainv = building_radiation_utils.calculate_ifainv(
+          self.interior_wall_vf, a_tilde_inv
       )
 
     else:
@@ -1046,24 +1075,20 @@ class FloorPlanBasedBuilding(BaseSimulatorBuilding):
       self.indexed_floor_plan = None
       self.interior_wall_mask = None
       self.interior_wall_index = None
-      self.interior_wall_VF = None
+      self.interior_wall_vf = None
       self._alpha = None
       self._epsilon = None
       self._tau = None
-      self.IFAinv = None
+      self.ifainv = None
 
-    # Initialize interior mass nodes
-    self._assign_interior_mass_properties()
-
-    self.reset()
-
-  def _assign_interior_mass_properties(self):
+  def _assign_interior_mass_properties(
+      self,
+      interior_mass_properties,
+      interior_mass_radiative_properties,
+  ):
     """Assigns properties for interior mass nodes."""
     if self.include_interior_mass:
       # Use provided properties or default to air properties
-      interior_mass_properties = self._interior_mass_properties
-      if interior_mass_properties is None:
-        interior_mass_properties = self._inside_air_properties
 
       # Create mask for air nodes (interior space)
       self.interior_mass_mask = (
@@ -1091,12 +1116,36 @@ class FloorPlanBasedBuilding(BaseSimulatorBuilding):
           interior_mass_properties.density,
           0.0,
       )
+
+      if self.include_radiative_heat_transfer:
+        interior_mass_radiative_properties = (
+            interior_mass_radiative_properties
+            or DefaultInsideWallRadiationProperties()
+        )
+        self._epsilon_interior_mass = np.where(
+            self.interior_mass_mask,
+            interior_mass_radiative_properties.epsilon,
+            0.0,
+        )
+        self._alpha_interior_mass = np.where(
+            self.interior_mass_mask,
+            interior_mass_radiative_properties.alpha,
+            0.0,
+        )
+        self._tau_interior_mass = np.where(
+            self.interior_mass_mask,
+            interior_mass_radiative_properties.tau,
+            0.0,
+        )
     else:
       self.interior_mass_mask = None
       self.interior_mass_temp = None
       self._interior_mass_conductivity = None
       self._interior_mass_heat_capacity = None
       self._interior_mass_density = None
+      self._epsilon_interior_mass = None
+      self._alpha_interior_mass = None
+      self._tau_interior_mass = None
 
   @property
   def density(self) -> np.ndarray:
@@ -1259,7 +1308,20 @@ class FloorPlanBasedBuilding(BaseSimulatorBuilding):
     This function calculates the net radiative heat flux and radiosity for each
     interior wall.
     """
-    q_lwx = building_radiation_utils.net_radiative_heatflux_function_of_T(
-        temperature_estimates[self.interior_wall_mask], self.IFAinv
-    )
+    if self.include_interior_mass:
+      interior_mask_all = self.interior_mass_mask | self.interior_wall_mask
+      temperature_estimates_temp = np.zeros_like(temperature_estimates)
+      temperature_estimates_temp[self.interior_mass_mask] = (
+          self.interior_mass_temp[self.interior_mass_mask]
+      )
+      temperature_estimates_temp[self.interior_wall_mask] = (
+          temperature_estimates[self.interior_wall_mask]
+      )
+      q_lwx = building_radiation_utils.net_radiative_heatflux_function_of_t(
+          temperature_estimates_temp[interior_mask_all], self.ifainv
+      )
+    else:
+      q_lwx = building_radiation_utils.net_radiative_heatflux_function_of_t(
+          temperature_estimates[self.interior_wall_mask], self.ifainv
+      )
     return q_lwx

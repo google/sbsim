@@ -35,6 +35,7 @@ FLOOR_PLAN = np.array([
 
 def create_building_with_radiative_properties(
     view_factor_method: str = "ScriptF",
+    include_interior_mass: bool = False,
     floor_plan: np.array = FLOOR_PLAN,
     initial_temp: float = 292.0,
     cv_size_cm: float = 20.0,
@@ -52,6 +53,9 @@ def create_building_with_radiative_properties(
   )
   building_exterior_properties = building.MaterialProperties(
       conductivity=0.05, heat_capacity=500.0, density=3000.0
+  )
+  interior_mass_properties = building.MaterialProperties(
+      conductivity=0.5, heat_capacity=1000.0, density=2000.0
   )
 
   inside_air_radiative_properties = inside_air_radiative_properties or (
@@ -82,4 +86,6 @@ def create_building_with_radiative_properties(
       building_exterior_radiative_properties=building_exterior_radiative_properties,  # pylint: disable=line-too-long
       include_radiative_heat_transfer=True,
       view_factor_method=view_factor_method,
+      interior_mass_properties=interior_mass_properties,
+      include_interior_mass=include_interior_mass,
   )

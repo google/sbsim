@@ -1468,9 +1468,11 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
         boiler_reward_info.pump_electrical_energy_rate,
     )
 
-  def test_update_temperature_estimates_return_value_with_radiative_heat_transfer(  # pylint: disable=line-too-long
+  def test_update_temperature_estimates_return_value_with_lwx(  # pylint: disable=line-too-long
       self,
   ):
+    """Test that the temperature estimates are updated correctly with LWX"""
+
     weather_controller = mock.create_autospec(
         weather_controller_py.WeatherController
     )
@@ -1509,7 +1511,7 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
         ),
     )
 
-  def test_update_temperature_estimates_return_value_with_radiative_heat_transfer_no_interior_walls(  # pylint: disable=line-too-long
+  def test_update_temperature_estimates_return_value_with_lwx_no_interior_walls(  # pylint: disable=line-too-long
       self,
   ):
     weather_controller = mock.create_autospec(
@@ -1845,6 +1847,76 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
             "Buildings with and without interior mass should have different"
             " average temperatures"
         ),
+    )
+
+  def test_interior_mass_convergence_with_lwx(self):
+    """Test that simulation with interior mass converges with LWX
+    (longwave interior radiative heat transfer)."""
+    weather_controller = mock.create_autospec(
+        weather_controller_py.WeatherController
+    )
+    time_step_sec = 300.0
+    hvac = self._create_small_hvac()
+    convergence_threshold = 0.01
+    iteration_limit = 1000
+    iteration_warning = 10
+    start_timestamp = pd.Timestamp("2012-12-21")
+
+    # Create building with interior mass
+    cv_size_cm = 20.0
+    floor_height_cm = 300.0
+    initial_temp = 292.0
+    inside_air_properties = building_py.MaterialProperties(
+        conductivity=50.0, heat_capacity=700.0, density=1.0
+    )
+    inside_wall_properties = building_py.MaterialProperties(
+        conductivity=2.0, heat_capacity=500.0, density=1800.0
+    )
+    building_exterior_properties = building_py.MaterialProperties(
+        conductivity=0.05, heat_capacity=500.0, density=3000.0
+    )
+    interior_mass_properties = building_py.MaterialProperties(
+        conductivity=0.5, heat_capacity=1000.0, density=2000.0
+    )
+
+    floor_plan = self._create_dummy_floor_plan_small()
+    zone_map = copy.deepcopy(floor_plan)
+
+    building = building_py.FloorPlanBasedBuilding(
+        cv_size_cm=cv_size_cm,
+        floor_height_cm=floor_height_cm,
+        initial_temp=initial_temp,
+        inside_air_properties=inside_air_properties,
+        inside_wall_properties=inside_wall_properties,
+        building_exterior_properties=building_exterior_properties,
+        floor_plan=floor_plan,
+        zone_map=zone_map,
+        buffer_from_walls=0,
+        interior_mass_properties=interior_mass_properties,
+        include_interior_mass=True,
+        include_radiative_heat_transfer=True,
+        view_factor_method="ScriptF",
+    )
+
+    simulator = simulator_py.SimulatorFlexibleGeometries(
+        building,
+        hvac,
+        weather_controller,
+        time_step_sec,
+        convergence_threshold,
+        iteration_limit,
+        iteration_warning,
+        start_timestamp,
+    )
+
+    # Test convergence with same temperature (should converge quickly)
+    converged = simulator.finite_differences_timestep(
+        ambient_temperature=292.0, convection_coefficient=12.0
+    )
+
+    self.assertTrue(
+        converged,
+        msg="converged.",
     )
 
 
