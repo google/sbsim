@@ -197,6 +197,7 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
       match_diffusers=False,
       include_radiative_heat_transfer=False,
       floor_plan=None,
+      include_interior_mass=False,
   ):
     """Returns building with specified initial temperature.
 
@@ -210,6 +211,7 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
         building (for testing purposes)
       include_radiative_heat_transfer: include radiative heat transfer
       floor_plan: floor plan to use
+      include_interior_mass: include interior mass
     """
     cv_size_cm = 20.0
     floor_height_cm = 300.0
@@ -239,6 +241,13 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
           alpha=0.65, epsilon=0.35, tau=0.0, rho=None
       )
 
+      if include_interior_mass:
+        interior_mass_properties = building_py.MaterialProperties(
+            conductivity=5.0, heat_capacity=300.0, density=2000.0
+        )
+      else:
+        interior_mass_properties = None
+
       building = building_py.FloorPlanBasedBuilding(
           cv_size_cm=cv_size_cm,
           floor_height_cm=floor_height_cm,
@@ -254,6 +263,8 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
           building_exterior_radiative_properties=building_exterior_radiative_properties,  # pylint: disable=line-too-long
           include_radiative_heat_transfer=include_radiative_heat_transfer,
           view_factor_method="ScriptF",
+          interior_mass_properties=interior_mass_properties,
+          include_interior_mass=include_interior_mass,
       )
     else:
       building = building_py.FloorPlanBasedBuilding(
@@ -275,6 +286,59 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
       )
 
     return building
+
+  # def _create_small_building_with_interior_mass(
+  #     self,
+  #     initial_temp,
+  #     floor_plan=None,
+  # ):
+  #   """Returns building with interior mass enabled.
+
+  #   Creates a building similar to _create_small_building but with interior
+  #   mass heat transfer enabled for testing the interior mass functionality.
+
+  #   Args:
+  #     initial_temp: Initial temperature of all CVs in building.
+  #     floor_plan: floor plan to use (optional)
+
+  #   Returns:
+  #     A FloorPlanBasedBuilding with interior mass enabled.
+  #   """
+  #   cv_size_cm = 20.0
+  #   floor_height_cm = 300.0
+  #   inside_air_properties = building_py.MaterialProperties(
+  #       conductivity=50.0, heat_capacity=700.0, density=1.0
+  #   )
+  #   inside_wall_properties = building_py.MaterialProperties(
+  #       conductivity=2.0, heat_capacity=500.0, density=1800.0
+  #   )
+  #   building_exterior_properties = building_py.MaterialProperties(
+  #       conductivity=0.05, heat_capacity=500.0, density=3000.0
+  #   )
+  #   interior_mass_properties = building_py.MaterialProperties(
+  #       conductivity=0.5, heat_capacity=1000.0, density=2000.0
+  #   )
+
+  #   if floor_plan is None:
+  #     floor_plan = self._create_dummy_floor_plan_small()
+
+  #   zone_map = copy.deepcopy(floor_plan)
+
+  #   building = building_py.FloorPlanBasedBuilding(
+  #       cv_size_cm=cv_size_cm,
+  #       floor_height_cm=floor_height_cm,
+  #       initial_temp=initial_temp,
+  #       inside_air_properties=inside_air_properties,
+  #       inside_wall_properties=inside_wall_properties,
+  #       building_exterior_properties=building_exterior_properties,
+  #       floor_plan=floor_plan,
+  #       zone_map=zone_map,
+  #       buffer_from_walls=0,
+  #       interior_mass_properties=interior_mass_properties,
+  #       include_interior_mass=True,
+  #   )
+
+  #   return building
 
   def _create_weirdly_shaped_building(self, initial_temp):
     """Returns weird building with specified initial temperature.

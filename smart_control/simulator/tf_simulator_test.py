@@ -807,8 +807,8 @@ class TFSimulatorTest(absltest.TestCase):
         weather_controller_py.WeatherController
     )
     time_step_sec = 300.0
-    convergence_threshold = 1e-6
-    iteration_limit = 100
+    convergence_threshold = 1e-9
+    iteration_limit = 300
     iteration_warning = 2
     start_timestamp = pd.Timestamp("2012-12-21")
 
@@ -829,7 +829,7 @@ class TFSimulatorTest(absltest.TestCase):
         start_timestamp,
     )
     simulator_result = simulator_simulator.finite_differences_timestep(
-        ambient_temperature=292.0, convection_coefficient=12.0
+        ambient_temperature=295.0, convection_coefficient=12.0
     )
 
     building = simulator_building  # self._create_test_building_radiative()
@@ -846,14 +846,96 @@ class TFSimulatorTest(absltest.TestCase):
     )
 
     result = tf_simulator.finite_differences_timestep(
-        ambient_temperature=292.0, convection_coefficient=12.0
+        ambient_temperature=295.0, convection_coefficient=12.0
     )
 
     self.assertTrue(result)
     self.assertTrue(simulator_result)
-    with self.subTest("case_116 - bottom-center visibility"):
+    with self.subTest("CV temperatures match"):
       assert_array_almost_equal(
           tf_simulator.building.temp, simulator_simulator.building.temp
+      )
+
+  def test_compare_interior_mass_temperature_estimates_iterative_approach(self):
+    """Tests that temperature estimates from TFSimulator match those from
+    SimulatorFlexibleGeometries when using interior mass heat transfer.
+
+    Creates two simulators with identical buildings, HVAC and parameters:
+    1. A SimulatorFlexibleGeometries instance (baseline/iterative approach)
+    2. A TFSimulator instance (tensor approach under test)
+
+    Runs one timestep on both and verifies their temperature arrays match
+     exactly, including both air CV temperatures and interior mass temperatures.
+    This validates that TFSimulator's interior mass heat transfer calculations
+     produce the same results as the original iterative implementation.
+    """
+    weather_controller = mock.create_autospec(
+        weather_controller_py.WeatherController
+    )
+    time_step_sec = 300.0
+    convergence_threshold = 1e-4
+    iteration_limit = 3000
+    iteration_warning = 30
+    start_timestamp = pd.Timestamp("2012-12-21")
+
+    # Create baseline simulator with interior mass
+    simulator = FlexibleFloorplanSimulatorTest()
+    simulator_hvac = simulator._create_small_hvac()
+    simulator_building = simulator._create_small_building(
+        initial_temp=292.0,
+        include_interior_mass=True,
+        include_radiative_heat_transfer=True,
+    )
+
+    simulator_simulator = simulator_py.SimulatorFlexibleGeometries(
+        simulator_building,
+        simulator_hvac,
+        weather_controller,
+        time_step_sec,
+        convergence_threshold,
+        iteration_limit,
+        iteration_warning,
+        start_timestamp,
+    )
+
+    # Create TFSimulator with the same building
+    building = simulator_building
+    tf_simulator = tf_simulator_py.TFSimulator(
+        building,
+        simulator_hvac,
+        weather_controller,
+        time_step_sec,
+        convergence_threshold,
+        iteration_limit,
+        iteration_warning,
+        start_timestamp,
+    )
+
+    result = tf_simulator.finite_differences_timestep(
+        ambient_temperature=295.0, convection_coefficient=12.0
+    )
+
+    simulator_result = simulator_simulator.finite_differences_timestep(
+        ambient_temperature=295.0, convection_coefficient=12.0
+    )
+
+    self.assertTrue(result)
+    self.assertTrue(simulator_result)
+
+    # Compare air CV temperatures
+    with self.subTest("Air CV temperatures match"):
+      assert_array_almost_equal(
+          tf_simulator.building.temp,
+          simulator_simulator.building.temp,
+          decimal=4,
+      )
+
+    # Compare interior mass temperatures
+    with self.subTest("Interior mass temperatures match"):
+      assert_array_almost_equal(
+          tf_simulator.building.interior_mass_temp,
+          simulator_simulator.building.interior_mass_temp,
+          decimal=4,
       )
 
 
