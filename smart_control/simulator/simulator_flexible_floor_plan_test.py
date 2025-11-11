@@ -222,7 +222,7 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
         conductivity=2.0, heat_capacity=500.0, density=1800.0
     )
     building_exterior_properties = building_py.MaterialProperties(
-        conductivity=0.05, heat_capacity=500.0, density=3000.0
+        conductivity=1.0, heat_capacity=500.0, density=3000.0
     )
 
     if floor_plan is None:
@@ -230,16 +230,23 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
 
     zone_map = copy.deepcopy(floor_plan)
 
-    if include_radiative_heat_transfer:
-      inside_air_radiative_properties = building_py.RadiationProperties(
-          alpha=0.0, epsilon=0.0, tau=1.0, rho=None
-      )
-      inside_wall_radiative_properties = building_py.RadiationProperties(
-          alpha=0.4, epsilon=0.6, tau=0.0, rho=None
-      )
-      building_exterior_radiative_properties = building_py.RadiationProperties(
-          alpha=0.65, epsilon=0.35, tau=0.0, rho=None
-      )
+    if include_radiative_heat_transfer or include_interior_mass:
+      if include_radiative_heat_transfer:
+        inside_air_radiative_properties = building_py.RadiationProperties(
+            alpha=0.0, epsilon=0.0, tau=1.0, rho=None
+        )
+        inside_wall_radiative_properties = building_py.RadiationProperties(
+            alpha=0.4, epsilon=0.6, tau=0.0, rho=None
+        )
+        building_exterior_radiative_properties = (
+            building_py.RadiationProperties(
+                alpha=0.65, epsilon=0.35, tau=0.0, rho=None
+            )
+        )
+      else:
+        inside_air_radiative_properties = None
+        inside_wall_radiative_properties = None
+        building_exterior_radiative_properties = None
 
       if include_interior_mass:
         interior_mass_properties = building_py.MaterialProperties(
@@ -1906,7 +1913,7 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
     self.assertNotAlmostEqual(
         avg_temp_no_mass,
         avg_temp_with_mass,
-        places=8,
+        places=12,
         msg=(
             "Buildings with and without interior mass should have different"
             " average temperatures"

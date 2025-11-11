@@ -586,9 +586,9 @@ class TFSimulator(simulator.SimulatorFlexibleGeometries):
         building.interior_mass_density, dtype=tf.float32
     )
 
-    # Calculate t_0_mass = (rho_mass * C_mass * delta_x^2) / (k_mass * delta_t)
-    # delta_x is the CV size in meters
-    delta_x = building.cv_size_cm / 100.0
+    # Calculate t_0_mass = (rho_mass * C_mass * z^2) / (k_mass * delta_t)
+    # z is the floor height in meters (characteristic length for heat exchange)
+    z = building.floor_height_cm / 100.0
 
     # Compute t_0_mass for each CV (will be 0 where there's no interior mass)
     self._t_0_mass = tf.where(
@@ -596,8 +596,8 @@ class TFSimulator(simulator.SimulatorFlexibleGeometries):
         (
             self._t_interior_mass_density
             * self._t_interior_mass_heat_capacity
-            * delta_x
-            * delta_x
+            * z
+            * z
         )
         / (self._t_interior_mass_conductivity * self._time_step_sec),
         tf.constant(0.0, dtype=tf.float32),
@@ -606,13 +606,52 @@ class TFSimulator(simulator.SimulatorFlexibleGeometries):
   def update_interior_mass_temperatures(
       self, air_temperature_estimates: np.ndarray
   ) -> tuple[np.ndarray, float]:
-    """Tensorized version of interior mass temperature update.
+    r"""Tensorized version of interior mass temperature update.
 
     Overrides the parent class's iterative implementation with a tensor-based
-    approach for efficiency.
+    approach for efficiency. The heat exchange occurs through the vertical
+    direction (height z) of the control volume.
 
-    Implements the equation:
-    T_mass = (T + t_0_mass * T_mass^(-)) / (1 + t_0_mass)
+    Equations:
+    --------------------
+    After the air CV temperatures converge, update the interior mass
+    temperatures using element-wise tensor operations:
+
+    $$T_{\text{mass}} =
+      \frac{T+t_{0,\text{mass}}\odot T_{\text{mass}}^{(-)}}{1+t_{0,\text{mass}}}
+    $$
+
+    where $\odot$ represents element-wise multiplication and the division is
+    element-wise (broadcasting the scalar denominator).
+
+    The temporal parameter tensor is defined as:
+
+    $$t_{0,\text{mass},i,j} = \begin{cases}
+    \frac{\rho_{\text{mass}}c_{\text{mass}}z^2}{k_{\text{mass}}\Delta t}
+    & \text{if CV has interior mass} \\
+    0 & \text{otherwise}
+    \end{cases}$$
+
+    This formulation is consistent with the air CV energy balance where the
+    interior mass coupling term is $\frac{k_{\text{mass}} u v}{z}
+    (T_{\text{mass},i,j} - T_{i,j})$.
+
+    Nomenclature and Units:
+    -----------------------
+    - $T$: Converged air temperature tensor at new time step [K]
+    - $T_{\text{mass}}$: Interior mass temperature tensor at new time step [K]
+    - $T_{\text{mass}}^{(-)}$: Interior mass temperature tensor at previous
+      time step [K]
+    - $t_{0,\text{mass}}$: Temporal parameter tensor for interior mass
+      [dimensionless]
+    - $k_{\text{mass}}$: Thermal conductivity of interior mass
+      [$\mathrm{W/(m \cdot K)}$]
+    - $\rho_{\text{mass}}$: Density of interior mass [$\mathrm{kg/m^3}$]
+    - $c_{\text{mass}}$: Specific heat capacity of interior mass
+      [$\mathrm{J/(kg \cdot K)}$]
+    - $z$: CV height (floor height), characteristic length for heat exchange
+      [$\mathrm{m}$]
+    - $\Delta t$: Time step [$\mathrm{s}$]
 
     Args:
       air_temperature_estimates: Current air temperature estimates for each CV.
@@ -664,13 +703,61 @@ class TFSimulator(simulator.SimulatorFlexibleGeometries):
       ambient_temperature: float,
       convection_coefficient: float,
   ) -> tuple[np.ndarray, float]:
-    """Iterates across all CVs and updates the temperature estimate.
+    r"""Iterates across all CVs and updates the temperature estimate.
 
     Corner and edge CVs are exposed to thermal exchange with the ambient air
-    through convection.
+    through convection. This tensorized implementation overrides the parent
+    class's iterative approach for computational efficiency.
 
-    This method implements Equation 22, derived in
-    go/smart-buildings-simulator-design.
+    Equations:
+    --------------------
+    The tensorized heat balance equation for air CV with interior mass
+    coupling is:
+
+    $$\begin{multline}
+      T = \left[Q_x + Vz\left[K_1U^{-1}T_1 + H_1T_\infty + K_3U^{-1}T_3 +
+        H_3T_\infty\right] \right. \\
+      \left. + Uz\left[K_2V^{-1}T_2 + H_2T_\infty + K_4V^{-1}T_4 +
+        H_4T_\infty\right] \right. \\
+      \left. + K_{\text{mass}}UVz^{-1}T_{\text{mass}} + Q_{\text{lwx}} +
+        \frac{C\rho UVz}{\Delta t}T^{(-)}\right] \\
+      \cdot \left[Vz\left[K_1U^{-1} + H_1 + K_3U^{-1} + H_3\right] +
+        Uz\left[K_2V^{-1} + H_2 + K_4V^{-1} + H_4\right] \right. \\
+      \left. + K_{\text{mass}}UVz^{-1} +
+        \frac{C\rho UVz}{\Delta t}\right]^{-1}
+      \end{multline}$$
+
+    where the shifted temperature tensors represent neighboring CVs:
+    - $T_1 = \text{shift}(T, \text{LEFT})$
+    - $T_2 = \text{shift}(T, \text{DOWN})$
+    - $T_3 = \text{shift}(T, \text{RIGHT})$
+    - $T_4 = \text{shift}(T, \text{UP})$
+
+    Nomenclature and Units:
+    -----------------------
+    - $T$: Air temperature tensor at new time step [K]
+    - $T^{(-)}$: Air temperature tensor at previous time step [K]
+    - $T_1, T_2, T_3, T_4$: Temperature tensors of neighboring CVs
+      (left, down, right, up) [K]
+    - $T_{\text{mass}}$: Interior mass temperature tensor [K]
+    - $T_\infty$: Ambient temperature (scalar) [K]
+    - $Q_x$: External heat source tensor [$\mathrm{W}$]
+    - $Q_{\text{lwx}}$: Longwave radiative exchange tensor [$\mathrm{W}$]
+    - $K_1, K_2, K_3, K_4$: Thermal conductivity tensors for left, down,
+      right, up faces [$\mathrm{W/(m \cdot K)}$]
+    - $K_{\text{mass}}$: Interior mass conductivity tensor
+      [$\mathrm{W/(m \cdot K)}$]
+    - $H_1, H_2, H_3, H_4$: Convection coefficient tensors for boundary CVs
+      [$\mathrm{W/(m^2 \cdot K)}$]
+    - $U, V$: CV dimensions in x and y directions [$\mathrm{m}$]
+    - $z$: CV height (floor height) [$\mathrm{m}$]
+    - $C$: Specific heat capacity tensor [$\mathrm{J/(kg \cdot K)}$]
+    - $\rho$: Density tensor [$\mathrm{kg/m^3}$]
+    - $\Delta t$: Time step [$\mathrm{s}$]
+
+    References:
+    -----------
+    - Equation 22 derived in go/smart-buildings-simulator-design
 
     Args:
       temperature_estimates: Current temperature estimate for each CV, will be

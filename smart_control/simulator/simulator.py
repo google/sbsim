@@ -185,11 +185,67 @@ class Simulator:
   def _get_interior_cv_temp_estimate(
       self, cv_coordinates: CVCoordinates, temperature_estimates: np.ndarray
   ) -> float:
-    """Returns temperature estimate for interior CV in K for next time step.
+    r"""Returns temperature estimate for interior CV in K for next time step.
 
     This function calculates the solution to an equation involving the energy
-    transfer by conduction to neighoring air CVs as well as energy transfer
-    from heat input to the CV from a diffuser.
+    transfer by conduction to neighboring air CVs, heat input from a diffuser,
+    radiative exchange with interior surfaces, and heat exchange with interior
+    mass nodes (if present).
+
+    Equations:
+    --------------------
+    The energy balance for an interior control volume (CV) with interior mass
+    is given by:
+
+    $$\begin{multline}
+      k_1 (v z) \frac{T_{i-1,j} - T_{i,j}}{u} +
+      k_2 (u z) \frac{T_{i,j-1} - T_{i,j}}{v} +
+      k_3 (v z) \frac{T_{i+1,j} - T_{i,j}}{u} +
+      k_4 (u z) \frac{T_{i,j+1} - T_{i,j}}{v} \\
+      + Q_x + \frac{k_{\text{mass}} u v}{z}
+      (T_{\text{mass},i,j} - T_{i,j}) + q_{\text{lwx}} =
+      \frac{\rho c u v z}{\Delta t} \left( T_{i,j} - T_{i,j}^{(-)} \right)
+      \end{multline}$$
+
+    Solving for $T_{i,j}$ with uniform spacing ($u = v = \delta_x$) and uniform
+    conductivity ($k_1 = k_2 = k_3 = k_4 = k$):
+
+    $$T_{i,j} = \frac{\sum_{\text{neighbors}} T_{\text{neighbor}} +
+      \frac{Q_x}{z k} + \frac{k_{\text{mass}} \delta_x^2}{z^2 k}
+      T_{\text{mass},i,j}+\frac{q_\text{lwx}}{zk} + t_0 T_{i,j}^{(-)}}
+      {4 + \frac{k_{\text{mass}} \delta_x^2}{z^2 k} + t_0}$$
+
+    where the temporal parameter is:
+
+    $$t_0 = \frac{\rho c \delta_x^2}{k \Delta t} =
+      \frac{\delta_x^2}{\Delta t \cdot \alpha}$$
+
+    and the thermal diffusivity is:
+
+    $$\alpha = \frac{k}{\rho c}$$
+
+    Nomenclature and Units:
+    -----------------------
+    - $T_{i,j}$: Air temperature at CV $(i,j)$ at new time step [K]
+    - $T_{i,j}^{(-)}$: Air temperature at CV $(i,j)$ at previous time step [K]
+    - $T_{\text{mass},i,j}$: Interior mass temperature at CV $(i,j)$ [K]
+    - $T_{i-1,j}, T_{i+1,j}, T_{i,j-1}, T_{i,j+1}$: Neighbor CV temperatures
+      (left, right, bottom, top) [K]
+    - $k_1, k_2, k_3, k_4$: Thermal conductivity for left, bottom, right, top
+      faces [$\mathrm{W/(m \cdot K)}$]
+    - $k$: Thermal conductivity (uniform assumption) [$\mathrm{W/(m \cdot K)}$]
+    - $k_{\text{mass}}$: Thermal conductivity of interior mass
+      [$\mathrm{W/(m \cdot K)}$]
+    - $Q_x$: External heat source (e.g., diffuser) [$\mathrm{W}$]
+    - $q_{\text{lwx}}$: Longwave radiative exchange [$\mathrm{W}$]
+    - $u, v$: CV dimensions in x and y directions [$\mathrm{m}$]
+    - $\delta_x$: Spatial discretization (uniform CV size) [$\mathrm{m}$]
+    - $z$: CV height (floor height) [$\mathrm{m}$]
+    - $\rho$: Density [$\mathrm{kg/m^3}$]
+    - $c$: Specific heat capacity [$\mathrm{J/(kg \cdot K)}$]
+    - $\alpha$: Thermal diffusivity [$\mathrm{m^2/s}$]
+    - $\Delta t$: Time step [$\mathrm{s}$]
+    - $t_0$: Temporal parameter [dimensionless]
 
     Args:
       cv_coordinates: 2-Tuple representing coordinates in building of CV.
@@ -229,13 +285,21 @@ class Simulator:
       interior_mass_conductivity = self.building.interior_mass_conductivity[x][
           y
       ]
-      denominator = 4.0 + interior_mass_conductivity / conductivity + t0
+      denominator = (
+          4.0
+          + interior_mass_conductivity * delta_x**2 / conductivity / z**2
+          + t0
+      )
 
       # Heat transfer between air CV and its interior mass node
       interior_mass_temp = self.building.interior_mass_temp[x, y]
       # Heat flux from interior mass to air CV
       neighbor_transfer += (
-          interior_mass_temp * interior_mass_conductivity / conductivity
+          interior_mass_temp
+          * delta_x**2
+          * interior_mass_conductivity
+          / conductivity
+          / z**2
       )
     else:
       denominator = 4.0 + t0
@@ -348,21 +412,83 @@ class Simulator:
   def update_interior_mass_temperatures(
       self, air_temperature_estimates: np.ndarray
   ) -> tuple[np.ndarray, float]:
-    """Updates interior mass node temperatures based on heat transfer with air
+    r"""Updates interior mass node temperatures based on heat transfer with air
        CVs.
 
     Interior mass nodes are adiabatic (no interaction with each other) and only
-    exchange heat with their corresponding air CV. The interior mass is treated
-    symmetrically with the air CV, where both exchange heat through conduction.
+    exchange heat with their corresponding air CV. The heat exchange occurs
+    through the vertical direction (height z) of the control volume.
 
-    Energy balance for interior mass:
-      k_mass * (T_air - T_mass) / delta_x = rho_mass * c_mass * delta_x *
-                                        (T_mass^(n+1) - T_mass^n) / delta_t
+    Equations:
+    --------------------
+    The energy balance for the interior mass node exchanging heat only with its
+    corresponding air CV through a characteristic length z is:
 
-    Rearranging:
-      T_mass^(n+1) = (T_air + t0_mass * T_mass^n) / (1 + t0_mass)
+    $$\frac{k_{\text{mass}} u v}{z} (T_{i,j} - T_{\text{mass},i,j}) =
+      \rho_{\text{mass}} c_{\text{mass}} u v z
+      \frac{T_{\text{mass},i,j} - T_{\text{mass},i,j}^{(-)}}{\Delta t}$$
 
-    where: t0_mass = (rho_mass * c_mass * delta_x^2) / (k_mass * delta_t)
+    Dividing both sides by $(u v)$ and rearranging:
+
+    $$\frac{k_{\text{mass}}}{z} (T_{i,j} - T_{\text{mass},i,j}) =
+      \rho_{\text{mass}} c_{\text{mass}} z
+      \frac{T_{\text{mass},i,j} - T_{\text{mass},i,j}^{(-)}}{\Delta t}$$
+
+    Multiplying both sides by $z$:
+
+    $$k_{\text{mass}} (T_{i,j} - T_{\text{mass},i,j}) =
+      \rho_{\text{mass}} c_{\text{mass}} z^2
+      \frac{T_{\text{mass},i,j} - T_{\text{mass},i,j}^{(-)}}{\Delta t}$$
+
+    Expanding and collecting terms with $T_{\text{mass},i,j}$:
+
+    $$k_{\text{mass}} T_{i,j} +
+      \rho_{\text{mass}} c_{\text{mass}} \frac{z^2}{\Delta t}
+      T_{\text{mass},i,j}^{(-)} =
+      \left( k_{\text{mass}} +
+      \rho_{\text{mass}} c_{\text{mass}} \frac{z^2}{\Delta t} \right)
+      T_{\text{mass},i,j}$$
+
+    Dividing both sides by $k_{\text{mass}}$ and defining the temporal
+    parameter:
+
+    $$t_{0,\text{mass}} = \frac{\rho_{\text{mass}} c_{\text{mass}} z^2}
+      {k_{\text{mass}} \Delta t} =
+      \frac{z^2}{\Delta t \cdot \alpha_{\text{mass}}}$$
+
+    where $\alpha_{\text{mass}} = \frac{k_{\text{mass}}}
+      {\rho_{\text{mass}} c_{\text{mass}}}$ is the thermal diffusivity of the
+      interior mass.
+
+    The final solution for the interior mass temperature update is:
+
+    $$T_{\text{mass},i,j} =
+      \frac{T_{i,j} + t_{0,\text{mass}} \cdot T_{\text{mass},i,j}^{(-)}}
+      {1 + t_{0,\text{mass}}}$$
+
+    This formulation is consistent with the air CV energy balance where the
+    interior mass coupling term is $\frac{k_{\text{mass}} u v}{z}
+    (T_{\text{mass},i,j} - T_{i,j})$.
+
+    Nomenclature and Units:
+    -----------------------
+    - $T_{i,j}$: Converged air temperature at new time step [K]
+    - $T_{\text{mass},i,j}$: Interior mass temperature at new time step
+       (unknown) [$\mathrm{K}$]
+    - $T_{\text{mass},i,j}^{(-)}$: Interior mass temperature at previous
+      time step (known) [$\mathrm{K}$]
+    - $k_{\text{mass}}$: Thermal conductivity of interior mass
+      [$\mathrm{W/(m \cdot K)}$]
+    - $\rho_{\text{mass}}$: Density of interior mass [$\mathrm{kg/m^3}$]
+    - $c_{\text{mass}}$: Specific heat capacity of interior mass
+      [$\mathrm{J/(kg \cdot K)}$]
+    - $\alpha_{\text{mass}}$: Thermal diffusivity of interior mass
+      [$\mathrm{m^2/s}$]
+    - $u, v$: CV dimensions in x and y directions [$\mathrm{m}$]
+    - $z$: CV height (floor height), characteristic length for heat exchange
+      [$\mathrm{m}$]
+    - $\Delta t$: Time step [$\mathrm{s}$]
+    - $t_{0,\text{mass}}$: Temporal parameter for interior mass [dimensionless]
 
     Args:
       air_temperature_estimates: Current air temperature estimates for each CV.
@@ -376,7 +502,7 @@ class Simulator:
     ):
       return self.building.interior_mass_temp.copy(), 0.0
 
-    delta_x = self.building.cv_size_cm / 100.0
+    z = self.building.floor_height_cm / 100.0
     delta_t = self._time_step_sec
 
     # Copy current interior mass temperatures for updates
@@ -392,8 +518,6 @@ class Simulator:
         # Get properties
         air_temp = air_temperature_estimates[x, y]
         interior_mass_temp = self.building.interior_mass_temp[x, y]
-        # Use same conductivity as air CV for consistency
-        # conductivity = self.building.conductivity[x, y]
         interior_mass_conductivity = self.building.interior_mass_conductivity[
             x
         ][y]
@@ -409,12 +533,13 @@ class Simulator:
             / interior_mass_heat_capacity
         )
 
-        # Temperature update using finite difference
-        # Only heat exchange with air CV (adiabatic from other interior mass)
-        t0_mass = delta_x**2 / (delta_t * alpha_mass)
+        # Temperature update using finite difference with z as characteristic
+        # length. Heat exchange with air CV occurs through height z, consistent
+        # with the air CV energy balance coupling term k_mass * u * v / z.
+        t0_mass = z**2 / (delta_t * alpha_mass)
         denominator = 1.0 + t0_mass
 
-        # New interior mass temperature (symmetric with air CV update)
+        # New interior mass temperature
         new_temp = (air_temp + t0_mass * interior_mass_temp) / denominator
 
         # Track maximum change
