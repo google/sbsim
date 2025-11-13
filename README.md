@@ -10,7 +10,7 @@ BuildSys '23, November 15–16, 2023, Istanbul, Turkey
 ## Getting Started
 
 The best place to jump in is the Soft Actor Critic Demo notebook, available in
-notebooks/SAC_Demo.ipynb
+`smart_control/notebooks/SAC_Demo.ipynb`.
 
 This will walk you through:
 
@@ -27,8 +27,8 @@ below to ensure the notebook runs successfully.
 ## Setup
 
 Follow these steps to setup locally before you run the
-`notebooks/SAC_Demo.ipynb` notebook. Note: this will only work on linux, as some
-libraries are not supported by other operating systems.
+`smart_control/notebooks/SAC_Demo.ipynb` notebook. Note: this will only work on
+linux, as some libraries are not supported by other operating systems.
 
 1. Clone the repository
 
@@ -57,12 +57,12 @@ libraries are not supported by other operating systems.
    `smart_control/simulator/constants.py`. This is the path where simulation
    videos will be stored
 
-7. Now in the `notebooks/SAC_Demo.ipynb` notebook, modify the values of
-   `data_path`, `metrics_path`, `output_data_path` and `root_dir`. In
-   particular, `data_path` should point to the `sim_config.gin` file at
+7. Now in the `smart_control/notebooks/SAC_Demo.ipynb` notebook, modify the
+   values of `data_path`, `metrics_path`, `output_data_path` and `root_dir`.
+   In particular, `data_path` should point to the `sim_config.gin` file at
    `smart_control/configs/sim_config.gin`
 
-8. Now you are ready to run the `notebooks/SAC_Demo.ipynb` notebook
+8. Now you are ready to run the `smart_control/notebooks/SAC_Demo.ipynb` notebook.
 
 ## Real World Data
 
