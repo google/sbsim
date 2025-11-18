@@ -872,16 +872,20 @@ class Simulator:
     """Steps the simulation by a small amount of time.
 
     The following steps are completed in order to proceed to the next time step:
-      1: Get external temperature.
-      2: Update temperatures for each CV using FDM.
-      3: Reset HVAC reheat and flow demands.
-      4: For each zone/VAV:
-        a: Update the VAV using the zone's temperature.
-        b: Apply thermal energy from VAV to the zone.
-        c: Accumulate HVAC reheat and flow demands from VAV
 
-      Note: There is a one step delay in application of current vav
-      settings/heating.
+    1. Get external temperature.
+    2. Update temperatures for each CV using FDM.
+    3. Reset HVAC reheat and flow demands.
+    4. For each zone/VAV:
+
+        a. Update the VAV using the zone's temperature.
+
+        b. Apply thermal energy from VAV to the zone.
+
+        c. Accumulate HVAC reheat and flow demands from VAV.
+
+    Note: There is a one step delay in application of current vav
+    settings/heating.
     """
     self.setup_step_sim()
     self.execute_step_sim()
