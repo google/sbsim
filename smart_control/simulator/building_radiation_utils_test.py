@@ -18,12 +18,12 @@ TEMPORARY_BLOCKED_VALUE = utils.TEMPORARY_BLOCKED_VALUE
 
 class BuildingRadiationUtilsTest(absltest.TestCase):
 
-  def test_calculate_A_tilde_inv_and_IFAinv(self):
+  def test_calculate_A_tilde_inv_and_ifa_inv(self):
     """Test calculation of A-tilde inverse and IFA inverse matrices.
 
     Tests the core matrix calculations used in radiative heat transfer:
-    - A_tilde_inv: Matrix relating radiosity to blackbody emissive power
-    - IFAinv: Matrix used to calculate net radiative heat flux
+    - a_tilde_inv: Matrix relating radiosity to blackbody emissive power
+    - ifa_inv: Matrix used to calculate net radiative heat flux
 
     Uses a 3-surface system with different emissivities (0.8, 0.4, 0.8)
     and symmetric view factors.
@@ -36,23 +36,23 @@ class BuildingRadiationUtilsTest(absltest.TestCase):
         [0.11255411, 0.04761905, 0.83982684],
     ])
 
-    expected_ifainv = np.array([
+    expected_ifa_inv = np.array([
         [0.64069264, -0.19047619, -0.45021645],
         [-0.19047619, 0.38095238, -0.19047619],
         [-0.45021645, -0.19047619, 0.64069264],
     ])
 
     a_tilde_inv = utils.calculate_a_tilde_inv(epsilon, F)
-    ifainv = utils.calculate_ifainv(F, a_tilde_inv)
+    ifa_inv = utils.calculate_ifa_inv(F, a_tilde_inv)
     with self.subTest("a_tilde_inv shape"):
       self.assertEqual(a_tilde_inv.shape, F.shape)
-    with self.subTest("ifainv shape"):
-      self.assertEqual(ifainv.shape, F.shape)
+    with self.subTest("ifa_inv shape"):
+      self.assertEqual(ifa_inv.shape, F.shape)
 
     with self.subTest("a_tilde_inv"):
       assert_array_almost_equal(a_tilde_inv, expected_a_tilde_inv, decimal=3)
-    with self.subTest("ifainv"):
-      assert_array_almost_equal(ifainv, expected_ifainv, decimal=3)
+    with self.subTest("ifa_inv"):
+      assert_array_almost_equal(ifa_inv, expected_ifa_inv, decimal=3)
 
   def test_net_radiative_heatflux_function_of_t(self):
     """Test calculation of net radiative heat flux from surface temperatures.
@@ -66,7 +66,7 @@ class BuildingRadiationUtilsTest(absltest.TestCase):
     # fmt: off
     #pylint:disable=line-too-long
     temperatures=np.array([1200,500,1102])#  [K]
-    ifainv = np.array([
+    ifa_inv = np.array([
         [0.64069264, -0.19047619, -0.45021645],
         [-0.19047619, 0.38095238, -0.19047619],
         [-0.45021645, -0.19047619, 0.64069264],
@@ -75,7 +75,7 @@ class BuildingRadiationUtilsTest(absltest.TestCase):
     # pylint:enable=line-too-long
     expected_q = np.array([3.70061961e04, -3.69724724e04, -3.37237040e01])
 
-    q = utils.net_radiative_heatflux_function_of_t(temperatures, ifainv)
+    q = utils.net_radiative_heatflux_function_of_t(temperatures, ifa_inv)
 
     with self.subTest("q results as expected"):
       assert_array_almost_equal(
@@ -172,7 +172,7 @@ class BuildingRadiationUtilsTest(absltest.TestCase):
         marked_value=-33,
         air_value=constants.INTERIOR_SPACE_VALUE_IN_FUNCTION,
     )
-    # setup (temperatures and IFAinv have same number of rows):
+    # setup (temperatures and ifa_inv have same number of rows):
     self.assertEqual(result.shape, indexed_floor_plan.shape)
 
     # result has same shape as the temperatures array:

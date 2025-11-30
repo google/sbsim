@@ -796,7 +796,7 @@ class TFSimulator(simulator.SimulatorFlexibleGeometries):
       )
       t_z = tf.constant(building.floor_height_cm / 100.0, dtype=tf.float32)
       if self.include_radiative_heat_transfer:
-        t_ifainv = tf.convert_to_tensor(building.ifainv, dtype=tf.float32)
+        t_ifa_inv = tf.convert_to_tensor(building.ifa_inv, dtype=tf.float32)
         # For radiative heat transfer, we need to combine interior wall and
         # interior mass temperatures if interior mass is enabled
         if self.include_interior_mass:
@@ -824,7 +824,7 @@ class TFSimulator(simulator.SimulatorFlexibleGeometries):
       else:
         # Create minimal zero tensors with appropriate shapes
         # These won't be used when radiative heat transfer is disabled
-        t_ifainv = tf.zeros((1, 1), dtype=tf.float32)  # Minimal shape
+        t_ifa_inv = tf.zeros((1, 1), dtype=tf.float32)  # Minimal shape
         t_temp_interior_wall = tf.zeros((1,), dtype=tf.float32)  # Minimal shape
 
       # Interior mass temperature tensor
@@ -843,7 +843,7 @@ class TFSimulator(simulator.SimulatorFlexibleGeometries):
           t_density,
           t_heat_capacity,
           t_z,
-          t_ifainv,
+          t_ifa_inv,
           t_temp_interior_wall,
           t_temp_mass,
       )
@@ -941,7 +941,7 @@ class TFSimulator(simulator.SimulatorFlexibleGeometries):
         t_temp_inf: tf.Tensor,
         t_input_q: tf.Tensor,
         t_temp_minus: tf.Tensor,
-        t_ifainv: tf.Tensor,
+        t_ifa_inv: tf.Tensor,
         t_temp_interior_wall: tf.Tensor,
         t_temp_mass: tf.Tensor,
     ) -> tf.Tensor:
@@ -980,13 +980,13 @@ class TFSimulator(simulator.SimulatorFlexibleGeometries):
       nt3 = tf.math.multiply(nt3, t_temp_minus)
       nt3 = tf.math.divide(nt3, t_delta_t)
 
-      # add ratdative heat transfer sigma*ifAinv@(T-)^4
+      # add ratdative heat transfer sigma*ifa_inv@(T-)^4
       nt4 = tf.zeros_like(t_temp_minus)
       if self.include_radiative_heat_transfer:
         sigma = tf.constant(5.67e-8, dtype=tf.float32)
         t_temp_interior_wall_4 = tf.math.pow(t_temp_interior_wall, 4)
         # Ensure both tensors have the same dtype for matrix multiplication
-        nt4_temp = tf.linalg.matmul(t_ifainv, t_temp_interior_wall_4)
+        nt4_temp = tf.linalg.matmul(t_ifa_inv, t_temp_interior_wall_4)
         nt4_temp = tf.math.multiply(nt4_temp, sigma)
 
         # Use tensor_scatter_nd_update to update specific indices
@@ -1027,7 +1027,7 @@ class TFSimulator(simulator.SimulatorFlexibleGeometries):
         t_density,
         t_heat_capacity,
         t_z,
-        t_ifainv,
+        t_ifa_inv,
         t_temp_interior_wall,
         t_temp_mass,
     ) = _get_input_tensors(self.building)
@@ -1104,7 +1104,7 @@ class TFSimulator(simulator.SimulatorFlexibleGeometries):
         t_temp_inf,
         t_input_q,
         t_temp_minus,
-        t_ifainv,
+        t_ifa_inv,
         t_temp_interior_wall,
         t_temp_mass,
     )

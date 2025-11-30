@@ -95,10 +95,10 @@ class BuildingRadiationScriptFTest(absltest.TestCase):
       self.assertEqual(props.shape, (23, 12))
       assert_data_file_values_equal(props, "tau.csv")
 
-    with self.subTest("ifainv"):
-      results = self.building.ifainv
+    with self.subTest("ifa_inv"):
+      results = self.building.ifa_inv
       self.assertEqual(results.shape, (50, 50))
-      assert_data_file_values_equal(results, "ifainv.csv", precision=5)
+      assert_data_file_values_equal(results, "ifa_inv.csv", precision=5)
 
     with self.subTest("view factor with interior mass"):
       props = self.building_with_interior_mass.interior_wall_vf

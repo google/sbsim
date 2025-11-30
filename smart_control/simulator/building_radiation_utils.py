@@ -47,7 +47,7 @@ def calculate_a_tilde_inv(epsilon: np.ndarray, F: np.ndarray) -> np.ndarray:
   return np.linalg.inv(A)
 
 
-def calculate_ifainv(F: np.ndarray, A_inv: np.ndarray) -> np.ndarray:
+def calculate_ifa_inv(F: np.ndarray, A_inv: np.ndarray) -> np.ndarray:
   r"""
   Calculates the $IFA_{inv}$ matrix.
 
@@ -66,12 +66,12 @@ def calculate_ifainv(F: np.ndarray, A_inv: np.ndarray) -> np.ndarray:
   n = F.shape[0]
 
   I = np.eye(n)
-  ifainv = (I - F) @ A_inv
-  return ifainv
+  ifa_inv = (I - F) @ A_inv
+  return ifa_inv
 
 
 def net_radiative_heatflux_function_of_t(
-    T: np.ndarray, ifainv: np.ndarray
+    T: np.ndarray, ifa_inv: np.ndarray
 ) -> np.array:
   r"""
   Calculates the net radiative heat flux and radiosity for all surfaces given
@@ -149,7 +149,7 @@ def net_radiative_heatflux_function_of_t(
 
   Args:
     T (np.ndarray): Surface temperatures in Kelvin.
-    ifainv (np.ndarray): (I - F) @ A_inv.
+    ifa_inv (np.ndarray): (I - F) @ A_inv.
 
   Returns:
       q : Net radiative heat flux [W/m^2]
@@ -157,7 +157,7 @@ def net_radiative_heatflux_function_of_t(
   """
   sigma = 5.67 * 1e-8  # [W/m^2K^4] Stefan-Boltzmann constant
 
-  q = sigma * ifainv @ np.power(T, 4)
+  q = sigma * ifa_inv @ np.power(T, 4)
   return q
 
 
@@ -183,11 +183,11 @@ def mark_air_connected_interior_walls(
         connected to the same air space. If it's an air cell, finds all walls
         connected to that air space.
     interior_wall_value (int, optional): Value used to represent interior walls
-        in the floor plan. Defaults to -3 (from constants.py).
+        in the floor plan. Defaults to -3 (from "constants.py").
     marked_value (int, optional): Value used to mark connected interior walls.
         Only used internally. Defaults to -33.
     air_value (int, optional): Value used to represent air spaces in the floor
-        plan. Defaults to 0 (from constants.py).
+        plan. Defaults to 0 (from "constants.py").
 
   Returns:
     A tuple containing:
@@ -550,7 +550,7 @@ def get_vf(
       interior_mass_mask (Optional[np.ndarray], optional): Mask for interior
           mass nodes. Defaults to None.
       interior_mass_value (int, optional): Value used to represent interior
-          mass nodes. Defaults to 9 (AIR_IN_LINE_OF_SIGHT).
+          mass nodes. Defaults to 9 (`AIR_IN_LINE_OF_SIGHT`).
   Returns:
       View factor matrix where `VF[i,j]` represents the view factor from wall
           `i` to wall `j`.
@@ -750,7 +750,7 @@ def is_line_blocked(
       start: Starting point of the line as (x, y) coordinates.
       end: Ending point of the line as (x, y) coordinates.
       interior_wall_value: Value used to represent interior walls in the floor
-          plan. Defaults to -3 (from constants.py).
+          plan. Defaults to -3 (from "constants.py").
       marked_value: Value used to represent marked wall nodes. Only used
           internally. Defaults: -33. Only used internally.
       blocked_value: Value used to represent blocked wall nodes. Only used
@@ -841,7 +841,7 @@ def mark_directly_seeing_nodes(
   lines of sight between wall nodes for interior mass radiative heat transfer.
 
   When the base node is an air cell, it finds directly seeing nodes among the
-  interior walls, but does NOT mark air nodes as AIR_IN_LINE_OF_SIGHT.
+  interior walls, but does NOT mark air nodes as `AIR_IN_LINE_OF_SIGHT`.
 
   Args:
       floor_plan: 2D numpy array representing the floor plan where different
@@ -849,13 +849,13 @@ def mark_directly_seeing_nodes(
       base_node: Position of the base node as (row, col) coordinates. Can be
           either an interior wall node or an air cell.
       interior_wall_value: Value used to represent interior walls in the floor
-          plan. Defaults to -3 (from constants.py).
+          plan. Defaults to -3 (from "constants.py").
       marked_value: Value used to represent connected wall nodes that should
           be checked for line of sight. Only used internally. Defaults to -33.
       blocked_value: Value used to mark nodes that cannot directly see the
           base node. Only used internally. Defaults to -34.
       air_value: Value used to represent air spaces in the floor plan.
-          Defaults to 0 (from constants.py).
+          Defaults to 0 (from "constants.py").
 
   Returns:
       Copy of the floor plan with nodes marked according to their visibility
@@ -863,7 +863,7 @@ def mark_directly_seeing_nodes(
           with blocked_value, and the base node itself is marked with
           blocked_value + marked_value. When starting from a wall node, air
           nodes along unblocked lines of sight are marked with
-          AIR_IN_LINE_OF_SIGHT (9).
+          `AIR_IN_LINE_OF_SIGHT` (9).
           When starting from an air node, air nodes are NOT marked.
           Air nodes along blocked lines remain as air_value (0).
 
@@ -888,7 +888,7 @@ def mark_directly_seeing_nodes(
         * blocked_value (-34): Interior wall nodes that cannot see the base node
           (blocked from radiative transfer)
         * blocked_value + marked_value (-67): The starting node itself
-        * AIR_IN_LINE_OF_SIGHT (9): Air nodes along unblocked line of sight
+        * `AIR_IN_LINE_OF_SIGHT` (9): Air nodes along unblocked line of sight
           between wall nodes (for interior mass radiative transfer)
   """
   floor_plan_copy = floor_plan.copy()

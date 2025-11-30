@@ -86,11 +86,9 @@ def _create_dummy_post_refactor_building_matching_deprecation():
   inside_air_properties = building.MaterialProperties(
       conductivity=50.0, heat_capacity=700.0, density=1.0
   )
-  inside_wall_properties = building.MaterialProperties(
-      conductivity=2.0, heat_capacity=1000.0, density=1800.0
-  )
-  building_exterior_properties = building.MaterialProperties(
-      conductivity=0.05, heat_capacity=1000.0, density=3000.0
+  inside_wall_properties = building.DefaultInsideWallMaterialProperties()
+  building_exterior_properties = (
+      building.DefaultExteriorWallMaterialProperties()
   )
 
   floor_plan = _create_dummy_floor_plan_matching_deprecation()
@@ -177,11 +175,9 @@ def _create_dummy_building_post_refactor():
   inside_air_properties = building.MaterialProperties(
       conductivity=50.0, heat_capacity=700.0, density=1.0
   )
-  inside_wall_properties = building.MaterialProperties(
-      conductivity=2.0, heat_capacity=1000.0, density=1800.0
-  )
-  building_exterior_properties = building.MaterialProperties(
-      conductivity=0.05, heat_capacity=1000.0, density=3000.0
+  inside_wall_properties = building.DefaultInsideWallMaterialProperties()
+  building_exterior_properties = (
+      building.DefaultExteriorWallMaterialProperties()
   )
 
   floor_plan = _create_dummy_floor_plan()
@@ -229,11 +225,9 @@ def _create_dummy_building_weird_shape():
   inside_air_properties = building.MaterialProperties(
       conductivity=50.0, heat_capacity=700.0, density=1.0
   )
-  inside_wall_properties = building.MaterialProperties(
-      conductivity=2.0, heat_capacity=1000.0, density=1800.0
-  )
-  building_exterior_properties = building.MaterialProperties(
-      conductivity=0.05, heat_capacity=1000.0, density=3000.0
+  inside_wall_properties = building.DefaultInsideWallMaterialProperties()
+  building_exterior_properties = (
+      building.DefaultExteriorWallMaterialProperties()
   )
 
   floor_plan = _create_dummy_floor_plan_weird_shape()
@@ -369,11 +363,9 @@ class BuildingTest(parameterized.TestCase):
     inside_air_properties = building.MaterialProperties(
         conductivity=50.0, heat_capacity=700.0, density=1.0
     )
-    inside_wall_properties = building.MaterialProperties(
-        conductivity=2.0, heat_capacity=1000.0, density=1800.0
-    )
-    building_exterior_properties = building.MaterialProperties(
-        conductivity=0.05, heat_capacity=1000.0, density=3000.0
+    inside_wall_properties = building.DefaultInsideWallMaterialProperties()
+    building_exterior_properties = (
+        building.DefaultExteriorWallMaterialProperties()
     )
 
     i = constants.INTERIOR_WALL_VALUE_IN_FUNCTION
@@ -1722,11 +1714,9 @@ class BuildingTest(parameterized.TestCase):
     inside_air_properties = building.MaterialProperties(
         conductivity=50.0, heat_capacity=700.0, density=1.0
     )
-    inside_wall_properties = building.MaterialProperties(
-        conductivity=2.0, heat_capacity=1000.0, density=1800.0
-    )
-    building_exterior_properties = building.MaterialProperties(
-        conductivity=0.05, heat_capacity=1000.0, density=3000.0
+    inside_wall_properties = building.DefaultInsideWallMaterialProperties()
+    building_exterior_properties = (
+        building.DefaultExteriorWallMaterialProperties()
     )
     interior_mass_properties = building.MaterialProperties(
         conductivity=0.5, heat_capacity=1000.0, density=2000.0

@@ -887,6 +887,7 @@ class TFSimulatorTest(absltest.TestCase):
     simulator_building = simulator._create_small_building(
         initial_temp=292.0, include_radiative_heat_transfer=True
     )
+
     simulator_simulator = simulator_py.SimulatorFlexibleGeometries(
         simulator_building,
         simulator_hvac,
@@ -901,7 +902,7 @@ class TFSimulatorTest(absltest.TestCase):
         ambient_temperature=315.0, convection_coefficient=12.0
     )
 
-    building = simulator_building  # self._create_test_building_radiative()
+    building = simulator_building
 
     tf_simulator = tf_simulator_py.TFSimulator(
         building,
@@ -950,12 +951,14 @@ class TFSimulatorTest(absltest.TestCase):
     # Create baseline simulator with interior mass
     simulator = FlexibleFloorplanSimulatorTest()
     simulator_hvac = simulator._create_small_hvac()
-    simulator_building = simulator._create_small_building(
+
+    _, simulator_building = simulator._create_simulator_and_building(
+        convergence_threshold=0.001,
         initial_temp=292.0,
+        iteration_limit=100,
         include_interior_mass=True,
         include_radiative_heat_transfer=False,
     )
-
     simulator_simulator = simulator_py.SimulatorFlexibleGeometries(
         simulator_building,
         simulator_hvac,
@@ -1036,8 +1039,11 @@ class TFSimulatorTest(absltest.TestCase):
     # Create baseline simulator with interior mass
     simulator = FlexibleFloorplanSimulatorTest()
     simulator_hvac = simulator._create_small_hvac()
-    simulator_building = simulator._create_small_building(
+
+    _, simulator_building = simulator._create_simulator_and_building(
+        convergence_threshold=0.001,
         initial_temp=292.0,
+        iteration_limit=100,
         include_interior_mass=True,
         include_radiative_heat_transfer=True,
     )
