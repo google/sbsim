@@ -1740,24 +1740,35 @@ class BuildingTest(parameterized.TestCase):
     )
 
     # Check that interior mass is enabled
-    self.assertTrue(b.include_interior_mass)
+    with self.subTest("Check that interior mass is enabled"):
+      self.assertTrue(b.include_interior_mass)
 
     # Check that interior mass mask exists and has correct shape
-    self.assertIsNotNone(b.interior_mass_mask)
-    self.assertEqual(b.interior_mass_mask.shape, floor_plan.shape)
-    # All interior space values should be 0 (air nodes)
-    self.assertEqual(np.sum(b.floor_plan[b.interior_mass_mask]), 0)
+    with self.subTest("Check that interior mass mask exists"):
+      self.assertIsNotNone(b.interior_mass_mask)
+    with self.subTest("Check that interior mass mask has correct shape"):
+      self.assertEqual(b.interior_mass_mask.shape, floor_plan.shape)
+    with self.subTest("All interior space values should be 0 (air nodes)"):
+      self.assertEqual(np.sum(b.floor_plan[b.interior_mass_mask]), 0)
     # Check that interior mass temperature array exists
-    self.assertIsNotNone(b.interior_mass_temp)
-    self.assertEqual(b.interior_mass_temp.shape, floor_plan.shape)
+    with self.subTest("Check that interior mass temperature array exists"):
+      self.assertIsNotNone(b.interior_mass_temp)
+    with self.subTest(
+        "Check that interior mass temperature array has correct shape"
+    ):
+      self.assertEqual(b.interior_mass_temp.shape, floor_plan.shape)
 
     # Check that interior mass properties are assigned
-    self.assertIsNotNone(b.interior_mass_conductivity)
-    self.assertIsNotNone(b.interior_mass_heat_capacity)
-    self.assertIsNotNone(b.interior_mass_density)
+    with self.subTest("Check that interior mass conductivity is assigned"):
+      self.assertIsNotNone(b.interior_mass_conductivity)
+    with self.subTest("Check that interior mass heat capacity is assigned"):
+      self.assertIsNotNone(b.interior_mass_heat_capacity)
+    with self.subTest("Check that interior mass density is assigned"):
+      self.assertIsNotNone(b.interior_mass_density)
 
     # Check that interior mass is only assigned to air nodes
-    self.assertEqual(np.sum(b.interior_mass_mask), np.sum(b.floor_plan == 0))
+    with self.subTest("Check that interior mass is only assigned to air nodes"):
+      self.assertEqual(np.sum(b.interior_mass_mask), np.sum(b.floor_plan == 0))
 
 
 if __name__ == "__main__":
