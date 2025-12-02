@@ -1668,16 +1668,11 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
     self.assertTrue(converged)
 
     # Check that interior mass temperatures have increased
-    temps_increased = False
-    for x in range(building.interior_mass_mask.shape[0]):
-      for y in range(building.interior_mass_mask.shape[1]):
-        if building.interior_mass_mask[x, y]:
-          if (
-              building.interior_mass_temp[x, y]
-              > initial_interior_mass_temp[x, y]
-          ):
-            temps_increased = True
-            break
+    # Use NumPy boolean indexing with mask for cleaner array comparison
+    temps_increased = np.any(
+        building.interior_mass_temp[building.interior_mass_mask]
+        > initial_interior_mass_temp[building.interior_mass_mask]
+    )
 
     self.assertTrue(
         temps_increased,
@@ -1751,13 +1746,12 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
     #  inertia
     # The exact relationship depends on material properties, but they should
     # differ
-    self.assertNotAlmostEqual(
-        avg_temp_no_mass,
-        avg_temp_with_mass,
-        places=12,
+    self.assertGreater(
+        avg_temp_no_mass - avg_temp_with_mass,
+        0,
         msg=(
-            "Buildings with and without interior mass should have different"
-            " average temperatures"
+            "Average temperature without interior mass should be greater than"
+            " with interior mass"
         ),
     )
 
