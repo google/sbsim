@@ -22,12 +22,8 @@ jobs:
         python-version: ['3.10.15', '3.11']
 
         include:
-          # temporarily disabling this Intel-based Mac OS run
-          # because of issues with underlying dependencies breaking the build
-          # see: https://github.com/google/sbsim/issues/126
-          #
-          #- os: macos-13 # intel-based
-          #  python-version: '3.11'
+          - os: macos-15-intel # updated intel-based
+            python-version: '3.11'
 
           - os: macos-latest # arm-based
             python-version: '3.11'
