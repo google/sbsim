@@ -66,13 +66,13 @@ class EnvironmentTest(parameterized.TestCase, tf.test.TestCase):
           2.236067,
       ),
   )
-  def test_comput_actions_regularization_cost_valid(
+  def test_compute_actions_regularization_cost_valid(
       self, action_history, expected
   ):
     cost = environment.compute_action_regularization_cost(action_history)
     self.assertAlmostEqual(expected, cost, places=3)
 
-  def test_comput_actions_regularization_cost_invalid(self):
+  def test_compute_actions_regularization_cost_invalid(self):
     action_history = [np.array([1, 0]), np.array([1, 0, 1])]
     with self.assertRaises(ValueError):
       _ = environment.compute_action_regularization_cost(action_history)
@@ -719,7 +719,6 @@ class EnvironmentTest(parameterized.TestCase, tf.test.TestCase):
           obs_normalizer,
           action_config,
           discount_factor: float = 1,
-          step_interval: pd.Timedelta = pd.Timedelta(1, unit="minute"),
       ):
         super().__init__(
             building,
@@ -727,7 +726,6 @@ class EnvironmentTest(parameterized.TestCase, tf.test.TestCase):
             obs_normalizer,
             action_config,
             discount_factor,
-            step_interval=step_interval,
         )
         self.counter = 0
 
@@ -739,6 +737,7 @@ class EnvironmentTest(parameterized.TestCase, tf.test.TestCase):
         return ts.termination(env._get_observation(), reward=0.0)
 
     building = environment_test_utils.SimpleBuilding()
+    building.time_step_sec = step_interval.seconds
     reward_function = environment_test_utils.SimpleRewardFunction()
     action_config = self._create_bounded_action_config(200, 300)
     obs_normalizer = self._create_observation_normalizer()
@@ -747,7 +746,6 @@ class EnvironmentTest(parameterized.TestCase, tf.test.TestCase):
         reward_function,
         obs_normalizer,
         action_config,
-        step_interval=step_interval,
     )
 
     utils.validate_py_environment(env, episodes=5)

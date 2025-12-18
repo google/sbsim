@@ -17,9 +17,8 @@ from tf_agents.trajectories import trajectory as trajectory_lib
 
 from smart_control.environment import environment
 from smart_control.reinforcement_learning.observers.base_observer import Observer
-from smart_control.reinforcement_learning.utils.config import RENDERS_PATH
 from smart_control.reinforcement_learning.utils.constants import DEFAULT_TIME_ZONE
-from smart_control.reinforcement_learning.utils.constants import KELVIN_TO_CELSIUS as _KELVIN_TO_CELSIUS
+from smart_control.reinforcement_learning.utils.constants import RL_EXPERIMENT_RENDERS_DIR
 from smart_control.reinforcement_learning.utils.data_processing import get_action_timeseries
 from smart_control.reinforcement_learning.utils.data_processing import get_energy_timeseries
 from smart_control.reinforcement_learning.utils.data_processing import get_latest_episode_reader
@@ -27,6 +26,7 @@ from smart_control.reinforcement_learning.utils.data_processing import get_outsi
 from smart_control.reinforcement_learning.utils.data_processing import get_reward_timeseries
 from smart_control.reinforcement_learning.utils.data_processing import get_zone_timeseries
 from smart_control.utils import building_renderer
+from smart_control.utils.conversion_utils import convert_kelvin_to_celsius as k_to_c
 
 logger = logging.getLogger(__name__)
 
@@ -38,9 +38,6 @@ class RenderingObserver(Observer):
   also show plots of metrics.
   """
 
-  # Class constant
-  KELVIN_TO_CELSIUS = _KELVIN_TO_CELSIUS
-
   def __init__(
       self,
       render_interval_steps: int = 10,
@@ -49,7 +46,7 @@ class RenderingObserver(Observer):
       plot_fn: Optional[Callable] = None,  # pylint: disable=g-bare-generic
       clear_output_before_render: bool = True,
       time_zone: str = DEFAULT_TIME_ZONE,
-      save_path: str = RENDERS_PATH,
+      save_path: str = RL_EXPERIMENT_RENDERS_DIR,
   ):
     """Initialize the observer.
 
@@ -356,37 +353,37 @@ class RenderingObserver(Observer):
 
     ax1.plot(
         zone_cooling_setpoints.index,
-        zone_cooling_setpoints - self.KELVIN_TO_CELSIUS,
+        k_to_c(zone_cooling_setpoints),
         color='yellow',
         lw=1,
     )
 
     ax1.plot(
         zone_cooling_setpoints.index,
-        zone_heating_setpoints - self.KELVIN_TO_CELSIUS,
+        k_to_c(zone_heating_setpoints),
         color='yellow',
         lw=1,
     )
 
     ax1.fill_between(
         zone_temp_stats.index,
-        zone_temp_stats['min_temp'] - self.KELVIN_TO_CELSIUS,
-        zone_temp_stats['max_temp'] - self.KELVIN_TO_CELSIUS,
+        k_to_c(zone_temp_stats['min_temp']),
+        k_to_c(zone_temp_stats['max_temp']),
         facecolor='green',
         alpha=0.8,
     )
 
     ax1.fill_between(
         zone_temp_stats.index,
-        zone_temp_stats['q25_temp'] - self.KELVIN_TO_CELSIUS,
-        zone_temp_stats['q75_temp'] - self.KELVIN_TO_CELSIUS,
+        k_to_c(zone_temp_stats['q25_temp']),
+        k_to_c(zone_temp_stats['q75_temp']),
         facecolor='green',
         alpha=0.8,
     )
 
     ax1.plot(
         zone_temp_stats.index,
-        zone_temp_stats['median_temp'] - self.KELVIN_TO_CELSIUS,
+        k_to_c(zone_temp_stats['median_temp']),
         color='white',
         lw=3,
         alpha=1.0,
@@ -394,7 +391,7 @@ class RenderingObserver(Observer):
 
     ax1.plot(
         outside_air_temperature_timeseries.index,
-        outside_air_temperature_timeseries - self.KELVIN_TO_CELSIUS,
+        k_to_c(outside_air_temperature_timeseries),
         color='magenta',
         lw=3,
         alpha=1.0,
@@ -421,8 +418,8 @@ class RenderingObserver(Observer):
     single_action_timeseries = single_action_timeseries.sort_values(by='timestamp')  # pylint: disable=line-too-long
 
     if action_tuple[1] in ['supply_water_setpoint', 'supply_air_heating_temperature_setpoint']:  # pylint: disable=line-too-long
-      single_action_timeseries['setpoint_value'] = (
-          single_action_timeseries['setpoint_value'] - self.KELVIN_TO_CELSIUS
+      single_action_timeseries['setpoint_value'] = k_to_c(
+          single_action_timeseries['setpoint_value']
       )
 
     ax1.plot(

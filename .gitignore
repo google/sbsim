@@ -25,15 +25,28 @@ data/sb1.zip
 data/sb1/
 
 # results files:
-*/**/output_data/
-*/**/metrics/
-**/videos/
-**/train/
-**/eval/
-smart_control/learning/
+#*/**/output_data/
+#*/**/metrics/
+#**/videos/
+#**/train/
+#**/eval/
+
+smart_control/configs/resources/sb1/train_sim_configs/generated/
+# todo: use temp dir instead:
+smart_control/configs/resources/sb1/train_sim_configs/generation_test/
+
 smart_control/simulator/videos
-smart_control/refactor/data/
-smart_control/refactor/experiment_results/
+
+smart_control/reinforcement_learning/data/starter_buffers/*
+!smart_control/reinforcement_learning/data/starter_buffers/.gitkeep
+!smart_control/reinforcement_learning/data/starter_buffers/default
+!smart_control/reinforcement_learning/data/starter_buffers/test
+
+smart_control/reinforcement_learning/data/experiment_results/*
+!smart_control/reinforcement_learning/data/experiment_results/.gitkeep
+
+smart_control/reinforcement_learning/data/experiment_eval/*
+!smart_control/reinforcement_learning/data/experiment_eval/.gitkeep
 
 # jupyter notebook checkpoints:
 smart_control/notebooks/.ipynb_checkpoints/

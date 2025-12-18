@@ -97,6 +97,10 @@ pytest --disable-pytest-warnings -k your_test_name_here
 # ignore specific test files and directories:
 pytest --ignore=path/to/your/test.py --ignore=path/to/other/
 
+# display more logs:
+pytest --disable-pytest-warnings -s --log-cli-level=INFO path/to/your/test.py
+# display all logs:
+pytest --disable-pytest-warnings -s --log-cli-level=DEBUG path/to/your/test.py
 ```
 
 ## Linting
