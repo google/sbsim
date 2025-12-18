@@ -17,11 +17,10 @@ limitations under the License.
 
 from absl.testing import parameterized
 import pandas as pd
-
 from smart_buildings.smart_control.proto import smart_control_building_pb2
 from smart_buildings.smart_control.simulator import air_handler as air_handler_py
-from smart_buildings.smart_control.simulator import boiler as boiler_py
 from smart_buildings.smart_control.simulator import building as building_py
+from smart_buildings.smart_control.simulator import hot_water_system as hot_water_system_py
 from smart_buildings.smart_control.simulator import hvac as hvac_py
 from smart_buildings.smart_control.simulator import setpoint_schedule
 from smart_buildings.smart_control.simulator import simulator as simulator_py
@@ -82,24 +81,24 @@ class SimulatorBuildingTestBase(parameterized.TestCase):
     reheat_water_setpoint = 260
     water_pump_differential_head = 3
     water_pump_efficiency = 0.6
-    boiler = boiler_py.Boiler(
+    hot_water_system = hot_water_system_py.construct_hot_water_system(
         reheat_water_setpoint,
         water_pump_differential_head,
         water_pump_efficiency,
-        device_id='boiler_id',
+        device_id='hws_id',
     )
 
     recirculation = 0.3
     heating_air_temp_setpoint = 270
     cooling_air_temp_setpoint = 288
-    fan_differential_pressure = 20000.0
+    fan_static_pressure = 20000.0
     fan_efficiency = 0.8
 
     air_handler = air_handler_py.AirHandler(
         recirculation,
         heating_air_temp_setpoint,
         cooling_air_temp_setpoint,
-        fan_differential_pressure,
+        fan_static_pressure,
         fan_efficiency,
         device_id='air_handler_id',
     )
@@ -121,7 +120,7 @@ class SimulatorBuildingTestBase(parameterized.TestCase):
     zone_coordinates = [(0, 0), (1, 0)]
 
     hvac = hvac_py.Hvac(
-        zone_coordinates, air_handler, boiler, schedule, 0.45, 0.02
+        zone_coordinates, air_handler, hot_water_system, schedule, 0.45, 0.02
     )
     return hvac
 
@@ -179,7 +178,7 @@ class SimulatorBuildingTestBase(parameterized.TestCase):
 
     observation_request = smart_control_building_pb2.ObservationRequest()
     single_field_request = smart_control_building_pb2.SingleObservationRequest(
-        device_id='boiler_id', measurement_name=measurement_name
+        device_id='hws_id', measurement_name=measurement_name
     )
 
     observation_request.single_observation_requests.append(single_field_request)
@@ -211,7 +210,7 @@ class SimulatorBuildingTestBase(parameterized.TestCase):
 
     single_field_request_1 = (
         smart_control_building_pb2.SingleObservationRequest(
-            device_id='boiler_id', measurement_name='supply_water_setpoint'
+            device_id='hws_id', measurement_name='supply_water_setpoint'
         )
     )
     observation_request.single_observation_requests.append(
@@ -220,7 +219,7 @@ class SimulatorBuildingTestBase(parameterized.TestCase):
 
     single_field_request_2 = (
         smart_control_building_pb2.SingleObservationRequest(
-            device_id='boiler_id', measurement_name='heating_request_count'
+            device_id='hws_id', measurement_name='heating_request_count'
         )
     )
     observation_request.single_observation_requests.append(
@@ -279,7 +278,7 @@ class SimulatorBuildingTestBase(parameterized.TestCase):
 
     observation_request = smart_control_building_pb2.ObservationRequest()
     single_field_request = smart_control_building_pb2.SingleObservationRequest(
-        device_id='boiler_id', measurement_name='incorrect_measurement'
+        device_id='hws_id', measurement_name='incorrect_measurement'
     )
 
     observation_request.single_observation_requests.append(single_field_request)
@@ -301,7 +300,7 @@ class SimulatorBuildingTestBase(parameterized.TestCase):
 
     action_request = smart_control_building_pb2.ActionRequest()
     single_field_request = smart_control_building_pb2.SingleActionRequest(
-        device_id='boiler_id',
+        device_id='hws_id',
         setpoint_name=setpoint_name,
         continuous_value=set_value,
     )
@@ -344,7 +343,7 @@ class SimulatorBuildingTestBase(parameterized.TestCase):
 
     action_request = smart_control_building_pb2.ActionRequest()
     single_field_request = smart_control_building_pb2.SingleActionRequest(
-        device_id='boiler_id', setpoint_name='incorrect_setpoint'
+        device_id='hws_id', setpoint_name='incorrect_setpoint'
     )
 
     action_request.single_action_requests.append(single_field_request)

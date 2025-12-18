@@ -195,6 +195,7 @@ def diffuser_allocation_switch(
     spacing: int = 10,
     interior_walls: Optional[building_utils.InteriorWalls] = None,
     buffer_from_walls: int = 2,
+    min_room_size: int = 350,
 ) -> Collection[Coordinates2D]:
   """Switches between random and even assignment of thermal diffusers.
 
@@ -224,10 +225,15 @@ def diffuser_allocation_switch(
       they may not line up correctly on account of being from different photo
       sources.
     buffer_from_walls: how far to place a thermal diffuser away from a wall.
+    min_room_size: The minimum number of control volumes a room must have to
+      allocate diffusers.
 
   Returns:
     a list of inds to place diffusers.
   """
+  # if room is too small. do not place diffusers
+  if len(room_cv_indices) < min_room_size:
+    return []
 
   if _rectangularity_test(room_cv_indices, threshold=0.1):
     inds = _determine_equal_spacing_for_thermal_diffusers(

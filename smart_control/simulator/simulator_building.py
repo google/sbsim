@@ -70,7 +70,10 @@ class SimulatorBuilding(BaseBuilding):
 
     # List of tuple (device, device_info)
     all_devices = [
-        (hvac.boiler, self._create_device_info(hvac.boiler)),
+        (
+            hvac.hot_water_system,
+            self._create_device_info(hvac.hot_water_system),
+        ),
         (hvac.air_handler, self._create_device_info(hvac.air_handler)),
     ]
     all_devices.extend([

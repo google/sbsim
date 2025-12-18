@@ -17,11 +17,11 @@ limitations under the License.
 
 from absl.testing import absltest
 from absl.testing import parameterized
-from smart_buildings.smart_control.simulator import dbo_pump
+from smart_buildings.smart_control.simulator import pump as pump_py
 from smart_buildings.smart_control.utils import constants
 
 
-class DboPumpTest(parameterized.TestCase):
+class PumpTest(parameterized.TestCase):
 
   @parameterized.parameters(
       (0.5, 3, 0.9),
@@ -32,7 +32,7 @@ class DboPumpTest(parameterized.TestCase):
   def test_compute_pump_power(
       self, total_flow_rate, water_pump_differential_head, water_pump_efficiency
   ):
-    pump = dbo_pump.Pump(
+    pump = pump_py.WaterPump(
         water_pump_differential_head=water_pump_differential_head,
         water_pump_efficiency=water_pump_efficiency,
     )
@@ -47,17 +47,17 @@ class DboPumpTest(parameterized.TestCase):
     self.assertEqual(pump.compute_pump_power(total_flow_rate), expected)
 
   def test_run_command(self):
-    pump = dbo_pump.Pump(
+    pump = pump_py.WaterPump(
         water_pump_differential_head=3,
         water_pump_efficiency=0.9,
     )
-    self.assertEqual(pump.run_command, dbo_pump.RunStatus.Off)
-    pump.run_command = dbo_pump.RunStatus.On
-    self.assertEqual(pump.run_command, dbo_pump.RunStatus.On)
+    self.assertEqual(pump.run_command, pump_py.RunStatus.On)
+    pump.run_command = pump_py.RunStatus.Off
+    self.assertEqual(pump.run_command, pump_py.RunStatus.Off)
 
   def test_differential_pressure(self):
     water_pump_differential_head = 3
-    pump = dbo_pump.Pump(
+    pump = pump_py.WaterPump(
         water_pump_differential_head=water_pump_differential_head,
         water_pump_efficiency=0.9,
     )
@@ -76,7 +76,7 @@ class DboPumpTest(parameterized.TestCase):
     self.assertAlmostEqual(pump._water_pump_differential_head, expected_head)
 
   def test_pressure_conversion(self):
-    pump = dbo_pump.Pump(
+    pump = pump_py.WaterPump(
         water_pump_differential_head=3,
         water_pump_efficiency=0.9,
     )
@@ -94,15 +94,15 @@ class DboPumpTest(parameterized.TestCase):
     )
 
   def test_reset(self):
-    pump = dbo_pump.Pump(
+    pump = pump_py.WaterPump(
         water_pump_differential_head=3,
         water_pump_efficiency=0.9,
     )
-    pump.run_command = dbo_pump.RunStatus.On
+    pump.run_command = pump_py.RunStatus.On
     pump._water_pump_differential_head = 4
     pump._water_pump_efficiency = 0.1
     pump.reset()
-    self.assertEqual(pump.run_command, dbo_pump.RunStatus.Off)
+    self.assertEqual(pump.run_command, pump_py.RunStatus.On)
     self.assertEqual(pump._water_pump_differential_head, 3)
     self.assertEqual(pump._water_pump_efficiency, 0.9)
 

@@ -121,7 +121,9 @@ class ThermalDiffuserUtilsTest(parameterized.TestCase):
       self, room_generating_func, expected_output
   ):
     room_inds = room_generating_func()
-    output = thermal_diffuser_utils.diffuser_allocation_switch(room_inds)
+    output = thermal_diffuser_utils.diffuser_allocation_switch(
+        room_inds, min_room_size=1
+    )
     np.testing.assert_array_equal(output, expected_output)
 
 

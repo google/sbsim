@@ -19,9 +19,8 @@ from typing import Collection, Optional
 
 from absl.testing import absltest
 import pandas as pd
-
 from smart_buildings.smart_control.simulator import air_handler
-from smart_buildings.smart_control.simulator import boiler
+from smart_buildings.smart_control.simulator import hot_water_system as hot_water_system_py
 from smart_buildings.smart_control.simulator import hvac_floorplan_based
 from smart_buildings.smart_control.simulator import setpoint_schedule
 from smart_buildings.smart_control.utils import conversion_utils
@@ -32,7 +31,7 @@ class FloorPlanBasedHvacTest(absltest.TestCase):
   def setUp(self):
     super(FloorPlanBasedHvacTest, self).setUp()
     self._zone_identifier = ["room_0", "room_1", "room_2"]
-    self._global_boiler = self._get_default_boiler()
+    self._global_hot_water_system = self._get_default_hot_water_system()
     self._global_handler = self._get_default_air_handler()
     self._global_setpoint_schedule = self._get_default_setpoint_schedule()
     self._hvac = self._create_default_hvac(self._zone_identifier)
@@ -41,44 +40,44 @@ class FloorPlanBasedHvacTest(absltest.TestCase):
       self, zone_identifier: Optional[Collection[str]] = None
   ) -> hvac_floorplan_based.FloorPlanBasedHvac:
     handler = self._global_handler
-    b = self._global_boiler
+    hws = self._global_hot_water_system
     schedule = self._global_setpoint_schedule
     vav_max_air_flow_rate = 0.2
-    vav_reheat_max_water_flow_rate = 0.4
+    vav_reheat_max_water_flow_factor = 0.4
     h = hvac_floorplan_based.FloorPlanBasedHvac(
         zone_identifier=zone_identifier,
         air_handler=handler,
-        boiler=b,
+        hot_water_system=hws,
         schedule=schedule,
         vav_max_air_flow_rate=vav_max_air_flow_rate,
-        vav_reheat_max_water_flow_rate=vav_reheat_max_water_flow_rate,
+        vav_reheat_max_water_flow_factor=vav_reheat_max_water_flow_factor,
     )
     return h
 
-  def _get_default_boiler(self):
+  def _get_default_hot_water_system(self):
     reheat_water_setpoint = 260
     water_pump_differential_head = 3
     water_pump_efficiency = 0.6
-    b = boiler.Boiler(
+    hot_water_system = hot_water_system_py.construct_hot_water_system(
         reheat_water_setpoint,
         water_pump_differential_head,
         water_pump_efficiency,
-        "boiler_id",
+        "hws_id",
     )
-    return b
+    return hot_water_system
 
   def _get_default_air_handler(self):
     recirculation = 0.3
     heating_air_temp_setpoint = 270
     cooling_air_temp_setpoint = 288
-    fan_differential_pressure = 20000.0
+    fan_static_pressure = 20000.0
     fan_efficiency = 0.8
 
     handler = air_handler.AirHandler(
         recirculation,
         heating_air_temp_setpoint,
         cooling_air_temp_setpoint,
-        fan_differential_pressure,
+        fan_static_pressure,
         fan_efficiency,
     )
     return handler
@@ -101,11 +100,11 @@ class FloorPlanBasedHvacTest(absltest.TestCase):
 
   def test_init(self):
     vav_max_air_flow_rate = 0.2
-    vav_reheat_max_water_flow_rate = 0.4
+    vav_reheat_max_water_flow_factor = 0.4
 
     h = self._create_default_hvac(self._zone_identifier)
     self.assertEqual(h.air_handler, self._global_handler)
-    self.assertEqual(h.boiler, self._global_boiler)
+    self.assertEqual(h.hot_water_system, self._global_hot_water_system)
 
     self.assertCountEqual(h.vavs.keys(), self._zone_identifier)
 
@@ -114,10 +113,10 @@ class FloorPlanBasedHvacTest(absltest.TestCase):
       self.assertEqual(
           vav.thermostat._setpoint_schedule, self._global_setpoint_schedule
       )
-      self.assertEqual(vav.boiler, self._global_boiler)
+      self.assertEqual(vav.hot_water_system, self._global_hot_water_system)
       self.assertEqual(vav.max_air_flow_rate, vav_max_air_flow_rate)
       self.assertEqual(
-          vav._reheat_max_water_flow_rate, vav_reheat_max_water_flow_rate
+          vav._reheat_max_water_flow_factor, vav_reheat_max_water_flow_factor
       )
       self.assertEqual(
           vav._zone_id,
@@ -125,12 +124,12 @@ class FloorPlanBasedHvacTest(absltest.TestCase):
       )
 
   def test_reset(self):
-    self._hvac.boiler._return_water_temperature_sensor += 10.0
-    self._hvac.boiler._water_pump_differential_head += 100.0
-    self._hvac.boiler._reheat_water_setpoint += 2.0
+    self._hvac.hot_water_system.return_water_temperature_sensor += 10.0
+    self._hvac.hot_water_system.water_pump_differential_head += 100.0
+    self._hvac.hot_water_system.reheat_water_setpoint += 2.0
 
     self._hvac.air_handler._air_flow_rate += 0.1
-    self._hvac.air_handler._fan_differential_pressure = 0.1
+    self._hvac.air_handler._fan_static_pressure = 0.1
 
     for coord in self._zone_identifier:
       vav = self._hvac.vavs[coord]
@@ -138,7 +137,6 @@ class FloorPlanBasedHvacTest(absltest.TestCase):
       vav.thermostat._setpoint_schedule.comfort_temp_window = (280, 310)
 
       vav.max_air_flow_rate += 0.1
-      vav._reheat_max_water_flow_rate += 0.1
 
     self._hvac.reset()
 
@@ -155,41 +153,41 @@ class FloorPlanBasedHvacTest(absltest.TestCase):
         expected_air_handler.cooling_air_temp_setpoint,
     )
     self.assertEqual(
-        self._hvac.air_handler.fan_differential_pressure,
-        expected_air_handler.fan_differential_pressure,
+        self._hvac.air_handler.fan_static_pressure,
+        expected_air_handler.fan_static_pressure,
     )
     self.assertEqual(
         self._hvac.air_handler.fan_efficiency,
         expected_air_handler.fan_efficiency,
     )
 
-    expected_boiler = self._global_boiler
+    expected_hot_water_system = self._global_hot_water_system
     self.assertEqual(
-        self._hvac.boiler.reheat_water_setpoint,
-        expected_boiler._reheat_water_setpoint,
+        self._hvac.hot_water_system.reheat_water_setpoint,
+        expected_hot_water_system.reheat_water_setpoint,
     )
     self.assertEqual(
-        self._hvac.boiler._water_pump_differential_head,
-        expected_boiler._water_pump_differential_head,
+        self._hvac.hot_water_system._pump._water_pump_differential_head,
+        expected_hot_water_system._pump._water_pump_differential_head,
     )
     self.assertEqual(
-        self._hvac.boiler._water_pump_efficiency,
-        expected_boiler._water_pump_efficiency,
+        self._hvac.hot_water_system._pump._water_pump_efficiency,
+        expected_hot_water_system._pump._water_pump_efficiency,
     )
-    self.assertEqual(self._hvac.boiler._total_flow_rate, 0)
+    self.assertEqual(self._hvac.hot_water_system.total_flow_rate, 0)
 
     vav_max_air_flow_rate = 0.2
-    vav_reheat_max_water_flow_rate = 0.4
+    vav_reheat_max_water_flow_factor = 0.4
 
     for coord in self._zone_identifier:
       vav = self._hvac.vavs[coord]
       self.assertEqual(
           vav.thermostat._setpoint_schedule, self._global_setpoint_schedule
       )
-      self.assertEqual(vav.boiler, self._global_boiler)
+      self.assertEqual(vav.hot_water_system, self._global_hot_water_system)
       self.assertEqual(vav.max_air_flow_rate, vav_max_air_flow_rate)
       self.assertEqual(
-          vav._reheat_max_water_flow_rate, vav_reheat_max_water_flow_rate
+          vav._reheat_max_water_flow_factor, vav_reheat_max_water_flow_factor
       )
       self.assertEqual(
           vav._zone_id,

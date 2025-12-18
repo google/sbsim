@@ -214,6 +214,7 @@ def _create_dummy_building_post_refactor():
       zone_map=zone_map,
       zone_map_filepath=None,
       buffer_from_walls=0,
+      min_room_size=1,
   )
 
   return b
@@ -600,6 +601,7 @@ class BuildingTest(parameterized.TestCase):
         diffuser_spacing=diffuser_spacing,
         buffer_from_walls=0,
         interior_walls=None,
+        min_room_size=1,
     )
     np.testing.assert_array_equal(outcome, expected_output)
 

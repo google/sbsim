@@ -63,7 +63,7 @@ class HybridActionEnvironment(environment.Environment):
 
       field_id = self._retrieve_field(device_id, setpoint_name)
 
-      if setpoint_name == _DISCRETE_ACTION_COMMAND:
+      if _DISCRETE_ACTION_COMMAND in setpoint_name:
         logging.info(
             "Device %s has a discrete action %s", device_id, setpoint_name
         )

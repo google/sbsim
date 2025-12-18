@@ -587,6 +587,8 @@ def create_action_response(
       single_response.response_type = (
           _ActionResponseType.REJECTED_INVALID_DEVICE
       )
+      logging.info('Action tuple %s not in device action tuples', action_tuple)
+      logging.info('Device action tuples: %s', device_action_tuples)
       action_response.single_action_responses.append(single_response)
       continue
 

@@ -477,13 +477,13 @@ def update_metrics(
   metrics['timestamps'].append(current_timestamp)
   metrics['ambient_temps'].append(current_ambient_temp)
   metrics['boiler_thermal_energy_rates'].append(
-      hvac.boiler.compute_thermal_energy_rate(
+      hvac.hot_water_system.compute_thermal_energy_rate(
           return_water_temp=supply_air_temp,
-          outside_temp=hvac.boiler.reheat_water_setpoint,
+          outside_temp=hvac.hot_water_system.reheat_water_setpoint,
       )
   )
   metrics['boiler_electrical_energy_rates'].append(
-      hvac.boiler.compute_pump_power() * 1000
+      hvac.hot_water_system.compute_pump_power() * 1000
   )  # TODO(judahg) verify this is correct
   metrics['air_handler_intake_fan_energy_rates'].append(
       hvac.air_handler.compute_intake_fan_energy_rate()

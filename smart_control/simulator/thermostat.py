@@ -141,6 +141,7 @@ class Thermostat:
       if (
           self._current_mode == self.Mode.PASSIVE_COOL
           and zone_temp > temperature_window[0]
+          and zone_temp < temperature_window[1]
       ):
         self._current_mode = self.Mode.PASSIVE_COOL
       else:

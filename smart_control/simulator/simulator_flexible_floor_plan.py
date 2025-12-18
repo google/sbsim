@@ -138,7 +138,9 @@ class SimulatorFlexibleGeometries(simulator.Simulator):
     avg_temps = self.building.get_zone_average_temps()
 
     # Recirculation temperature at the air handler is the global average.
-    recirculation_temp = self.building.temp.mean()
+    recirculation_temp = sum(list(avg_temps.values())) / len(
+        list(avg_temps.values())
+    )
 
     ambient_temperature = self._weather_controller.get_current_temp(current_ts)
 
@@ -159,9 +161,16 @@ class SimulatorFlexibleGeometries(simulator.Simulator):
     # Simulate airflow
     self.building.apply_convection()
 
-    # Reset the air handler and boiler flow rate demand before accumulating.
+    # Reset the air handler and hws flow rate demand before accumulating.
     hvac.air_handler.reset_demand()
-    hvac.boiler.reset_demand()
+    hvac.hot_water_system.reset_demand()
+
+    # sum up all the VAV hot waterdemands for the current timestep
+    # this needs to be calculated first before the output function is called,
+    # since the flow rate of the entire system can only be determined if we know
+    # the total demand from all VAVs
+    for vav in hvac.vavs.values():
+      hvac.hot_water_system.add_demand(vav.reheat_flow_factor)
 
     zone_supply_temp_map = {}
 
@@ -169,21 +178,31 @@ class SimulatorFlexibleGeometries(simulator.Simulator):
     for zone, zone_temp in avg_temps.items():
       vav = hvac.vavs[zone]
 
-      q_zone, zone_supply_temp = vav.output(zone_temp, supply_air_temp)
+      if isinstance(supply_air_temp, dict):
+        q_zone, zone_supply_temp = vav.output(
+            zone_temp, supply_air_temp[vav.air_handler.device_id()]
+        )
+      else:
+        q_zone, zone_supply_temp = vav.output(
+            zone_temp, supply_air_temp
+        )
       zone_supply_temp_map[zone] = zone_supply_temp
       # Update the air handler airflow demand by summing from all VAVs.
       if vav.flow_rate_demand > 0:
-        hvac.air_handler.add_demand(vav.flow_rate_demand)
-
-      # Update the boiler demand for hot water as the sum of each VAV"s demand.
-      if vav.reheat_demand > 0:
-        hvac.boiler.add_demand(vav.reheat_demand)
+        vav.air_handler.add_demand(vav.flow_rate_demand)
 
       # Apply the thermal energy to the zone.
       self.building.apply_thermal_power_zone(zone, q_zone)
 
-    hvac.boiler.return_water_temperature_sensor = (
+    hvac.hot_water_system.return_water_temperature_sensor = (
         self._calculate_return_water_temperature(zone_supply_temp_map)
+    )
+
+    # stabilize
+    self.building.temp = np.clip(
+        self.building.temp,
+        250,
+        450,
     )
 
     # Increment the timestamp.
@@ -274,29 +293,33 @@ class SimulatorFlexibleGeometries(simulator.Simulator):
     air_handler_reward_infos[air_handler_id] = air_handler_reward_info
     return air_handler_reward_infos
 
-  def _get_boiler_reward_infos(
+  def _get_hws_reward_infos(
       self,
   ) -> Mapping[str, RewardInfo.BoilerRewardInfo]:
-    """Returns a map of messages with boiler data.
+    """Returns a map of messages with hws data.
 
     This data is used to compute the instantaneous reward.
     """
-    boiler_reward_infos = {}
-    boiler_id = self._hvac.boiler.device_id()
-    return_water_temp = self._hvac.boiler.return_water_temperature_sensor
+    hws_reward_infos = {}
+    hws_id = self._hvac.hot_water_system.device_id()
+    return_water_temp = (
+        self._hvac.hot_water_system.return_water_temperature_sensor
+    )
     natural_gas_heating_energy_rate = (
-        self._hvac.boiler.compute_thermal_energy_rate(
+        self._hvac.hot_water_system.compute_thermal_energy_rate(
             return_water_temp,
             self._weather_controller.get_current_temp(self._current_timestamp),
         )
     )
-    pump_electrical_energy_rate = self._hvac.boiler.compute_pump_power()
-    boiler_reward_info = RewardInfo.BoilerRewardInfo(
+    pump_electrical_energy_rate = (
+        self._hvac.hot_water_system.compute_pump_power()
+    )
+    hws_reward_info = RewardInfo.BoilerRewardInfo(
         natural_gas_heating_energy_rate=natural_gas_heating_energy_rate,
         pump_electrical_energy_rate=pump_electrical_energy_rate,
     )
-    boiler_reward_infos[boiler_id] = boiler_reward_info
-    return boiler_reward_infos
+    hws_reward_infos[hws_id] = hws_reward_info
+    return hws_reward_infos
 
   def reward_info(self, occupancy_function: BaseOccupancy) -> RewardInfo:
     """Returns a message with data to compute the instantaneous reward."""
@@ -311,8 +334,8 @@ class SimulatorFlexibleGeometries(simulator.Simulator):
     # get air handler info
     air_handler_reward_infos = self._get_air_handler_reward_infos()
 
-    # get boiler info
-    boiler_reward_infos = self._get_boiler_reward_infos()
+    # get hot water system info
+    hws_reward_infos = self._get_hws_reward_infos()
 
     return RewardInfo(
         start_timestamp=conversion_utils.pandas_to_proto_timestamp(
@@ -323,7 +346,7 @@ class SimulatorFlexibleGeometries(simulator.Simulator):
         ),
         zone_reward_infos=zone_reward_infos,
         air_handler_reward_infos=air_handler_reward_infos,
-        boiler_reward_infos=boiler_reward_infos,
+        boiler_reward_infos=hws_reward_infos,
     )
 
   def get_video(self, path: str) -> None:

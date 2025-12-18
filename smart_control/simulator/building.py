@@ -303,6 +303,7 @@ def _assign_thermal_diffusers(
     interior_walls: building_utils.InteriorWalls,
     diffuser_spacing: int = 10,
     buffer_from_walls: int = 5,
+    min_room_size: int = 350,
 ) -> np.ndarray:
   """Places as many thermal diffusers in a zone as "diffuser_spacing" allows.
 
@@ -332,6 +333,7 @@ def _assign_thermal_diffusers(
     diffuser_spacing: how many diffusers to have per control volume spacing.
     buffer_from_walls: how many CVs to leave in between each wall and each
       thermal diffuser
+    min_room_size: minimum room size to place diffusers
 
   Returns:
     an np.ndarray with the appropriate values set.
@@ -346,6 +348,7 @@ def _assign_thermal_diffusers(
         spacing=diffuser_spacing,
         interior_walls=interior_walls,
         buffer_from_walls=buffer_from_walls,
+        min_room_size=min_room_size,
     )
     num_inds = len(inds)
     for ind in inds:
@@ -657,6 +660,7 @@ class FloorPlanBasedBuilding(BaseSimulatorBuilding):
           base_convection_simulator.BaseConvectionSimulator
       ] = None,
       reset_temp_values: np.ndarray | None = None,
+      min_room_size: int = 350,
   ):
     """Initializes the New Building.
 
@@ -680,6 +684,8 @@ class FloorPlanBasedBuilding(BaseSimulatorBuilding):
         and walls
       convection_simulator: object to simulate air convection
       reset_temp_values: Temp values to use when resetting the building
+      min_room_size: The minimum number of control volumes a room must have to
+        be considered for diffuser placement.
     """
 
     self.cv_size_cm = cv_size_cm
@@ -687,6 +693,7 @@ class FloorPlanBasedBuilding(BaseSimulatorBuilding):
     self._initial_temp = initial_temp
     self._convection_simulator = convection_simulator
     self._reset_temp_values = reset_temp_values
+    self._min_room_size = min_room_size
 
     # below is new code, to derive necessary artifacts from the floor plan.
     # TODO(spangher): neaten code by turning the next twenty lines into a
@@ -763,6 +770,7 @@ class FloorPlanBasedBuilding(BaseSimulatorBuilding):
         room_dict=self._room_dict,
         interior_walls=interior_walls,
         buffer_from_walls=buffer_from_walls,
+        min_room_size=self._min_room_size,
     )
 
     self._cv_type = _construct_cv_type_array(

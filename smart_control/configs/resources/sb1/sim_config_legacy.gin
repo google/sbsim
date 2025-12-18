@@ -126,7 +126,7 @@
     boiler_cooling_rate = 0.1 # K / min
 
     # Pa or N/M2
-    fan_differential_pressure = 10000.0
+    fan_static_pressure = 10000.0
     fan_efficiency = 0.9
 
     air_handler_heating_setpoint = 285.0
@@ -141,7 +141,7 @@
       recirculation = %air_handler_recirculation_ratio
       heating_air_temp_setpoint = %air_handler_heating_setpoint
       cooling_air_temp_setpoint = %air_handler_cooling_setpoint
-      fan_differential_pressure = %fan_differential_pressure
+      fan_static_pressure = %fan_static_pressure
       fan_efficiency = %fan_efficiency
       max_air_flow_rate = 8.67
       sim_weather_controller = %weather_controller
