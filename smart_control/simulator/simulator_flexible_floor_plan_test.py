@@ -1505,7 +1505,7 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
     self.assertEqual(reward_info.zone_reward_infos, expected_zone_reward_infos)
 
     air_handler_reward_info = reward_info.air_handler_reward_infos[
-        sim._hvac.air_handler.device_id()
+        sim._hvac.air_handler.device_id
     ]
 
     blower_electrical_energy_rate = (
@@ -1533,7 +1533,7 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
     )
 
     boiler_reward_info = reward_info.boiler_reward_infos[
-        sim._hvac.boiler.device_id()
+        sim._hvac.boiler.device_id
     ]
     natural_gas_heating_energy_rate = (
         sim._hvac.boiler.compute_thermal_energy_rate(

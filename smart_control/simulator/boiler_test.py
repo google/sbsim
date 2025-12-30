@@ -247,12 +247,12 @@ class BoilerTest(parameterized.TestCase):
     b = self.get_default_boiler()
 
     self.assertSameElements(
-        b.observable_field_names(),
-        [
-            'supply_water_setpoint',
-            'supply_water_temperature_sensor',
-            'heating_request_count',
-        ],
+      b.observable_field_names,
+      [
+        'supply_water_setpoint',
+        'supply_water_temperature_sensor',
+        'heating_request_count',
+      ],
     )
 
   def test_observe_supply_water_setpoint(self):
@@ -432,7 +432,7 @@ class BoilerTest(parameterized.TestCase):
   def test_action_field_names(self):
     b = self.get_default_boiler()
 
-    self.assertSameElements(b.action_field_names(), ['supply_water_setpoint'])
+    self.assertSameElements(b.action_field_names, ['supply_water_setpoint'])
 
   def test_action_supply_water_setpoint(self):
     b = self.get_default_boiler()
@@ -456,7 +456,7 @@ class BoilerTest(parameterized.TestCase):
   def test_device_id(self):
     b = self.get_default_boiler()
 
-    device_id = b.device_id()
+    device_id = b.device_id
 
     self.assertEqual(device_id, 'boiler_id')
 
