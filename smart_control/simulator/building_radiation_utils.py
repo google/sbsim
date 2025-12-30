@@ -13,12 +13,13 @@ from smart_control.simulator import constants
 
 TEMPORARY_MARKED_VALUE = -33
 TEMPORARY_BLOCKED_VALUE = -34
+AIR_IN_LINE_OF_SIGHT = 9  # Air nodes along line of sight between wall nodes
 
 # we are choosing to keep the mathematical notation in this file
 # pylint: disable=invalid-name
 
 
-def calculate_A_tilde_inv(epsilon: np.ndarray, F: np.ndarray) -> np.ndarray:
+def calculate_a_tilde_inv(epsilon: np.ndarray, F: np.ndarray) -> np.ndarray:
   """Calculates the A-tilde matrix used in radiative heat transfer calculations.
 
   The A-tilde matrix relates the radiosity to the blackbody emissive power in a
@@ -46,7 +47,7 @@ def calculate_A_tilde_inv(epsilon: np.ndarray, F: np.ndarray) -> np.ndarray:
   return np.linalg.inv(A)
 
 
-def calculate_IFAinv(F: np.ndarray, A_inv: np.ndarray) -> np.ndarray:
+def calculate_ifa_inv(F: np.ndarray, A_inv: np.ndarray) -> np.ndarray:
   r"""
   Calculates the $IFA_{inv}$ matrix.
 
@@ -65,12 +66,12 @@ def calculate_IFAinv(F: np.ndarray, A_inv: np.ndarray) -> np.ndarray:
   n = F.shape[0]
 
   I = np.eye(n)
-  IFAinv = (I - F) @ A_inv
-  return IFAinv
+  ifa_inv = (I - F) @ A_inv
+  return ifa_inv
 
 
-def net_radiative_heatflux_function_of_T(
-    T: np.ndarray, IFAinv: np.ndarray
+def net_radiative_heatflux_function_of_t(
+    T: np.ndarray, ifa_inv: np.ndarray
 ) -> np.array:
   r"""
   Calculates the net radiative heat flux and radiosity for all surfaces given
@@ -148,7 +149,7 @@ def net_radiative_heatflux_function_of_T(
 
   Args:
     T (np.ndarray): Surface temperatures in Kelvin.
-    IFAinv (np.ndarray): (I - F) @ A_inv.
+    ifa_inv (np.ndarray): (I - F) @ A_inv.
 
   Returns:
       q : Net radiative heat flux [W/m^2]
@@ -156,7 +157,7 @@ def net_radiative_heatflux_function_of_T(
   """
   sigma = 5.67 * 1e-8  # [W/m^2K^4] Stefan-Boltzmann constant
 
-  q = sigma * IFAinv @ np.power(T, 4)
+  q = sigma * ifa_inv @ np.power(T, 4)
   return q
 
 
@@ -169,22 +170,24 @@ def mark_air_connected_interior_walls(
 ) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
   """
   Mark all interior wall nodes that are connected to the same air space as the
-      starting interior wall.
+      starting position (interior wall or air cell).
   Uses 4-directional connectivity to check wall-air adjacency.
-  All connected walls including the starting position are marked.
+  All connected walls are marked.
 
   Args:
     indexed_floor_plan (np.ndarray): 2D numpy array representing the floor plan
         where different values represent different types of cells (walls, air,
         etc.).
-    start_pos (Tuple[int, int]): Starting position (row, col) of the interior
-        wall to begin marking from.
+    start_pos (Tuple[int, int]): Starting position (row, col). Can be either an
+        interior wall or an air cell. If it's an interior wall, finds all walls
+        connected to the same air space. If it's an air cell, finds all walls
+        connected to that air space.
     interior_wall_value (int, optional): Value used to represent interior walls
-        in the floor plan. Defaults to -3 (from constants.py).
+        in the floor plan. Defaults to -3 (from "constants.py").
     marked_value (int, optional): Value used to mark connected interior walls.
         Only used internally. Defaults to -33.
     air_value (int, optional): Value used to represent air spaces in the floor
-        plan. Defaults to 0 (from constants.py).
+        plan. Defaults to 0 (from "constants.py").
 
   Returns:
     A tuple containing:
@@ -214,28 +217,36 @@ def mark_air_connected_interior_walls(
       or start_pos[1] >= floor_plan.shape[1]
   ):
     raise ValueError('Starting position is out of bounds')
-  if floor_plan[start_pos[0], start_pos[1]] != interior_wall_value:
+
+  start_row, start_col = start_pos
+  start_cell_value = floor_plan[start_row, start_col]
+
+  # Return None if start_pos is neither interior_wall_value nor air_value
+  if start_cell_value != interior_wall_value and start_cell_value != air_value:
     return None, None
 
   # 4-connectivity for all steps
   directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]
 
-  start_row, start_col = start_pos
-
-  # Find all air cells that are connected to the starting wall
+  # Find all air cells that are connected to the starting position
   connected_air_cells = set()
   air_queue = deque()
 
-  # Add all air cells adjacent to starting wall (4-connectivity)
-  for dr, dc in directions:
-    new_row, new_col = start_row + dr, start_col + dc
-    if (
-        0 <= new_row < floor_plan.shape[0]
-        and 0 <= new_col < floor_plan.shape[1]
-        and floor_plan[new_row, new_col] == air_value
-    ):
-      air_queue.append((new_row, new_col))
-      connected_air_cells.add((new_row, new_col))
+  if start_cell_value == air_value:
+    # If starting from an air cell, start BFS from that cell
+    air_queue.append((start_row, start_col))
+    connected_air_cells.add((start_row, start_col))
+  else:
+    # If starting from an interior wall, find air cells adjacent to it
+    for dr, dc in directions:
+      new_row, new_col = start_row + dr, start_col + dc
+      if (
+          0 <= new_row < floor_plan.shape[0]
+          and 0 <= new_col < floor_plan.shape[1]
+          and floor_plan[new_row, new_col] == air_value
+      ):
+        air_queue.append((new_row, new_col))
+        connected_air_cells.add((new_row, new_col))
 
   # BFS to find all connected air cells (4-connectivity)
   while air_queue:
@@ -264,13 +275,23 @@ def mark_air_connected_interior_walls(
       ):
         walls_to_mark.add((wall_row, wall_col))
 
-  # Mark all the connected interior walls (excluding the starting position)
+  # Mark all the connected interior walls
+  # If starting from an interior wall, exclude it from marking
+  # (it will be marked separately)
+  # If starting from an air cell, mark all walls found
   for wall_row, wall_col in walls_to_mark:
-    if (wall_row, wall_col) != (start_row, start_col):
-      floor_plan[wall_row, wall_col] = marked_value
+    if start_cell_value == interior_wall_value and (wall_row, wall_col) == (
+        start_row,
+        start_col,
+    ):
+      # Skip marking the starting wall here; will mark it below if any walls
+      #  were found
+      continue
+    floor_plan[wall_row, wall_col] = marked_value
 
-  # If any wall was marked, also mark the starting position
-  if walls_to_mark:
+  # If starting from an interior wall and any walls were found, mark the
+  # starting position
+  if start_cell_value == interior_wall_value and walls_to_mark:
     floor_plan[start_row, start_col] = marked_value
 
   # Create interior space array containing only air and marked walls
@@ -294,12 +315,11 @@ def mark_air_connected_interior_walls(
   for air_row, air_col in connected_air_cells:
     interior_space[air_row - min_row, air_col - min_col] = air_value
 
+  # Mark all walls in interior space
+  # If starting from interior wall, it will be included in walls_to_mark
+  # and marked
   for wall_row, wall_col in walls_to_mark:
-    if (wall_row, wall_col) != (start_row, start_col):
-      interior_space[wall_row - min_row, wall_col - min_col] = marked_value
-
-  if walls_to_mark:
-    interior_space[start_row - min_row, start_col - min_col] = marked_value
+    interior_space[wall_row - min_row, wall_col - min_col] = marked_value
 
   return floor_plan, interior_space
 
@@ -509,11 +529,13 @@ def fix_view_factors(F: np.ndarray, A: np.ndarray = None) -> np.ndarray:
   return F
 
 
-def get_VF(
+def get_vf(
     indexed_floor_plan: np.ndarray,
     interior_wall_mask: np.ndarray,
     view_factor_method: str = 'ScriptF',
     marked_value: int = TEMPORARY_MARKED_VALUE,
+    interior_mass_mask: Optional[np.ndarray] = None,
+    interior_mass_value: int = AIR_IN_LINE_OF_SIGHT,
 ) -> np.ndarray:
   """
   Calculate view factors between interior walls in the floor plan.
@@ -525,36 +547,56 @@ def get_VF(
           Defaults to 'ScriptF'. Either "ScriptF" or "CarrollMRT".
       marked_value (int, optional): Value used to mark connected interior walls.
           Only used internally. Defaults to -33.
-
+      interior_mass_mask (Optional[np.ndarray], optional): Mask for interior
+          mass nodes. Defaults to None.
+      interior_mass_value (int, optional): Value used to represent interior
+          mass nodes. Defaults to 9 (`AIR_IN_LINE_OF_SIGHT`).
   Returns:
       View factor matrix where `VF[i,j]` represents the view factor from wall
           `i` to wall `j`.
 
   """
   if view_factor_method == 'ScriptF':
-    n_interior_wall = np.sum(interior_wall_mask)
-    VF = np.zeros((n_interior_wall, n_interior_wall))
+    if interior_mass_mask is not None:
+      interior_wall_mask_all = interior_wall_mask | interior_mass_mask
+    else:
+      interior_wall_mask_all = interior_wall_mask
 
+    n_interior_wall = np.sum(interior_wall_mask_all)
     interior_wall_tuples = [
         (r, c)
         for r in range(indexed_floor_plan.shape[0])
         for c in range(indexed_floor_plan.shape[1])
-        if interior_wall_mask[r, c]
+        if interior_wall_mask_all[r, c]
     ]
+
+    vf = np.zeros((n_interior_wall, n_interior_wall))
 
     for i in range(n_interior_wall):
       result_floor_plan, _ = mark_air_connected_interior_walls(
           indexed_floor_plan, interior_wall_tuples[i]
       )
-
       result_floor_plan = mark_directly_seeing_nodes(
           floor_plan=result_floor_plan, base_node=interior_wall_tuples[i]
       )
-      vf_ = 1 / np.sum(result_floor_plan == marked_value)
+      if interior_mass_mask is not None:
+        vf_ = 1 / np.sum(
+            (result_floor_plan == marked_value)
+            | (result_floor_plan == interior_mass_value)
+        )
+      else:
+        vf_ = 1 / np.sum((result_floor_plan == marked_value))
 
       result_floor_plan_ = np.zeros_like(result_floor_plan).astype('float')
-      result_floor_plan_[result_floor_plan == marked_value] = vf_
-      VF[i, :] = result_floor_plan_[interior_wall_mask]
+
+      if interior_mass_mask is not None:
+        result_floor_plan_[
+            (result_floor_plan == marked_value)
+            | (result_floor_plan == interior_mass_value)
+        ] = vf_
+      else:
+        result_floor_plan_[(result_floor_plan == marked_value)] = vf_
+      vf[i, :] = result_floor_plan_[interior_wall_mask_all]
 
   elif view_factor_method == 'CarrollMRT':
     raise NotImplementedError('CarrollMRT view factor method not implemented')
@@ -564,8 +606,8 @@ def get_VF(
         ' "CarrollMRT"'
     )
 
-  VF = fix_view_factors(VF)
-  return VF
+  vf = fix_view_factors(vf)
+  return vf
 
 
 def mark_interior_wall_adjacent_to_air(
@@ -708,7 +750,7 @@ def is_line_blocked(
       start: Starting point of the line as (x, y) coordinates.
       end: Ending point of the line as (x, y) coordinates.
       interior_wall_value: Value used to represent interior walls in the floor
-          plan. Defaults to -3 (from constants.py).
+          plan. Defaults to -3 (from "constants.py").
       marked_value: Value used to represent marked wall nodes. Only used
           internally. Defaults: -33. Only used internally.
       blocked_value: Value used to represent blocked wall nodes. Only used
@@ -788,36 +830,57 @@ def mark_directly_seeing_nodes(
     interior_wall_value: int = constants.INTERIOR_WALL_VALUE_IN_FUNCTION,
     marked_value: int = TEMPORARY_MARKED_VALUE,
     blocked_value: int = TEMPORARY_BLOCKED_VALUE,
+    air_value: int = constants.INTERIOR_SPACE_VALUE_IN_FUNCTION,
 ) -> np.ndarray:
   """Mark nodes that are directly seeing the base node as blocked_value.
 
   This function identifies and marks wall nodes that have a direct line of sight
   to the base node. It processes all connected wall nodes (marked with
   marked_value) and determines which ones can directly see the base node without
-  being blocked by other walls.
+  being blocked by other walls. Additionally, it marks air nodes along unblocked
+  lines of sight between wall nodes for interior mass radiative heat transfer.
+
+  When the base node is an air cell, it finds directly seeing nodes among the
+  interior walls, but does NOT mark air nodes as `AIR_IN_LINE_OF_SIGHT`.
 
   Args:
       floor_plan: 2D numpy array representing the floor plan where different
           values represent different types of cells (walls, air, etc.).
-      base_node: Position of the base node as (row, col) coordinates.
+      base_node: Position of the base node as (row, col) coordinates. Can be
+          either an interior wall node or an air cell.
       interior_wall_value: Value used to represent interior walls in the floor
-          plan. Defaults to -3 (from constants.py).
+          plan. Defaults to -3 (from "constants.py").
       marked_value: Value used to represent connected wall nodes that should
           be checked for line of sight. Only used internally. Defaults to -33.
       blocked_value: Value used to mark nodes that cannot directly see the
           base node. Only used internally. Defaults to -34.
+      air_value: Value used to represent air spaces in the floor plan.
+          Defaults to 0 (from "constants.py").
 
   Returns:
       Copy of the floor plan with nodes marked according to their visibility
           to the base node. Nodes that cannot see the base node are marked
           with blocked_value, and the base node itself is marked with
-          blocked_value + marked_value.
+          blocked_value + marked_value. When starting from a wall node, air
+          nodes along unblocked lines of sight are marked with
+          `AIR_IN_LINE_OF_SIGHT` (9).
+          When starting from an air node, air nodes are NOT marked.
+          Air nodes along blocked lines remain as air_value (0).
 
   Note:
-      - Neighboring nodes are automatically marked as blocked (no line of sight
-        calculation needed).
-      - For non-neighboring nodes, the function checks if the line of sight
-        is blocked by walls using is_line_blocked().
+      - When starting from a wall node: Neighboring wall nodes are automatically
+        marked as blocked (no line of sight calculation needed, and no air nodes
+        between directly adjacent walls).
+      - When starting from an air node: Neighboring wall nodes are NOT marked as
+        blocked; they remain as marked_value and can participate in radiative
+        transfer.
+      - For non-neighboring nodes, the function first checks if the line of
+        sight is blocked by walls using is_line_blocked().
+      - When starting from a wall node: Air nodes are ONLY marked as 9 along
+        lines that are NOT blocked. If a line is blocked, air nodes along that
+        line remain as 0 (air_value).
+      - When starting from an air node: Air nodes are NOT marked, even along
+        unblocked lines.
       - The base node itself is marked with a special value to distinguish it.
       - Value meanings for radiative heat transfer:
         * marked_value (-33): Interior wall nodes connected to the same air
@@ -825,10 +888,15 @@ def mark_directly_seeing_nodes(
         * blocked_value (-34): Interior wall nodes that cannot see the base node
           (blocked from radiative transfer)
         * blocked_value + marked_value (-67): The starting node itself
+        * `AIR_IN_LINE_OF_SIGHT` (9): Air nodes along unblocked line of sight
+          between wall nodes (for interior mass radiative transfer)
   """
   floor_plan_copy = floor_plan.copy()
   base_row, base_col = base_node
-  # Find all blocked_value nodes (connected wall nodes)
+  base_cell_value = floor_plan_copy[base_row, base_col]
+  is_base_air = base_cell_value == air_value
+
+  # Find all marked_value nodes (connected wall nodes)
   connected_nodes = np.where(floor_plan_copy == marked_value)
   connected_positions = list(zip(connected_nodes[0], connected_nodes[1]))
 
@@ -844,9 +912,17 @@ def mark_directly_seeing_nodes(
     is_neighbor = are_neighbors((base_row, base_col), (row, col))
 
     if is_neighbor:
-      floor_plan_copy[row, col] = blocked_value
+      # Neighbors are directly adjacent
+      # Only mark as blocked if starting from an interior wall node
+      # (not when starting from an air node)
+      if not is_base_air:
+        # When starting from wall, mark neighboring walls as blocked
+        # (no air nodes between directly adjacent wall nodes)
+        floor_plan_copy[row, col] = blocked_value
+      # When starting from air node, leave neighboring walls as marked_value
+      # (they can participate in radiative transfer)
     else:
-      # Check if line of sight is not blocked
+      # Check if line of sight is blocked first
       blocked = is_line_blocked(
           floor_plan_copy,
           (base_row, base_col),
@@ -855,10 +931,39 @@ def mark_directly_seeing_nodes(
           marked_value,
           blocked_value,
       )
+
       if blocked:
+        # Line is blocked, so mark the wall node as blocked
+        # and DON'T mark air nodes along this line
         floor_plan_copy[row, col] = blocked_value
         directly_seeing_count += 1
       else:
-        pass
+        # Line is NOT blocked
+        # Only mark air nodes along the line if starting from a wall node
+        # (not when starting from an air node)
+        if not is_base_air:
+          line_points = get_line_points(
+              (float(base_row), float(base_col)), (float(row), float(col))
+          )
+
+          # Mark air nodes along the line (excluding start and end points)
+          for point in line_points[1:-1]:
+            px, py = point
+            # Check all 4 integer coordinates around the floating point
+            for cx, cy in [
+                (math.floor(px), math.floor(py)),
+                (math.floor(px), math.ceil(py)),
+                (math.ceil(px), math.floor(py)),
+                (math.ceil(px), math.ceil(py)),
+            ]:
+              if (
+                  0 <= cx < floor_plan_copy.shape[0]
+                  and 0 <= cy < floor_plan_copy.shape[1]
+                  and floor_plan_copy[cx, cy] == air_value
+              ):
+                floor_plan_copy[cx, cy] = AIR_IN_LINE_OF_SIGHT
+        # Wall node is visible (not blocked), so leave it as marked_value (-33)
+
+  # Mark the base node with a special value
   floor_plan_copy[base_row, base_col] = blocked_value + marked_value
   return floor_plan_copy

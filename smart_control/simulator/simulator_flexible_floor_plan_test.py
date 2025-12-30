@@ -12,6 +12,7 @@ from smart_control.proto import smart_control_reward_pb2
 from smart_control.simulator import air_handler as air_handler_py
 from smart_control.simulator import boiler as boiler_py
 from smart_control.simulator import building as building_py
+from smart_control.simulator import constants
 from smart_control.simulator import hvac_floorplan_based as floorplan_hvac_py
 from smart_control.simulator import setpoint_schedule
 from smart_control.simulator import simulator_flexible_floor_plan as simulator_py
@@ -196,6 +197,7 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
       match_diffusers=False,
       include_radiative_heat_transfer=False,
       floor_plan=None,
+      include_interior_mass=False,
   ):
     """Returns building with specified initial temperature.
 
@@ -209,6 +211,7 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
         building (for testing purposes)
       include_radiative_heat_transfer: include radiative heat transfer
       floor_plan: floor plan to use
+      include_interior_mass: include interior mass
     """
     cv_size_cm = 20.0
     floor_height_cm = 300.0
@@ -219,7 +222,7 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
         conductivity=2.0, heat_capacity=500.0, density=1800.0
     )
     building_exterior_properties = building_py.MaterialProperties(
-        conductivity=0.05, heat_capacity=500.0, density=3000.0
+        conductivity=1.0, heat_capacity=500.0, density=3000.0
     )
 
     if floor_plan is None:
@@ -227,16 +230,30 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
 
     zone_map = copy.deepcopy(floor_plan)
 
-    if include_radiative_heat_transfer:
-      inside_air_radiative_properties = building_py.RadiationProperties(
-          alpha=0.0, epsilon=0.0, tau=1.0, rho=None
-      )
-      inside_wall_radiative_properties = building_py.RadiationProperties(
-          alpha=0.4, epsilon=0.6, tau=0.0, rho=None
-      )
-      building_exterior_radiative_properties = building_py.RadiationProperties(
-          alpha=0.65, epsilon=0.35, tau=0.0, rho=None
-      )
+    if include_radiative_heat_transfer or include_interior_mass:
+      if include_radiative_heat_transfer:
+        inside_air_radiative_properties = building_py.RadiationProperties(
+            alpha=0.0, epsilon=0.0, tau=1.0, rho=None
+        )
+        inside_wall_radiative_properties = building_py.RadiationProperties(
+            alpha=0.4, epsilon=0.6, tau=0.0, rho=None
+        )
+        building_exterior_radiative_properties = (
+            building_py.RadiationProperties(
+                alpha=0.65, epsilon=0.35, tau=0.0, rho=None
+            )
+        )
+      else:
+        inside_air_radiative_properties = None
+        inside_wall_radiative_properties = None
+        building_exterior_radiative_properties = None
+
+      if include_interior_mass:
+        interior_mass_properties = building_py.MaterialProperties(
+            conductivity=5.0, heat_capacity=300.0, density=2000.0
+        )
+      else:
+        interior_mass_properties = None
 
       building = building_py.FloorPlanBasedBuilding(
           cv_size_cm=cv_size_cm,
@@ -253,6 +270,8 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
           building_exterior_radiative_properties=building_exterior_radiative_properties,  # pylint: disable=line-too-long
           include_radiative_heat_transfer=include_radiative_heat_transfer,
           view_factor_method="ScriptF",
+          interior_mass_properties=interior_mass_properties,
+          include_interior_mass=include_interior_mass,
       )
     else:
       building = building_py.FloorPlanBasedBuilding(
@@ -274,6 +293,72 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
       )
 
     return building
+
+  def _create_simulator_and_building(
+      self,
+      initial_temp=292.0,
+      include_interior_mass=True,
+      include_radiative_heat_transfer=False,
+      convergence_threshold=0.001,
+      iteration_limit=100,
+  ):
+    """Creates a building and simulator instance with shared parameters."""
+    weather_controller = mock.create_autospec(
+        weather_controller_py.WeatherController
+    )
+    time_step_sec = 300.0
+    hvac = self._create_small_hvac()
+    iteration_warning = 10
+    start_timestamp = pd.Timestamp("2012-12-21")
+
+    # Building geometry and base properties
+    cv_size_cm = 20.0
+    floor_height_cm = 300.0
+    inside_air_properties = building_py.MaterialProperties(
+        conductivity=50.0, heat_capacity=1.0, density=1.2
+    )
+    inside_wall_properties = building_py.MaterialProperties(
+        conductivity=2.0, heat_capacity=500.0, density=1800.0
+    )
+    building_exterior_properties = building_py.MaterialProperties(
+        conductivity=0.05, heat_capacity=500.0, density=3000.0
+    )
+    interior_mass_properties = building_py.MaterialProperties(
+        conductivity=0.5, heat_capacity=1000.0, density=2000.0
+    )
+
+    floor_plan = self._create_dummy_floor_plan_small()
+    zone_map = copy.deepcopy(floor_plan)
+
+    building = building_py.FloorPlanBasedBuilding(
+        cv_size_cm=cv_size_cm,
+        floor_height_cm=floor_height_cm,
+        initial_temp=initial_temp,
+        inside_air_properties=inside_air_properties,
+        inside_wall_properties=inside_wall_properties,
+        building_exterior_properties=building_exterior_properties,
+        floor_plan=floor_plan,
+        zone_map=zone_map,
+        buffer_from_walls=0,
+        interior_mass_properties=interior_mass_properties,
+        include_interior_mass=include_interior_mass,
+        include_radiative_heat_transfer=include_radiative_heat_transfer,
+        view_factor_method="ScriptF"
+        if include_radiative_heat_transfer
+        else None,
+    )
+
+    simulator = simulator_py.SimulatorFlexibleGeometries(
+        building,
+        hvac,
+        weather_controller,
+        time_step_sec,
+        convergence_threshold,
+        iteration_limit,
+        iteration_warning,
+        start_timestamp,
+    )
+    return simulator, building
 
   def _create_weirdly_shaped_building(self, initial_temp):
     """Returns weird building with specified initial temperature.
@@ -1467,9 +1552,11 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
         boiler_reward_info.pump_electrical_energy_rate,
     )
 
-  def test_update_temperature_estimates_return_value_with_radiative_heat_transfer(  # pylint: disable=line-too-long
+  def test_update_temperature_estimates_return_value_with_lwx(  # pylint: disable=line-too-long
       self,
   ):
+    """Test that the temperature estimates are updated correctly with LWX"""
+
     weather_controller = mock.create_autospec(
         weather_controller_py.WeatherController
     )
@@ -1508,7 +1595,7 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
         ),
     )
 
-  def test_update_temperature_estimates_return_value_with_radiative_heat_transfer_no_interior_walls(  # pylint: disable=line-too-long
+  def test_update_temperature_estimates_return_value_with_lwx_no_interior_walls(  # pylint: disable=line-too-long
       self,
   ):
     weather_controller = mock.create_autospec(
@@ -1560,6 +1647,132 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
             "finite_differences_timestep converged with radiative heat"
             " transfer."
         ),
+    )
+
+  def test_interior_mass_temperatures_update(self):
+    """Test that interior mass temperatures are updated during simulation."""
+    simulator, building = self._create_simulator_and_building(
+        convergence_threshold=0.001,
+        iteration_limit=100,
+        include_interior_mass=True,
+    )
+
+    # Store initial interior mass temperatures
+    initial_interior_mass_temp = building.interior_mass_temp.copy()
+
+    # Run a timestep with different ambient temperature to cause heat transfer
+    converged = simulator.finite_differences_timestep(
+        ambient_temperature=300.0, convection_coefficient=12.0
+    )
+
+    self.assertTrue(converged)
+
+    # Check that interior mass temperatures have increased
+    # Use NumPy boolean indexing with mask for cleaner array comparison
+    temps_increased = np.any(
+        building.interior_mass_temp[building.interior_mass_mask]
+        > initial_interior_mass_temp[building.interior_mass_mask]
+    )
+
+    self.assertTrue(
+        temps_increased,
+        msg="Interior mass temperatures should increase during simulation",
+    )
+
+  def test_interior_mass_convergence(self):
+    """Test that simulation with interior mass converges."""
+    simulator, _ = self._create_simulator_and_building(
+        convergence_threshold=0.001, iteration_limit=100
+    )
+
+    # Test convergence with same temperature (should converge quickly)
+    converged = simulator.finite_differences_timestep(
+        ambient_temperature=292.0, convection_coefficient=12.0
+    )
+
+    self.assertTrue(
+        converged,
+        msg=(
+            "Simulation with interior mass should converge when ambient temp"
+            " equals initial temp"
+        ),
+    )
+
+  def test_interior_mass_affects_heat_transfer(self):
+    """Test that interior mass affects heat transfer in the building."""
+    # Building without interior mass
+    simulator_no_mass, building_no_mass = self._create_simulator_and_building(
+        convergence_threshold=0.001,
+        iteration_limit=100,
+        include_interior_mass=False,
+    )
+    # Building with interior mass
+    simulator_with_mass, building_with_mass = (
+        self._create_simulator_and_building(
+            convergence_threshold=0.001,
+            iteration_limit=100,
+            include_interior_mass=True,
+        )
+    )
+
+    # Run simulation with higher ambient temperature
+    ambient_temp = 300.0
+    convection_coeff = 12.0
+
+    simulator_no_mass.finite_differences_timestep(
+        ambient_temperature=ambient_temp,
+        convection_coefficient=convection_coeff,
+    )
+    simulator_with_mass.finite_differences_timestep(
+        ambient_temperature=ambient_temp,
+        convection_coefficient=convection_coeff,
+    )
+
+    # Compare average air temperatures
+    avg_temp_no_mass = np.mean(
+        building_no_mass.temp[
+            building_with_mass.floor_plan
+            == constants.INTERIOR_SPACE_VALUE_IN_FILE_INPUT
+        ]
+    )
+    avg_temp_with_mass = np.mean(
+        building_with_mass.temp[
+            building_with_mass.floor_plan
+            == constants.INTERIOR_SPACE_VALUE_IN_FILE_INPUT
+        ]
+    )
+
+    # Building with interior mass should heat up differently due to thermal
+    #  inertia
+    # The exact relationship depends on material properties, but they should
+    # differ
+    self.assertGreater(
+        avg_temp_no_mass - avg_temp_with_mass,
+        0,
+        msg=(
+            "Average temperature without interior mass should be greater than"
+            " with interior mass"
+        ),
+    )
+
+  def test_interior_mass_convergence_with_lwx(self):
+    """Test that simulation with interior mass converges with LWX
+    (longwave interior radiative heat transfer)."""
+    simulator, _ = self._create_simulator_and_building(
+        convergence_threshold=0.001,
+        iteration_limit=100,
+        include_interior_mass=True,
+        include_radiative_heat_transfer=True,
+    )
+
+    # Test convergence with same temperature (should converge quickly)
+    converged = simulator.finite_differences_timestep(
+        ambient_temperature=292.0, convection_coefficient=12.0
+    )
+
+    self.assertTrue(
+        converged,
+        msg="converged.",
     )
 
 

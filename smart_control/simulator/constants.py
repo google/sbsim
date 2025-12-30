@@ -124,3 +124,9 @@ ROOM_STRING_DESIGNATOR = "room"
 
 # The limit above which we do not want thermal diffusers to be dispensing energy
 WATT_LIMIT = 500
+
+# Interior mass node constants
+# Marker to indicate if a CV has an associated interior mass node
+INTERIOR_MASS_NODE_MARKER = 1
+# Label for interior mass CV type
+LABEL_FOR_INTERIOR_MASS = "interior_mass"
