@@ -175,14 +175,14 @@ class MoffettReplayWeatherControllerTest(parameterized.TestCase):
     self.controller = weather_controller.ReplayWeatherController()
 
   def test_weather_df(self):
+    self.assertIsInstance(self.controller.weather_df, pd.DataFrame)
+    self.assertEqual(self.controller.weather_df.shape, (3462, 15))
+
     expected_columns = [
         'Time', 'StationName', 'StationId', 'Location', 'TempC', 'DewPointC',
         'BarometerMbar', 'Rain', 'RainTotal', 'WindspeedKmph',
         'WindDirection', 'SkyCoverage', 'VisibilityKm', 'Humidity', 'TempF'
     ]
-
-    self.assertIsInstance(self.controller.weather_df, pd.DataFrame)
-    self.assertEqual(self.controller.weather_df.shape, (3462, 15))
     self.assertCountEqual(
         self.controller.weather_df.columns.tolist(),
         expected_columns,
@@ -216,6 +216,17 @@ class MoffettReplayWeatherControllerTest(parameterized.TestCase):
 
       temp = self.controller.get_current_temp(timestamp)
       self.assertEqual(temp, 289.15)
+
+  def test_interpolation(self):
+    timestamp = pd.Timestamp('2023-07-01 03:00:01+00:00')
+
+    with self.subTest('current_temp'):
+      temp_k = self.controller.get_current_temp(timestamp)
+      self.assertAlmostEqual(temp_k, 294.1497, places=4)
+
+    with self.subTest('current_humidity'):
+      humidity = self.controller.get_current_humidity(timestamp)
+      self.assertAlmostEqual(humidity, 65.0, places=5)
 
 
 if __name__ == '__main__':

@@ -46,6 +46,10 @@ class FakeLLMService(llm_service.BaseLLMService):
     self._response_text = response_text
 
   @property
+  def model_name(self) -> str:
+    return "fake-model"
+
+  @property
   def temperature(self) -> float:
     return self._temperature
 

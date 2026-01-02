@@ -24,8 +24,12 @@ from smart_buildings.smart_control.models import base_normalizer
 from smart_buildings.smart_control.proto import smart_control_building_pb2
 from smart_buildings.smart_control.proto import smart_control_normalization_pb2
 
+ContinuousVariableInfo = smart_control_normalization_pb2.ContinuousVariableInfo
+
 FieldNameKeyword = NewType('FieldNameKeyword', str)
 FieldName = NewType('FieldName', str)
+
+NormalizationConstants = Mapping[FieldNameKeyword, ContinuousVariableInfo]
 
 
 @gin.configurable
@@ -46,25 +50,21 @@ class StandardScoreObservationNormalizer(
     ValueError if the field name is not matched in the normalization_constants.
   """
 
-  def __init__(
-      self,
-      normalization_constants: Mapping[
-          FieldNameKeyword,
-          smart_control_normalization_pb2.ContinuousVariableInfo,
-      ],
-  ):
+  def __init__(self, normalization_constants: NormalizationConstants):
     self._normalization_constants = normalization_constants
+
+  @property
+  def normalization_constants(self) -> NormalizationConstants:
+    return self._normalization_constants
 
   def _get_normalization_constants(
       self, field_name: FieldName
-  ) -> smart_control_normalization_pb2.ContinuousVariableInfo:
+  ) -> ContinuousVariableInfo:
     """Returns normalization data for exact match or keyword-contain match."""
     if field_name in self._normalization_constants:
       return self._normalization_constants[field_name]
     else:
-      return smart_control_normalization_pb2.ContinuousVariableInfo(
-          sample_mean=0.0, sample_variance=1.0
-      )
+      return ContinuousVariableInfo(sample_mean=0.0, sample_variance=1.0)
 
   def _normalize_one(self, field_name: FieldName, value: float) -> float:
     """Shifts and scales a native value based on its field name.

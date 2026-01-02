@@ -80,11 +80,12 @@ Maximum/full productivity occurs when the zone is occupied and inside its
 deadband. Productivity decays smoothly on a logistic curve outside the deadband.
 """
 
-import gin
+from typing import Any
 
-from smart_buildings.smart_control.models.base_energy_cost import BaseEnergyCost
+import gin
+from smart_buildings.smart_control.models import base_energy_cost
 from smart_buildings.smart_control.proto import smart_control_reward_pb2
-from smart_buildings.smart_control.reward.base_setpoint_energy_carbon_reward import BaseSetpointEnergyCarbonRewardFunction
+from smart_buildings.smart_control.reward import base_setpoint_energy_carbon_reward
 from smart_buildings.smart_control.utils import conversion_utils
 
 _HOUR_SEC = 3600.0
@@ -92,7 +93,7 @@ _HOUR_SEC = 3600.0
 
 @gin.configurable()
 class SetpointEnergyCarbonRegretFunction(
-    BaseSetpointEnergyCarbonRewardFunction
+    base_setpoint_energy_carbon_reward.BaseSetpointEnergyCarbonRewardFunction
 ):
   """Reward function based on productivity, energy cost and carbon emission.
 
@@ -117,8 +118,8 @@ class SetpointEnergyCarbonRegretFunction(
       max_natural_gas_rate: float,
       productivity_midpoint_delta: float,
       productivity_decay_stiffness: float,
-      electricity_energy_cost: BaseEnergyCost,
-      natural_gas_energy_cost: BaseEnergyCost,
+      electricity_energy_cost: base_energy_cost.BaseEnergyCost,
+      natural_gas_energy_cost: base_energy_cost.BaseEnergyCost,
       productivity_weight: float,
       energy_cost_weight: float,
       carbon_emission_weight: float,
@@ -141,6 +142,45 @@ class SetpointEnergyCarbonRegretFunction(
         self._max_productivity_personhour_usd
         > self._min_productivity_personhour_usd
     )
+
+  @property
+  def energy_cost_weight(self) -> float:
+    """Returns the energy cost weight of the reward function."""
+    return self._energy_cost_weight
+
+  @property
+  def carbon_emission_weight(self) -> float:
+    """Returns the carbon emission weight of the reward function."""
+    return self._carbon_emission_weight
+
+  @property
+  def productivity_weight(self) -> float:
+    """Returns the productivity weight of the reward function."""
+    return self._productivity_weight
+
+  @property
+  def weights(self) -> dict[str, float]:
+    """Returns the weights of the reward function."""
+    return {
+        "energy_cost_weight": self._energy_cost_weight,
+        "carbon_emission_weight": self._carbon_emission_weight,
+        "productivity_weight": self._productivity_weight,
+    }
+
+  @property
+  def json_metadata(self) -> dict[str, Any]:
+    """Info to write into a JSON file. Needs to be serializable."""
+    return {
+        "max_productivity_personhour_usd": self._max_productivity_personhour_usd,  # pylint: disable=line-too-long
+        "min_productivity_personhour_usd": self._min_productivity_personhour_usd,  # pylint: disable=line-too-long
+        "max_electricity_rate": self._max_electricity_rate,
+        "max_natural_gas_rate": self._max_natural_gas_rate,
+        "productivity_midpoint_delta": self._productivity_midpoint_delta,
+        "productivity_decay_stiffness": self._productivity_decay_stiffness,
+        "productivity_weight": self._productivity_weight,
+        "energy_cost_weight": self._energy_cost_weight,
+        "carbon_emission_weight": self._carbon_emission_weight,
+    }
 
   def compute_reward(
       self, reward_info: smart_control_reward_pb2.RewardInfo

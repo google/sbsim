@@ -91,6 +91,26 @@ class FloorPlanBasedHvac:
       self.initialize_zone_identifier(zone_identifier)
       self.fill_zone_identifier_exogenously = False
 
+  @property
+  def schedule(self) -> setpoint_schedule.SetpointSchedule:
+    """Returns the building operational schedule for the HVAC."""
+    return self._schedule
+
+  @property
+  def vav_max_air_flow_rate(self) -> float:
+    """Returns the max air flow rate for the vavs."""
+    return self._vav_max_air_flow_rate
+
+  @property
+  def vav_reheat_max_water_flow_factor(self) -> float:
+    """Returns the max water reheat flow factor for the vavs."""
+    return self._vav_reheat_max_water_flow_factor
+
+  @property
+  def vav_max_air_flow_static_pressure(self) -> float:
+    """Returns the max air flow static pressure for the vavs."""
+    return self._vav_max_air_flow_static_pressure
+
   def initialize_zone_identifier(self, zone_identifier: List[str]):
     """Initializes the zone devices with zone coordinates passed in.
 

@@ -83,6 +83,11 @@ class SetpointSchedule:
     else:
       self.holidays = set()
 
+  @property
+  def time_zone(self) -> datetime.tzinfo:
+    """Returns the schedule's time zone."""
+    return self._time_zone
+
   def is_comfort_mode(self, current_timestamp: pd.Timestamp) -> bool:
     """Returns whether setpoint schedule dictates comfort mode.
 

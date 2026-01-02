@@ -99,15 +99,32 @@ class BaseGeminiService(llm_service.BaseLLMService, metaclass=abc.ABCMeta):
         each step.
       max_output_tokens: The maximum number of tokens to generate.
     """
-    self.model_name = model_name
+    self._model_name = model_name
     self._temperature = temperature
     self.top_p = top_p
     self.top_k = top_k
-    self.max_output_tokens = max_output_tokens
+    self._max_output_tokens = max_output_tokens
+
+  @property
+  def json_metadata(self) -> dict[str, Any]:
+    """Info to write into a JSON file. Needs to be serializable."""
+    return {
+        'type': self.__class__.__name__,
+        'model_name': self.model_name,
+        'generation_config': self.generation_config,
+    }
+
+  @property
+  def model_name(self) -> str:
+    return self._model_name
 
   @property
   def temperature(self) -> float:
     return self._temperature
+
+  @property
+  def max_output_tokens(self) -> int:
+    return self._max_output_tokens
 
   @property
   @abc.abstractmethod

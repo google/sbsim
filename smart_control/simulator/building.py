@@ -417,6 +417,9 @@ class Building(BaseSimulatorBuilding):
       volume.
     cv_type: a matrix noting whether each CV is outside air, interior space, or
       a wall. cv_type will be used in the sweep() function.
+    inside_air_properties: MaterialProperties for interior air.
+    inside_wall_properties: MaterialProperties for interior walls.
+    building_exterior_properties: MaterialProperties for building's exterior.
   """
 
   def __init__(
@@ -460,6 +463,10 @@ class Building(BaseSimulatorBuilding):
     self.room_shape = room_shape
     self.building_shape = building_shape
     self._initial_temp = initial_temp
+
+    self.inside_air_properties = inside_air_properties
+    self.inside_wall_properties = inside_wall_properties
+    self.building_exterior_properties = building_exterior_properties
 
     if not deprecation:
       # TODO(sipple): delete the class when deprecation is finished.
@@ -628,6 +635,8 @@ class FloorPlanBasedBuilding(BaseSimulatorBuilding):
       width and length of each room.
     building_shape: 2-Tuple representing the number of rooms in the width and
       length of the building.
+    floor_plan_filepath: path to the floor plan npy file.
+    zone_map_filepath: path to the zone map npy file.
     floor_plan: an np.ndarray representing the building's floor plan.
     temp: The current temp in K of each control volume.
     conductivity: Thermal conductivity in of each control volume W/m/K.
@@ -641,6 +650,9 @@ class FloorPlanBasedBuilding(BaseSimulatorBuilding):
     neighbors: Matrix containing list of neighbor coordinates for each control
       volume.
     len_neighbors: matrix containing the length of neighbors
+    inside_air_properties: MaterialProperties for interior air.
+    inside_wall_properties: MaterialProperties for interior walls.
+    building_exterior_properties: MaterialProperties for building's exterior.
   """
 
   def __init__(
@@ -687,9 +699,14 @@ class FloorPlanBasedBuilding(BaseSimulatorBuilding):
       min_room_size: The minimum number of control volumes a room must have to
         be considered for diffuser placement.
     """
-
+    # consider super call!
+    self.floor_plan_filepath = floor_plan_filepath
+    self.zone_map_filepath = zone_map_filepath
     self.cv_size_cm = cv_size_cm
     self.floor_height_cm = floor_height_cm
+    self.inside_air_properties = inside_air_properties
+    self.inside_wall_properties = inside_wall_properties
+    self.building_exterior_properties = building_exterior_properties
     self._initial_temp = initial_temp
     self._convection_simulator = convection_simulator
     self._reset_temp_values = reset_temp_values
@@ -784,19 +801,28 @@ class FloorPlanBasedBuilding(BaseSimulatorBuilding):
 
   @property
   def density(self) -> np.ndarray:
+    """Returns the density array."""
     return self._density
 
   @property
   def heat_capacity(self) -> np.ndarray:
+    """Returns the heat capacity array."""
     return self._heat_capacity
 
   @property
   def conductivity(self) -> np.ndarray:
+    """Returns the conductivity array."""
     return self._conductivity
 
   @property
   def cv_type(self) -> np.ndarray:
+    """Returns the cv_type array."""
     return self._cv_type
+
+  @property
+  def initial_temp(self) -> float:
+    """Returns the initial temperature for the building."""
+    return self._initial_temp
 
   def reset(self):
     self.temp = np.full(

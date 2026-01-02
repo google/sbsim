@@ -137,6 +137,10 @@ class SimulatorBuilding(BaseBuilding):
     return device_info
 
   @property
+  def occupancy(self) -> BaseOccupancy:
+    return self._occupancy
+
+  @property
   def reward_info(self) -> smart_control_reward_pb2.RewardInfo:
     """Returns a message with data to compute the instantaneous reward."""
     return self.simulator.reward_info(self._occupancy)

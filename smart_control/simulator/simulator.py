@@ -87,16 +87,36 @@ class Simulator:
     self._current_timestamp = self._start_timestamp
 
   @property
-  def time_step_sec(self) -> float:
-    return self._time_step_sec
-
-  @property
   def hvac(self) -> hvac_py.Hvac:
     return self._hvac
 
   @property
+  def weather_controller(self) -> weather_controller_py.WeatherController:
+    return self._weather_controller
+
+  @property
+  def time_step_sec(self) -> float:
+    return self._time_step_sec
+
+  @property
+  def start_timestamp(self) -> pd.Timestamp:
+    return self._start_timestamp
+
+  @property
   def current_timestamp(self) -> pd.Timestamp:
     return self._current_timestamp
+
+  @property
+  def convergence_threshold(self) -> float:
+    return self._convergence_threshold
+
+  @property
+  def iteration_limit(self) -> int:
+    return self._iteration_limit
+
+  @property
+  def iteration_warning(self) -> int:
+    return self._iteration_warning
 
   def _get_corner_cv_temp_estimate(
       self,
