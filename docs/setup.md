@@ -11,6 +11,7 @@ This project requires the following system dependencies:
 - [Protocol Buffer Compiler](https://grpc.io/docs/protoc-installation/)
   (`v 3.21.12`)
 - [FFmpeg](https://ffmpeg.org/) (`v 7.1.1`)
+- [Graphviz](https://graphviz.org/download/) (for generating documentation diagrams)
 - Python (`>=3.10.12 and <3.12`)
 
 ## Repository Setup

@@ -53,3 +53,12 @@ docs-quiet:
 
 docs-build:
 	poetry run mkdocs build
+
+#
+# UML Diagram
+#
+uml:
+	@echo "--- Generating UML class diagram ---"
+	pyreverse -o dot -p smart_control smart_control/
+	dot -Tpng classes_smart_control.dot -o docs/images/class_diagram.png
+	rm classes_smart_control.dot packages_smart_control.dot
