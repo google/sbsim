@@ -21,6 +21,7 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 import gin
 import numpy as np
+
 from smart_buildings.smart_control.simulator import base_convection_simulator
 from smart_buildings.smart_control.simulator import building_utils
 from smart_buildings.smart_control.simulator import constants
@@ -302,6 +303,7 @@ def _assign_thermal_diffusers(
     interior_walls: building_utils.InteriorWalls,
     diffuser_spacing: int = 10,
     buffer_from_walls: int = 5,
+    min_room_size: int = 350,
 ) -> np.ndarray:
   """Places as many thermal diffusers in a zone as "diffuser_spacing" allows.
 
@@ -331,6 +333,7 @@ def _assign_thermal_diffusers(
     diffuser_spacing: how many diffusers to have per control volume spacing.
     buffer_from_walls: how many CVs to leave in between each wall and each
       thermal diffuser
+    min_room_size: minimum room size to place diffusers
 
   Returns:
     an np.ndarray with the appropriate values set.
@@ -345,6 +348,7 @@ def _assign_thermal_diffusers(
         spacing=diffuser_spacing,
         interior_walls=interior_walls,
         buffer_from_walls=buffer_from_walls,
+        min_room_size=min_room_size,
     )
     num_inds = len(inds)
     for ind in inds:
@@ -413,6 +417,9 @@ class Building(BaseSimulatorBuilding):
       volume.
     cv_type: a matrix noting whether each CV is outside air, interior space, or
       a wall. cv_type will be used in the sweep() function.
+    inside_air_properties: MaterialProperties for interior air.
+    inside_wall_properties: MaterialProperties for interior walls.
+    building_exterior_properties: MaterialProperties for building's exterior.
   """
 
   def __init__(
@@ -456,6 +463,10 @@ class Building(BaseSimulatorBuilding):
     self.room_shape = room_shape
     self.building_shape = building_shape
     self._initial_temp = initial_temp
+
+    self.inside_air_properties = inside_air_properties
+    self.inside_wall_properties = inside_wall_properties
+    self.building_exterior_properties = building_exterior_properties
 
     if not deprecation:
       # TODO(sipple): delete the class when deprecation is finished.
@@ -547,7 +558,9 @@ class Building(BaseSimulatorBuilding):
   def get_zone_thermal_energy_rate(
       self, zone_coordinates: Coordinates2D
   ) -> float:
-    """Returns energy rate in W being input to specified zone, summing its CVs contributions.
+    """Returns energy rate in W being input to specified zone.
+
+    Sums its CVs contributions.
 
     Calculates and returns sum of input_q of all air CVs in a given zone.
 
@@ -577,7 +590,10 @@ class Building(BaseSimulatorBuilding):
     return np.min(submat), np.max(submat), np.mean(submat)
 
   def get_zone_average_temps(self) -> Dict[Tuple[int, int], Any]:
-    """Returns a dict of zone average temps, with key (zone_coordinates) and val: temp."""
+    """Returns a dict of zone average temps.
+
+    The dict is formatted as {`zone_coordinates`: `temp`}.
+    """
     avg_temps = {}
     for zone_x in range(self.building_shape[0]):
       for zone_y in range(self.building_shape[1]):
@@ -589,11 +605,13 @@ class Building(BaseSimulatorBuilding):
   def apply_thermal_power_zone(
       self, zone_coordinates: Coordinates2D, power: float
   ):
-    """Applies thermal power [W] to zone zone_x, zone_y spread evenly to all diffusers.
+    """Applies thermal power to zones, spread evenly across diffusers.
+
+    The thermal power [W] is applied to zones `zone_x` and `zone_y`.
 
     Args:
-      zone_coordinates: Tuple containing x and y coordinates for zone.
-      power: Watts to apply to zone.
+       zone_coordinates: Tuple containing x and y coordinates for zone.
+       power: Watts to apply to zone.
     """
 
     x_min, x_max, y_min, y_max = get_zone_bounds(
@@ -617,9 +635,12 @@ class FloorPlanBasedBuilding(BaseSimulatorBuilding):
       width and length of each room.
     building_shape: 2-Tuple representing the number of rooms in the width and
       length of the building.
+    floor_plan_filepath: path to the floor plan npy file.
+    zone_map_filepath: path to the zone map npy file.
+    floor_plan: an np.ndarray representing the building's floor plan.
     temp: The current temp in K of each control volume.
     conductivity: Thermal conductivity in of each control volume W/m/K.
-    heat_capacity: Thermal heat cpacity of each control volume in J/kg/K.
+    heat_capacity: Thermal heat capacity of each control volume in J/kg/K.
     density: Material density in kg/m3 of each control volume.
     input_q: Heat energy applied (sign indicates heating/cooling) at the CV in W
       (J/s).
@@ -629,6 +650,9 @@ class FloorPlanBasedBuilding(BaseSimulatorBuilding):
     neighbors: Matrix containing list of neighbor coordinates for each control
       volume.
     len_neighbors: matrix containing the length of neighbors
+    inside_air_properties: MaterialProperties for interior air.
+    inside_wall_properties: MaterialProperties for interior walls.
+    building_exterior_properties: MaterialProperties for building's exterior.
   """
 
   def __init__(
@@ -648,6 +672,7 @@ class FloorPlanBasedBuilding(BaseSimulatorBuilding):
           base_convection_simulator.BaseConvectionSimulator
       ] = None,
       reset_temp_values: np.ndarray | None = None,
+      min_room_size: int = 350,
   ):
     """Initializes the New Building.
 
@@ -671,13 +696,21 @@ class FloorPlanBasedBuilding(BaseSimulatorBuilding):
         and walls
       convection_simulator: object to simulate air convection
       reset_temp_values: Temp values to use when resetting the building
+      min_room_size: The minimum number of control volumes a room must have to
+        be considered for diffuser placement.
     """
-
+    # consider super call!
+    self.floor_plan_filepath = floor_plan_filepath
+    self.zone_map_filepath = zone_map_filepath
     self.cv_size_cm = cv_size_cm
     self.floor_height_cm = floor_height_cm
+    self.inside_air_properties = inside_air_properties
+    self.inside_wall_properties = inside_wall_properties
+    self.building_exterior_properties = building_exterior_properties
     self._initial_temp = initial_temp
     self._convection_simulator = convection_simulator
     self._reset_temp_values = reset_temp_values
+    self._min_room_size = min_room_size
 
     # below is new code, to derive necessary artifacts from the floor plan.
     # TODO(spangher): neaten code by turning the next twenty lines into a
@@ -689,12 +722,12 @@ class FloorPlanBasedBuilding(BaseSimulatorBuilding):
       )
 
     elif floor_plan is None and floor_plan_filepath:
-      self._floor_plan = building_utils.read_floor_plan_from_filepath(
+      self.floor_plan = building_utils.read_floor_plan_from_filepath(
           floor_plan_filepath
       )
 
     elif floor_plan is not None and floor_plan_filepath is None:
-      self._floor_plan = floor_plan
+      self.floor_plan = floor_plan
 
     else:
       raise ValueError("floor_plan and floor_plan_filepath ")
@@ -716,7 +749,7 @@ class FloorPlanBasedBuilding(BaseSimulatorBuilding):
 
     (self._room_dict, exterior_walls, interior_walls, self._exterior_space) = (
         building_utils.construct_building_data_types(
-            floor_plan=self._floor_plan, zone_map=zone_map
+            floor_plan=self.floor_plan, zone_map=zone_map
         )
     )
 
@@ -754,6 +787,7 @@ class FloorPlanBasedBuilding(BaseSimulatorBuilding):
         room_dict=self._room_dict,
         interior_walls=interior_walls,
         buffer_from_walls=buffer_from_walls,
+        min_room_size=self._min_room_size,
     )
 
     self._cv_type = _construct_cv_type_array(
@@ -767,19 +801,28 @@ class FloorPlanBasedBuilding(BaseSimulatorBuilding):
 
   @property
   def density(self) -> np.ndarray:
+    """Returns the density array."""
     return self._density
 
   @property
   def heat_capacity(self) -> np.ndarray:
+    """Returns the heat capacity array."""
     return self._heat_capacity
 
   @property
   def conductivity(self) -> np.ndarray:
+    """Returns the conductivity array."""
     return self._conductivity
 
   @property
   def cv_type(self) -> np.ndarray:
+    """Returns the cv_type array."""
     return self._cv_type
+
+  @property
+  def initial_temp(self) -> float:
+    """Returns the initial temperature for the building."""
+    return self._initial_temp
 
   def reset(self):
     self.temp = np.full(
@@ -823,7 +866,9 @@ class FloorPlanBasedBuilding(BaseSimulatorBuilding):
     return len_neighbors
 
   def get_zone_thermal_energy_rate(self, zone_name: str) -> float:  # pylint: disable=arguments-renamed
-    """Returns energy rate in W being input to specified zone, summing its CVs contributions.
+    """Returns energy rate in W being input to specified zone.
+
+    Sums its CVs contributions.
 
     Calculates and returns sum of input_q of all air CVs in a given zone.
 
@@ -861,7 +906,10 @@ class FloorPlanBasedBuilding(BaseSimulatorBuilding):
     return np.min(temps), np.max(temps), np.mean(temps)
 
   def get_zone_average_temps(self) -> Dict[str, Any]:
-    """Returns a dict of zone average temps, with key (zone_coordinates) and val: temp."""
+    """Returns a dict of zone average temps.
+
+    The dict is formatted as: {`zone_coordinates`: `temp`}.
+    """
     avg_temps = {}
 
     for zone in self._room_dict.keys():
@@ -871,7 +919,9 @@ class FloorPlanBasedBuilding(BaseSimulatorBuilding):
     return avg_temps
 
   def apply_thermal_power_zone(self, zone_name: str, power: float):  # pylint: disable=arguments-renamed
-    """Applies thermal power [W] to zone zone_x, zone_y spread evenly to all diffusers.
+    """Applies thermal power to zones, spread evenly across diffusers.
+
+    The thermal power [W] is applied to zones `zone_x` and `zone_y`.
 
     Args:
       zone_name: a string with the name of the zone to calculate over. Needs to
