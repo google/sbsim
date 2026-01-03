@@ -50,6 +50,10 @@ class ProtoWriter(writer_lib.BaseWriter):
     os.makedirs(output_dir, exist_ok=True)
     logging.info('Writer lib output directory %s', self._output_dir)
 
+  @property
+  def output_dir(self) -> writer_lib.PathLocation:
+    return self._output_dir
+
   def write_observation_response(
       self,
       observation_response: smart_control_building_pb2.ObservationResponse,
