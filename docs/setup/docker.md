@@ -13,7 +13,14 @@ To get the repository set up on **non-Linux** environments (e.g. macOS on Apple 
    docker run --platform linux/amd64 hello-world
    ```
 
-If `hello-world` succeeds, you’re ready to proceed.
+If `hello-world` succeeds, you're ready to proceed.
+
+> **Apple Silicon Note:**
+> Some TensorFlow-related dependencies may not work properly on `linux/arm64`.
+> If Docker build fails, add `--platform=linux/amd64` to force x86_64 emulation.
+> Note that emulation may be slow and TensorFlow workloads may crash or hang
+> due to resource constraints. For heavy TF workloads, consider using a native
+> Linux environment or cloud-based compute.
 
 ---
 
@@ -22,11 +29,16 @@ If `hello-world` succeeds, you’re ready to proceed.
 From the project root (where `Dockerfile` lives), run:
 
 ```bash
-# Build for x86_64 and tag it
-docker build --platform linux/amd64 \
-  -t sbsim:latest \
-  .
+# Build the image (uses python:3.11-slim as base)
+docker build -t sbsim:latest .
 ```
+
+> On Apple Silicon, the Dockerfile already specifies `--platform=linux/amd64`.
+> If you encounter issues, try explicitly passing the platform flag:
+>
+> ```bash
+> docker build --platform linux/amd64 -t sbsim:latest .
+> ```
 
 Confirm the image exists:
 
@@ -73,19 +85,33 @@ To run commands inside the live container:
 ```bash
 # Open a shell in the container
 docker exec -it sbsim-container bash
-
-# Activate Poetry’s virtualenv
-source /opt/venv/bin/activate
-
-# Change into the workspace
-cd /workspace
 ```
 
-Then you can:
+Inside the container, you're already in `/workspace`. Use Poetry to run commands:
 
-- **Run tests**: `poetry run pytest`
-- **Execute scripts**: `python path/to/script.py`
-- **Launch a notebook**: `jupyter notebook --no-browser --ServerApp.token=''`
+```bash
+# Run tests
+poetry run pytest -q
+
+# Run a Python script
+poetry run python path/to/script.py
+
+# Check Python version (should be 3.11.x)
+poetry run python --version
+
+# Launch Jupyter (if not already running via CMD)
+poetry run jupyter notebook --ip=0.0.0.0 --no-browser --ServerApp.token=''
+```
+
+Alternatively, run commands directly without exec:
+
+```bash
+# Run tests from outside the container
+docker exec sbsim-container poetry run pytest -q
+
+# Check Python version
+docker exec sbsim-container python --version
+```
 
 ---
 
