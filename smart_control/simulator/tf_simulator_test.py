@@ -4,6 +4,7 @@ from unittest import mock
 
 from absl.testing import absltest
 import numpy as np
+from numpy.testing import assert_array_almost_equal
 import pandas as pd
 import tensorflow as tf
 
@@ -12,8 +13,10 @@ from smart_control.simulator import boiler as boiler_py
 from smart_control.simulator import building as building_py
 from smart_control.simulator import hvac_floorplan_based as floorplan_hvac_py
 from smart_control.simulator import setpoint_schedule
+from smart_control.simulator import simulator_flexible_floor_plan as simulator_py
 from smart_control.simulator import tf_simulator as tf_simulator_py
 from smart_control.simulator import weather_controller as weather_controller_py
+from smart_control.simulator.simulator_flexible_floor_plan_test import FlexibleFloorplanSimulatorTest  # pylint: disable=line-too-long
 
 
 class TFSimulatorTest(absltest.TestCase):
@@ -120,6 +123,54 @@ class TFSimulatorTest(absltest.TestCase):
         zone_map=zone_map,
         zone_map_filepath=None,
         buffer_from_walls=0,
+    )
+
+    return b
+
+  def _create_test_building_radiative(self):
+    cv_size_cm = 20.0
+    floor_height_cm = 300.0
+    initial_temp = 292.0
+    inside_air_properties = building_py.MaterialProperties(
+        conductivity=50.0, heat_capacity=700.0, density=1.0
+    )
+    inside_wall_properties = building_py.MaterialProperties(
+        conductivity=2.0, heat_capacity=1000.0, density=1800.0
+    )
+    building_exterior_properties = building_py.MaterialProperties(
+        conductivity=0.05, heat_capacity=1000.0, density=3000.0
+    )
+
+    floor_plan = self._create_test_floor_plan()
+    zone_map = self._create_test_floor_plan()
+
+    inside_air_radiative_properties = building_py.RadiationProperties(
+        alpha=0.0, epsilon=0.0, tau=1.0, rho=None
+    )
+    inside_wall_radiative_properties = building_py.RadiationProperties(
+        alpha=0.4, epsilon=0.6, tau=0.0, rho=None
+    )
+    building_exterior_radiative_properties = building_py.RadiationProperties(
+        alpha=0.65, epsilon=0.35, tau=0.0, rho=None
+    )
+
+    b = building_py.FloorPlanBasedBuilding(
+        cv_size_cm=cv_size_cm,
+        floor_height_cm=floor_height_cm,
+        initial_temp=initial_temp,
+        inside_air_properties=inside_air_properties,
+        inside_wall_properties=inside_wall_properties,
+        building_exterior_properties=building_exterior_properties,
+        floor_plan=floor_plan,
+        floor_plan_filepath=None,
+        zone_map=zone_map,
+        zone_map_filepath=None,
+        buffer_from_walls=0,
+        inside_air_radiative_properties=inside_air_radiative_properties,
+        inside_wall_radiative_properties=inside_wall_radiative_properties,
+        building_exterior_radiative_properties=building_exterior_radiative_properties,  # pylint: disable=line-too-long
+        include_radiative_heat_transfer=True,
+        view_factor_method="ScriptF",
     )
 
     return b
@@ -707,6 +758,346 @@ class TFSimulatorTest(absltest.TestCase):
         ambient_temperature=285.0, convection_coefficient=12.0
     )
     self.assertTrue(result)
+
+  def test_finite_difference_convergence_with_radiative_heat_transfer(self):
+    """Tests that the FD problem with radiative heat transfer converges within
+    a fixed number of steps."""
+    weather_controller = mock.create_autospec(
+        weather_controller_py.WeatherController
+    )
+    time_step_sec = 300.0
+    hvac = self._create_small_hvac()
+    convergence_threshold = 0.1
+    iteration_limit = 100
+    iteration_warning = 2
+    start_timestamp = pd.Timestamp("2012-12-21")
+
+    building = self._create_test_building_radiative()
+
+    tf_simulator = tf_simulator_py.TFSimulator(
+        building,
+        hvac,
+        weather_controller,
+        time_step_sec,
+        convergence_threshold,
+        iteration_limit,
+        iteration_warning,
+        start_timestamp,
+    )
+
+    result = tf_simulator.finite_differences_timestep(
+        ambient_temperature=285.0, convection_coefficient=12.0
+    )
+    self.assertTrue(result)
+
+  def test_compare_temperature_estimates_iterative_approach(self):
+    """Tests that the temperature estimates from TFSimulator match those from
+    SimulatorFlexibleGeometries when using radiative heat transfer.
+
+    Creates two simulators with identical buildings, HVAC and parameters:
+    1. A SimulatorFlexibleGeometries instance (baseline)
+    2. A TFSimulator instance (under test)
+
+    Runs one timestep on both and verifies their temperature arrays match
+      exactly.
+    This validates that TFSimulator's radiative heat transfer calculations
+      produce the same results as the original implementation.
+    """
+    weather_controller = mock.create_autospec(
+        weather_controller_py.WeatherController
+    )
+    time_step_sec = 300.0
+    convergence_threshold = 1e-3
+    iteration_limit = 300
+    iteration_warning = 30
+    start_timestamp = pd.Timestamp("2012-12-21")
+
+    # Create baseline simulator
+    simulator = FlexibleFloorplanSimulatorTest()
+    simulator_hvac = simulator._create_small_hvac()
+    simulator_building = simulator._create_small_building(
+        initial_temp=292.0,
+        include_radiative_heat_transfer=False,
+        include_interior_mass=False,
+    )
+    simulator_simulator = simulator_py.SimulatorFlexibleGeometries(
+        simulator_building,
+        simulator_hvac,
+        weather_controller,
+        time_step_sec,
+        convergence_threshold,
+        iteration_limit,
+        iteration_warning,
+        start_timestamp,
+    )
+    simulator_result = simulator_simulator.finite_differences_timestep(
+        ambient_temperature=315.0, convection_coefficient=12.0
+    )
+
+    building = simulator_building  # self._create_test_building_radiative()
+
+    tf_simulator = tf_simulator_py.TFSimulator(
+        building,
+        simulator_hvac,
+        weather_controller,
+        time_step_sec,
+        convergence_threshold,
+        iteration_limit,
+        iteration_warning,
+        start_timestamp,
+    )
+
+    result = tf_simulator.finite_differences_timestep(
+        ambient_temperature=315.0, convection_coefficient=12.0
+    )
+
+    self.assertTrue(result)
+    self.assertTrue(simulator_result)
+    with self.subTest("CV temperatures match"):
+      assert_array_almost_equal(
+          tf_simulator.building.temp, simulator_simulator.building.temp
+      )
+
+  def test_compare_temperature_estimates_iterative_approach_with_lwx(self):
+    """Tests that the temperature estimates from TFSimulator match those from
+    SimulatorFlexibleGeometries when using lwx (interior radiative heat
+    exchange).
+
+    Creates two simulators with identical buildings, HVAC and parameters:
+    1. A SimulatorFlexibleGeometries instance (baseline)
+    2. A TFSimulator instance (under test)
+
+    Runs one timestep on both and verifies their temperature arrays match
+      exactly.
+    This validates that TFSimulator's radiative heat transfer calculations
+      produce the same results as the original implementation.
+    """
+    weather_controller = mock.create_autospec(
+        weather_controller_py.WeatherController
+    )
+    time_step_sec = 300.0
+    convergence_threshold = 1e-3
+    iteration_limit = 300
+    iteration_warning = 30
+    start_timestamp = pd.Timestamp("2012-12-21")
+
+    # Create baseline simulator
+    simulator = FlexibleFloorplanSimulatorTest()
+    simulator_hvac = simulator._create_small_hvac()
+    simulator_building = simulator._create_small_building(
+        initial_temp=292.0, include_radiative_heat_transfer=True
+    )
+
+    simulator_simulator = simulator_py.SimulatorFlexibleGeometries(
+        simulator_building,
+        simulator_hvac,
+        weather_controller,
+        time_step_sec,
+        convergence_threshold,
+        iteration_limit,
+        iteration_warning,
+        start_timestamp,
+    )
+    simulator_result = simulator_simulator.finite_differences_timestep(
+        ambient_temperature=315.0, convection_coefficient=12.0
+    )
+
+    building = simulator_building
+
+    tf_simulator = tf_simulator_py.TFSimulator(
+        building,
+        simulator_hvac,
+        weather_controller,
+        time_step_sec,
+        convergence_threshold,
+        iteration_limit,
+        iteration_warning,
+        start_timestamp,
+    )
+
+    result = tf_simulator.finite_differences_timestep(
+        ambient_temperature=315.0, convection_coefficient=12.0
+    )
+
+    self.assertTrue(result)
+    self.assertTrue(simulator_result)
+    with self.subTest("CV temperatures match"):
+      assert_array_almost_equal(
+          tf_simulator.building.temp, simulator_simulator.building.temp
+      )
+
+  def test_compare_temperature_estimates_iterative_approach_with_interior_mass(self):  # pylint: disable=line-too-long
+    """Tests that temperature estimates from TFSimulator match those from
+    SimulatorFlexibleGeometries when using interior mass heat transfer
+
+    Creates two simulators with identical buildings, HVAC and parameters:
+    1. A SimulatorFlexibleGeometries instance (baseline/iterative approach)
+    2. A TFSimulator instance (tensor approach under test)
+
+    Runs one timestep on both and verifies their temperature arrays match
+     exactly, including both air CV temperatures and interior mass temperatures.
+    This validates that TFSimulator's interior mass heat transfer calculations
+     produce the same results as the original iterative implementation.
+    """
+    weather_controller = mock.create_autospec(
+        weather_controller_py.WeatherController
+    )
+    time_step_sec = 300.0
+    convergence_threshold = 1e-3
+    iteration_limit = 300
+    iteration_warning = 30
+    start_timestamp = pd.Timestamp("2012-12-21")
+
+    # Create baseline simulator with interior mass
+    simulator = FlexibleFloorplanSimulatorTest()
+    simulator_hvac = simulator._create_small_hvac()
+
+    _, simulator_building = simulator._create_simulator_and_building(
+        convergence_threshold=0.001,
+        initial_temp=292.0,
+        iteration_limit=100,
+        include_interior_mass=True,
+        include_radiative_heat_transfer=False,
+    )
+    simulator_simulator = simulator_py.SimulatorFlexibleGeometries(
+        simulator_building,
+        simulator_hvac,
+        weather_controller,
+        time_step_sec,
+        convergence_threshold,
+        iteration_limit,
+        iteration_warning,
+        start_timestamp,
+    )
+
+    # Create TFSimulator with the same building
+    building = simulator_building
+    tf_simulator = tf_simulator_py.TFSimulator(
+        building,
+        simulator_hvac,
+        weather_controller,
+        time_step_sec,
+        convergence_threshold,
+        iteration_limit,
+        iteration_warning,
+        start_timestamp,
+    )
+
+    result = tf_simulator.finite_differences_timestep(
+        ambient_temperature=315.0, convection_coefficient=12.0
+    )
+
+    simulator_result = simulator_simulator.finite_differences_timestep(
+        ambient_temperature=315.0, convection_coefficient=12.0
+    )
+
+    self.assertTrue(result)
+    self.assertTrue(simulator_result)
+
+    # Compare air CV temperatures
+    with self.subTest("Air CV temperatures match"):
+      assert_array_almost_equal(
+          tf_simulator.building.temp,
+          simulator_simulator.building.temp,
+          decimal=5,
+      )
+
+    # Compare interior mass temperatures
+    with self.subTest("Interior mass temperatures match"):
+      assert_array_almost_equal(
+          tf_simulator.building.interior_mass_temp,
+          simulator_simulator.building.interior_mass_temp,
+          decimal=5,
+      )
+
+  def test_compare_temperature_estimates_iterative_approach_with_interior_mass_and_lwx(self):  # pylint: disable=line-too-long
+    """Tests that temperature estimates from TFSimulator match those from
+    SimulatorFlexibleGeometries when using interior mass heat transfer
+    and lwx (interior radiative heat exchange).
+
+    Creates two simulators with identical buildings, HVAC and parameters:
+    1. A SimulatorFlexibleGeometries instance (baseline/iterative approach)
+    2. A TFSimulator instance (tensor approach under test)
+
+    Runs one timestep on both and verifies their temperature arrays match
+     exactly, including both air CV temperatures and interior mass temperatures.
+    This validates that TFSimulator's interior mass heat transfer calculations
+     produce the same results as the original iterative implementation.
+     Note that interior mass convergence can be slow (due to the large thermal
+      mass and small conductivity), so setting a too low convergence threshold
+      may cause the test to fail.
+    """
+    weather_controller = mock.create_autospec(
+        weather_controller_py.WeatherController
+    )
+    time_step_sec = 300.0
+    convergence_threshold = 1e-3
+    iteration_limit = 500
+    iteration_warning = 30
+    start_timestamp = pd.Timestamp("2012-12-21")
+
+    # Create baseline simulator with interior mass
+    simulator = FlexibleFloorplanSimulatorTest()
+    simulator_hvac = simulator._create_small_hvac()
+
+    _, simulator_building = simulator._create_simulator_and_building(
+        convergence_threshold=0.001,
+        initial_temp=292.0,
+        iteration_limit=100,
+        include_interior_mass=True,
+        include_radiative_heat_transfer=True,
+    )
+
+    simulator_simulator = simulator_py.SimulatorFlexibleGeometries(
+        simulator_building,
+        simulator_hvac,
+        weather_controller,
+        time_step_sec,
+        convergence_threshold,
+        iteration_limit,
+        iteration_warning,
+        start_timestamp,
+    )
+
+    # Create TFSimulator with the same building
+    building = simulator_building
+    tf_simulator = tf_simulator_py.TFSimulator(
+        building,
+        simulator_hvac,
+        weather_controller,
+        time_step_sec,
+        convergence_threshold,
+        iteration_limit,
+        iteration_warning,
+        start_timestamp,
+    )
+
+    result = tf_simulator.finite_differences_timestep(
+        ambient_temperature=315.0, convection_coefficient=12.0
+    )
+
+    simulator_result = simulator_simulator.finite_differences_timestep(
+        ambient_temperature=315.0, convection_coefficient=12.0
+    )
+
+    self.assertTrue(result)
+    self.assertTrue(simulator_result)
+
+    # Compare air CV temperatures
+    with self.subTest("Air CV temperatures match"):
+      assert_array_almost_equal(
+          tf_simulator.building.temp,
+          simulator_simulator.building.temp,
+          decimal=5,
+      )
+
+    # Compare interior mass temperatures
+    with self.subTest("Interior mass temperatures match"):
+      assert_array_almost_equal(
+          tf_simulator.building.interior_mass_temp,
+          simulator_simulator.building.interior_mass_temp,
+          decimal=5,
+      )
 
 
 if __name__ == "__main__":

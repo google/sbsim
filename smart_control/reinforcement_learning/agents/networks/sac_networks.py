@@ -109,14 +109,14 @@ class _TanhNormalProjectionNetworkWrapper(
   """Wrapper to pass predefined `outer_rank` to underlying projection net."""
 
   def __init__(self, sample_spec, predefined_outer_rank=1):
-    super(_TanhNormalProjectionNetworkWrapper, self).__init__(sample_spec)
+    super().__init__(sample_spec)
     self.predefined_outer_rank = predefined_outer_rank
 
   def call(self, inputs, **kwargs):
     kwargs['outer_rank'] = self.predefined_outer_rank
     if 'step_type' in kwargs:
       del kwargs['step_type']
-    return super(_TanhNormalProjectionNetworkWrapper, self).call(
+    return super().call(
         inputs, **kwargs
     )
 

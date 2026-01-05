@@ -6,6 +6,8 @@ import numpy as np
 import pandas as pd
 
 from smart_control.simulator import randomized_arrival_departure_occupancy
+from smart_control.simulator.randomized_arrival_departure_occupancy import OccupancyStateEnum
+from smart_control.simulator.randomized_arrival_departure_occupancy import RandomizedArrivalDepartureOccupancy
 
 # fmt: off
 # pylint: disable=bad-continuation
@@ -165,10 +167,42 @@ class RandomizedArrivalDepartureOccupancyTest(parameterized.TestCase):
         8, 12, 13, 18, step_size, random_state
     )
 
-    with self.assertRaisesRegex(
-        ValueError, "Start hour must be less than end hour"
-    ):
+    with self.assertRaisesRegex(ValueError, "Start hour must be less than end hour"):
       occupant._get_event_probability(start_hour=12, end_hour=8)
+
+  def test_average_zone_occupancy_matches_manual_two_steps(self):
+    """average_zone_occupancy should equal the mean of per-step counts."""
+    step = pd.Timedelta(minutes=5)
+    tz = 'UTC'
+
+    occ = RandomizedArrivalDepartureOccupancy(
+        zone_assignment=7,
+        earliest_expected_arrival_hour=8,
+        latest_expected_arrival_hour=12,
+        earliest_expected_departure_hour=16,
+        latest_expected_departure_hour=20,
+        time_step_sec=step.total_seconds(),
+        seed=55213,
+        time_zone=tz,
+    )
+
+    t0 = pd.Timestamp('2021-09-01 10:00', tz=tz)
+    t1 = t0 + 2 * step
+
+    # initialise the zone
+    _ = occ.average_zone_occupancy('zone_0', t0, t0 + step)
+
+    manual_counts = []
+    for cur in (t0, t0 + step):
+      c = 0.0
+      for zocc in occ._zone_occupants['zone_0']:
+        if zocc.peek(cur) == OccupancyStateEnum.WORK:
+          c += 1.0
+      manual_counts.append(c)
+    manual_avg = sum(manual_counts) / 2.0
+
+    result = occ.average_zone_occupancy('zone_0', t0, t1)
+    self.assertEqual(result, manual_avg)
 
 
 if __name__ == '__main__':
