@@ -131,6 +131,22 @@ class VavTest(parameterized.TestCase):
     with self.assertRaises(ValueError):
       v.damper_setting = -0.1
 
+  def test_max_air_flow_rate_setter_raises_value_error(self):
+    """ValueError when max_air_flow_rate is set to 0 or negative."""
+    t = _get_default_thermostat()
+    b = _get_default_boiler()
+    v = vav.Vav(0.6, 0.4, t, b)
+
+    with self.assertRaisesRegex(
+        ValueError, "Maximum air flow rate must be greater than 0"
+    ):
+      v.max_air_flow_rate = 0.0
+
+    with self.assertRaisesRegex(
+        ValueError, "Maximum air flow rate must be greater than 0"
+    ):
+      v.max_air_flow_rate = -0.5
+
   @parameterized.parameters(
       (pd.Timestamp('2021-05-09 14:00'), 293, 0.1, 0.0),
       (pd.Timestamp('2021-05-10 09:00'), 296, 1.0, 0.0),
@@ -225,7 +241,7 @@ class VavTest(parameterized.TestCase):
         v.compute_zone_supply_temp(supply_air_temp, input_water_temp), expected
     )
 
-  def test_compute_zone_supply_temp_asserts_error(self):
+  def test_compute_zone_supply_temp_raises_value_error(self):
     reheat_valve_setting = 0.5
     max_air_flow_rate = 0.3
     reheat_max_water_flow_rate = 0.4
@@ -237,12 +253,12 @@ class VavTest(parameterized.TestCase):
     v.reheat_valve_setting = reheat_valve_setting
     v.damper_setting = 0
 
-    with self.assertRaises(AssertionError):
+    with self.assertRaises(ValueError):
       v.compute_zone_supply_temp(supply_air_temp, input_water_temp)
 
     v.damper_setting = 0.5
     v._max_air_flow_rate = 0
-    with self.assertRaises(AssertionError):
+    with self.assertRaises(ValueError):
       v.compute_zone_supply_temp(supply_air_temp, input_water_temp)
 
   @parameterized.parameters(

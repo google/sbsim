@@ -139,6 +139,37 @@ class RandomizedArrivalDepartureOccupancyTest(parameterized.TestCase):
         )
       current_time += pd.Timedelta(5, unit='minute')
 
+  def test_zone_occupant_invalid_hour_order(self):
+    """ValueError when arrival/departure hours are not strictly increasing."""
+    random_state = np.random.RandomState(seed=55213)
+    step_size = pd.Timedelta(5, unit='minute')
+
+    # latest_arrival >= earliest_departure is invalid
+    with self.assertRaisesRegex(
+        ValueError, "Arrival and departure hours must be strictly increasing"
+    ):
+      randomized_arrival_departure_occupancy.ZoneOccupant(
+          earliest_expected_arrival_hour=8,
+          latest_expected_arrival_hour=14,  # > earliest_departure (13)
+          earliest_expected_departure_hour=13,
+          latest_expected_departure_hour=18,
+          step_size=step_size,
+          random_state=random_state,
+      )
+
+  def test_get_event_probability_invalid_hours(self):
+    """ValueError when start_hour >= end_hour."""
+    random_state = np.random.RandomState(seed=55213)
+    step_size = pd.Timedelta(5, unit='minute')
+    occupant = randomized_arrival_departure_occupancy.ZoneOccupant(
+        8, 12, 13, 18, step_size, random_state
+    )
+
+    with self.assertRaisesRegex(
+        ValueError, "Start hour must be less than end hour"
+    ):
+      occupant._get_event_probability(start_hour=12, end_hour=8)
+
 
 if __name__ == '__main__':
   absltest.main()

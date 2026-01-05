@@ -53,11 +53,13 @@ class ZoneOccupant:
         < latest_expected_departure_hour
     ):
       raise ValueError(
-          "Expected arrival/departure hours must be strictly increasing: "
-          f"earliest_expected_arrival_hour={earliest_expected_arrival_hour}, "
-          f"latest_expected_arrival_hour={latest_expected_arrival_hour}, "
-          f"earliest_expected_departure_hour={earliest_expected_departure_hour}, "
-          f"latest_expected_departure_hour={latest_expected_departure_hour}"
+          "Arrival and departure hours must be strictly increasing: "
+          "earliest_arrival < latest_arrival < earliest_departure < "
+          "latest_departure. "
+          f"Got: {earliest_expected_arrival_hour}, "
+          f"{latest_expected_arrival_hour}, "
+          f"{earliest_expected_departure_hour}, "
+          f"{latest_expected_departure_hour}."
       )
 
     self._earliest_expected_arrival_hour = earliest_expected_arrival_hour

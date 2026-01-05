@@ -717,7 +717,8 @@ class Environment(py_environment.PyEnvironment):
 
     if self._observation_histogram_reducer is None:
       raise ValueError(
-          "Observation histogram reducer must be configured for this method i.e., before building histogram spec."
+          "Observation histogram reducer must be configured before building "
+          "histogram spec."
       )
 
     observable_fields = []
@@ -1023,7 +1024,10 @@ class Environment(py_environment.PyEnvironment):
     """
 
     if self._observation_histogram_reducer is None:
-      raise ValueError("Observation histogram reducer must be set before reducing observation response.")
+      raise ValueError(
+          "Observation histogram reducer must be set before reducing "
+          "observation response."
+      )
 
     feature_tuples = regression_building_utils.get_feature_tuples(
         normalized_observation_response
@@ -1120,7 +1124,9 @@ class Environment(py_environment.PyEnvironment):
   def _commit_reward_metrics(self) -> None:
     """Aggregates and writes reward metrics, and resets accumulator."""
     if self._summary_writer is None:
-      raise ValueError("Summary writer must be initialized before committing reward metrics.")
+      raise ValueError(
+          "Summary writer must be initialized before committing reward metrics."
+      )
 
     if self._global_step_count % self._metrics_reporting_interval == 0:
       with (  # pylint: disable=not-context-manager # TODO: consider adding comments to provide more context

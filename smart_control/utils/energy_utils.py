@@ -64,9 +64,10 @@ def get_humidity_ratio(
   Returns: water mass to air mass ratio in kg Water / kg Air
   """
   if not (len(temps) == len(relative_humidities) == len(pressures)):
-        raise ValueError(
-        "Input sequences (temps, relative_humidities, pressures) must have the same length. "
-        f"Got lengths: temps={len(temps)}, relative_humidities={len(relative_humidities)}, pressures={len(pressures)}."
+    raise ValueError(
+        f"Input arrays must have equal length. "
+        f"Got: temps={len(temps)}, relative_humidities={len(relative_humidities)}, "
+        f"pressures={len(pressures)}."
     )
 
   # Sanity-check each RH and pressure

@@ -33,6 +33,33 @@ class EnergyUtilsTest(parameterized.TestCase):
     actual = energy_utils.get_humidity_ratio([293], [0.6], [1.02])
     self.assertAlmostEqual(expected, actual[0], 4)
 
+  def test_get_humidity_ratio_mismatched_lengths(self):
+    """ValueError when input arrays have different lengths."""
+    with self.assertRaisesRegex(ValueError, "Input arrays must have equal length"):
+      energy_utils.get_humidity_ratio(
+          temps=[293, 300],  # 2 elements
+          relative_humidities=[0.6],  # 1 element
+          pressures=[1.02],  # 1 element
+      )
+
+  def test_get_humidity_ratio_invalid_relative_humidity(self):
+    """ValueError when relative_humidity is outside (0, 1]."""
+    with self.assertRaisesRegex(
+        ValueError, r"relative_humidities\[0\] must be in \[0,1\]"
+    ):
+      energy_utils.get_humidity_ratio(
+          temps=[293], relative_humidities=[1.5], pressures=[1.02]
+      )
+
+  def test_get_humidity_ratio_invalid_pressure(self):
+    """ValueError when pressure <= 0."""
+    with self.assertRaisesRegex(
+        ValueError, r"pressures\[0\] must be greater than 0"
+    ):
+      energy_utils.get_humidity_ratio(
+          temps=[293], relative_humidities=[0.6], pressures=[-1.0]
+      )
+
   def test_get_air_conditioning_energy_rate(self):
     power = energy_utils.get_air_conditioning_energy_rate(
         air_flow_rates=[0.170],
@@ -42,6 +69,19 @@ class EnergyUtilsTest(parameterized.TestCase):
         ambient_pressures=[1.025],
     )
     self.assertAlmostEqual(18230.6705, power[0], 4)
+
+  def test_get_air_conditioning_energy_rate_mismatched_lengths(self):
+    """ValueError when input vectors have different lengths."""
+    with self.assertRaisesRegex(
+        ValueError, "All input vectors must be of the same length"
+    ):
+      energy_utils.get_air_conditioning_energy_rate(
+          air_flow_rates=[0.170, 0.180],  # 2 elements
+          outside_temps=[15 + 273.0],  # 1 element
+          outside_relative_humidities=[0.75],
+          supply_temps=[120 + 273.0],
+          ambient_pressures=[1.025],
+      )
 
   @parameterized.named_parameters(
       ('brake_hp', None, 8.0, 100.0, 0.8, 0.85, 3, 17.904),

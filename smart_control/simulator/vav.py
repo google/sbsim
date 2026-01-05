@@ -169,13 +169,12 @@ class Vav(smart_device.SmartDevice):
     )
     air_flow_rate = self._damper_setting * self._max_air_flow_rate
 
-    # This single check replaces the two individual asserts
-    # It directly ensures air_flow_rate is positive to avoid ZeroDivisionError
+    # Ensure air_flow_rate is positive to avoid ZeroDivisionError
     if air_flow_rate <= 0:
       raise ValueError(
-          "Calculated air flow rate must be greater than 0 to compute zone supply temperature. "
-          f"Current damper_setting={self.damper_setting} and max_air_flow_rate={self._max_air_flow_rate} "
-          "resulted in a non-positive air flow rate."
+          f"Air flow rate must be > 0 to compute zone supply temp. "
+          f"damper_setting={self.damper_setting}, "
+          f"max_air_flow_rate={self._max_air_flow_rate}."
       )
 
     heat_difference = (
