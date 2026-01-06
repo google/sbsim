@@ -15,7 +15,9 @@ site_url: https://google.github.io/sbsim/
 repo_url: https://github.com/google/sbsim
 repo_name: google/sbsim
 # edit_uri will work after branch rename from copybara_push -> main
-edit_uri: edit/main/docs/
+# TODO(#119): After renaming default branch copybara_push -> main, update edit_uri.
+edit_uri: edit/copybara_push/docs/
+# edit_uri: edit/main/docs/
 
 #
 # THEME / STYLE
