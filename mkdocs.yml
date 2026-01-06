@@ -14,7 +14,8 @@ site_dir: docs_site # NOTE: should not be within the docs dir
 site_url: https://google.github.io/sbsim/
 repo_url: https://github.com/google/sbsim
 repo_name: google/sbsim
-edit_uri: edit/copybara_push/docs/
+# edit_uri will work after branch rename from copybara_push -> main
+edit_uri: edit/main/docs/
 
 #
 # THEME / STYLE
