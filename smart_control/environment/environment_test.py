@@ -27,6 +27,7 @@ from tf_agents.environments import utils
 from tf_agents.specs import array_spec
 from tf_agents.trajectories import time_step as ts
 
+# pylint: disable=g-bad-import-order we prefer local imports below packages
 from smart_buildings.smart_control.environment import environment
 from smart_buildings.smart_control.environment import environment_test_utils
 from smart_buildings.smart_control.models import base_building
@@ -37,11 +38,12 @@ from smart_buildings.smart_control.utils import bounded_action_normalizer
 from smart_buildings.smart_control.utils import conversion_utils
 from smart_buildings.smart_control.utils import histogram_reducer
 from smart_buildings.smart_control.utils import observation_normalizer
+from smart_buildings.smart_control.utils import reader_lib as base_reader
 from smart_buildings.smart_control.utils import test_utils
 
 
 def _get_histogram_reducer():
-  reader = mock.create_autospec(test_utils.BaseReader, instance=True)
+  reader = mock.create_autospec(base_reader.BaseReader, instance=True)
   reader.read_action_responses.return_value = [
       test_utils.get_test_action_response(
           pd.Timestamp("2022-03-13 00:00:00"),

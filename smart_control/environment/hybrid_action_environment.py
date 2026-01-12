@@ -11,14 +11,18 @@ from typing import Final
 from absl import logging
 import gin
 import numpy as np
-from smart_buildings.smart_control.environment import environment
+import pandas as pd
 import tensorflow as tf
 from tf_agents.specs import array_spec
 from tf_agents.typing import types
 
+from smart_buildings.smart_control.environment import environment
+
 _DISCRETE_ACTION: Final[str] = "discrete_action"
 _CONTINUOUS_ACTION: Final[str] = "continuous_action"
 _DISCRETE_ACTION_COMMAND: Final[str] = "supervisor_run_command"
+
+HybridAction = dict[str, list[float]]
 
 
 @gin.configurable
@@ -103,7 +107,7 @@ class HybridActionEnvironment(environment.Environment):
 
   def _format_action(
       self, action: types.NestedArray, action_names: Sequence[str]
-  ) -> types.NestedArray:
+  ) -> types.NestedArray:  # to do: consider returning HybridAction type
     """Converts from hybrid to all real-valued actions."""
     if (
         not isinstance(action, dict)
@@ -164,3 +168,16 @@ class HybridActionEnvironment(environment.Environment):
       )
 
     return merged_actions
+
+  @property
+  def action_fields_df(self) -> pd.DataFrame:
+    df = super().action_fields_df
+    # override action_type column, with awareness of discrete actions:
+    df["action_type"] = df["setpoint_name"].apply(
+        lambda name: (
+            "DISCRETE"
+            if _DISCRETE_ACTION_COMMAND in name
+            else "CONTINUOUS"
+        )
+    )
+    return df

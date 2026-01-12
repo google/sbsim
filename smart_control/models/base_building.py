@@ -25,6 +25,9 @@ import pandas as pd
 from smart_buildings.smart_control.proto import smart_control_building_pb2
 from smart_buildings.smart_control.proto import smart_control_reward_pb2
 
+DeviceInfo = smart_control_building_pb2.DeviceInfo
+ZoneInfo = smart_control_building_pb2.ZoneInfo
+
 
 class BaseBuilding(metaclass=abc.ABCMeta):
   """Base class for a controllable building for reinforcement learning."""
@@ -65,13 +68,53 @@ class BaseBuilding(metaclass=abc.ABCMeta):
 
   @property
   @abc.abstractmethod
-  def devices(self) -> Sequence[smart_control_building_pb2.DeviceInfo]:
+  def devices(self) -> Sequence[DeviceInfo]:
     """Lists the devices that can be queried and/or controlled."""
 
   @property
+  def devices_df(self) -> pd.DataFrame:
+    """Lists the building's devices in dataframe format."""
+    device_records = []
+    for device in self.devices:
+      device_records.append({
+          'device_id': device.device_id,
+          'namespace': device.namespace,
+          'code': device.code,
+          'zone_id': device.zone_id,
+          'device_type': DeviceInfo.DeviceType.Name(device.device_type),
+          'observable_fields': sorted(list(device.observable_fields.keys())),
+          'action_fields': sorted(list(device.action_fields.keys())),
+          'observable_field_types': {
+              k: DeviceInfo.ValueType.Name(v)
+              for k, v in device.observable_fields.items()
+          },
+          'action_field_types': {
+              k: DeviceInfo.ValueType.Name(v)
+              for k, v in device.action_fields.items()
+          },
+      })
+    return pd.DataFrame(device_records)
+
+  @property
   @abc.abstractmethod
-  def zones(self) -> Sequence[smart_control_building_pb2.ZoneInfo]:
+  def zones(self) -> Sequence[ZoneInfo]:
     """Lists the zones in the building managed by the RL agent."""
+
+  @property
+  def zones_df(self) -> pd.DataFrame:
+    """Lists the building's zones in dataframe format."""
+    zone_records = []
+    for zone in self.zones:
+      zone_records.append({
+          'zone_id': zone.zone_id,
+          'building_id': zone.building_id,
+          'zone_description': zone.zone_description,
+          'area': zone.area,
+          'devices': list(zone.devices),
+          'zone_type': ZoneInfo.ZoneType.Name(zone.zone_type),
+          'floor': zone.floor,
+      })
+    return pd.DataFrame(zone_records)
 
   @property
   @abc.abstractmethod

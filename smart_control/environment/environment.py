@@ -20,9 +20,10 @@ limitations under the License.
 
 import collections
 import copy
+import functools
 import os
 import time
-from typing import Final, Mapping, NewType, Optional, Sequence, Tuple
+from typing import Any, Final, Mapping, NewType, Optional, Tuple
 
 from absl import logging
 import bidict
@@ -35,6 +36,7 @@ from tf_agents.specs import array_spec
 from tf_agents.trajectories import time_step as ts
 from tf_agents.typing import types
 
+# pylint: disable=g-bad-import-order we prefer local imports below packages
 from smart_buildings.smart_control.models import base_building
 from smart_buildings.smart_control.models import base_normalizer
 from smart_buildings.smart_control.models import base_reward_function
@@ -49,15 +51,21 @@ from smart_buildings.smart_control.utils import regression_building_utils
 from smart_buildings.smart_control.utils import run_command_predictor
 from smart_buildings.smart_control.utils import writer_lib
 
+
 ACTION_REJECTION_REWARD: Final[float] = -np.inf
 
+Sequence = collections.abc.Sequence
+
 DeviceInfo = smart_control_building_pb2.DeviceInfo
+DeviceType = smart_control_building_pb2.DeviceInfo.DeviceType
 ValueType = smart_control_building_pb2.DeviceInfo.ValueType
 
 ActionRequest = smart_control_building_pb2.ActionRequest
 ActionResponse = smart_control_building_pb2.ActionResponse
 ObservationRequest = smart_control_building_pb2.ObservationRequest
 ObservationResponse = smart_control_building_pb2.ObservationResponse
+RewardInfo = smart_control_reward_pb2.RewardInfo
+RewardResponse = smart_control_reward_pb2.RewardResponse
 SingleActionRequest = smart_control_building_pb2.SingleActionRequest
 SingleActionResponse = smart_control_building_pb2.SingleActionResponse
 SingleObservationResponse = smart_control_building_pb2.SingleObservationResponse
@@ -424,8 +432,9 @@ class Environment(py_environment.PyEnvironment):
     )
     self._start_timestamp: pd.Timestamp = self.building.current_timestamp
     self._action_history = []
+    self.num_days_in_episode = num_days_in_episode
     self._end_timestamp: pd.Timestamp = self._start_timestamp + pd.Timedelta(
-        num_days_in_episode, unit="days"
+        self.num_days_in_episode, unit="days"
     )
     self._step_interval = step_interval
     self._num_timesteps_in_episode = int(
@@ -459,6 +468,7 @@ class Environment(py_environment.PyEnvironment):
     if self.discount_factor <= 0 or self.discount_factor > 1:
       raise ValueError("Discount factor must be in (0,1]")
 
+    self.action_config = action_config
     if device_action_tuples is not None:
       self._action_spec, self.action_normalizers, self._action_names = (
           self._get_action_spec_and_normalizers_from_device_action_tuples(
@@ -515,10 +525,39 @@ class Environment(py_environment.PyEnvironment):
     )
 
   @property
+  def id_map(self) -> bidict.bidict:
+    return self._id_map
+
+  @property
+  def action_names(self) -> Sequence[str]:
+    return self._action_names
+
+  @property
+  def time_zone(self) -> str:
+    return self._time_zone
+
+  @property
+  def observation_normalizer(self) -> base_normalizer.BaseObservationNormalizer:
+    return self._observation_normalizer
+
+  @property
+  def step_count(self) -> int:
+    return self._step_count
+
+  @property
   def steps_per_episode(self) -> int:
     return (
         self._end_timestamp - self._start_timestamp
     ).total_seconds() // self.building.time_step_sec
+
+  @property
+  def time_step_mins(self) -> int:
+    """Returns the time step in minutes (floored). Use when applicable."""
+    if self.building.time_step_sec % 60 != 0:
+      raise ValueError(
+          "Building's time_step_sec must be an integer multiple of 60."
+      )
+    return int(self.building.time_step_sec / 60)
 
   @property
   def start_timestamp(self) -> pd.Timestamp:
@@ -535,6 +574,81 @@ class Environment(py_environment.PyEnvironment):
   @property
   def default_policy_values(self):
     return self._default_policy_values
+
+  @property
+  def label(self) -> str:
+    return self._label
+
+  @property
+  def metrics_writer(self) -> writer_lib.BaseWriter | None:
+    return self._metrics_writer
+
+  @property
+  def metrics_output_dir(self) -> writer_lib.PathLocation | None:
+    writer = self.metrics_writer
+    if writer is not None:
+      return writer.output_dir
+    else:
+      return None
+
+  @property
+  def json_metadata(self) -> dict[str, Any]:
+    """Info to write into a JSON file. Needs to be serializable."""
+    return {
+        "type": self.__class__.__name__,
+        "time_step_mins": self.time_step_mins,
+        "metrics_output_dir": self.metrics_output_dir,
+        "action_names": self.action_names,
+        "default_action_values": self.default_policy_values.numpy().tolist(),
+        "reward_function": self.reward_function.json_metadata,
+    }
+
+  @functools.cached_property
+  def action_fields_map(self) -> dict[str, dict[str, Any]]:
+    mapping = {}
+    for device in self.building.devices:
+      for setpoint_name, value_type in device.action_fields.items():
+
+        normalizer = self.action_config.get_action_normalizer(setpoint_name)
+        if normalizer:
+          if device.device_id not in mapping:
+            mapping[device.device_id] = {
+                "device_id": device.device_id,
+                "device_type": DeviceType.Name(device.device_type),
+                "zone_id": device.zone_id,
+                "setpoints": [],
+            }
+
+          mapping[device.device_id]["setpoints"].append({
+              "field_id": self._id_map.get((device.device_id, setpoint_name)),
+              "setpoint_name": setpoint_name,
+              "value_type": ValueType.Name(value_type),
+              "min_native_value": normalizer.setpoint_min,
+              "max_native_value": normalizer.setpoint_max,
+              "min_normalized_value": normalizer.min_normalized_value,
+              "max_normalized_value": normalizer.max_normalized_value,
+          })
+
+    return mapping
+
+  @functools.cached_property
+  def action_fields_flattened(self) -> list[dict[str, Any]]:
+    records = []
+    for device_id, device_info in self.action_fields_map.items():
+      for setpoint_info in device_info["setpoints"]:
+        record = {
+            "device_id": device_id,
+            "device_type": device_info["device_type"],
+            "zone_id": device_info["zone_id"],
+            "action_type": "CONTINUOUS",  # overridden in hybrid env
+        }
+        record.update(setpoint_info)
+        records.append(record)
+    return records
+
+  @functools.cached_property
+  def action_fields_df(self) -> pd.DataFrame:
+    return pd.DataFrame(self.action_fields_flattened)
 
   def _get_observation_request(
       self, devices: Sequence[DeviceInfo]
@@ -575,8 +689,8 @@ class Environment(py_environment.PyEnvironment):
     for field_id in self._action_names:
       # assert action_name in default_actions
 
-      _, setpoint_name = self._id_map.inv[field_id]
-      native_setpoint_value = default_actions[setpoint_name]
+      native_setpoint_value = default_actions[field_id]
+
       normalized_agent_value = self.action_normalizers[field_id].agent_value(
           native_setpoint_value
       )
@@ -809,8 +923,22 @@ class Environment(py_environment.PyEnvironment):
     return obs_spec, observable_fields
 
   @property
-  def current_simulation_timestamp(self):
+  def current_simulation_timestamp(self) -> pd.Timestamp:
+    """Returns the current simulation time.
+
+    NOTE: It is possible for this to be timezone naive, or in UTC.
+    """
     return self.building.current_timestamp
+
+  @property
+  def current_local_timestamp(self) -> pd.Timestamp:
+    """Returns the current local time in the building's time zone."""
+    if self.current_simulation_timestamp.tz is None:
+      # just apply the local time zone (and don't adjust the time):
+      return self.current_simulation_timestamp.tz_localize(self.time_zone)
+    else:
+      # convert to the local time zone (and adjust the time), as necessary:
+      return self.current_simulation_timestamp.tz_convert(self.time_zone)
 
   def _get_action_value_type(self, field_id) -> ValueType:
     if field_id in self._action_names:
@@ -862,7 +990,14 @@ class Environment(py_environment.PyEnvironment):
 
     return action_request
 
-  def _get_observation(self) -> np.ndarray:
+  def _get_observation_response(self) -> ObservationResponse:
+    """Gets the observation response from the building.
+
+    Ensures that metrics are written as applicable.
+
+    Returns:
+      The observation response from the building.
+    """
     timestamp = conversion_utils.pandas_to_proto_timestamp(
         self.building.current_timestamp
     )
@@ -891,6 +1026,14 @@ class Environment(py_environment.PyEnvironment):
         self._metrics_writer.write_building_image(
             building_image, self.current_simulation_timestamp
         )
+
+    return observation_response
+
+  def get_observation_response(self) -> ObservationResponse:
+    return self._get_observation_response()
+
+  def _get_observation(self) -> np.ndarray:
+    observation_response = self._get_observation_response()
 
     normalized_observation_response = self._observation_normalizer.normalize(
         observation_response
@@ -1058,10 +1201,14 @@ class Environment(py_environment.PyEnvironment):
     }
     return observation_map
 
-  def _get_reward(self) -> float:
-    """Computes the immediate reward for the last action taken by the agent."""
+  def get_reward_info_and_response(self) -> Tuple[RewardInfo, RewardResponse]:
+    """Gets reward info and reward response.
 
-    # Get the reward input (RewardInfo) from the building.
+    Ensures metrics are written for both, if you get either.
+
+    Returns:
+      A tuple of (RewardInfo, RewardResponse).
+    """
     reward_info = self.building.reward_info
     # Using the reward function, compute the reward value.
     reward_response = self.reward_function.compute_reward(reward_info)
@@ -1082,7 +1229,20 @@ class Environment(py_environment.PyEnvironment):
       self._write_summary_reward_response_metrics(reward_response)
       self._commit_reward_metrics()
 
+    return reward_info, reward_response
+
+  def get_reward_info(self) -> RewardInfo:
+    """Returns reward info for the last action taken by the agent."""
+    reward_info, _ = self.get_reward_info_and_response()
+    return reward_info
+
+  def _get_reward(self) -> float:
+    """Returns the reward response's agent reward value."""
+    _, reward_response = self.get_reward_info_and_response()
     return reward_response.agent_reward_value
+
+  def get_reward(self) -> float:
+    return self._get_reward()
 
   def _write_summary_reward_info_metrics(
       self, reward_info: smart_control_reward_pb2.RewardInfo
@@ -1145,10 +1305,6 @@ class Environment(py_environment.PyEnvironment):
           )
 
         self._accumulator = collections.defaultdict(list)
-
-  @property
-  def label(self) -> str:
-    return self._label
 
   def _reset(self) -> ts.TimeStep:
     self.building.reset()

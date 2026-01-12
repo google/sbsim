@@ -1,12 +1,14 @@
 """Tests for hybrid action environment."""
 
-
-import collections
-
 from absl.testing import absltest
 from absl.testing import parameterized
-
 import numpy as np
+import tensorflow as tf
+from tf_agents.environments import utils
+from tf_agents.specs import array_spec
+from tf_agents.trajectories import time_step as ts
+
+# pylint: disable=g-bad-import-order we prefer local imports below packages
 from smart_buildings.smart_control.environment import environment
 from smart_buildings.smart_control.environment import environment_test_utils
 from smart_buildings.smart_control.environment import hybrid_action_environment
@@ -15,39 +17,8 @@ from smart_buildings.smart_control.models import base_reward_function
 from smart_buildings.smart_control.proto import smart_control_normalization_pb2
 from smart_buildings.smart_control.utils import bounded_action_normalizer
 from smart_buildings.smart_control.utils import observation_normalizer
-import tensorflow as tf
-from tf_agents.environments import utils
-from tf_agents.specs import array_spec
-from tf_agents.trajectories import time_step as ts
 
-
-class SimpleBuildingHybridAction(environment_test_utils.SimpleBuilding):
-  """Building implementation for unit tests."""
-
-  def __init__(self):
-    self.layout = {
-        "zone_1": {
-            "boiler_1": [
-                "setpoint_1",
-                "measurement_1",
-                "supervisor_run_command",
-            ],
-            "vav_2": [
-                "setpoint_2",
-                "setpoint_3",
-                "setpoint_4",
-                "measurement_2",
-            ],
-        },
-        "zone_2": {
-            "boiler_3": ["measurement_3", "measurement_4"],
-            "vav_4": ["setpoint_5", "measurement_5"],
-            "air_handler_5": ["setpoint_6", "supervisor_run_command"],
-        },
-    }
-    self.values = collections.defaultdict(int)
-    self.reset_called = False
-    self.step_count = 0
+SimpleBuildingHybridAction = environment_test_utils.SimpleBuildingHybridAction
 
 
 class HybridActionEnvironmentTest(parameterized.TestCase, tf.test.TestCase):

@@ -418,6 +418,7 @@ class AirHandlerSystem(smart_device.SmartDevice):
             prefix + key, info.clazz
         )
         setattr(self, prefix + key, None)
+
     super().__init__(
         observable_fields=system_observables,
         action_fields=system_actions,
@@ -435,6 +436,10 @@ class AirHandlerSystem(smart_device.SmartDevice):
       return self._ahus[index], field_name
 
     raise ValueError(f'Could not find child for field: {name}')
+
+  @property
+  def ahus(self) -> list[AirHandler]:
+    return self._ahus
 
   def set_action(self, action_field_name, value, action_timestamp):
     """Send an action to the target AHU.
