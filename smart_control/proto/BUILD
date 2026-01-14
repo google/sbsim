@@ -35,10 +35,11 @@ py_proto_library(
     visibility = [
         "//corp/ml/smart_buildings/smart_control:packages",
         "//third_party/py/smart_buildings/smart_control/environment:__pkg__",
+        "//third_party/py/smart_buildings/smart_control/llm:__subpackages__",
         "//third_party/py/smart_buildings/smart_control/models:__pkg__",
         "//third_party/py/smart_buildings/smart_control/reward:__pkg__",
         "//third_party/py/smart_buildings/smart_control/simulator:__pkg__",
-        "//third_party/py/smart_buildings/smart_control/utils:__pkg__",
+        "//third_party/py/smart_buildings/smart_control/utils:__subpackages__",
     ],
     deps = [":smart_control_reward_proto"],
 )
@@ -54,9 +55,10 @@ py_proto_library(
     visibility = [
         "//corp/ml/smart_buildings/smart_control:packages",
         "//third_party/py/smart_buildings/smart_control/environment:__pkg__",
+        "//third_party/py/smart_buildings/smart_control/llm:__subpackages__",
         "//third_party/py/smart_buildings/smart_control/models:__pkg__",
         "//third_party/py/smart_buildings/smart_control/simulator:__pkg__",
-        "//third_party/py/smart_buildings/smart_control/utils:__pkg__",
+        "//third_party/py/smart_buildings/smart_control/utils:__subpackages__",
     ],
     deps = [":smart_control_building_proto"],
 )

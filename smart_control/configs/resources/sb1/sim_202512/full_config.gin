@@ -1,0 +1,879 @@
+
+##########################
+### NOTES
+##########################
+
+# this config:
+# + can be used with continuous or hybrid action environments
+# + can be used with new HVAC system that allows for multiple air handler units
+
+
+##########################
+### WEATHER CONTROLLER
+##########################
+
+convection_coefficient = 100.0
+weather_data_filepath = "third_party/py/smart_buildings/smart_control/configs/resources/sb1/weather_data/2024.csv"
+
+ReplayWeatherController.convection_coefficient = %convection_coefficient
+ReplayWeatherController.local_weather_path = %weather_data_filepath
+weather_controller = @ReplayWeatherController()
+
+##########################
+### BUILDING
+##########################
+
+initial_temp = 294.0
+control_volume_cm = 10 #20
+floor_height_cm = 300.0
+
+floor_plan_filepath = "/third_party/py/smart_buildings/smart_control/configs/resources/us_mtv_1055/double_resolution_zone_1_2.npy"
+zone_map_filepath = %floor_plan_filepath
+
+interior_cv_conductivity =  50.0
+interior_cv_heat_capacity = 700
+interior_cv_density = 1.0
+
+interior_wall_cv_conductivity = 50.0
+interior_wall_cv_density = 1.0
+interior_wall_cv_heat_capacity = 700.0
+
+exterior_cv_conductivity = 0.05 # Biggest cause of divergence
+exterior_cv_heat_capacity = 700.0
+exterior_cv_density = 1.0
+
+inside_air_properties/MaterialProperties.conductivity = %interior_cv_conductivity
+inside_air_properties/MaterialProperties.heat_capacity = %interior_cv_heat_capacity
+inside_air_properties/MaterialProperties.density = %interior_cv_density
+
+inside_wall_properties/MaterialProperties.conductivity = %interior_wall_cv_conductivity
+inside_wall_properties/MaterialProperties.heat_capacity = %interior_wall_cv_heat_capacity
+inside_wall_properties/MaterialProperties.density = %interior_wall_cv_density
+
+building_exterior_properties/MaterialProperties.conductivity = %exterior_cv_conductivity
+building_exterior_properties/MaterialProperties.heat_capacity = %exterior_cv_heat_capacity
+building_exterior_properties/MaterialProperties.density = %exterior_cv_density
+
+sim/FloorPlanBasedBuilding:
+  cv_size_cm = %control_volume_cm
+  floor_height_cm = %floor_height_cm
+  initial_temp  = %initial_temp
+  inside_air_properties = @inside_air_properties/MaterialProperties()
+  inside_wall_properties = @inside_wall_properties/MaterialProperties()
+  building_exterior_properties = @building_exterior_properties/MaterialProperties()
+  floor_plan_filepath = %floor_plan_filepath
+  zone_map_filepath = %zone_map_filepath
+  #save_debugging_images = False
+
+
+##########################
+### SCHEDULE ...
+### https://source.corp.google.com/piper///depot/google3/corp/ml/smart_buildings/smart_control/configs/real_building/us_mtv_1055/base_config.gin;l=7?q=%23%20HVAC%20heating%2Fcooling%20schedule&ct=os&sq=package:piper%20file:%2F%2Fdepot%2Fgoogle3%20-file:google3%2Fexperimental
+##########################
+
+morning_start_hour =  6
+evening_start_hour = 19
+heating_setpoint_day = 294
+cooling_setpoint_day = 297
+heating_setpoint_night = 289
+cooling_setpoint_night = 298
+time_zone="US/Pacific"
+
+hvac/SetpointSchedule:
+  morning_start_hour = %morning_start_hour
+  evening_start_hour = %evening_start_hour
+  comfort_temp_window = (%heating_setpoint_day, %cooling_setpoint_day)
+  eco_temp_window = (%heating_setpoint_night, %cooling_setpoint_night)
+  time_zone = %time_zone
+
+
+##########################
+### HVAC (NEW!)
+##########################
+
+water_pump_differential_head =  6.0
+water_pump_efficiency = 0.98
+reheat_water_setpoint = 360.0
+boiler_heating_rate = 0.5 # K / min
+boiler_cooling_rate = 0.1 # K / min
+
+fan_static_pressure = 10000.0
+fan_efficiency = 0.9
+
+air_handler_heating_setpoint = 285.0
+air_handler_cooling_setpoint = 298.0
+air_handler_recirculation_ratio = 0.3
+
+vav_max_air_flowrate = 2.0 # 0.035
+vav_reheat_water_flowrate =  0.03
+
+floor_1_rooms = [
+  'zone_id_1', 'zone_id_2', 'zone_id_3', 'zone_id_4', 'zone_id_5', 'zone_id_6', 'zone_id_7', 'zone_id_8', 'zone_id_9', 'zone_id_10',
+  'zone_id_11', 'zone_id_12', 'zone_id_13', 'zone_id_14', 'zone_id_15', 'zone_id_16', 'zone_id_17', 'zone_id_18', 'zone_id_19', 'zone_id_20',
+  'zone_id_21', 'zone_id_22', 'zone_id_23', 'zone_id_24', 'zone_id_25', 'zone_id_26', 'zone_id_27', 'zone_id_28', 'zone_id_29', 'zone_id_30',
+  'zone_id_31', 'zone_id_32', 'zone_id_33', 'zone_id_34', 'zone_id_35', 'zone_id_36', 'zone_id_37', 'zone_id_38', 'zone_id_39', 'zone_id_40',
+  'zone_id_41', 'zone_id_42', 'zone_id_43', 'zone_id_44', 'zone_id_45', 'zone_id_46', 'zone_id_47', 'zone_id_48', 'zone_id_49', 'zone_id_50',
+  'zone_id_51', 'zone_id_52', 'zone_id_53'
+]
+
+floor_2_rooms = [
+  'zone_id_54', 'zone_id_55', 'zone_id_56', 'zone_id_57', 'zone_id_58', 'zone_id_59', 'zone_id_60', 'zone_id_61', 'zone_id_62', 'zone_id_63',
+  'zone_id_64', 'zone_id_65', 'zone_id_66', 'zone_id_67', 'zone_id_68', 'zone_id_69', 'zone_id_70', 'zone_id_71', 'zone_id_72', 'zone_id_73',
+  'zone_id_74', 'zone_id_75', 'zone_id_76', 'zone_id_77', 'zone_id_78', 'zone_id_79', 'zone_id_80', 'zone_id_81', 'zone_id_82', 'zone_id_83',
+  'zone_id_84', 'zone_id_85', 'zone_id_86', 'zone_id_87', 'zone_id_88', 'zone_id_89', 'zone_id_90', 'zone_id_91', 'zone_id_92', 'zone_id_93',
+  'zone_id_94', 'zone_id_95', 'zone_id_96', 'zone_id_97', 'zone_id_98', 'zone_id_99', 'zone_id_100', 'zone_id_101', 'zone_id_102', 'zone_id_103',
+  'zone_id_104', 'zone_id_105', 'zone_id_106', 'zone_id_107', 'zone_id_108', 'zone_id_109', 'zone_id_110', 'zone_id_111', 'zone_id_112', 'zone_id_113',
+  'zone_id_114', 'zone_id_115', 'zone_id_116', 'zone_id_117', 'zone_id_118', 'zone_id_119', 'zone_id_120', 'zone_id_121', 'zone_id_122', 'zone_id_123',
+  'zone_id_124', 'zone_id_125', 'zone_id_126'
+]
+
+ahu_1/AirHandler:
+  recirculation = %air_handler_recirculation_ratio
+  heating_air_temp_setpoint = %air_handler_heating_setpoint
+  cooling_air_temp_setpoint = %air_handler_cooling_setpoint
+  fan_static_pressure = %fan_static_pressure
+  fan_efficiency = %fan_efficiency
+  max_air_flow_rate = 8.67
+  sim_weather_controller = %weather_controller
+  device_id = 'ahu_1'
+
+ahu_2/AirHandler:
+  recirculation = %air_handler_recirculation_ratio
+  heating_air_temp_setpoint = %air_handler_heating_setpoint
+  cooling_air_temp_setpoint = %air_handler_cooling_setpoint
+  fan_static_pressure = %fan_static_pressure
+  fan_efficiency = %fan_efficiency
+  max_air_flow_rate = 8.67
+  sim_weather_controller = %weather_controller
+  device_id = 'ahu_2'
+
+hvac/AirHandlerSystem:
+  ahus =  {
+    @ahu_1/AirHandler(): %floor_1_rooms,
+    @ahu_2/AirHandler(): %floor_2_rooms,
+  }
+  device_id = 'ahu'
+
+hvac/WaterPump:
+  water_pump_differential_head = %water_pump_differential_head
+  water_pump_efficiency = %water_pump_efficiency
+
+hvac/Boiler:
+  reheat_water_setpoint = %reheat_water_setpoint
+  heating_rate = %boiler_heating_rate
+  cooling_rate = %boiler_cooling_rate
+
+hvac/HotWaterSystem:
+  pump = @hvac/WaterPump()
+  boiler = @hvac/Boiler()
+  device_id = 'hws'
+
+
+sim/FloorPlanBasedHvac:
+  air_handler = @hvac/AirHandlerSystem()
+  hot_water_system = @hvac/HotWaterSystem()
+  schedule = @hvac/SetpointSchedule()
+  vav_max_air_flow_rate = %vav_max_air_flowrate
+  vav_reheat_max_water_flow_factor = %vav_reheat_water_flowrate
+
+
+##########################
+### OCCUPANCY
+##########################
+
+time_step_sec =  300  # should not be changed b/c apparently it affects the sim
+
+work_occupancy = 1 # number of workers per zone
+
+randomized_occupancy/RandomizedArrivalDepartureOccupancy:
+  zone_assignment = %work_occupancy
+  earliest_expected_arrival_hour = 3
+  latest_expected_arrival_hour = 12
+  earliest_expected_departure_hour = 13
+  latest_expected_departure_hour = 23
+  time_step_sec = %time_step_sec
+  time_zone = %time_zone
+
+
+##########################
+### SIMULATOR
+##########################
+
+# Finite difference settings.
+convergence_threshold = 0.1
+iteration_limit = 100
+iteration_warning = 20
+start_timestamp = '2024-12-16 08:00:00' # '2025-07-10 06:00' # '2021-04-01 00:00'
+
+sim/to_timestamp.date_str = %start_timestamp
+
+sim_building/TFSimulator:
+  building = @sim/FloorPlanBasedBuilding()
+  hvac  = @sim/FloorPlanBasedHvac()
+  weather_controller = %weather_controller
+  time_step_sec = %time_step_sec
+  convergence_threshold = %convergence_threshold
+  iteration_limit = %iteration_limit
+  iteration_warning = %iteration_warning
+  start_timestamp = @sim/to_timestamp()
+
+SimulatorBuilding.simulator = @sim_building/TFSimulator()
+SimulatorBuilding.occupancy = @randomized_occupancy/RandomizedArrivalDepartureOccupancy()
+
+
+##########################
+### REWARDS
+##########################
+
+productivity_personhour_usd = 300.00
+
+productivity_midpoint_delta_temp =  1.5
+decay_stiffness =  4.3
+
+electricity_weight =  1.0
+carbon_weight =  1.0
+
+reward_normalizer_shift = 0.0
+reward_normalizer_scale = 450.0
+
+max_productivity_personhour_usd = 300.00
+min_productivity_personhour_usd = 100.00
+productivity_midpoint_delta =  0.5
+productivity_decay_stiffness =  4.3
+
+max_electricity_rate=160000
+max_natural_gas_rate=400000
+
+productivity_weight=0.2
+energy_cost_weight=0.4
+carbon_emission_weight=0.4
+
+SetpointEnergyCarbonRegretFunction.max_productivity_personhour_usd = %max_productivity_personhour_usd
+SetpointEnergyCarbonRegretFunction.min_productivity_personhour_usd = %min_productivity_personhour_usd
+SetpointEnergyCarbonRegretFunction.max_electricity_rate = %max_electricity_rate
+SetpointEnergyCarbonRegretFunction.max_natural_gas_rate = %max_natural_gas_rate
+SetpointEnergyCarbonRegretFunction.productivity_decay_stiffness = %productivity_decay_stiffness
+SetpointEnergyCarbonRegretFunction.productivity_midpoint_delta = %productivity_midpoint_delta
+SetpointEnergyCarbonRegretFunction.electricity_energy_cost = @ElectricityEnergyCost()
+SetpointEnergyCarbonRegretFunction.natural_gas_energy_cost = @NaturalGasEnergyCost()
+SetpointEnergyCarbonRegretFunction.productivity_weight = %productivity_weight
+SetpointEnergyCarbonRegretFunction.energy_cost_weight= %energy_cost_weight
+SetpointEnergyCarbonRegretFunction.carbon_emission_weight = %carbon_emission_weight
+
+
+##########################
+### ACTIONS
+##########################
+
+# include "actions_config.gin"
+# provides:
+# - %default_actions
+# - %default_hybrid_actions
+# - @ActionConfig()
+
+### HVAC (NEW!)
+
+water_pump_differential_head =  6.0
+water_pump_efficiency = 0.98
+reheat_water_setpoint = 360.0
+boiler_heating_rate = 0.5 # K / min
+boiler_cooling_rate = 0.1 # K / min
+
+fan_static_pressure = 10000.0
+fan_efficiency = 0.9
+
+air_handler_heating_setpoint = 285.0
+air_handler_cooling_setpoint = 298.0
+air_handler_recirculation_ratio = 0.3
+
+vav_max_air_flowrate = 2.0 # 0.035
+vav_reheat_water_flowrate =  0.03
+
+floor_1_rooms = [
+  'zone_id_1', 'zone_id_2', 'zone_id_3', 'zone_id_4', 'zone_id_5', 'zone_id_6', 'zone_id_7', 'zone_id_8', 'zone_id_9', 'zone_id_10',
+  'zone_id_11', 'zone_id_12', 'zone_id_13', 'zone_id_14', 'zone_id_15', 'zone_id_16', 'zone_id_17', 'zone_id_18', 'zone_id_19', 'zone_id_20',
+  'zone_id_21', 'zone_id_22', 'zone_id_23', 'zone_id_24', 'zone_id_25', 'zone_id_26', 'zone_id_27', 'zone_id_28', 'zone_id_29', 'zone_id_30',
+  'zone_id_31', 'zone_id_32', 'zone_id_33', 'zone_id_34', 'zone_id_35', 'zone_id_36', 'zone_id_37', 'zone_id_38', 'zone_id_39', 'zone_id_40',
+  'zone_id_41', 'zone_id_42', 'zone_id_43', 'zone_id_44', 'zone_id_45', 'zone_id_46', 'zone_id_47', 'zone_id_48', 'zone_id_49', 'zone_id_50',
+  'zone_id_51', 'zone_id_52', 'zone_id_53'
+]
+
+floor_2_rooms = [
+  'zone_id_54', 'zone_id_55', 'zone_id_56', 'zone_id_57', 'zone_id_58', 'zone_id_59', 'zone_id_60', 'zone_id_61', 'zone_id_62', 'zone_id_63',
+  'zone_id_64', 'zone_id_65', 'zone_id_66', 'zone_id_67', 'zone_id_68', 'zone_id_69', 'zone_id_70', 'zone_id_71', 'zone_id_72', 'zone_id_73',
+  'zone_id_74', 'zone_id_75', 'zone_id_76', 'zone_id_77', 'zone_id_78', 'zone_id_79', 'zone_id_80', 'zone_id_81', 'zone_id_82', 'zone_id_83',
+  'zone_id_84', 'zone_id_85', 'zone_id_86', 'zone_id_87', 'zone_id_88', 'zone_id_89', 'zone_id_90', 'zone_id_91', 'zone_id_92', 'zone_id_93',
+  'zone_id_94', 'zone_id_95', 'zone_id_96', 'zone_id_97', 'zone_id_98', 'zone_id_99', 'zone_id_100', 'zone_id_101', 'zone_id_102', 'zone_id_103',
+  'zone_id_104', 'zone_id_105', 'zone_id_106', 'zone_id_107', 'zone_id_108', 'zone_id_109', 'zone_id_110', 'zone_id_111', 'zone_id_112', 'zone_id_113',
+  'zone_id_114', 'zone_id_115', 'zone_id_116', 'zone_id_117', 'zone_id_118', 'zone_id_119', 'zone_id_120', 'zone_id_121', 'zone_id_122', 'zone_id_123',
+  'zone_id_124', 'zone_id_125', 'zone_id_126'
+]
+
+ahu_1/AirHandler:
+  recirculation = %air_handler_recirculation_ratio
+  heating_air_temp_setpoint = %air_handler_heating_setpoint
+  cooling_air_temp_setpoint = %air_handler_cooling_setpoint
+  fan_static_pressure = %fan_static_pressure
+  fan_efficiency = %fan_efficiency
+  max_air_flow_rate = 8.67
+  sim_weather_controller = %weather_controller
+  device_id = 'ahu_1'
+
+ahu_2/AirHandler:
+  recirculation = %air_handler_recirculation_ratio
+  heating_air_temp_setpoint = %air_handler_heating_setpoint
+  cooling_air_temp_setpoint = %air_handler_cooling_setpoint
+  fan_static_pressure = %fan_static_pressure
+  fan_efficiency = %fan_efficiency
+  max_air_flow_rate = 8.67
+  sim_weather_controller = %weather_controller
+  device_id = 'ahu_2'
+
+hvac/AirHandlerSystem:
+  ahus =  {
+    @ahu_1/AirHandler(): %floor_1_rooms,
+    @ahu_2/AirHandler(): %floor_2_rooms,
+  }
+  device_id = 'ahu'
+
+hvac/WaterPump:
+  water_pump_differential_head = %water_pump_differential_head
+  water_pump_efficiency = %water_pump_efficiency
+
+hvac/Boiler:
+  reheat_water_setpoint = %reheat_water_setpoint
+  heating_rate = %boiler_heating_rate
+  cooling_rate = %boiler_cooling_rate
+
+hvac/HotWaterSystem:
+  pump = @hvac/WaterPump()
+  boiler = @hvac/Boiler()
+  device_id = 'hws'
+
+
+sim/FloorPlanBasedHvac:
+  air_handler = @hvac/AirHandlerSystem()
+  hot_water_system = @hvac/HotWaterSystem()
+  schedule = @hvac/SetpointSchedule()
+  vav_max_air_flow_rate = %vav_max_air_flowrate
+  vav_reheat_max_water_flow_factor = %vav_reheat_water_flowrate
+
+### ACTIONS (NEW!)
+
+# Action Normalization Parameters -> edited to match real building: https://source.corp.google.com/piper///depot/google3/corp/ml/smart_buildings/smart_control/configs/real_building/us_mtv_1055/base_config.gin;rcl=520286766;l=89
+supply_water_bounded_action_normalizer/set_action_normalization_constants.min_normalized_value = -1.
+supply_water_bounded_action_normalizer/set_action_normalization_constants.max_normalized_value = 1.0
+supply_water_bounded_action_normalizer/set_action_normalization_constants.min_native_value = 310 #300.0
+supply_water_bounded_action_normalizer/set_action_normalization_constants.max_native_value = 350.0
+
+supply_air_heating_temperature_setpoint/set_action_normalization_constants.min_normalized_value = -1.
+supply_air_heating_temperature_setpoint/set_action_normalization_constants.max_normalized_value = 1.
+supply_air_heating_temperature_setpoint/set_action_normalization_constants.min_native_value = 285 #275.0
+supply_air_heating_temperature_setpoint/set_action_normalization_constants.max_native_value = 295.0
+
+supply_air_temperature_setpoint/set_action_normalization_constants.min_normalized_value = -1.
+supply_air_temperature_setpoint/set_action_normalization_constants.max_normalized_value = 1.
+supply_air_temperature_setpoint/set_action_normalization_constants.min_native_value = 285 #275.0
+supply_air_temperature_setpoint/set_action_normalization_constants.max_native_value = 305.0
+
+differential_pressure_setpoint/set_action_normalization_constants.min_normalized_value = -1.
+differential_pressure_setpoint/set_action_normalization_constants.max_normalized_value = 1.
+differential_pressure_setpoint/set_action_normalization_constants.min_native_value = 0 #275.0
+differential_pressure_setpoint/set_action_normalization_constants.max_native_value = 20.0
+
+static_pressure_setpoint/set_action_normalization_constants.min_normalized_value = -1.
+static_pressure_setpoint/set_action_normalization_constants.max_normalized_value = 1.
+static_pressure_setpoint/set_action_normalization_constants.min_native_value = 0 #275.0
+static_pressure_setpoint/set_action_normalization_constants.max_native_value = 20000.0
+
+run_command/set_action_normalization_constants.min_normalized_value = -1.
+run_command/set_action_normalization_constants.max_normalized_value = 1.
+run_command/set_action_normalization_constants.min_native_value = 0.0
+run_command/set_action_normalization_constants.max_native_value = 1.0
+
+# action_normalizer_map = {
+#     'hws_supply_water_setpoint': @supply_water_bounded_action_normalizer/set_action_normalization_constants(),
+#     'hws_differential_pressure': @differential_pressure_setpoint/set_action_normalization_constants(),
+#     'ahu_ahu_1_supply_air_temperature_setpoint': @supply_air_temperature_setpoint/set_action_normalization_constants(),
+#     'ahu_ahu_1_static_pressure_setpoint': @static_pressure_setpoint/set_action_normalization_constants(),
+#     'ahu_ahu_2_supply_air_temperature_setpoint': @supply_air_temperature_setpoint/set_action_normalization_constants(),
+#     'ahu_ahu_2_static_pressure_setpoint': @static_pressure_setpoint/set_action_normalization_constants(),
+#     'hws_supervisor_run_command': @run_command/set_action_normalization_constants(),
+#     'ahu_ahu_1_supervisor_run_command': @run_command/set_action_normalization_constants(),
+#     'ahu_ahu_2_supervisor_run_command': @run_command/set_action_normalization_constants(),
+# }
+
+# ENV
+
+action_normalizer_map_continuous = {
+    'supply_water_setpoint': @supply_water_bounded_action_normalizer/set_action_normalization_constants(),
+    'differential_pressure': @differential_pressure_setpoint/set_action_normalization_constants(),
+    'ahu_1_supply_air_temperature_setpoint': @supply_air_temperature_setpoint/set_action_normalization_constants(),
+    'ahu_1_static_pressure_setpoint': @static_pressure_setpoint/set_action_normalization_constants(),
+    'ahu_2_supply_air_temperature_setpoint': @supply_air_temperature_setpoint/set_action_normalization_constants(),
+    'ahu_2_static_pressure_setpoint': @static_pressure_setpoint/set_action_normalization_constants(),
+}
+continuous/ActionConfig:
+    action_normalizers = %action_normalizer_map_continuous
+
+device_action_tuples = [
+    ('ahu', 'ahu_1_supply_air_temperature_setpoint'),
+    ('ahu', 'ahu_1_static_pressure_setpoint'),
+    ('ahu', 'ahu_2_supply_air_temperature_setpoint'),
+    ('ahu', 'ahu_2_static_pressure_setpoint'),
+    ('hws', 'supply_water_setpoint'),
+    ('hws', 'differential_pressure'),
+]
+
+default_actions = {
+    'hws_supply_water_setpoint': 340.0,
+    'hws_differential_pressure': 20.0,
+    'ahu_ahu_1_supply_air_temperature_setpoint': 293.0,
+    'ahu_ahu_1_static_pressure_setpoint': 20000.0,
+    'ahu_ahu_2_supply_air_temperature_setpoint': 293.0,
+    'ahu_ahu_2_static_pressure_setpoint': 20000.0,
+
+}
+
+# HYBRID ENV
+
+action_normalizer_map_hybrid = {
+    'supply_water_setpoint': @supply_water_bounded_action_normalizer/set_action_normalization_constants(),
+    'differential_pressure': @differential_pressure_setpoint/set_action_normalization_constants(),
+    'ahu_1_supply_air_temperature_setpoint': @supply_air_temperature_setpoint/set_action_normalization_constants(),
+    'ahu_1_static_pressure_setpoint': @static_pressure_setpoint/set_action_normalization_constants(),
+    'ahu_2_supply_air_temperature_setpoint': @supply_air_temperature_setpoint/set_action_normalization_constants(),
+    'ahu_2_static_pressure_setpoint': @static_pressure_setpoint/set_action_normalization_constants(),
+    'supervisor_run_command': @run_command/set_action_normalization_constants(),
+    'ahu_1_supervisor_run_command': @run_command/set_action_normalization_constants(),
+    'ahu_2_supervisor_run_command': @run_command/set_action_normalization_constants(),
+}
+hybrid/ActionConfig:
+    action_normalizers = %action_normalizer_map_hybrid
+
+hybrid_device_action_tuples = [
+    ('ahu', 'ahu_1_supervisor_run_command'),
+    ('ahu', 'ahu_2_supervisor_run_command'),
+    ('ahu', 'ahu_1_supply_air_temperature_setpoint'),
+    ('ahu', 'ahu_1_static_pressure_setpoint'),
+    ('ahu', 'ahu_2_supply_air_temperature_setpoint'),
+    ('ahu', 'ahu_2_static_pressure_setpoint'),
+    ('hws', 'supervisor_run_command'),
+    ('hws', 'supply_water_setpoint'),
+    ('hws', 'differential_pressure'),
+]
+
+hybrid_default_actions = {
+    'hws_supply_water_setpoint': 340.0,
+    'hws_differential_pressure': 20.0,
+    'hws_supervisor_run_command': 1.0,
+    'ahu_ahu_1_supply_air_temperature_setpoint': 293.0,
+    'ahu_ahu_1_static_pressure_setpoint': 20000.0,
+    'ahu_ahu_2_supply_air_temperature_setpoint': 293.0,
+    'ahu_ahu_2_static_pressure_setpoint': 20000.0,
+    'ahu_ahu_1_supervisor_run_command': 1.0,
+    'ahu_ahu_2_supervisor_run_command': 1.0,
+}
+
+##########################
+### OBSERVATIONS
+##########################
+
+# include "observations_config.gin"
+# provides:
+# - @StandardScoreObservationNormalizer()
+
+temperature_observation_normalizer/set_observation_normalization_constants.field_id = 'temperature'
+temperature_observation_normalizer/set_observation_normalization_constants.sample_mean =  310.0
+temperature_observation_normalizer/set_observation_normalization_constants.sample_variance =  2500.0
+
+supply_water_setpoint_observation_normalizer/set_observation_normalization_constants.field_id = 'supply_water_setpoint'
+supply_water_setpoint_observation_normalizer/set_observation_normalization_constants.sample_mean =  310.0
+supply_water_setpoint_observation_normalizer/set_observation_normalization_constants.sample_variance =  2500.0
+
+air_flowrate_observation_normalizer/set_observation_normalization_constants.field_id = 'air_flowrate'
+air_flowrate_observation_normalizer/set_observation_normalization_constants.sample_mean =  0.5
+air_flowrate_observation_normalizer/set_observation_normalization_constants.sample_variance =  4.0
+
+differential_pressure_observation_normalizer/set_observation_normalization_constants.field_id = 'differential_pressure'
+differential_pressure_observation_normalizer/set_observation_normalization_constants.sample_mean =  10000.0
+differential_pressure_observation_normalizer/set_observation_normalization_constants.sample_variance =  100000.0
+
+percentage_observation_normalizer/set_observation_normalization_constants.field_id = 'percentage'
+percentage_observation_normalizer/set_observation_normalization_constants.sample_mean =  0.50
+percentage_observation_normalizer/set_observation_normalization_constants.sample_variance =  1.0
+
+request_count_observation_normalizer/set_observation_normalization_constants.field_id = 'request_count'
+request_count_observation_normalizer/set_observation_normalization_constants.sample_mean =  100.0
+request_count_observation_normalizer/set_observation_normalization_constants.sample_variance =  25.0
+
+# measurement 0 building_air_static_pressure_sensor
+building_air_static_pressure_sensor_normalizer/set_observation_normalization_constants.field_id = 'building_air_static_pressure_sensor'
+building_air_static_pressure_sensor_normalizer/set_observation_normalization_constants.sample_mean = 3.779228
+building_air_static_pressure_sensor_normalizer/set_observation_normalization_constants.sample_variance = 14.599437
+
+# measurement 1 building_air_static_pressure_setpoint
+building_air_static_pressure_setpoint_normalizer/set_observation_normalization_constants.field_id = 'building_air_static_pressure_setpoint'
+building_air_static_pressure_setpoint_normalizer/set_observation_normalization_constants.sample_mean = 7.472401
+building_air_static_pressure_setpoint_normalizer/set_observation_normalization_constants.sample_variance = 0.000000
+
+# measurement 2 cooling_percentage_command
+cooling_percentage_command_normalizer/set_observation_normalization_constants.field_id = 'cooling_percentage_command'
+cooling_percentage_command_normalizer/set_observation_normalization_constants.sample_mean = 9.658281
+cooling_percentage_command_normalizer/set_observation_normalization_constants.sample_variance = 295.833612
+
+# measurement 3 differential_pressure_sensor
+differential_pressure_sensor_normalizer/set_observation_normalization_constants.field_id = 'differential_pressure_sensor'
+differential_pressure_sensor_normalizer/set_observation_normalization_constants.sample_mean = 31611.814379
+differential_pressure_sensor_normalizer/set_observation_normalization_constants.sample_variance = 1844378631.487996
+
+# measurement 4 differential_pressure_setpoint
+differential_pressure_setpoint_normalizer/set_observation_normalization_constants.field_id = 'differential_pressure_setpoint'
+differential_pressure_setpoint_normalizer/set_observation_normalization_constants.sample_mean = 83810.269540
+differential_pressure_setpoint_normalizer/set_observation_normalization_constants.sample_variance = 14889040.603647
+
+# measurement 5 discharge_air_temperature_sensor
+discharge_air_temperature_sensor_normalizer/set_observation_normalization_constants.field_id = 'discharge_air_temperature_sensor'
+discharge_air_temperature_sensor_normalizer/set_observation_normalization_constants.sample_mean = 69.889025
+discharge_air_temperature_sensor_normalizer/set_observation_normalization_constants.sample_variance = 541.455462
+
+# measurement 6 discharge_air_temperature_setpoint
+discharge_air_temperature_setpoint_normalizer/set_observation_normalization_constants.field_id = 'discharge_air_temperature_setpoint'
+discharge_air_temperature_setpoint_normalizer/set_observation_normalization_constants.sample_mean = 57.665244
+discharge_air_temperature_setpoint_normalizer/set_observation_normalization_constants.sample_variance = 97.254479
+
+# measurement 7 exhaust_air_damper_percentage_command
+exhaust_air_damper_percentage_command_normalizer/set_observation_normalization_constants.field_id = 'exhaust_air_damper_percentage_command'
+exhaust_air_damper_percentage_command_normalizer/set_observation_normalization_constants.sample_mean = 25.000000
+exhaust_air_damper_percentage_command_normalizer/set_observation_normalization_constants.sample_variance = 0.000000
+
+# measurement 8 exhaust_air_damper_percentage_sensor
+exhaust_air_damper_percentage_sensor_normalizer/set_observation_normalization_constants.field_id = 'exhaust_air_damper_percentage_sensor'
+exhaust_air_damper_percentage_sensor_normalizer/set_observation_normalization_constants.sample_mean = 10.680755
+exhaust_air_damper_percentage_sensor_normalizer/set_observation_normalization_constants.sample_variance = 539.207818
+
+# measurement 9 exhaust_fan_speed_frequency_sensor
+exhaust_fan_speed_frequency_sensor_normalizer/set_observation_normalization_constants.field_id = 'exhaust_fan_speed_frequency_sensor'
+exhaust_fan_speed_frequency_sensor_normalizer/set_observation_normalization_constants.sample_mean = 4.273057
+exhaust_fan_speed_frequency_sensor_normalizer/set_observation_normalization_constants.sample_variance = 138.559759
+
+# measurement 10 exhaust_fan_speed_percentage_command
+exhaust_fan_speed_percentage_command_normalizer/set_observation_normalization_constants.field_id = 'exhaust_fan_speed_percentage_command'
+exhaust_fan_speed_percentage_command_normalizer/set_observation_normalization_constants.sample_mean = 7.121761
+exhaust_fan_speed_percentage_command_normalizer/set_observation_normalization_constants.sample_variance = 384.888218
+
+# measurement 11 heating_water_valve_percentage_command
+heating_water_valve_percentage_command_normalizer/set_observation_normalization_constants.field_id = 'heating_water_valve_percentage_command'
+heating_water_valve_percentage_command_normalizer/set_observation_normalization_constants.sample_mean = 3.105189
+heating_water_valve_percentage_command_normalizer/set_observation_normalization_constants.sample_variance = 202.006249
+
+# measurement 12 mixed_air_temperature_sensor
+mixed_air_temperature_sensor_normalizer/set_observation_normalization_constants.field_id = 'mixed_air_temperature_sensor'
+mixed_air_temperature_sensor_normalizer/set_observation_normalization_constants.sample_mean = 293.718710
+mixed_air_temperature_sensor_normalizer/set_observation_normalization_constants.sample_variance = 12.517696
+
+# measurement 13 mixed_air_temperature_setpoint
+mixed_air_temperature_setpoint_normalizer/set_observation_normalization_constants.field_id = 'mixed_air_temperature_setpoint'
+mixed_air_temperature_setpoint_normalizer/set_observation_normalization_constants.sample_mean = 288.218302
+mixed_air_temperature_setpoint_normalizer/set_observation_normalization_constants.sample_variance = 3.186768
+
+# measurement 14 outside_air_damper_percentage_command
+outside_air_damper_percentage_command_normalizer/set_observation_normalization_constants.field_id = 'outside_air_damper_percentage_command'
+outside_air_damper_percentage_command_normalizer/set_observation_normalization_constants.sample_mean = 34.504101
+outside_air_damper_percentage_command_normalizer/set_observation_normalization_constants.sample_variance = 2053.149002
+
+# measurement 15 outside_air_dewpoint_temperature_sensor
+outside_air_dewpoint_temperature_sensor_normalizer/set_observation_normalization_constants.field_id = 'outside_air_dewpoint_temperature_sensor'
+outside_air_dewpoint_temperature_sensor_normalizer/set_observation_normalization_constants.sample_mean = 285.774428
+outside_air_dewpoint_temperature_sensor_normalizer/set_observation_normalization_constants.sample_variance = 2.504610
+
+# measurement 16 outside_air_flowrate_sensor
+outside_air_flowrate_sensor_normalizer/set_observation_normalization_constants.field_id = 'outside_air_flowrate_sensor'
+outside_air_flowrate_sensor_normalizer/set_observation_normalization_constants.sample_mean = 3.701930
+outside_air_flowrate_sensor_normalizer/set_observation_normalization_constants.sample_variance = 20.300565
+
+# measurement 17 outside_air_flowrate_setpoint
+outside_air_flowrate_setpoint_normalizer/set_observation_normalization_constants.field_id = 'outside_air_flowrate_setpoint'
+outside_air_flowrate_setpoint_normalizer/set_observation_normalization_constants.sample_mean = 8.730134
+outside_air_flowrate_setpoint_normalizer/set_observation_normalization_constants.sample_variance = 0.240364
+
+# measurement 18 outside_air_relative_humidity_sensor
+outside_air_relative_humidity_sensor_normalizer/set_observation_normalization_constants.field_id = 'outside_air_relative_humidity_sensor'
+outside_air_relative_humidity_sensor_normalizer/set_observation_normalization_constants.sample_mean = 71.799372
+outside_air_relative_humidity_sensor_normalizer/set_observation_normalization_constants.sample_variance = 172.388773
+
+# measurement 19 outside_air_specificenthalpy_sensor
+outside_air_specificenthalpy_sensor_normalizer/set_observation_normalization_constants.field_id = 'outside_air_specificenthalpy_sensor'
+outside_air_specificenthalpy_sensor_normalizer/set_observation_normalization_constants.sample_mean = 60711.656343
+outside_air_specificenthalpy_sensor_normalizer/set_observation_normalization_constants.sample_variance = 25491060.173822
+
+# measurement 20 outside_air_temperature_sensor
+outside_air_temperature_sensor_normalizer/set_observation_normalization_constants.field_id = 'outside_air_temperature_sensor'
+outside_air_temperature_sensor_normalizer/set_observation_normalization_constants.sample_mean = 291.244931
+outside_air_temperature_sensor_normalizer/set_observation_normalization_constants.sample_variance = 12.904175
+
+# measurement 21 outside_air_wetbulb_temperature_sensor
+outside_air_wetbulb_temperature_sensor_normalizer/set_observation_normalization_constants.field_id = 'outside_air_wetbulb_temperature_sensor'
+outside_air_wetbulb_temperature_sensor_normalizer/set_observation_normalization_constants.sample_mean = 287.709943
+outside_air_wetbulb_temperature_sensor_normalizer/set_observation_normalization_constants.sample_variance = 3.594260
+
+# measurement 22 program_differential_pressure_setpoint
+program_differential_pressure_setpoint_normalizer/set_observation_normalization_constants.field_id = 'program_differential_pressure_setpoint'
+program_differential_pressure_setpoint_normalizer/set_observation_normalization_constants.sample_mean = 83808.578375
+program_differential_pressure_setpoint_normalizer/set_observation_normalization_constants.sample_variance = 14897544.664858
+
+# measurement 23 program_supply_air_static_pressure_setpoint
+program_supply_air_static_pressure_setpoint_normalizer/set_observation_normalization_constants.field_id = 'program_supply_air_static_pressure_setpoint'
+program_supply_air_static_pressure_setpoint_normalizer/set_observation_normalization_constants.sample_mean = 163.396282
+program_supply_air_static_pressure_setpoint_normalizer/set_observation_normalization_constants.sample_variance = 1092.073231
+
+# measurement 24 program_supply_air_temperature_setpoint
+program_supply_air_temperature_setpoint_normalizer/set_observation_normalization_constants.field_id = 'program_supply_air_temperature_setpoint'
+program_supply_air_temperature_setpoint_normalizer/set_observation_normalization_constants.sample_mean = 289.490004
+program_supply_air_temperature_setpoint_normalizer/set_observation_normalization_constants.sample_variance = 2.854515
+
+# measurement 25 program_supply_water_temperature_setpoint
+program_supply_water_temperature_setpoint_normalizer/set_observation_normalization_constants.field_id = 'program_supply_water_temperature_setpoint'
+program_supply_water_temperature_setpoint_normalizer/set_observation_normalization_constants.sample_mean = 341.467705
+program_supply_water_temperature_setpoint_normalizer/set_observation_normalization_constants.sample_variance = 74.961483
+
+# measurement 26 return_air_temperature_sensor
+return_air_temperature_sensor_normalizer/set_observation_normalization_constants.field_id = 'return_air_temperature_sensor'
+return_air_temperature_sensor_normalizer/set_observation_normalization_constants.sample_mean = 295.602164
+return_air_temperature_sensor_normalizer/set_observation_normalization_constants.sample_variance = 11.309930
+
+# measurement 27 return_water_temperature_sensor
+return_water_temperature_sensor_normalizer/set_observation_normalization_constants.field_id = 'return_water_temperature_sensor'
+return_water_temperature_sensor_normalizer/set_observation_normalization_constants.sample_mean = 326.219913
+return_water_temperature_sensor_normalizer/set_observation_normalization_constants.sample_variance = 497.847788
+
+# measurement 28 run_status
+run_status_normalizer/set_observation_normalization_constants.field_id = 'run_status'
+run_status_normalizer/set_observation_normalization_constants.sample_mean = -0.638340
+run_status_normalizer/set_observation_normalization_constants.sample_variance = 0.592523
+
+# measurement 29 speed_frequency_sensor
+speed_frequency_sensor_normalizer/set_observation_normalization_constants.field_id = 'speed_frequency_sensor'
+speed_frequency_sensor_normalizer/set_observation_normalization_constants.sample_mean = 7.003487
+speed_frequency_sensor_normalizer/set_observation_normalization_constants.sample_variance = 227.751249
+
+# measurement 30 speed_percentage_command
+speed_percentage_command_normalizer/set_observation_normalization_constants.field_id = 'speed_percentage_command'
+speed_percentage_command_normalizer/set_observation_normalization_constants.sample_mean = 11.330966
+speed_percentage_command_normalizer/set_observation_normalization_constants.sample_variance = 602.718159
+
+# measurement 31 supervisor_supply_air_static_pressure_setpoint
+supervisor_supply_air_static_pressure_setpoint_normalizer/set_observation_normalization_constants.field_id = 'supervisor_supply_air_static_pressure_setpoint'
+supervisor_supply_air_static_pressure_setpoint_normalizer/set_observation_normalization_constants.sample_mean = 179.409052
+supervisor_supply_air_static_pressure_setpoint_normalizer/set_observation_normalization_constants.sample_variance = 352.049768
+
+# measurement 32 supervisor_supply_air_temperature_setpoint
+supervisor_supply_air_temperature_setpoint_normalizer/set_observation_normalization_constants.field_id = 'supervisor_supply_air_temperature_setpoint'
+supervisor_supply_air_temperature_setpoint_normalizer/set_observation_normalization_constants.sample_mean = 290.2
+supervisor_supply_air_temperature_setpoint_normalizer/set_observation_normalization_constants.sample_variance = 9.66245
+
+# measurement 33 supervisor_supply_water_temperature_setpoint
+supervisor_supply_water_temperature_setpoint_normalizer/set_observation_normalization_constants.field_id = 'supervisor_supply_water_temperature_setpoint'
+supervisor_supply_water_temperature_setpoint_normalizer/set_observation_normalization_constants.sample_mean = 332.164444
+supervisor_supply_water_temperature_setpoint_normalizer/set_observation_normalization_constants.sample_variance = 1.534112
+
+# measurement 34 supply_air_damper_percentage_command
+supply_air_damper_percentage_command_normalizer/set_observation_normalization_constants.field_id = 'supply_air_damper_percentage_command'
+supply_air_damper_percentage_command_normalizer/set_observation_normalization_constants.sample_mean = 51.173986
+supply_air_damper_percentage_command_normalizer/set_observation_normalization_constants.sample_variance = 1059.265742
+
+# measurement 35 supply_air_flowrate_sensor
+supply_air_flowrate_sensor_normalizer/set_observation_normalization_constants.field_id = 'supply_air_flowrate_sensor'
+supply_air_flowrate_sensor_normalizer/set_observation_normalization_constants.sample_mean = 177.520026
+supply_air_flowrate_sensor_normalizer/set_observation_normalization_constants.sample_variance = 50499.153481
+
+# measurement 36 supply_air_flowrate_setpoint
+supply_air_flowrate_setpoint_normalizer/set_observation_normalization_constants.field_id = 'supply_air_flowrate_setpoint'
+supply_air_flowrate_setpoint_normalizer/set_observation_normalization_constants.sample_mean = 209.557558
+supply_air_flowrate_setpoint_normalizer/set_observation_normalization_constants.sample_variance = 47308.757207
+
+# measurement 37 supply_air_static_pressure_sensor
+supply_air_static_pressure_sensor_normalizer/set_observation_normalization_constants.field_id = 'supply_air_static_pressure_sensor'
+supply_air_static_pressure_sensor_normalizer/set_observation_normalization_constants.sample_mean = 128.527912
+supply_air_static_pressure_sensor_normalizer/set_observation_normalization_constants.sample_variance = 6679.599175
+
+# measurement 38 supply_air_static_pressure_setpoint
+supply_air_static_pressure_setpoint_normalizer/set_observation_normalization_constants.field_id = 'supply_air_static_pressure_setpoint'
+supply_air_static_pressure_setpoint_normalizer/set_observation_normalization_constants.sample_mean = 181.307432
+supply_air_static_pressure_setpoint_normalizer/set_observation_normalization_constants.sample_variance = 361.757966
+
+# measurement 39 supply_air_temperature_sensor
+supply_air_temperature_sensor_normalizer/set_observation_normalization_constants.field_id = 'supply_air_temperature_sensor'
+supply_air_temperature_sensor_normalizer/set_observation_normalization_constants.sample_mean = 289.737939
+supply_air_temperature_sensor_normalizer/set_observation_normalization_constants.sample_variance = 6.265837
+
+# measurement 40 supply_air_temperature_setpoint
+supply_air_temperature_setpoint_normalizer/set_observation_normalization_constants.field_id = 'supply_air_temperature_setpoint'
+supply_air_temperature_setpoint_normalizer/set_observation_normalization_constants.sample_mean = 289.329414
+supply_air_temperature_setpoint_normalizer/set_observation_normalization_constants.sample_variance = 3.186769
+
+# measurement 41 supply_fan_run_status
+supply_fan_run_status_normalizer/set_observation_normalization_constants.field_id = 'supply_fan_run_status'
+supply_fan_run_status_normalizer/set_observation_normalization_constants.sample_mean = 0.439849
+supply_fan_run_status_normalizer/set_observation_normalization_constants.sample_variance = 0.806533
+
+# measurement 42 supply_fan_speed_frequency_sensor
+supply_fan_speed_frequency_sensor_normalizer/set_observation_normalization_constants.field_id = 'supply_fan_speed_frequency_sensor'
+supply_fan_speed_frequency_sensor_normalizer/set_observation_normalization_constants.sample_mean = 15.926249
+supply_fan_speed_frequency_sensor_normalizer/set_observation_normalization_constants.sample_variance = 207.034194
+
+# measurement 43 supply_fan_speed_percentage_command
+supply_fan_speed_percentage_command_normalizer/set_observation_normalization_constants.field_id = 'supply_fan_speed_percentage_command'
+supply_fan_speed_percentage_command_normalizer/set_observation_normalization_constants.sample_mean = 26.543748
+supply_fan_speed_percentage_command_normalizer/set_observation_normalization_constants.sample_variance = 575.094979
+
+# measurement 44 supply_water_temperature_sensor
+supply_water_temperature_sensor_normalizer/set_observation_normalization_constants.field_id = 'supply_water_temperature_sensor'
+supply_water_temperature_sensor_normalizer/set_observation_normalization_constants.sample_mean = 321.520315
+supply_water_temperature_sensor_normalizer/set_observation_normalization_constants.sample_variance = 658.413066
+
+# measurement 45 supply_water_temperature_setpoint
+supply_water_temperature_setpoint_normalizer/set_observation_normalization_constants.field_id = 'supply_water_temperature_setpoint'
+supply_water_temperature_setpoint_normalizer/set_observation_normalization_constants.sample_mean = 320.261985
+supply_water_temperature_setpoint_normalizer/set_observation_normalization_constants.sample_variance = 240.195517
+
+# measurement 46 zone_air_co2_concentration_sensor
+zone_air_co2_concentration_sensor_normalizer/set_observation_normalization_constants.field_id = 'zone_air_co2_concentration_sensor'
+zone_air_co2_concentration_sensor_normalizer/set_observation_normalization_constants.sample_mean = 432.092062
+zone_air_co2_concentration_sensor_normalizer/set_observation_normalization_constants.sample_variance = 962.903840
+
+# measurement 47 zone_air_co2_concentration_setpoint
+zone_air_co2_concentration_setpoint_normalizer/set_observation_normalization_constants.field_id = 'zone_air_co2_concentration_setpoint'
+zone_air_co2_concentration_setpoint_normalizer/set_observation_normalization_constants.sample_mean = 739.337708
+zone_air_co2_concentration_setpoint_normalizer/set_observation_normalization_constants.sample_variance = 3618.117781
+
+# measurement 48 zone_air_cooling_temperature_setpoint
+zone_air_cooling_temperature_setpoint_normalizer/set_observation_normalization_constants.field_id = 'zone_air_cooling_temperature_setpoint'
+zone_air_cooling_temperature_setpoint_normalizer/set_observation_normalization_constants.sample_mean = 82.084227
+zone_air_cooling_temperature_setpoint_normalizer/set_observation_normalization_constants.sample_variance = 402.158853
+
+# measurement 49 zone_air_heating_temperature_setpoint
+zone_air_heating_temperature_setpoint_normalizer/set_observation_normalization_constants.field_id = 'zone_air_heating_temperature_setpoint'
+zone_air_heating_temperature_setpoint_normalizer/set_observation_normalization_constants.sample_mean = 64.231868
+zone_air_heating_temperature_setpoint_normalizer/set_observation_normalization_constants.sample_variance = 24.461668
+
+# measurement 50 zone_air_temperature_sensor
+zone_air_temperature_sensor_normalizer/set_observation_normalization_constants.field_id = 'zone_air_temperature_sensor'
+zone_air_temperature_sensor_normalizer/set_observation_normalization_constants.sample_mean = 190
+zone_air_temperature_sensor_normalizer/set_observation_normalization_constants.sample_variance = 408.113303
+
+supervisor_run_command_normalizer/set_observation_normalization_constants.field_id = 'supervisor_run_command'
+supervisor_run_command_normalizer/set_observation_normalization_constants.sample_mean = 0
+supervisor_run_command_normalizer/set_observation_normalization_constants.sample_variance = 1.0
+
+observation_normalizer_map = {
+'building_air_static_pressure_sensor' : @building_air_static_pressure_sensor_normalizer/set_observation_normalization_constants(),
+'building_air_static_pressure_setpoint' : @building_air_static_pressure_setpoint_normalizer/set_observation_normalization_constants(),
+'cooling_percentage_command' : @cooling_percentage_command_normalizer/set_observation_normalization_constants(),
+'differential_pressure_sensor' : @differential_pressure_sensor_normalizer/set_observation_normalization_constants(),
+'differential_pressure_setpoint' : @differential_pressure_setpoint_normalizer/set_observation_normalization_constants(),
+'discharge_air_temperature_sensor' : @discharge_air_temperature_sensor_normalizer/set_observation_normalization_constants(),
+'discharge_air_temperature_setpoint' : @discharge_air_temperature_setpoint_normalizer/set_observation_normalization_constants(),
+'exhaust_air_damper_percentage_command' : @exhaust_air_damper_percentage_command_normalizer/set_observation_normalization_constants(),
+'exhaust_air_damper_percentage_sensor' : @exhaust_air_damper_percentage_sensor_normalizer/set_observation_normalization_constants(),
+'exhaust_fan_speed_frequency_sensor' : @exhaust_fan_speed_frequency_sensor_normalizer/set_observation_normalization_constants(),
+'exhaust_fan_speed_percentage_command' : @exhaust_fan_speed_percentage_command_normalizer/set_observation_normalization_constants(),
+'heating_water_valve_percentage_command' : @heating_water_valve_percentage_command_normalizer/set_observation_normalization_constants(),
+'mixed_air_temperature_sensor' : @mixed_air_temperature_sensor_normalizer/set_observation_normalization_constants(),
+'mixed_air_temperature_setpoint' : @mixed_air_temperature_setpoint_normalizer/set_observation_normalization_constants(),
+'outside_air_damper_percentage_command' : @outside_air_damper_percentage_command_normalizer/set_observation_normalization_constants(),
+'outside_air_dewpoint_temperature_sensor' : @outside_air_dewpoint_temperature_sensor_normalizer/set_observation_normalization_constants(),
+'outside_air_flowrate_sensor' : @outside_air_flowrate_sensor_normalizer/set_observation_normalization_constants(),
+'outside_air_flowrate_setpoint' : @outside_air_flowrate_setpoint_normalizer/set_observation_normalization_constants(),
+'outside_air_relative_humidity_sensor' : @outside_air_relative_humidity_sensor_normalizer/set_observation_normalization_constants(),
+'outside_air_specificenthalpy_sensor' : @outside_air_specificenthalpy_sensor_normalizer/set_observation_normalization_constants(),
+'outside_air_temperature_sensor' : @outside_air_temperature_sensor_normalizer/set_observation_normalization_constants(),
+'outside_air_wetbulb_temperature_sensor' : @outside_air_wetbulb_temperature_sensor_normalizer/set_observation_normalization_constants(),
+'program_differential_pressure_setpoint' : @program_differential_pressure_setpoint_normalizer/set_observation_normalization_constants(),
+'program_supply_air_static_pressure_setpoint' : @program_supply_air_static_pressure_setpoint_normalizer/set_observation_normalization_constants(),
+'program_supply_air_temperature_setpoint' : @program_supply_air_temperature_setpoint_normalizer/set_observation_normalization_constants(),
+'program_supply_water_temperature_setpoint' : @program_supply_water_temperature_setpoint_normalizer/set_observation_normalization_constants(),
+'return_air_temperature_sensor' : @return_air_temperature_sensor_normalizer/set_observation_normalization_constants(),
+'return_water_temperature_sensor' : @return_water_temperature_sensor_normalizer/set_observation_normalization_constants(),
+'run_status' : @run_status_normalizer/set_observation_normalization_constants(),
+'speed_frequency_sensor' : @speed_frequency_sensor_normalizer/set_observation_normalization_constants(),
+'speed_percentage_command' : @speed_percentage_command_normalizer/set_observation_normalization_constants(),
+'supervisor_supply_air_static_pressure_setpoint' : @supervisor_supply_air_static_pressure_setpoint_normalizer/set_observation_normalization_constants(),
+'supervisor_supply_air_temperature_setpoint' : @supervisor_supply_air_temperature_setpoint_normalizer/set_observation_normalization_constants(),
+'supervisor_supply_water_temperature_setpoint' : @supervisor_supply_water_temperature_setpoint_normalizer/set_observation_normalization_constants(),
+'supply_air_damper_percentage_command' : @supply_air_damper_percentage_command_normalizer/set_observation_normalization_constants(),
+'supply_air_flowrate_sensor' : @supply_air_flowrate_sensor_normalizer/set_observation_normalization_constants(),
+'supply_air_flowrate_setpoint' : @supply_air_flowrate_setpoint_normalizer/set_observation_normalization_constants(),
+'supply_air_static_pressure_sensor' : @supply_air_static_pressure_sensor_normalizer/set_observation_normalization_constants(),
+'supply_air_static_pressure_setpoint' : @supply_air_static_pressure_setpoint_normalizer/set_observation_normalization_constants(),
+'supply_air_temperature_sensor' : @supply_air_temperature_sensor_normalizer/set_observation_normalization_constants(),
+'supply_air_temperature_setpoint' : @supply_air_temperature_setpoint_normalizer/set_observation_normalization_constants(),
+'supply_air_cooling_temperature_setpoint' : @supply_air_temperature_setpoint_normalizer/set_observation_normalization_constants(),
+'supply_air_heating_temperature_setpoint' : @supply_air_temperature_setpoint_normalizer/set_observation_normalization_constants(),
+
+'supply_fan_run_status' : @supply_fan_run_status_normalizer/set_observation_normalization_constants(),
+'supply_fan_speed_frequency_sensor' : @supply_fan_speed_frequency_sensor_normalizer/set_observation_normalization_constants(),
+'supply_fan_speed_percentage_command' : @supply_fan_speed_percentage_command_normalizer/set_observation_normalization_constants(),
+'supply_water_temperature_sensor' : @supply_water_temperature_sensor_normalizer/set_observation_normalization_constants(),
+'supply_water_setpoint' : @supply_water_temperature_setpoint_normalizer/set_observation_normalization_constants(),
+'zone_air_co2_concentration_sensor' : @zone_air_co2_concentration_sensor_normalizer/set_observation_normalization_constants(),
+'zone_air_co2_concentration_setpoint' : @zone_air_co2_concentration_setpoint_normalizer/set_observation_normalization_constants(),
+'zone_air_cooling_temperature_setpoint' : @zone_air_cooling_temperature_setpoint_normalizer/set_observation_normalization_constants(),
+'zone_air_heating_temperature_setpoint' : @zone_air_heating_temperature_setpoint_normalizer/set_observation_normalization_constants(),
+'zone_air_temperature_sensor' : @zone_air_temperature_sensor_normalizer/set_observation_normalization_constants(),
+
+'cooling_request_count': @request_count_observation_normalizer/set_observation_normalization_constants(),
+}
+
+
+StandardScoreObservationNormalizer:
+    normalization_constants = %observation_normalizer_map
+
+
+
+##########################
+### ENVIRONMENT
+##########################
+
+metrics_path = '/cns/oz-d/home/smart_buildings/control/metrics/sim_202512'
+label = 'experiment'
+
+num_days_in_episode = 7
+metrics_reporting_interval=10
+num_hod_features = 12
+num_dow_features = 12
+discount_factor = 0.9
+
+Environment.building = @SimulatorBuilding()
+Environment.reward_function = @SetpointEnergyCarbonRegretFunction()
+Environment.observation_normalizer = @StandardScoreObservationNormalizer()
+Environment.metrics_reporting_interval = %metrics_reporting_interval
+Environment.metrics_path = %metrics_path
+Environment.label = %label
+Environment.num_days_in_episode= %num_days_in_episode
+Environment.discount_factor = %discount_factor
+Environment.num_hod_features = %num_hod_features
+Environment.num_dow_features = %num_dow_features
+
+Environment.action_config = @continuous/ActionConfig()
+Environment.default_actions = %default_actions
+Environment.device_action_tuples = %device_action_tuples
+
+##########################
+### HYBRID ACTION ENVIRONMENT
+##########################
+
+HybridActionEnvironment.building = @SimulatorBuilding()
+HybridActionEnvironment.reward_function = @SetpointEnergyCarbonRegretFunction()
+HybridActionEnvironment.observation_normalizer = @StandardScoreObservationNormalizer()
+HybridActionEnvironment.metrics_reporting_interval = %metrics_reporting_interval
+HybridActionEnvironment.metrics_path = %metrics_path
+HybridActionEnvironment.label = %label
+HybridActionEnvironment.num_days_in_episode = %num_days_in_episode
+HybridActionEnvironment.discount_factor = %discount_factor
+HybridActionEnvironment.num_hod_features = %num_hod_features
+HybridActionEnvironment.num_dow_features = %num_dow_features
+
+HybridActionEnvironment.action_config = @hybrid/ActionConfig()
+HybridActionEnvironment.default_actions = %hybrid_default_actions
+HybridActionEnvironment.device_action_tuples = %hybrid_device_action_tuples

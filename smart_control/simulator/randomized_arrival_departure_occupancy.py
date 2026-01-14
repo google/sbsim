@@ -29,6 +29,7 @@ from typing import Optional, Union
 import gin
 import numpy as np
 import pandas as pd
+
 from smart_buildings.smart_control.models.base_occupancy import BaseOccupancy
 from smart_buildings.smart_control.utils import conversion_utils
 
@@ -84,7 +85,7 @@ class ZoneOccupant:
   def _to_local_time(self, timestamp: pd.Timestamp) -> pd.Timestamp:
     """Converts timestamp to local time."""
     if timestamp.tz is None:
-      return timestamp
+      return timestamp.tz_localize(self._time_zone)
     else:
       return timestamp.tz_convert(self._time_zone)
 
@@ -179,6 +180,34 @@ class RandomizedArrivalDepartureOccupancy(BaseOccupancy):
     self._latest_expected_departure_hour = latest_expected_departure_hour
     self._random_state = np.random.RandomState(seed)
     self._time_zone = time_zone
+
+  @property
+  def zone_assignment(self) -> int:
+    return self._zone_assignment
+
+  @property
+  def time_zone(self) -> datetime.tzinfo | str:
+    return self._time_zone
+
+  @property
+  def step_size(self) -> pd.Timedelta:
+    return self._step_size
+
+  @property
+  def earliest_expected_arrival_hour(self) -> int:
+    return self._earliest_expected_arrival_hour
+
+  @property
+  def latest_expected_arrival_hour(self) -> int:
+    return self._latest_expected_arrival_hour
+
+  @property
+  def earliest_expected_departure_hour(self) -> int:
+    return self._earliest_expected_departure_hour
+
+  @property
+  def latest_expected_departure_hour(self) -> int:
+    return self._latest_expected_departure_hour
 
   def average_zone_occupancy(
       self, zone_id: str, start_time: pd.Timestamp, end_time: pd.Timestamp

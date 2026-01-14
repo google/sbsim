@@ -1,19 +1,30 @@
 # Format: google3/devtools/metadata/metadata.proto (go/google3metadata)
+# See also: go/thirdparty/metadata
 
 name: "sb-sim"
 language: PYTHON
 description: "Smart Buildings Control Environment"
 
 third_party {
-  identifier {
-    type: "Piper"
-    value: "http://google3/third_party/py/smart_buildings"
-    primary_source: true
-  }
+  # temporarily comment out the Piper block because when we perform a copybara
+  # sync it automatically flips the primary source from true to false
+  # and produces an "Actionable" ComplianceLint finding
+  #identifier {
+  #  type: "Piper"
+  #  value: "http://google3/third_party/py/smart_buildings"
+  #  primary_source: false
+  #}
 
   identifier {
     type: "PyPI"
-    omission_reason: "Package doesn't have an upstream repo."
+    omission_reason: "Does not yet exist on PyPI."
+  }
+  identifier: {
+    type: "Git"
+    value: "https://github.com/google/sbsim"
+    version: "56992efbf23df82ee35ada1a47aa154406d15f54"
+    closest_version: "pre-sync-20250521"
+    primary_source: true
   }
 }
 
@@ -41,10 +52,21 @@ presubmit: {
       "\\s*END_PUBLIC\\s*?\\n"
     required_for_cleanup: true
   }
-}
 
-presubmit: {
-  path_expression: "//depot/google3/third_party/py/smart_buildings/..."
+  # We really don't want team members to be breaking the build for any reason.
+  check_description: {
+    base: {
+      id: "CheckNoSqWarning"
+    }
+    prohibited_regexp: "(^|\\n)NO_SQ=.+"
+    failure_status: WARNING
+    failure_message:
+      "WARNING: The NO_SQ tag is strongly discouraged for this project!\n"
+      "Don't use unless in the specific case of emergency rollbacks!\n"
+      "Submitting with NO_SQ skips tests and may cause the build to break,\n"
+      "which negatively impacts code quality, team productivity, and overall\n"
+      "project health (go/ph-level).\n\n"
+  }
 
   check_do_not_submit: {
     failure_status: ERROR
@@ -63,6 +85,24 @@ presubmit: {
     action: SUBMIT
     failure_status: ERROR
   }
+
+  # go/build-cleaner/presubmit-service
+  check_presubmit_service: {
+    base: {
+      id: "BuildCleanerPresubmit"
+      disable_tags: "NO_BUILD_CLEANER"  # Tag to disable this check
+      disable_tags: "ROLLBACK_OF"  # Don't require for rollback CLs
+      disable_tags: "CLEANUP"
+    }
+    registry_id: "buildcleaner"
+    include_deleted_files: true
+    execution_mode: SECONDARY_EXECUTION
+
+    # go/build-cleaner/presubmit-service#mode
+    options: "mode=sync"
+    timeout: 300
+    failure_status: WARNING
+  }
 }
 
 presubmit: {
@@ -78,5 +118,7 @@ exported {
   request_url: "https://launch.corp.google.com/launch/4284362"
   remote_location: "https://github.com/google/sbsim"
   reason: OPEN_SOURCE
-  description: "Open sourcing the Smart Buildings Control Simulation, Reward Function, and Custom Environment for training RL agents."
+  description:
+    "Open sourcing the Smart Buildings Optimal Control project, including a"
+    "simulator, reward function, and custom environment for training AI agents."
 }

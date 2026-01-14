@@ -21,8 +21,8 @@ from absl.testing import absltest
 import numpy as np
 import pandas as pd
 from smart_buildings.smart_control.simulator import air_handler as air_handler_py
-from smart_buildings.smart_control.simulator import boiler as boiler_py
 from smart_buildings.smart_control.simulator import building as building_py
+from smart_buildings.smart_control.simulator import hot_water_system as hot_water_system_py
 from smart_buildings.smart_control.simulator import hvac_floorplan_based as floorplan_hvac_py
 from smart_buildings.smart_control.simulator import setpoint_schedule
 from smart_buildings.smart_control.simulator import tf_simulator as tf_simulator_py
@@ -143,24 +143,24 @@ class TFSimulatorTest(absltest.TestCase):
     reheat_water_setpoint = 260
     water_pump_differential_head = 3
     water_pump_efficiency = 0.6
-    boiler = boiler_py.Boiler(
+    hot_water_system = hot_water_system_py.construct_hot_water_system(
         reheat_water_setpoint,
         water_pump_differential_head,
         water_pump_efficiency,
-        "boiler_id",
+        "hws_id",
     )
 
     recirculation = 0.3
     heating_air_temp_setpoint = 270
     cooling_air_temp_setpoint = 288
-    fan_differential_pressure = 20000.0
+    fan_static_pressure = 20000.0
     fan_efficiency = 0.8
 
     air_handler = air_handler_py.AirHandler(
         recirculation,
         heating_air_temp_setpoint,
         cooling_air_temp_setpoint,
-        fan_differential_pressure,
+        fan_static_pressure,
         fan_efficiency,
     )
 
@@ -183,10 +183,10 @@ class TFSimulatorTest(absltest.TestCase):
     hvac = floorplan_hvac_py.FloorPlanBasedHvac(
         zone_identifier=zone_identifier,
         air_handler=air_handler,
-        boiler=boiler,
+        hot_water_system=hot_water_system,
         schedule=schedule,
         vav_max_air_flow_rate=0.45,
-        vav_reheat_max_water_flow_rate=0.02,
+        vav_reheat_max_water_flow_factor=0.03688555555,
     )
     return hvac
 

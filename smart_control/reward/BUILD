@@ -25,13 +25,9 @@ package(
 pytype_strict_library(
     name = "setpoint_energy_carbon_regret",
     srcs = ["setpoint_energy_carbon_regret.py"],
-    srcs_version = "PY3",
     deps = [
         ":base_setpoint_energy_carbon_reward",
-        "//third_party/py/absl/logging",
         "//third_party/py/gin",
-        "//third_party/py/numpy",
-        "//third_party/py/pandas",
         "//third_party/py/smart_buildings/smart_control/models:base_energy_cost",
         "//third_party/py/smart_buildings/smart_control/proto:smart_control_reward_py_pb2",
         "//third_party/py/smart_buildings/smart_control/utils:conversion_utils",
@@ -41,8 +37,6 @@ pytype_strict_library(
 py_strict_test(
     name = "setpoint_energy_carbon_regret_test",
     srcs = ["setpoint_energy_carbon_regret_test.py"],
-    python_version = "PY3",
-    srcs_version = "PY3",
     deps = [
         ":setpoint_energy_carbon_regret",
         "//third_party/py/absl/testing:absltest",
@@ -58,7 +52,6 @@ py_strict_test(
 pytype_strict_library(
     name = "base_setpoint_energy_carbon_reward",
     srcs = ["base_setpoint_energy_carbon_reward.py"],
-    srcs_version = "PY3",
     deps = [
         "//third_party/py/absl/logging",
         "//third_party/py/gin",
@@ -74,8 +67,6 @@ pytype_strict_library(
 py_strict_test(
     name = "base_setpoint_energy_carbon_reward_test",
     srcs = ["base_setpoint_energy_carbon_reward_test.py"],
-    python_version = "PY3",
-    srcs_version = "PY3",
     deps = [
         ":base_setpoint_energy_carbon_reward",
         "//third_party/py/absl/testing:absltest",
@@ -91,7 +82,6 @@ py_strict_test(
 pytype_strict_library(
     name = "setpoint_energy_carbon_reward",
     srcs = ["setpoint_energy_carbon_reward.py"],
-    srcs_version = "PY3",
     deps = [
         ":base_setpoint_energy_carbon_reward",
         "//third_party/py/absl/logging",
@@ -107,8 +97,6 @@ pytype_strict_library(
 py_strict_test(
     name = "setpoint_energy_carbon_reward_test",
     srcs = ["setpoint_energy_carbon_reward_test.py"],
-    python_version = "PY3",
-    srcs_version = "PY3",
     deps = [
         ":setpoint_energy_carbon_reward",
         "//third_party/py/absl/logging",
@@ -125,7 +113,6 @@ py_strict_test(
 pytype_strict_library(
     name = "natural_gas_energy_cost",
     srcs = ["natural_gas_energy_cost.py"],
-    srcs_version = "PY3",
     deps = [
         "//third_party/py/absl/logging",
         "//third_party/py/gin",
@@ -139,8 +126,6 @@ pytype_strict_library(
 py_strict_test(
     name = "natural_gas_energy_cost_test",
     srcs = ["natural_gas_energy_cost_test.py"],
-    python_version = "PY3",
-    srcs_version = "PY3",
     deps = [
         ":natural_gas_energy_cost",
         "//third_party/py/absl/testing:absltest",
@@ -154,7 +139,6 @@ py_strict_test(
 pytype_strict_library(
     name = "electricity_energy_cost",
     srcs = ["electricity_energy_cost.py"],
-    srcs_version = "PY3",
     deps = [
         "//third_party/py/absl/logging",
         "//third_party/py/gin",
@@ -170,8 +154,6 @@ pytype_strict_library(
 py_strict_test(
     name = "electricity_energy_cost_test",
     srcs = ["electricity_energy_cost_test.py"],
-    python_version = "PY3",
-    srcs_version = "PY3",
     deps = [
         ":electricity_energy_cost",
         "//third_party/py/absl/testing:absltest",

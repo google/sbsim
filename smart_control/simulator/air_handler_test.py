@@ -18,6 +18,7 @@ limitations under the License.
 from absl.testing import absltest
 from absl.testing import parameterized
 import pandas as pd
+
 from smart_buildings.smart_control.simulator import air_handler
 from smart_buildings.smart_control.simulator import weather_controller
 from smart_buildings.smart_control.utils import constants
@@ -27,7 +28,7 @@ class AirHandlerTest(parameterized.TestCase):
   recirculation = 0.3
   heating_air_temp_setpoint = 270
   cooling_air_temp_setpoint = 288
-  fan_differential_pressure = 20000.0
+  fan_static_pressure = 20000.0
   fan_efficiency = 0.8
   max_air_flow_rate = 10
 
@@ -36,7 +37,7 @@ class AirHandlerTest(parameterized.TestCase):
         self.recirculation,
         self.heating_air_temp_setpoint,
         self.cooling_air_temp_setpoint,
-        self.fan_differential_pressure,
+        self.fan_static_pressure,
         self.fan_efficiency,
         self.max_air_flow_rate,
         'device_id',
@@ -49,9 +50,7 @@ class AirHandlerTest(parameterized.TestCase):
     self.assertEqual(
         handler.cooling_air_temp_setpoint, self.cooling_air_temp_setpoint
     )
-    self.assertEqual(
-        handler.fan_differential_pressure, self.fan_differential_pressure
-    )
+    self.assertEqual(handler.fan_static_pressure, self.fan_static_pressure)
     self.assertEqual(handler.fan_efficiency, self.fan_efficiency)
     self.assertEqual(handler.air_flow_rate, 0)
     self.assertEqual(handler.cooling_request_count, 0)
@@ -63,7 +62,7 @@ class AirHandlerTest(parameterized.TestCase):
         self.recirculation,
         self.heating_air_temp_setpoint,
         self.cooling_air_temp_setpoint,
-        self.fan_differential_pressure,
+        self.fan_static_pressure,
         self.fan_efficiency,
     )
     self.assertEqual(handler.max_air_flow_rate, 8.67)
@@ -75,7 +74,7 @@ class AirHandlerTest(parameterized.TestCase):
           self.recirculation,
           self.cooling_air_temp_setpoint,
           self.heating_air_temp_setpoint,
-          self.fan_differential_pressure,
+          self.fan_static_pressure,
           self.fan_efficiency,
       )
 
@@ -84,13 +83,13 @@ class AirHandlerTest(parameterized.TestCase):
         self.recirculation,
         self.heating_air_temp_setpoint,
         self.cooling_air_temp_setpoint,
-        self.fan_differential_pressure,
+        self.fan_static_pressure,
         self.fan_efficiency,
     )
     handler.recirculation = self.recirculation + 0.2
     handler.heating_air_temp_setpoint = self.heating_air_temp_setpoint + 10
     handler.cooling_air_temp_setpoint = self.cooling_air_temp_setpoint + 10
-    handler.fan_differential_pressure = self.fan_differential_pressure + 1000
+    handler.fan_static_pressure = self.fan_static_pressure + 1000
     handler.fan_efficiency = self.fan_efficiency + 0.1
     handler.air_flow_rate = 30
 
@@ -102,7 +101,7 @@ class AirHandlerTest(parameterized.TestCase):
         handler.cooling_air_temp_setpoint, self.cooling_air_temp_setpoint + 10
     )
     self.assertEqual(
-        handler.fan_differential_pressure, self.fan_differential_pressure + 1000
+        handler.fan_static_pressure, self.fan_static_pressure + 1000
     )
     self.assertEqual(handler.fan_efficiency, self.fan_efficiency + 0.1)
     self.assertEqual(handler.air_flow_rate, 30)
@@ -134,7 +133,7 @@ class AirHandlerTest(parameterized.TestCase):
         recirculation,
         self.heating_air_temp_setpoint,
         self.cooling_air_temp_setpoint,
-        self.fan_differential_pressure,
+        self.fan_static_pressure,
         self.fan_efficiency,
     )
     self.assertEqual(
@@ -142,10 +141,10 @@ class AirHandlerTest(parameterized.TestCase):
     )
 
   @parameterized.named_parameters(
-      ('below setpoint window case 1', 0.3, 280, 240, 270),
-      ('below setpount window case 2', 0.6, 244, 270, 270),
-      ('above setpoint window case 1', 0.1, 210, 316, 288),
-      ('above setpoint window case 2', 0.4, 250, 316, 288),
+      ('below setpoint window case 1', 0.3, 280, 240, 252),
+      ('below setpount window case 2', 0.6, 244, 270, 254.4),
+      ('above setpoint window case 1', 0.1, 210, 316, 279),
+      ('above setpoint window case 2', 0.4, 250, 316, 279),
       ('in setpoint window case 1', 0.4, 286, 266, 0.4 * 286 + 0.6 * 266),
       ('in setpoint window case 2', 0.12, 198, 290, 0.12 * 198 + 0.88 * 290),
   )
@@ -167,7 +166,7 @@ class AirHandlerTest(parameterized.TestCase):
         recirculation,
         self.heating_air_temp_setpoint,
         self.cooling_air_temp_setpoint,
-        self.fan_differential_pressure,
+        self.fan_static_pressure,
         self.fan_efficiency,
     )
     self.assertEqual(
@@ -186,7 +185,7 @@ class AirHandlerTest(parameterized.TestCase):
         recirculation,
         self.heating_air_temp_setpoint,
         self.cooling_air_temp_setpoint,
-        self.fan_differential_pressure,
+        self.fan_static_pressure,
         self.fan_efficiency,
     )
     handler.air_flow_rate = air_flow_rate
@@ -207,7 +206,7 @@ class AirHandlerTest(parameterized.TestCase):
         recirculation,
         self.heating_air_temp_setpoint,
         self.cooling_air_temp_setpoint,
-        self.fan_differential_pressure,
+        self.fan_static_pressure,
         self.fan_efficiency,
     )
     handler.air_flow_rate = air_flow_rate
@@ -221,7 +220,7 @@ class AirHandlerTest(parameterized.TestCase):
         self.recirculation,
         self.heating_air_temp_setpoint,
         self.cooling_air_temp_setpoint,
-        self.fan_differential_pressure,
+        self.fan_static_pressure,
         self.fan_efficiency,
     )
     handler.add_demand(5)
@@ -235,7 +234,7 @@ class AirHandlerTest(parameterized.TestCase):
         self.recirculation,
         self.heating_air_temp_setpoint,
         self.cooling_air_temp_setpoint,
-        self.fan_differential_pressure,
+        self.fan_static_pressure,
         self.fan_efficiency,
         10,
     )
@@ -249,7 +248,7 @@ class AirHandlerTest(parameterized.TestCase):
         self.recirculation,
         self.heating_air_temp_setpoint,
         self.cooling_air_temp_setpoint,
-        self.fan_differential_pressure,
+        self.fan_static_pressure,
         self.fan_efficiency,
     )
     self.assertEqual(handler.air_flow_rate, 0)
@@ -262,7 +261,7 @@ class AirHandlerTest(parameterized.TestCase):
         self.recirculation,
         self.heating_air_temp_setpoint,
         self.cooling_air_temp_setpoint,
-        self.fan_differential_pressure,
+        self.fan_static_pressure,
         self.fan_efficiency,
     )
 
@@ -274,13 +273,13 @@ class AirHandlerTest(parameterized.TestCase):
         self.recirculation,
         self.heating_air_temp_setpoint,
         self.cooling_air_temp_setpoint,
-        self.fan_differential_pressure,
+        self.fan_static_pressure,
         self.fan_efficiency,
     )
     handler.recirculation += 1.0
     handler.heating_air_temp_setpoint += 1.0
     handler.cooling_air_temp_setpoint += 1.0
-    handler.fan_differential_pressure += 0.1
+    handler.fan_static_pressure += 0.1
     handler.fan_efficiency = 0.1
 
     handler.reset()
@@ -292,9 +291,7 @@ class AirHandlerTest(parameterized.TestCase):
     self.assertEqual(
         handler.cooling_air_temp_setpoint, self.cooling_air_temp_setpoint
     )
-    self.assertEqual(
-        handler.fan_differential_pressure, self.fan_differential_pressure
-    )
+    self.assertEqual(handler.fan_static_pressure, self.fan_static_pressure)
     self.assertEqual(handler.fan_efficiency, self.fan_efficiency)
 
   @parameterized.parameters(
@@ -311,7 +308,7 @@ class AirHandlerTest(parameterized.TestCase):
         self.recirculation,
         self.heating_air_temp_setpoint,
         self.cooling_air_temp_setpoint,
-        self.fan_differential_pressure,
+        self.fan_static_pressure,
         self.fan_efficiency,
     )
     handler.air_flow_rate = air_flow_rate
@@ -341,20 +338,20 @@ class AirHandlerTest(parameterized.TestCase):
       (1, 4000.0, 0.4),
   )
   def test_compute_fan_power(
-      self, flow_rate, fan_differential_pressure, fan_efficiency
+      self, flow_rate, fan_static_pressure, fan_efficiency
   ):
     handler = air_handler.AirHandler(
         self.recirculation,
         self.heating_air_temp_setpoint,
         self.cooling_air_temp_setpoint,
-        self.fan_differential_pressure,
+        self.fan_static_pressure,
         self.fan_efficiency,
     )
     self.assertEqual(
         handler.compute_fan_power(
-            flow_rate, fan_differential_pressure, fan_efficiency
+            flow_rate, fan_static_pressure, fan_efficiency
         ),
-        flow_rate * fan_differential_pressure / fan_efficiency,
+        flow_rate * fan_static_pressure / fan_efficiency,
     )
 
   def test_invalid_outside_air_temperature_sensor(self):
@@ -362,7 +359,7 @@ class AirHandlerTest(parameterized.TestCase):
         self.recirculation,
         self.heating_air_temp_setpoint,
         self.cooling_air_temp_setpoint,
-        self.fan_differential_pressure,
+        self.fan_static_pressure,
         self.fan_efficiency,
     )
     with self.assertRaises(RuntimeError):
@@ -380,7 +377,7 @@ class AirHandlerTest(parameterized.TestCase):
         self.recirculation,
         self.heating_air_temp_setpoint,
         self.cooling_air_temp_setpoint,
-        self.fan_differential_pressure,
+        self.fan_static_pressure,
         self.fan_efficiency,
         sim_weather_controller=weather_controller.WeatherController(0.0, 10.0),
     )
@@ -394,7 +391,7 @@ class AirHandlerTest(parameterized.TestCase):
         self.recirculation,
         self.heating_air_temp_setpoint,
         self.cooling_air_temp_setpoint,
-        self.fan_differential_pressure,
+        self.fan_static_pressure,
         self.fan_efficiency,
     )
     handler.air_flow_rate = 5
@@ -406,7 +403,7 @@ class AirHandlerTest(parameterized.TestCase):
         handler.compute_intake_fan_energy_rate(),
         handler.compute_fan_power(
             handler.air_flow_rate,
-            handler.fan_differential_pressure,
+            handler.fan_static_pressure,
             handler.fan_efficiency,
         ),
     )
@@ -416,7 +413,7 @@ class AirHandlerTest(parameterized.TestCase):
         self.recirculation,
         self.heating_air_temp_setpoint,
         self.cooling_air_temp_setpoint,
-        self.fan_differential_pressure,
+        self.fan_static_pressure,
         self.fan_efficiency,
     )
     handler.air_flow_rate = 5
@@ -430,7 +427,7 @@ class AirHandlerTest(parameterized.TestCase):
         handler.compute_exhaust_fan_energy_rate(),
         handler.compute_fan_power(
             handler.air_flow_rate * (1 - self.recirculation),
-            handler.fan_differential_pressure,
+            handler.fan_static_pressure,
             handler.fan_efficiency,
         ),
     )
@@ -440,7 +437,7 @@ class AirHandlerTest(parameterized.TestCase):
         self.recirculation,
         self.heating_air_temp_setpoint,
         self.cooling_air_temp_setpoint,
-        self.fan_differential_pressure,
+        self.fan_static_pressure,
         self.fan_efficiency,
         10,
     )
@@ -453,26 +450,28 @@ class AirHandlerTest(parameterized.TestCase):
         self.recirculation,
         self.heating_air_temp_setpoint,
         self.cooling_air_temp_setpoint,
-        self.fan_differential_pressure,
+        self.fan_static_pressure,
         self.fan_efficiency,
     )
 
     self.assertSameElements(
         handler.observable_field_names(),
         [
-            'differential_pressure_setpoint',
+            'static_pressure_setpoint',
             'supply_air_flowrate_sensor',
             'supply_air_heating_temperature_setpoint',
             'supply_air_cooling_temperature_setpoint',
+            'supply_air_temperature_setpoint',
             'supply_fan_speed_percentage_command',
             'discharge_fan_speed_percentage_command',
             'outside_air_flowrate_sensor',
             'cooling_request_count',
+            'supervisor_run_command',
         ],
     )
 
   @parameterized.parameters(
-      ('differential_pressure_setpoint', 'fan_differential_pressure'),
+      ('static_pressure_setpoint', 'fan_static_pressure'),
       ('supply_air_heating_temperature_setpoint', 'heating_air_temp_setpoint'),
       ('supply_air_cooling_temperature_setpoint', 'cooling_air_temp_setpoint'),
       ('supply_fan_speed_percentage_command', 'supply_fan_speed_percentage'),
@@ -485,7 +484,7 @@ class AirHandlerTest(parameterized.TestCase):
         self.recirculation,
         self.heating_air_temp_setpoint,
         self.cooling_air_temp_setpoint,
-        self.fan_differential_pressure,
+        self.fan_static_pressure,
         self.fan_efficiency,
     )
     observed_value = handler.get_observation(
@@ -498,7 +497,7 @@ class AirHandlerTest(parameterized.TestCase):
         self.recirculation,
         self.heating_air_temp_setpoint,
         self.cooling_air_temp_setpoint,
-        self.fan_differential_pressure,
+        self.fan_static_pressure,
         self.fan_efficiency,
     )
 
@@ -517,7 +516,7 @@ class AirHandlerTest(parameterized.TestCase):
         self.recirculation,
         self.heating_air_temp_setpoint,
         self.cooling_air_temp_setpoint,
-        self.fan_differential_pressure,
+        self.fan_static_pressure,
         self.fan_efficiency,
     )
     self.assertSameElements(
@@ -525,6 +524,9 @@ class AirHandlerTest(parameterized.TestCase):
         [
             'supply_air_heating_temperature_setpoint',
             'supply_air_cooling_temperature_setpoint',
+            'supply_air_temperature_setpoint',
+            'supervisor_run_command',
+            'static_pressure_setpoint',
         ],
     )
 
@@ -545,7 +547,7 @@ class AirHandlerTest(parameterized.TestCase):
         self.recirculation,
         self.heating_air_temp_setpoint,
         self.cooling_air_temp_setpoint,
-        self.fan_differential_pressure,
+        self.fan_static_pressure,
         self.fan_efficiency,
     )
 
@@ -553,6 +555,49 @@ class AirHandlerTest(parameterized.TestCase):
         action_name, new_value, pd.Timestamp('2021-09-01 10:10:00')
     )
     self.assertEqual(getattr(handler, attribute_name), new_value)
+
+  @parameterized.parameters(
+      (air_handler.RunStatus.Off),
+      (air_handler.RunStatus.On),
+  )
+  def test_run_command(self, run_command):
+    handler = air_handler.AirHandler(
+        self.recirculation,
+        self.heating_air_temp_setpoint,
+        self.cooling_air_temp_setpoint,
+        self.fan_static_pressure,
+        self.fan_efficiency,
+        run_command=run_command,
+    )
+    handler.add_demand(5)
+    self.assertEqual(handler.run_command, run_command)
+    if run_command == air_handler.RunStatus.Off:
+      self.assertEqual(handler.air_flow_rate, 0.0)
+      self.assertEqual(handler.fan_static_pressure, 0.0)
+    else:
+      self.assertEqual(handler.air_flow_rate, 5.0)
+      self.assertEqual(handler.fan_static_pressure, self.fan_static_pressure)
+
+    handler.set_action(
+        'supervisor_run_command',
+        air_handler.RunStatus.Off,
+        pd.Timestamp('2021-09-01 10:10:00'),
+    )
+    self.assertEqual(handler.run_command, air_handler.RunStatus.Off)
+    self.assertEqual(handler.air_flow_rate, 0.0)
+    self.assertEqual(handler.fan_static_pressure, 0.0)
+
+    handler.set_action(
+        'supervisor_run_command',
+        air_handler.RunStatus.On,
+        pd.Timestamp('2021-09-01 10:10:00'),
+    )
+    self.assertEqual(handler.run_command, air_handler.RunStatus.On)
+    self.assertEqual(handler.air_flow_rate, 5.0)
+    self.assertEqual(handler.fan_static_pressure, self.fan_static_pressure)
+
+    handler.reset()
+    self.assertEqual(handler.run_command, run_command)
 
 
 if __name__ == '__main__':

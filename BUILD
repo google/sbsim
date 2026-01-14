@@ -19,7 +19,7 @@ load("//tools/build_defs/license:license.bzl", "license")
 # Description:
 #   Smart Buildings Monitoring and Controls
 package(
-    default_applicable_licenses = ["//third_party/py/smart_buildings:license"],
+    default_applicable_licenses = [":license"],
     default_visibility = ["//visibility:public"],
 )
 

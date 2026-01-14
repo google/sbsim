@@ -16,9 +16,11 @@ limitations under the License.
 """
 
 import random
+
 from absl.testing import absltest
 from absl.testing import parameterized
 import numpy as np
+
 from smart_buildings.smart_control.simulator import building
 from smart_buildings.smart_control.simulator import building_utils
 from smart_buildings.smart_control.simulator import constants
@@ -212,6 +214,7 @@ def _create_dummy_building_post_refactor():
       zone_map=zone_map,
       zone_map_filepath=None,
       buffer_from_walls=0,
+      min_room_size=1,
   )
 
   return b
@@ -519,7 +522,7 @@ class BuildingTest(parameterized.TestCase):
     )
 
     with self.subTest("floor_plans"):
-      np.testing.assert_array_equal(b._floor_plan, floor_plan)
+      np.testing.assert_array_equal(b.floor_plan, floor_plan)
     with self.subTest("exterior_wall"):
       np.testing.assert_array_equal(b._exterior_walls, expected_exterior_walls)
     with self.subTest("interior_wall"):
@@ -598,6 +601,7 @@ class BuildingTest(parameterized.TestCase):
         diffuser_spacing=diffuser_spacing,
         buffer_from_walls=0,
         interior_walls=None,
+        min_room_size=1,
     )
     np.testing.assert_array_equal(outcome, expected_output)
 

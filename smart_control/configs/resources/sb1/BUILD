@@ -20,11 +20,18 @@ package(
 filegroup(
     name = "config_data",
     srcs = [
+        "demo_temps.npy",
         "double_resolution_zone_1_2.npy",
-        "local_weather_moffett_field_20230701_20231122.csv",
+        "local_weather_moffett_field_20230701_20231122.csv",  # to do: move into weather data dir
         "observation_response_2024.08.29.00",
         "reset_temps.npy",
+        "sim_202512/full_config.gin",
+        "sim_202512/observations_config.gin",
         "sim_config.gin",
         "sim_config_legacy.gin",
+        "weather_data/2023.csv",
+        "weather_data/2024.csv",
+        "weather_data/2025.csv",
+        "weather_data/station.json",
     ],
 )

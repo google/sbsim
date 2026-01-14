@@ -15,6 +15,7 @@
 #      Top-level BUILD for Smart Buildings Smart Control
 
 load("//devtools/python/blaze:pytype.bzl", "pytype_strict_library")
+load("//devtools/python/blaze:strict.bzl", "py_strict_test")
 
 package(
     default_applicable_licenses = ["//third_party/py/smart_buildings:license"],
@@ -26,7 +27,6 @@ licenses(["notice"])
 pytype_strict_library(
     name = "base_building",
     srcs = ["base_building.py"],
-    srcs_version = "PY3",
     deps = [
         "//third_party/py/pandas",
         "//third_party/py/smart_buildings/smart_control/proto:smart_control_building_py_pb2",
@@ -37,16 +37,25 @@ pytype_strict_library(
 pytype_strict_library(
     name = "base_reward_function",
     srcs = ["base_reward_function.py"],
-    srcs_version = "PY3",
     deps = [
         "//third_party/py/smart_buildings/smart_control/proto:smart_control_reward_py_pb2",
     ],
 )
 
 pytype_strict_library(
+    name = "base_world_model",
+    srcs = ["base_world_model.py"],
+    deps = [
+        "//third_party/py/numpy",
+        "//third_party/py/tensorflow:tensorflow_no_contrib",
+        "//third_party/py/tf_agents/environments:py_environment",
+        "//third_party/py/tf_agents/environments:tf_py_environment",
+    ],
+)
+
+pytype_strict_library(
     name = "base_energy_cost",
     srcs = ["base_energy_cost.py"],
-    srcs_version = "PY3",
     deps = [
         "//third_party/py/absl/logging",
         "//third_party/py/pandas",
@@ -56,7 +65,6 @@ pytype_strict_library(
 pytype_strict_library(
     name = "base_occupancy",
     srcs = ["base_occupancy.py"],
-    srcs_version = "PY3",
     deps = [
         "//third_party/py/pandas",
     ],
@@ -65,10 +73,22 @@ pytype_strict_library(
 pytype_strict_library(
     name = "base_normalizer",
     srcs = ["base_normalizer.py"],
-    srcs_version = "PY3",
     deps = [
         "//third_party/py/numpy",
         "//third_party/py/smart_buildings/smart_control/proto:smart_control_building_py_pb2",
         "//third_party/py/tf_agents/specs",
+    ],
+)
+
+py_strict_test(
+    name = "base_building_test",
+    srcs = ["base_building_test.py"],
+    deps = [
+        ":base_building",
+        "//testing/pybase",
+        "//third_party/py/absl/testing:absltest",
+        "//third_party/py/pandas",
+        "//third_party/py/smart_buildings/smart_control/proto:smart_control_building_py_pb2",
+        "//third_party/py/smart_buildings/smart_control/proto:smart_control_reward_py_pb2",
     ],
 )
