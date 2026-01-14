@@ -1,0 +1,68 @@
+name: Python CI Build
+
+on:
+  push:
+    branches:
+      - master
+      - main
+      - copybara_push
+  pull_request:
+    branches:
+      - master
+      - main
+      - copybara_push
+
+jobs:
+  test:
+    runs-on: ubuntu-latest  # Use an Ubuntu runner for the job
+
+    strategy:
+      matrix:
+        python-version: [3.10.12, 3.10.15, 3.11]  # Python versions to test
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4  # Checks out the repository's code
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}  # Use Python version from the matrix
+
+    - name: Install system dependencies
+      run: |
+        sudo apt update
+        sudo apt install -y protobuf-compiler ffmpeg  # Install both protobuf and ffmpeg in one step
+
+    - name: Install Python dependencies
+      run: |
+        python -m pip install --upgrade pip
+        python -m venv .venv
+        source .venv/bin/activate
+        pip install poetry
+        poetry install --with dev
+
+    - name: Run the Python formatter
+      run: |
+        source .venv/bin/activate
+        pyink .
+
+    - name: Run the Python import sorter
+      run: |
+        source .venv/bin/activate
+        isort .
+
+    - name: Run the Python style checker
+      run: |
+        source .venv/bin/activate
+        pylint --rcfile=.pylintrc --ignore=proto smart_control
+
+    - name: Run the Markdown formatter
+      run: |
+        source .venv/bin/activate
+        mdformat README.md --check
+
+    - name: Run tests
+      run: |
+        source .venv/bin/activate
+        pytest --disable-pytest-warnings

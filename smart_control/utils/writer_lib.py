@@ -16,27 +16,39 @@ limitations under the License.
 """
 
 import abc
+import json
 import os
 import sys
-from typing import Mapping, NewType, Sequence, TypeAlias
+from typing import Any, IO, Mapping, NewType, Sequence, TypeAlias
 
 import pandas as pd
+import plotly.graph_objects as go
+import plotly.io as pio
 from smart_buildings.smart_control.proto import smart_control_building_pb2
 from smart_buildings.smart_control.proto import smart_control_normalization_pb2
 from smart_buildings.smart_control.proto import smart_control_reward_pb2
 
 if sys.version_info >= (3, 11):
-  from importlib.resources.abc import Traversable  # pylint: disable=g-import-not-at-top
+  from importlib.resources.abc import Traversable  # pylint: disable=g-import-not-at-top, g-importing-member
 else:
-  from importlib_resources.abc import Traversable  # pylint: disable=g-import-not-at-top
+  from importlib_resources.abc import Traversable  # pylint: disable=g-import-not-at-top, g-importing-member
 
 PathLocation: TypeAlias = Traversable | os.PathLike[str] | str
+
+SerializableData: TypeAlias = dict[str, Any]
 
 VariableId = NewType('VariableId', str)
 
 
 class BaseWriter(metaclass=abc.ABCMeta):
   """Abstract base class for writing the building and reward protos."""
+
+  @property
+  @abc.abstractmethod
+  def output_dir(self) -> PathLocation:
+    """The output directory for the writer."""
+
+  # PROTO WRITING METHODS
 
   @abc.abstractmethod
   def write_observation_response(
@@ -96,6 +108,44 @@ class BaseWriter(metaclass=abc.ABCMeta):
       self, zone_infos: Sequence[smart_control_building_pb2.ZoneInfo]
   ) -> None:
     """Writes the zone infos to endpoint."""
+
+  # GENERIC FILE WRITING METHODS
+
+  def _open(self, filepath: PathLocation, mode: str) -> IO[Any]:
+    """Opens a file for reading. Can be overridden in corp codebase."""
+    if 'b' in mode:
+      return open(filepath, mode)
+    return open(filepath, mode, encoding='utf-8')
+
+  def _write_content(self, content: Any, filepath: PathLocation) -> None:
+    """Writes content to a file in the output directory."""
+    with self._open(filepath, 'w') as f:
+      f.write(content)
+
+  def write_txt(self, text: str, filename: str) -> None:
+    """Writes a string to a text file in the output directory."""
+    filepath = os.path.join(self.output_dir, filename)
+    self._write_content(text, filepath)
+
+  def write_json(self, data: SerializableData, filename: str) -> None:
+    """Writes a dictionary as a JSON file in the output directory."""
+    filepath = os.path.join(self.output_dir, filename)
+    content_json = json.dumps(data, indent=2)
+    self._write_content(content_json, filepath)
+
+  def write_csv(
+      self, df: pd.DataFrame, filename: str, index: bool = False
+  ) -> None:
+    """Writes a Pandas DataFrame as a CSV file in the output directory."""
+    filepath = os.path.join(self.output_dir, filename)
+    content_csv = df.to_csv(index=index)
+    self._write_content(content_csv, filepath)
+
+  def write_plot_html(self, fig: go.Figure, filename: str) -> None:
+    """Writes a Plotly figure as an HTML file in the output directory."""
+    filepath = os.path.join(self.output_dir, filename)
+    content_html = pio.to_html(fig, full_html=True)
+    self._write_content(content_html, filepath)
 
 
 class BaseWriterFactory(metaclass=abc.ABCMeta):

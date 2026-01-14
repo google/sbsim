@@ -29,7 +29,7 @@ py_library(
     srcs = ["constants.py"],
 )
 
-py_library(
+pytype_strict_library(
     name = "conversion_utils",
     srcs = ["conversion_utils.py"],
     deps = [
@@ -80,7 +80,6 @@ py_strict_test(
 py_strict_test(
     name = "histogram_reducer_test",
     srcs = ["histogram_reducer_test.py"],
-    python_version = "PY3",
     deps = [
         ":histogram_reducer",
         ":reader_lib",
@@ -110,7 +109,6 @@ py_strict_test(
 py_strict_test(
     name = "reducer_test",
     srcs = ["reducer_test.py"],
-    python_version = "PY3",
     deps = [
         ":reducer",
         "//third_party/py/absl/testing:absltest",
@@ -123,7 +121,6 @@ py_strict_test(
 py_strict_test(
     name = "regression_building_utils_test",
     srcs = ["regression_building_utils_test.py"],
-    python_version = "PY3",
     deps = [
         ":conversion_utils",
         ":regression_building_utils",
@@ -278,10 +275,32 @@ pytype_strict_library(
     ],
 )
 
+py_strict_test(
+    name = "controller_writer_test",
+    srcs = ["controller_writer_test.py"],
+    deps = [
+        ":controller_writer",
+        "//third_party/py/absl/testing:absltest",
+        "//third_party/py/pandas",
+        "//third_party/py/plotly",
+    ],
+)
+
+pytype_strict_library(
+    name = "controller_writer_test_lib",
+    testonly = True,
+    srcs = ["controller_writer_test.py"],
+    deps = [
+        ":controller_writer",
+        "//third_party/py/absl/testing:absltest",
+        "//third_party/py/pandas",
+        "//third_party/py/plotly",
+    ],
+)
+
 pytype_strict_library(
     name = "histogram_reducer",
     srcs = ["histogram_reducer.py"],
-    srcs_version = "PY3",
     deps = [
         ":reader_lib",
         ":reducer",
@@ -342,7 +361,6 @@ pytype_strict_library(
 pytype_strict_library(
     name = "reducer",
     srcs = ["reducer.py"],
-    srcs_version = "PY3",
     deps = [
         "//third_party/py/gin",
         "//third_party/py/numpy",
@@ -353,7 +371,6 @@ pytype_strict_library(
 pytype_strict_library(
     name = "regression_building_utils",
     srcs = ["regression_building_utils.py"],
-    srcs_version = "PY3",
     deps = [
         ":conversion_utils",
         "//third_party/py/absl/logging",
@@ -385,7 +402,6 @@ pytype_strict_library(
 pytype_strict_library(
     name = "test_utils",
     srcs = ["test_utils.py"],
-    srcs_version = "PY3",
     deps = [
         ":bounded_action_normalizer",
         ":conversion_utils",
@@ -415,8 +431,20 @@ pytype_strict_library(
     deps = [
         "//third_party/py/importlib_resources",
         "//third_party/py/pandas",
+        "//third_party/py/plotly",
         "//third_party/py/smart_buildings/smart_control/proto:smart_control_building_py_pb2",
         "//third_party/py/smart_buildings/smart_control/proto:smart_control_normalization_py_pb2",
         "//third_party/py/smart_buildings/smart_control/proto:smart_control_reward_py_pb2",
+    ],
+)
+
+pytype_strict_library(
+    name = "environment_utils",
+    srcs = ["environment_utils.py"],
+    deps = [
+        ":bounded_action_normalizer",
+        "//third_party/py/gin",
+        "//third_party/py/pandas",
+        "//third_party/py/smart_buildings/smart_control/proto:smart_control_normalization_py_pb2",
     ],
 )

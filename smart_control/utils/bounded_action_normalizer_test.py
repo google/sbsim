@@ -13,17 +13,27 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
-
 """
 
 from absl.testing import absltest
 from absl.testing import parameterized
 import numpy as np
-from smart_buildings.smart_control.utils import bounded_action_normalizer
 from tf_agents import specs
+
+from smart_buildings.smart_control.utils import bounded_action_normalizer
 
 
 class ActionNormalizerTest(parameterized.TestCase):
+
+  def test_properties(self):
+    normalizer = bounded_action_normalizer.BoundedActionNormalizer(
+        min_native_value=200, max_native_value=300,
+        min_normalized_value=-1, max_normalized_value=1,
+    )
+    self.assertEqual(normalizer.min_native_value, 200)
+    self.assertEqual(normalizer.max_native_value, 300)
+    self.assertEqual(normalizer.min_normalized_value, -1)
+    self.assertEqual(normalizer.max_normalized_value, 1)
 
   @parameterized.named_parameters(
       ('min_native_value', -1, 200),

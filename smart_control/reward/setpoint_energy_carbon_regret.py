@@ -80,10 +80,12 @@ Maximum/full productivity occurs when the zone is occupied and inside its
 deadband. Productivity decays smoothly on a logistic curve outside the deadband.
 """
 
+from typing import Any
+
 import gin
-from smart_buildings.smart_control.models.base_energy_cost import BaseEnergyCost
+from smart_buildings.smart_control.models import base_energy_cost
 from smart_buildings.smart_control.proto import smart_control_reward_pb2
-from smart_buildings.smart_control.reward.base_setpoint_energy_carbon_reward import BaseSetpointEnergyCarbonRewardFunction
+from smart_buildings.smart_control.reward import base_setpoint_energy_carbon_reward
 from smart_buildings.smart_control.utils import conversion_utils
 
 _HOUR_SEC = 3600.0
@@ -91,7 +93,7 @@ _HOUR_SEC = 3600.0
 
 @gin.configurable()
 class SetpointEnergyCarbonRegretFunction(
-    BaseSetpointEnergyCarbonRewardFunction
+    base_setpoint_energy_carbon_reward.BaseSetpointEnergyCarbonRewardFunction
 ):
   """Reward function based on productivity, energy cost and carbon emission.
 
@@ -116,18 +118,20 @@ class SetpointEnergyCarbonRegretFunction(
       max_natural_gas_rate: float,
       productivity_midpoint_delta: float,
       productivity_decay_stiffness: float,
-      electricity_energy_cost: BaseEnergyCost,
-      natural_gas_energy_cost: BaseEnergyCost,
+      electricity_energy_cost: base_energy_cost.BaseEnergyCost,
+      natural_gas_energy_cost: base_energy_cost.BaseEnergyCost,
       productivity_weight: float,
       energy_cost_weight: float,
       carbon_emission_weight: float,
   ):
-    self._max_productivity_personhour_usd = max_productivity_personhour_usd
+    super().__init__(
+        max_productivity_personhour_usd=max_productivity_personhour_usd,
+        productivity_midpoint_delta=productivity_midpoint_delta,
+        productivity_decay_stiffness=productivity_decay_stiffness,
+    )
     self._min_productivity_personhour_usd = min_productivity_personhour_usd
     self._max_electricity_rate = max_electricity_rate
     self._max_natural_gas_rate = max_natural_gas_rate
-    self._productivity_midpoint_delta = productivity_midpoint_delta
-    self._productivity_decay_stiffness = productivity_decay_stiffness
     self._electricity_energy_cost = electricity_energy_cost
     self._natural_gas_energy_cost = natural_gas_energy_cost
     self._productivity_weight = productivity_weight
@@ -139,22 +143,61 @@ class SetpointEnergyCarbonRegretFunction(
         > self._min_productivity_personhour_usd
     )
 
+  @property
+  def energy_cost_weight(self) -> float:
+    """Returns the energy cost weight of the reward function."""
+    return self._energy_cost_weight
+
+  @property
+  def carbon_emission_weight(self) -> float:
+    """Returns the carbon emission weight of the reward function."""
+    return self._carbon_emission_weight
+
+  @property
+  def productivity_weight(self) -> float:
+    """Returns the productivity weight of the reward function."""
+    return self._productivity_weight
+
+  @property
+  def weights(self) -> dict[str, float]:
+    """Returns the weights of the reward function."""
+    return {
+        "energy_cost_weight": self._energy_cost_weight,
+        "carbon_emission_weight": self._carbon_emission_weight,
+        "productivity_weight": self._productivity_weight,
+    }
+
+  @property
+  def json_metadata(self) -> dict[str, Any]:
+    """Info to write into a JSON file. Needs to be serializable."""
+    return {
+        "max_productivity_personhour_usd": self._max_productivity_personhour_usd,  # pylint: disable=line-too-long
+        "min_productivity_personhour_usd": self._min_productivity_personhour_usd,  # pylint: disable=line-too-long
+        "max_electricity_rate": self._max_electricity_rate,
+        "max_natural_gas_rate": self._max_natural_gas_rate,
+        "productivity_midpoint_delta": self._productivity_midpoint_delta,
+        "productivity_decay_stiffness": self._productivity_decay_stiffness,
+        "productivity_weight": self._productivity_weight,
+        "energy_cost_weight": self._energy_cost_weight,
+        "carbon_emission_weight": self._carbon_emission_weight,
+    }
+
   def compute_reward(
-      self, energy_reward_info: smart_control_reward_pb2.RewardInfo
+      self, reward_info: smart_control_reward_pb2.RewardInfo
   ) -> smart_control_reward_pb2.RewardResponse:
     """Returns the real-valued reward for the current state of the building."""
 
     start_time = conversion_utils.proto_to_pandas_timestamp(
-        energy_reward_info.start_timestamp
+        reward_info.start_timestamp
     )
     end_time = conversion_utils.proto_to_pandas_timestamp(
-        energy_reward_info.end_timestamp
+        reward_info.end_timestamp
     )
 
     delta_time_sec = (end_time - start_time).total_seconds()
 
     actual_productivity, total_occupancy = self._sum_zone_productivities(
-        energy_reward_info
+        reward_info
     )
 
     max_productivity = (
@@ -180,7 +223,7 @@ class SetpointEnergyCarbonRegretFunction(
       normalized_productivity_regret = 0.0
 
     capped_electricity_energy_rate = min(
-        self._sum_electricity_energy_rate(energy_reward_info),
+        self._sum_electricity_energy_rate(reward_info),
         self._max_electricity_rate,
     )
 
@@ -209,7 +252,7 @@ class SetpointEnergyCarbonRegretFunction(
     )
 
     capped_natural_gas_energy_rate = min(
-        self._sum_natural_gas_energy_rate(energy_reward_info),
+        self._sum_natural_gas_energy_rate(reward_info),
         self._max_natural_gas_rate,
     )
 
@@ -272,8 +315,8 @@ class SetpointEnergyCarbonRegretFunction(
     response.normalized_productivity_regret = normalized_productivity_regret
     response.normalized_energy_cost = normalized_energy_cost
     response.normalized_carbon_emission = normalized_carbon_emission
-    response.start_timestamp.CopyFrom(energy_reward_info.start_timestamp)
-    response.end_timestamp.CopyFrom(energy_reward_info.end_timestamp)
+    response.start_timestamp.CopyFrom(reward_info.start_timestamp)
+    response.end_timestamp.CopyFrom(reward_info.end_timestamp)
 
     raw_reward_value = (
         normalized_productivity_regret * self._productivity_weight

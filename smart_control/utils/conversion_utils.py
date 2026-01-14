@@ -23,12 +23,13 @@ import re
 import types
 from typing import Mapping, Tuple
 
+from google3.google.protobuf import timestamp_pb2
 import holidays
 import numpy as np
 import pandas as pd
+
 from smart_buildings.smart_control.proto import smart_control_reward_pb2
 
-from google3.google.protobuf import timestamp_pb2
 
 _COUNTRY = 'US'
 _SECONDS_IN_DAY = 24 * 3600
@@ -170,10 +171,33 @@ def fahrenheit_to_kelvin(fahrenheit: float) -> float:
   return celsius + 273.15
 
 
+# TODO(mjrossetti): Remove this function once all references are switched.
 def get_reward_info_energy_use(
     reward_info: smart_control_reward_pb2.RewardInfo,
 ) -> Mapping[str, float]:
-  """Converts to energy use in kWh for ac, blower, pump, and nat gas heating."""
+  # pylint: disable=line-too-long
+  """Converts to energy use in kWh for ac, blower, pump, and nat gas heating.
+
+  NOTE: This function is now deprecated. Migration guide:
+
+  ```py
+  # OLD:
+  from smart_buildings.smart_control.utils import conversion_utils
+  conversion_utils.get_reward_info_energy_use(reward_info)
+
+  # NEW:
+  from smart_buildings.smart_control.utils.proto_parsers import reward_info_parser
+  parser = reward_info_parser.RewardInfoParser(reward_info)
+  parser.get_energy_consumption()
+  ```
+
+  Args:
+    reward_info: The reward info to convert to energy use.
+
+  Returns:
+    A dictionary mapping energy type to energy use in kWh.
+  """
+  # pylint: enable=line-too-long
   start_timestamp = proto_to_pandas_timestamp(reward_info.start_timestamp)
   end_timestamp = proto_to_pandas_timestamp(reward_info.end_timestamp)
   dt = (end_timestamp - start_timestamp).total_seconds()

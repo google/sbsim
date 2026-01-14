@@ -24,8 +24,8 @@ import numpy as np
 import pandas as pd
 from smart_buildings.smart_control.proto import smart_control_reward_pb2
 from smart_buildings.smart_control.simulator import air_handler as air_handler_py
-from smart_buildings.smart_control.simulator import boiler as boiler_py
 from smart_buildings.smart_control.simulator import building as building_py
+from smart_buildings.smart_control.simulator import hot_water_system as hot_water_system_py
 from smart_buildings.smart_control.simulator import hvac_floorplan_based as floorplan_hvac_py
 from smart_buildings.smart_control.simulator import setpoint_schedule
 from smart_buildings.smart_control.simulator import simulator_flexible_floor_plan as simulator_py
@@ -331,24 +331,24 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
     reheat_water_setpoint = 260
     water_pump_differential_head = 3
     water_pump_efficiency = 0.6
-    boiler = boiler_py.Boiler(
+    hot_water_system = hot_water_system_py.construct_hot_water_system(
         reheat_water_setpoint,
         water_pump_differential_head,
         water_pump_efficiency,
-        "boiler_id",
+        "hws_id",
     )
 
     recirculation = 0.3
     heating_air_temp_setpoint = 270
     cooling_air_temp_setpoint = 288
-    fan_differential_pressure = 20000.0
+    fan_static_pressure = 20000.0
     fan_efficiency = 0.8
 
     air_handler = air_handler_py.AirHandler(
         recirculation,
         heating_air_temp_setpoint,
         cooling_air_temp_setpoint,
-        fan_differential_pressure,
+        fan_static_pressure,
         fan_efficiency,
     )
 
@@ -371,10 +371,10 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
     hvac = floorplan_hvac_py.FloorPlanBasedHvac(
         zone_identifier=zone_identifier,
         air_handler=air_handler,
-        boiler=boiler,
+        hot_water_system=hot_water_system,
         schedule=schedule,
         vav_max_air_flow_rate=0.45,
-        vav_reheat_max_water_flow_rate=0.02,
+        vav_reheat_max_water_flow_factor=0.03688555555,
     )
     return hvac
 
@@ -383,24 +383,23 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
     reheat_water_setpoint = 350
     water_pump_differential_head = 3
     water_pump_efficiency = 0.6
-    boiler = boiler_py.Boiler(
+    hot_water_system = hot_water_system_py.construct_hot_water_system(
         reheat_water_setpoint,
         water_pump_differential_head,
         water_pump_efficiency,
-        "boiler_id",
+        "hws_id",
     )
-
     recirculation = 0.6
     heating_air_temp_setpoint = 291
     cooling_air_temp_setpoint = 295
-    fan_differential_pressure = 20000.0
+    fan_static_pressure = 20000.0
     fan_efficiency = 0.8
 
     air_handler = air_handler_py.AirHandler(
         recirculation,
         heating_air_temp_setpoint,
         cooling_air_temp_setpoint,
-        fan_differential_pressure,
+        fan_static_pressure,
         fan_efficiency,
     )
 
@@ -421,10 +420,10 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
     hvac = floorplan_hvac_py.FloorPlanBasedHvac(
         zone_identifier=zone_identifier,
         air_handler=air_handler,
-        boiler=boiler,
+        hot_water_system=hot_water_system,
         schedule=schedule,
         vav_max_air_flow_rate=0.45,
-        vav_reheat_max_water_flow_rate=0.02,
+        vav_reheat_max_water_flow_factor=0.03688555555,
     )
     return hvac
 
@@ -494,7 +493,7 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
         start_timestamp,
     )
 
-    self.assertEqual(simulator._building, building)
+    self.assertEqual(simulator.building, building)
     self.assertEqual(simulator._weather_controller, weather_controller)
     self.assertEqual(simulator._time_step_sec, time_step_sec)
     self.assertEqual(simulator.time_step_sec, time_step_sec)
@@ -527,28 +526,28 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
         start_timestamp,
     )
 
-    simulator._building.temp[2][2] += 10.0
-    simulator._building.temp[0][3] += 10.0
-    simulator._building.input_q[2][2] = 1000.0
-    simulator._building.input_q[0][3] = 1000.0
+    simulator.building.temp[2][2] += 10.0
+    simulator.building.temp[0][3] += 10.0
+    simulator.building.input_q[2][2] = 1000.0
+    simulator.building.input_q[0][3] = 1000.0
 
-    simulator.hvac.boiler._return_water_temperature_sensor += 10.0
-    simulator.hvac.boiler._water_pump_differential_head += 100.0
-    simulator.hvac.boiler._reheat_water_setpoint += 2.0
+    simulator.hvac.hot_water_system.return_water_temperature_sensor += 10.0
+    simulator.hvac.hot_water_system.water_pump_differential_head += 100.0
+    simulator.hvac.hot_water_system.reheat_water_setpoint += 2.0
 
     simulator.hvac.air_handler._air_flow_rate += 0.1
-    simulator.hvac.air_handler._fan_differential_pressure = 0.1
+    simulator.hvac.air_handler._fan_static_pressure = 0.1
 
     for coord in simulator.hvac._zone_identifier:
       vav = simulator.hvac.vavs[coord]
       vav.thermostat._setpoint_schedule.morning_start_hour += 1.0
       vav.thermostat._setpoint_schedule.comfort_temp_window = (280, 310)
       vav.max_air_flow_rate += 0.1
-      vav._reheat_max_water_flow_rate += 0.1
+      vav._reheat_max_water_flow_factor += 0.1
 
     simulator._current_timestamp += pd.Timedelta(360.0, unit="seconds")
     simulator.reset()
-    self.assertEqual(simulator._building, building)
+    self.assertEqual(simulator.building, building)
     expected_hvac = self._create_small_hvac()
     expected_air_handler = expected_hvac.air_handler
     self.assertEqual(
@@ -564,34 +563,34 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
         expected_air_handler.cooling_air_temp_setpoint,
     )
     self.assertEqual(
-        simulator._hvac.air_handler.fan_differential_pressure,
-        expected_air_handler.fan_differential_pressure,
+        simulator._hvac.air_handler.fan_static_pressure,
+        expected_air_handler.fan_static_pressure,
     )
     self.assertEqual(
         simulator._hvac.air_handler.fan_efficiency,
         expected_air_handler.fan_efficiency,
     )
 
-    expected_boiler = expected_hvac.boiler
+    expected_hot_water_system = expected_hvac.hot_water_system
     self.assertEqual(
-        simulator._hvac.boiler.reheat_water_setpoint,
-        expected_boiler._reheat_water_setpoint,
+        simulator._hvac.hot_water_system.reheat_water_setpoint,
+        expected_hot_water_system.reheat_water_setpoint,
     )
     self.assertEqual(
-        simulator._hvac.boiler._water_pump_differential_head,
-        expected_boiler._water_pump_differential_head,
+        simulator._hvac.hot_water_system.water_pump_differential_head,
+        expected_hot_water_system.water_pump_differential_head,
     )
     self.assertEqual(
-        simulator._hvac.boiler._water_pump_efficiency,
-        expected_boiler._water_pump_efficiency,
+        simulator._hvac.hot_water_system._pump._water_pump_efficiency,
+        expected_hot_water_system._pump._water_pump_efficiency,
     )
-    self.assertEqual(simulator._hvac.boiler._total_flow_rate, 0)
+    self.assertEqual(simulator._hvac.hot_water_system.total_flow_rate, 0)
 
     self.assertEqual(simulator._current_timestamp, start_timestamp)
-    self.assertEqual(simulator._building.temp[2][2], initial_temp)
-    self.assertEqual(simulator._building.temp[0][3], initial_temp)
-    self.assertEqual(simulator._building.input_q[2][2], 0)
-    self.assertEqual(simulator._building.input_q[0][3], 0)
+    self.assertEqual(simulator.building.temp[2][2], initial_temp)
+    self.assertEqual(simulator.building.temp[0][3], initial_temp)
+    self.assertEqual(simulator.building.input_q[2][2], 0)
+    self.assertEqual(simulator.building.input_q[0][3], 0)
 
   def test_get_cv_temp_estimate_cell_no_change(self):
     """This tests that temperatures don"t change in stable conditions.
@@ -1272,7 +1271,7 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
 
     self.assertEqual(sim._current_timestamp, expected_end_timestamp)
 
-  def test_step_sim_sets_boiler_return_water_temperature_sensor(self):
+  def test_step_sim_sets_hot_water_system_return_water_temperature_sensor(self):
     weather_controller = weather_controller_py.WeatherController(296.0, 296.0)
     time_step_sec = 300.0
     convergence_threshold = 0.1
@@ -1281,7 +1280,7 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
     start_timestamp = pd.Timestamp("12-21-2012")
 
     initial_temperature = 200.0
-    expected_return_water_temperature = 301.895482
+    expected_return_water_temperature = 287.337506
 
     # Building is 3x3 zones.
     building = self._create_scenario_building(
@@ -1303,10 +1302,11 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
         start_timestamp,
     )
 
-    sim.step_sim()
+    for _ in range(45):
+      sim.step_sim()
 
     self.assertAlmostEqual(
-        sim._hvac.boiler.return_water_temperature_sensor,
+        sim._hvac.hot_water_system.return_water_temperature_sensor,
         expected_return_water_temperature,
         delta=1e-5,
     )
@@ -1383,7 +1383,7 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
           .thermostat.get_setpoint_schedule()
           .get_temperature_window(sim._current_timestamp)
       )
-      zone_temperature = sim._building.get_zone_average_temps()[coords]
+      zone_temperature = sim.building.get_zone_average_temps()[coords]
 
       expected_zone_info = smart_control_reward_pb2.RewardInfo.ZoneRewardInfo(
           heating_setpoint_temperature=heating_setpoint,
@@ -1411,7 +1411,7 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
         air_handler_reward_info.blower_electrical_energy_rate,
     )
 
-    recirculation_temp = sim._building.temp.mean()
+    recirculation_temp = sim.building.temp.mean()
     ambient_temp = sim._weather_controller.get_current_temp(
         sim._current_timestamp
     )
@@ -1426,11 +1426,12 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
     )
 
     boiler_reward_info = reward_info.boiler_reward_infos[
-        sim._hvac.boiler.device_id()
+        sim._hvac.hot_water_system.device_id()
     ]
     natural_gas_heating_energy_rate = (
-        sim._hvac.boiler.compute_thermal_energy_rate(
-            sim._hvac.boiler.return_water_temperature_sensor, ambient_temp
+        sim._hvac.hot_water_system.compute_thermal_energy_rate(
+            sim._hvac.hot_water_system.return_water_temperature_sensor,
+            ambient_temp,
         )
     )
     self.assertAlmostEqual(
@@ -1439,7 +1440,9 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
         places=3,
     )
 
-    pump_electrical_energy_rate = sim._hvac.boiler.compute_pump_power()
+    pump_electrical_energy_rate = (
+        sim._hvac.hot_water_system.compute_pump_power()
+    )
     self.assertEqual(
         pump_electrical_energy_rate,
         boiler_reward_info.pump_electrical_energy_rate,

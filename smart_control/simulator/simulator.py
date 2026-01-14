@@ -21,12 +21,15 @@ from absl import logging
 import gin
 import numpy as np
 import pandas as pd
+
 from smart_buildings.smart_control.models.base_occupancy import BaseOccupancy
 from smart_buildings.smart_control.proto import smart_control_reward_pb2
 from smart_buildings.smart_control.simulator import building as building_py
 from smart_buildings.smart_control.simulator import hvac as hvac_py
 from smart_buildings.smart_control.simulator import weather_controller as weather_controller_py
 from smart_buildings.smart_control.utils import conversion_utils
+
+RewardInfo = smart_control_reward_pb2.RewardInfo
 
 CVCoordinates = Tuple[int, int]
 ZoneId = Tuple[int, int]
@@ -67,7 +70,7 @@ class Simulator:
         be logged.
       start_timestamp: Pandas timestamp representing start time for simulation.
     """
-    self._building = building
+    self.building = building
     self._hvac = hvac
     self._weather_controller = weather_controller
     self._time_step_sec = time_step_sec
@@ -79,21 +82,41 @@ class Simulator:
 
   def reset(self):
     """Resets the simulation to its initial configuration."""
-    self._building.reset()
+    self.building.reset()
     self._hvac.reset()
     self._current_timestamp = self._start_timestamp
-
-  @property
-  def time_step_sec(self) -> float:
-    return self._time_step_sec
 
   @property
   def hvac(self) -> hvac_py.Hvac:
     return self._hvac
 
   @property
+  def weather_controller(self) -> weather_controller_py.WeatherController:
+    return self._weather_controller
+
+  @property
+  def time_step_sec(self) -> float:
+    return self._time_step_sec
+
+  @property
+  def start_timestamp(self) -> pd.Timestamp:
+    return self._start_timestamp
+
+  @property
   def current_timestamp(self) -> pd.Timestamp:
     return self._current_timestamp
+
+  @property
+  def convergence_threshold(self) -> float:
+    return self._convergence_threshold
+
+  @property
+  def iteration_limit(self) -> int:
+    return self._iteration_limit
+
+  @property
+  def iteration_warning(self) -> int:
+    return self._iteration_warning
 
   def _get_corner_cv_temp_estimate(
       self,
@@ -115,13 +138,13 @@ class Simulator:
       convection_coefficient: Current wind convection coefficient (W/m2/K).
     """
     x, y = cv_coordinates
-    delta_x = self._building.cv_size_cm / 100.0
+    delta_x = self.building.cv_size_cm / 100.0
     delta_t = self._time_step_sec
-    density = self._building.density[x][y]
-    conductivity = self._building.conductivity[x][y]
-    heat_capacity = self._building.heat_capacity[x][y]
-    last_temp = self._building.temp[x][y]
-    neighbors = self._building.neighbors[x][y]
+    density = self.building.density[x][y]
+    conductivity = self.building.conductivity[x][y]
+    heat_capacity = self.building.heat_capacity[x][y]
+    last_temp = self.building.temp[x][y]
+    neighbors = self.building.neighbors[x][y]
     neighbor_temps = [temperature_estimates[nx][ny] for nx, ny in neighbors]
 
     # Ensure corner CV.
@@ -161,13 +184,13 @@ class Simulator:
       convection_coefficient: Current wind convection coefficient (W/m2/K).
     """
     x, y = cv_coordinates
-    delta_x = self._building.cv_size_cm / 100.0
+    delta_x = self.building.cv_size_cm / 100.0
     delta_t = self._time_step_sec
-    density = self._building.density[x][y]
-    conductivity = self._building.conductivity[x][y]
-    heat_capacity = self._building.heat_capacity[x][y]
-    last_temp = self._building.temp[x][y]
-    neighbors = self._building.neighbors[x][y]
+    density = self.building.density[x][y]
+    conductivity = self.building.conductivity[x][y]
+    heat_capacity = self.building.heat_capacity[x][y]
+    last_temp = self.building.temp[x][y]
+    neighbors = self.building.neighbors[x][y]
     neighbor_temps = [temperature_estimates[nx][ny] for nx, ny in neighbors]
 
     # Ensure edge CV.
@@ -178,7 +201,7 @@ class Simulator:
 
     # Edges and corners are multiplied by 0.5, others by 1.0
     edge_factor = [
-        0.5 if len(self._building.neighbors[nx][ny]) < 4 else 1.0
+        0.5 if len(self.building.neighbors[nx][ny]) < 4 else 1.0
         for nx, ny in neighbors
     ]
 
@@ -208,15 +231,15 @@ class Simulator:
       temperature_estimates: Current temperature estimate for each CV.
     """
     x, y = cv_coordinates
-    delta_x = self._building.cv_size_cm / 100.0
+    delta_x = self.building.cv_size_cm / 100.0
     delta_t = self._time_step_sec
-    z = self._building.floor_height_cm / 100.0
-    density = self._building.density[x][y]
-    conductivity = self._building.conductivity[x][y]
-    heat_capacity = self._building.heat_capacity[x][y]
-    last_temp = self._building.temp[x][y]
-    input_q = self._building.input_q[x][y]
-    neighbors = self._building.neighbors[x][y]
+    z = self.building.floor_height_cm / 100.0
+    density = self.building.density[x][y]
+    conductivity = self.building.conductivity[x][y]
+    heat_capacity = self.building.heat_capacity[x][y]
+    last_temp = self.building.temp[x][y]
+    input_q = self.building.input_q[x][y]
+    neighbors = self.building.neighbors[x][y]
     neighbor_temps = [temperature_estimates[nx][ny] for nx, ny in neighbors]
 
     # Ensure interior CV.
@@ -252,7 +275,7 @@ class Simulator:
       convection_coefficient: Current wind convection coefficient (W/m2/K).
     """
     x, y = cv_coordinates
-    neighbors = self._building.neighbors[x][y]
+    neighbors = self.building.neighbors[x][y]
     if len(neighbors) <= 1:
       # Exterior CVs should always return ambient air temps.
       return ambient_temperature
@@ -342,7 +365,7 @@ class Simulator:
     """
     # Initialize estimates with the last update.
     # TODO(gusatb): Please provide a unit test for convergence.
-    temp_estimate = self._building.temp.copy()
+    temp_estimate = self.building.temp.copy()
 
     converged_successfully = False
     for iteration_count in range(self._iteration_limit):
@@ -366,7 +389,7 @@ class Simulator:
       logging.warning(
           'Max iteration count reached, max_delta = %3.3f', max_delta
       )
-    self._building.temp = temp_estimate
+    self.building.temp = temp_estimate
 
     return converged_successfully
 
@@ -387,7 +410,7 @@ class Simulator:
 
     # Get the average temps in each zone. Assumes that the thermostat reads
     # the average room temperatures.
-    avg_temps = self._building.get_zone_average_temps()
+    avg_temps = self.building.get_zone_average_temps()
 
     for zone, zone_temp in avg_temps.items():
       vav = hvac.vavs[zone]
@@ -402,10 +425,10 @@ class Simulator:
 
     # Get the average temps in each zone. Assumes that the thermostat reads
     # the average room temperatures.
-    avg_temps = self._building.get_zone_average_temps()
+    avg_temps = self.building.get_zone_average_temps()
 
     # Recirculation temperature at the air handler is the global average.
-    recirculation_temp = self._building.temp.mean()
+    recirculation_temp = self.building.temp.mean()
 
     ambient_temperature = self._weather_controller.get_current_temp(current_ts)
 
@@ -423,9 +446,16 @@ class Simulator:
         convection_coefficient=convection_coefficient,
     )
 
-    # Reset the air handler and boiler flow rate demand before accumulating.
+    # Reset the air handler and hws flow rate demand before accumulating.
     hvac.air_handler.reset_demand()
-    hvac.boiler.reset_demand()
+    hvac.hot_water_system.reset_demand()
+
+    # sum up all the VAV hot waterdemands for the current timestep
+    # this needs to be calculated first before the output function is called,
+    # since the flow rate of the entire system can only be determined if we know
+    # the total demand from all VAVs
+    for vav in hvac.vavs.values():
+      hvac.hot_water_system.add_demand(vav.reheat_flow_factor)
 
     zone_supply_temp_map = {}
 
@@ -440,14 +470,10 @@ class Simulator:
       if vav.flow_rate_demand > 0:
         hvac.air_handler.add_demand(vav.flow_rate_demand)
 
-      # Update the boiler demand for hot water as the sum of each VAV's demand.
-      if vav.reheat_demand > 0:
-        hvac.boiler.add_demand(vav.reheat_demand)
-
       # Apply the thermal energy to the zone.
-      self._building.apply_thermal_power_zone(zone, q_zone)
+      self.building.apply_thermal_power_zone(zone, q_zone)
 
-    hvac.boiler.return_water_temperature_sensor = (
+    hvac.hot_water_system.return_water_temperature_sensor = (
         self._calculate_return_water_temperature(zone_supply_temp_map)
     )
 
@@ -460,7 +486,7 @@ class Simulator:
       zone_coords: Tuple[int, int],
       zone_id: str,
       zone_air_temperature: float,
-  ) -> smart_control_reward_pb2.RewardInfo.ZoneRewardInfo:
+  ) -> RewardInfo.ZoneRewardInfo:
     """Returns a messagde with zone data to compute the instantaneous reward."""
     schedule = self._hvac.vavs[zone_coords].thermostat.get_setpoint_schedule()
     heating_setpoint_temperature, cooling_setpoint_temperature = (
@@ -473,7 +499,7 @@ class Simulator:
         self._current_timestamp,
         self._current_timestamp + pd.Timedelta(self._time_step_sec, unit='s'),
     )
-    zone_info = smart_control_reward_pb2.RewardInfo.ZoneRewardInfo(
+    zone_info = RewardInfo.ZoneRewardInfo(
         heating_setpoint_temperature=heating_setpoint_temperature,
         cooling_setpoint_temperature=cooling_setpoint_temperature,
         zone_air_temperature=zone_air_temperature,
@@ -485,13 +511,19 @@ class Simulator:
 
   def _get_zone_reward_infos(
       self, occupancy_function: BaseOccupancy
-  ) -> Mapping[str, smart_control_reward_pb2.RewardInfo.ZoneRewardInfo]:
-    """Returns a map of messages with zone data to compute the instantaneous reward."""
+  ) -> Mapping[str, RewardInfo.ZoneRewardInfo]:
+    """Returns a map of messages with zone data.
+
+    This data is used to compute the instantaneous reward.
+
+    Args:
+      occupancy_function: An occupancy function.
+    """
     zone_reward_infos = {}
     for (
         zone_coords,
         zone_air_temperature,
-    ) in self._building.get_zone_average_temps().items():
+    ) in self.building.get_zone_average_temps().items():
       zone_id = conversion_utils.zone_coordinates_to_id(zone_coords)
       zone_reward_infos[zone_id] = self._get_zone_reward_info(
           occupancy_function, zone_coords, zone_id, zone_air_temperature
@@ -500,15 +532,18 @@ class Simulator:
 
   def _get_air_handler_reward_infos(
       self,
-  ) -> Mapping[str, smart_control_reward_pb2.RewardInfo.AirHandlerRewardInfo]:
-    """Returns a map of messages with air handler data to compute the instantaneous reward."""
+  ) -> Mapping[str, RewardInfo.AirHandlerRewardInfo]:
+    """Returns a map of messages with air handler data.
+
+    This data is used to compute the instantaneous reward.
+    """
     air_handler_reward_infos = {}
     air_handler_id = self._hvac.air_handler.device_id()
     blower_electrical_energy_rate = (
         self._hvac.air_handler.compute_intake_fan_energy_rate()
         + self._hvac.air_handler.compute_exhaust_fan_energy_rate()
     )
-    recirculation_temp = self._building.temp.mean()
+    recirculation_temp = self.building.temp.mean()
     ambient_temp = self._weather_controller.get_current_temp(
         self._current_timestamp
     )
@@ -517,37 +552,42 @@ class Simulator:
             recirculation_temp, ambient_temp
         )
     )
-    air_handler_reward_info = smart_control_reward_pb2.RewardInfo.AirHandlerRewardInfo(
+    air_handler_reward_info = RewardInfo.AirHandlerRewardInfo(
         blower_electrical_energy_rate=blower_electrical_energy_rate,
-        air_conditioning_electrical_energy_rate=air_conditioning_electrical_energy_rate,
+        air_conditioning_electrical_energy_rate=air_conditioning_electrical_energy_rate,  # pylint: disable=line-too-long
     )
     air_handler_reward_infos[air_handler_id] = air_handler_reward_info
     return air_handler_reward_infos
 
-  def _get_boiler_reward_infos(
+  def _get_hws_reward_infos(
       self,
-  ) -> Mapping[str, smart_control_reward_pb2.RewardInfo.BoilerRewardInfo]:
-    """Returns a map of messages with boiler data to compute the instantaneous reward."""
-    boiler_reward_infos = {}
-    boiler_id = self._hvac.boiler.device_id()
-    return_water_temp = self._hvac.boiler.return_water_temperature_sensor
+  ) -> Mapping[str, RewardInfo.BoilerRewardInfo]:
+    """Returns a map of messages with hot water system data.
+
+    This data is used to compute the instantaneous reward.
+    """
+    hws_reward_infos = {}
+    hws_id = self._hvac.hot_water_system.device_id()
+    return_water_temp = (
+        self._hvac.hot_water_system.return_water_temperature_sensor
+    )
     natural_gas_heating_energy_rate = (
-        self._hvac.boiler.compute_thermal_energy_rate(
+        self._hvac.hot_water_system.compute_thermal_energy_rate(
             return_water_temp,
             self._weather_controller.get_current_temp(self._current_timestamp),
         )
     )
-    pump_electrical_energy_rate = self._hvac.boiler.compute_pump_power()
-    boiler_reward_info = smart_control_reward_pb2.RewardInfo.BoilerRewardInfo(
+    pump_electrical_energy_rate = (
+        self._hvac.hot_water_system.compute_pump_power()
+    )
+    hws_reward_info = RewardInfo.BoilerRewardInfo(
         natural_gas_heating_energy_rate=natural_gas_heating_energy_rate,
         pump_electrical_energy_rate=pump_electrical_energy_rate,
     )
-    boiler_reward_infos[boiler_id] = boiler_reward_info
-    return boiler_reward_infos
+    hws_reward_infos[hws_id] = hws_reward_info
+    return hws_reward_infos
 
-  def reward_info(
-      self, occupancy_function: BaseOccupancy
-  ) -> smart_control_reward_pb2.RewardInfo:
+  def reward_info(self, occupancy_function: BaseOccupancy) -> RewardInfo:
     """Returns a message with data to compute the instantaneous reward."""
     start_time_stamp = self._current_timestamp
     end_time_stamp = start_time_stamp + pd.Timedelta(
@@ -560,10 +600,10 @@ class Simulator:
     # get air handler info
     air_handler_reward_infos = self._get_air_handler_reward_infos()
 
-    # get boiler info
-    boiler_reward_infos = self._get_boiler_reward_infos()
+    # get hws info
+    hws_reward_infos = self._get_hws_reward_infos()
 
-    return smart_control_reward_pb2.RewardInfo(
+    return RewardInfo(
         start_timestamp=conversion_utils.pandas_to_proto_timestamp(
             start_time_stamp
         ),
@@ -572,7 +612,7 @@ class Simulator:
         ),
         zone_reward_infos=zone_reward_infos,
         air_handler_reward_infos=air_handler_reward_infos,
-        boiler_reward_infos=boiler_reward_infos,
+        boiler_reward_infos=hws_reward_infos,
     )
 
   def step_sim(self) -> None:

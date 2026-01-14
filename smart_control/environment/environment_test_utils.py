@@ -1,61 +1,82 @@
-"""Shared test utiltiles for environment tests.
-
-Copyright 2022 Google LLC
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    https://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-
-"""
+"""Shared test utiltiles for environment tests."""
 
 import collections
 from typing import Sequence
 
 import pandas as pd
+
 from smart_buildings.smart_control.models import base_building
 from smart_buildings.smart_control.models import base_reward_function
 from smart_buildings.smart_control.proto import smart_control_building_pb2
 from smart_buildings.smart_control.proto import smart_control_reward_pb2
 from smart_buildings.smart_control.utils import conversion_utils
 
+#
+# BUILDING
+#
+
+DEFAULT_LAYOUT = {
+    "zone_1": {
+        "boiler_1": ["setpoint_1", "measurement_1"],
+        "vav_2": [
+            "setpoint_2",
+            "setpoint_3",
+            "setpoint_4",
+            "measurement_2",
+        ],
+    },
+    "zone_2": {
+        "boiler_3": ["measurement_3", "measurement_4"],
+        "vav_4": ["setpoint_5", "measurement_5"],
+        "air_handler_5": ["setpoint_6"],
+    },
+}
+
 
 class SimpleBuilding(base_building.BaseBuilding):
   """Building implementation for unit tests."""
 
-  def __init__(self):
-    self.layout = {
-        "zone_1": {
-            "boiler_1": ["setpoint_1", "measurement_1"],
-            "vav_2": [
-                "setpoint_2",
-                "setpoint_3",
-                "setpoint_4",
-                "measurement_2",
-            ],
-        },
-        "zone_2": {
-            "boiler_3": ["measurement_3", "measurement_4"],
-            "vav_4": ["setpoint_5", "measurement_5"],
-            "air_handler_5": ["setpoint_6"],
-        },
-    }
+  def __init__(self, layout=None, initial_values=None, start_timestamp=None):
+    self.layout = layout or DEFAULT_LAYOUT
     self.values = collections.defaultdict(int)
+    if initial_values:
+      self.values.update(initial_values)
+
+    self._start_timestamp = start_timestamp or pd.Timestamp(
+        "2021-06-07 12:00:01"
+    )
     self.reset_called = False
     self.step_count = 0
 
   @property
+  def start_timestamp(self) -> pd.Timestamp:
+    return self._start_timestamp
+
+  @property
   def reward_info(self) -> smart_control_reward_pb2.RewardInfo:
     """Returns a message with data to compute the instantaneous reward."""
-    # For the purposes of this test, we can return a dummy value
-    return smart_control_reward_pb2.RewardInfo()
+    reward_info = smart_control_reward_pb2.RewardInfo()
+    for zone_id, device_info in self.layout.items():
+      for device_id in device_info:
+        if "air_handler" in device_id:
+          ahu_reward_info = reward_info.air_handler_reward_infos[device_id]
+          ahu_reward_info.blower_electrical_energy_rate = 100.0
+          ahu_reward_info.air_conditioning_electrical_energy_rate = 200.0
+        elif "boiler" in device_id:
+          boiler_reward_info = reward_info.boiler_reward_infos[device_id]
+          boiler_reward_info.natural_gas_heating_energy_rate = 100.0
+          boiler_reward_info.pump_electrical_energy_rate = 50.0
+          boiler_reward_info.natural_gas_heating_energy_rate = 500.0
+
+      zone_reward_info = reward_info.zone_reward_infos[zone_id]
+      zone_reward_info.average_occupancy = 5
+      zone_reward_info.zone_air_temperature = 295.0
+      zone_reward_info.heating_setpoint_temperature = 290.0
+      zone_reward_info.cooling_setpoint_temperature = 300.0
+      zone_reward_info.air_flow_rate_setpoint = 10.0
+      zone_reward_info.air_flow_rate = 5.0
+
+    return reward_info
 
   def request_observations_within_time_interval(
       self,
@@ -104,7 +125,7 @@ class SimpleBuilding(base_building.BaseBuilding):
       response.single_action_responses.append(
           smart_control_building_pb2.SingleActionResponse(
               request=single_action_request,
-              response_type=smart_control_building_pb2.SingleActionResponse.ActionResponseType.ACCEPTED,
+              response_type=smart_control_building_pb2.SingleActionResponse.ActionResponseType.ACCEPTED,  # pylint: disable=line-too-long
               additional_info="test",
           )
       )
@@ -119,8 +140,8 @@ class SimpleBuilding(base_building.BaseBuilding):
 
   @property
   def current_timestamp(self) -> pd.Timestamp:
-    return pd.Timestamp("2021-06-07 12:00:01") + pd.Timedelta(
-        5.0 * self.step_count, unit="minute"
+    return pd.Timestamp(self.start_timestamp) + pd.Timedelta(
+        self.step_count * self.time_step_sec, unit="seconds"
     )
 
   def render(self, path: str) -> None:
@@ -136,23 +157,25 @@ class SimpleBuilding(base_building.BaseBuilding):
         zone_id = zone
         device_id = device
         device_type = None
-        if "boiler" in device:
+        if "boiler" in device or "hws" in device:
           device_type = smart_control_building_pb2.DeviceInfo.DeviceType.BLR
         elif "vav" in device:
           device_type = smart_control_building_pb2.DeviceInfo.DeviceType.VAV
-        elif "air_handler" in device:
+        elif "air_handler" in device or "ahu" in device:
           device_type = smart_control_building_pb2.DeviceInfo.DeviceType.AHU
+
         observable_fields = {}
         action_fields = {}
         for field in fields:
-          if "setpoint" in field:
+          if "setpoint" in field or "command" in field:
             action_fields[field] = (
                 smart_control_building_pb2.DeviceInfo.ValueType.VALUE_CONTINUOUS
             )
-          if "measurement" in field:
+          if "measurement" in field or "sensor" in field:
             observable_fields[field] = (
                 smart_control_building_pb2.DeviceInfo.ValueType.VALUE_CONTINUOUS
             )
+
         device_info = smart_control_building_pb2.DeviceInfo(
             zone_id=zone_id,
             device_id=device_id,
@@ -191,6 +214,38 @@ class SimpleBuilding(base_building.BaseBuilding):
   @property
   def time_step_sec(self) -> float:
     return 300.0
+
+
+class SimpleBuildingHybridAction(SimpleBuilding):
+  """Building implementation for unit tests."""
+
+  def __init__(self):
+    layout = {
+        "zone_1": {
+            "boiler_1": [
+                "setpoint_1",
+                "measurement_1",
+                "supervisor_run_command",
+            ],
+            "vav_2": [
+                "setpoint_2",
+                "setpoint_3",
+                "setpoint_4",
+                "measurement_2",
+            ],
+        },
+        "zone_2": {
+            "boiler_3": ["measurement_3", "measurement_4"],
+            "vav_4": ["setpoint_5", "measurement_5"],
+            "air_handler_5": ["setpoint_6", "supervisor_run_command"],
+        },
+    }
+    super().__init__(layout=layout, initial_values=None, start_timestamp=None)
+
+
+#
+# REWARD FUNCTION
+#
 
 
 class SimpleRewardFunction(base_reward_function.BaseRewardFunction):
