@@ -16,8 +16,8 @@ from smart_control.simulator import constants
 from smart_control.simulator import hvac_floorplan_based as floorplan_hvac_py
 from smart_control.simulator import setpoint_schedule
 from smart_control.simulator import simulator_flexible_floor_plan as simulator_py
-from smart_control.simulator import step_function_occupancy
 from smart_control.simulator import weather_controller as weather_controller_py
+from smart_control.simulator.occupancy import step_function_occupancy
 from smart_control.utils import conversion_utils
 
 

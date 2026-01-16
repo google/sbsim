@@ -5,9 +5,9 @@ from absl.testing import parameterized
 import numpy as np
 import pandas as pd
 
-from smart_control.simulator import randomized_arrival_departure_occupancy
-from smart_control.simulator.randomized_arrival_departure_occupancy import OccupancyStateEnum
-from smart_control.simulator.randomized_arrival_departure_occupancy import RandomizedArrivalDepartureOccupancy
+from smart_control.simulator.occupancy import randomized_arrival_departure_occupancy
+from smart_control.simulator.occupancy.randomized_arrival_departure_occupancy import OccupancyStateEnum
+from smart_control.simulator.occupancy.randomized_arrival_departure_occupancy import RandomizedArrivalDepartureOccupancy
 
 # fmt: off
 # pylint: disable=bad-continuation
