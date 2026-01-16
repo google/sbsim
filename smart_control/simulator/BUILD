@@ -107,19 +107,6 @@ py_strict_test(
 )
 
 py_strict_test(
-    name = "randomized_arrival_departure_occupancy_test",
-    srcs = ["randomized_arrival_departure_occupancy_test.py"],
-    deps = [
-        ":randomized_arrival_departure_occupancy",
-        "//third_party/py/absl/testing:absltest",
-        "//third_party/py/absl/testing:parameterized",
-        "//third_party/py/google/protobuf:use_fast_cpp_protos",  # Automatically added go/proto_python_upb_flip
-        "//third_party/py/numpy",
-        "//third_party/py/pandas",
-    ],
-)
-
-py_strict_test(
     name = "rejection_simulator_building_test",
     srcs = ["rejection_simulator_building_test.py"],
     deps = [
@@ -167,7 +154,7 @@ py_strict_test(
         ":hvac_floorplan_based",
         ":setpoint_schedule",
         ":simulator_flexible_floor_plan",
-        ":step_function_occupancy",
+        "//third_party/py/smart_buildings/smart_control/simulator/occupancy:step_function_occupancy",
         ":weather_controller",
         "//third_party/py/absl/testing:absltest",
         "//third_party/py/absl/testing:parameterized",
@@ -189,7 +176,7 @@ py_strict_test(
         ":hvac",
         ":setpoint_schedule",
         ":simulator",
-        ":step_function_occupancy",
+        "//third_party/py/smart_buildings/smart_control/simulator/occupancy:step_function_occupancy",
         ":weather_controller",
         "//third_party/py/absl/testing:absltest",
         "//third_party/py/absl/testing:parameterized",
@@ -209,18 +196,6 @@ py_strict_test(
         "//third_party/py/google/protobuf:use_fast_cpp_protos",  # Automatically added go/proto_python_upb_flip
         "//third_party/py/pandas",
         "//third_party/py/smart_buildings/smart_control/proto:smart_control_building_py_pb2",
-    ],
-)
-
-py_strict_test(
-    name = "step_function_occupancy_test",
-    srcs = ["step_function_occupancy_test.py"],
-    deps = [
-        ":step_function_occupancy",
-        "//third_party/py/absl/testing:absltest",
-        "//third_party/py/absl/testing:parameterized",
-        "//third_party/py/google/protobuf:use_fast_cpp_protos",  # Automatically added go/proto_python_upb_flip
-        "//third_party/py/pandas",
     ],
 )
 
@@ -337,18 +312,6 @@ pytype_strict_library(
 )
 
 pytype_strict_library(
-    name = "randomized_arrival_departure_occupancy",
-    srcs = ["randomized_arrival_departure_occupancy.py"],
-    deps = [
-        "//third_party/py/gin",
-        "//third_party/py/numpy",
-        "//third_party/py/pandas",
-        "//third_party/py/smart_buildings/smart_control/models:base_occupancy",
-        "//third_party/py/smart_buildings/smart_control/utils:conversion_utils",
-    ],
-)
-
-pytype_strict_library(
     name = "rejection_simulator_building",
     srcs = ["rejection_simulator_building.py"],
     deps = [
@@ -452,7 +415,7 @@ pytype_strict_library(
         ":setpoint_schedule",
         ":simulator",
         ":simulator_building",
-        ":step_function_occupancy",
+        "//third_party/py/smart_buildings/smart_control/simulator/occupancy:step_function_occupancy",
         ":weather_controller",
         "//third_party/py/absl/testing:parameterized",
         "//third_party/py/pandas",
@@ -487,17 +450,6 @@ pytype_strict_library(
     deps = [
         "//third_party/py/pandas",
         "//third_party/py/smart_buildings/smart_control/proto:smart_control_building_py_pb2",
-    ],
-)
-
-pytype_strict_library(
-    name = "step_function_occupancy",
-    srcs = ["step_function_occupancy.py"],
-    deps = [
-        "//third_party/py/gin",
-        "//third_party/py/pandas",
-        "//third_party/py/smart_buildings/smart_control/models:base_occupancy",
-        "//third_party/py/smart_buildings/smart_control/utils:conversion_utils",
     ],
 )
 
