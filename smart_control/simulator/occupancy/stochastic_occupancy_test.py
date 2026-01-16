@@ -5,9 +5,9 @@ from absl.testing import parameterized
 import numpy as np
 import pandas as pd
 
-from smart_control.simulator.stochastic_occupancy import LIGHTSWITCHOccupancy
-from smart_control.simulator.stochastic_occupancy import OccupancyStateEnum
-from smart_control.simulator.stochastic_occupancy import ZoneOccupant
+from smart_control.simulator.occupancy.stochastic_occupancy import LIGHTSWITCHOccupancy
+from smart_control.simulator.occupancy.stochastic_occupancy import OccupancyStateEnum
+from smart_control.simulator.occupancy.stochastic_occupancy import ZoneOccupant
 
 # fmt: off
 # pylint: disable=line-too-long

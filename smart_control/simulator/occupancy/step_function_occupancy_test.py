@@ -4,7 +4,7 @@ from absl.testing import absltest
 from absl.testing import parameterized
 import pandas as pd
 
-from smart_control.simulator import step_function_occupancy
+from smart_control.simulator.occupancy import step_function_occupancy
 
 
 class StepFunctionOccupancyModelTest(parameterized.TestCase):

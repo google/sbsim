@@ -73,9 +73,7 @@ class StepFunctionOccupancy(BaseOccupancy):
     nonwork_seconds = 0.0
 
     # Get the timestamp for midnight of the first day.
-    day = pd.Timestamp(
-        year=start_time.year, month=start_time.month, day=start_time.day
-    )
+    day = start_time.normalize()
     current_time = start_time - day
 
     # Accumulate working and non-working hours for all days.
