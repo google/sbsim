@@ -47,6 +47,9 @@ class WeatherController(BaseWeatherController):
     longitude: Longitude for the weather data.
     dewpoint_depression: Difference between dry bulb and dew point temperatures
       in K. Default is 5.0 K.
+    cloud_cover: Cloud cover in percent (0-100). If None, uses clearsky model.
+    irradiance_method: Method for converting cloud cover to irradiance
+      ('clearsky', 'linear', or 'campbell_norman'). Defaults to 'clearsky'.
   """
 
   def __init__(
@@ -59,6 +62,8 @@ class WeatherController(BaseWeatherController):
       latitude: float | None = None,
       longitude: float | None = None,
       dewpoint_depression: float = 5.0,
+      cloud_cover: float | None = None,
+      irradiance_method: str = 'clearsky',
   ):
     self.default_low_temp = default_low_temp
     self.default_high_temp = default_high_temp
@@ -68,6 +73,21 @@ class WeatherController(BaseWeatherController):
     self.latitude = latitude
     self.longitude = longitude
     self.dewpoint_depression = dewpoint_depression  # Dry bulb - dew point (K)
+    self.cloud_cover = cloud_cover
+    self.irradiance_method = irradiance_method
+
+    # Validate cloud_cover
+    if self.cloud_cover is not None:
+      if self.cloud_cover < 0 or self.cloud_cover > 100:
+        raise ValueError('cloud_cover must be between 0 and 100.')
+
+    # Validate irradiance_method
+    valid_methods = ('clearsky', 'linear', 'campbell_norman')
+    if self.irradiance_method not in valid_methods:
+      raise ValueError(
+          f'irradiance_method must be one of {valid_methods}, '
+          f'got {self.irradiance_method}.'
+      )
 
     # Create location object if lat/lon are provided
     if self.latitude is not None and self.longitude is not None:
@@ -124,9 +144,7 @@ class WeatherController(BaseWeatherController):
     else:
       low = tomorrow_low
 
-    seconds_in_day = (
-        timestamp - pd.Timestamp(timestamp.date())
-    ).total_seconds()
+    seconds_in_day = (timestamp - timestamp.normalize()).total_seconds()
     rad = self.seconds_to_rads(seconds_in_day)
     temp = 0.5 * (math.sin(rad) + 1) * (high - low) + low
     return temp
@@ -140,10 +158,25 @@ class WeatherController(BaseWeatherController):
     """
     return self.convection_coefficient
 
+  def get_current_cloud_cover(self, timestamp: pd.Timestamp) -> float:
+    """Returns current cloud cover in percent.
+
+    Args:
+      timestamp: Pandas timestamp (unused, included for API consistency).
+
+    Returns:
+      Cloud cover in percent (0-100). Returns 0 if cloud_cover not set.
+    """
+    del timestamp  # Unused, but kept for API consistency with ReplayController
+    return self.cloud_cover if self.cloud_cover is not None else 0.0
+
   def get_current_irradiance(
       self, timestamp: pd.Timestamp
   ) -> Mapping[str, float]:
-    """Returns current irradiance (GHI, DNI, DHI) in W/m2 using clearsky model.
+    """Returns current irradiance (GHI, DNI, DHI) in W/m2.
+
+    Uses clearsky model by default, or adjusts for cloud cover if specified.
+    Consistent with ReplayWeatherController irradiance methods.
 
     Args:
       timestamp: Pandas timestamp to get irradiance for.
@@ -159,13 +192,64 @@ class WeatherController(BaseWeatherController):
           'Latitude and longitude must be provided to calculate irradiance.'
       )
 
-    # Get clearsky irradiance
-    clearsky = self._location.get_clearsky(pd.DatetimeIndex([timestamp]))
+    # If no cloud cover or clearsky method, return clearsky irradiance
+    if self.cloud_cover is None or self.irradiance_method == 'clearsky':
+      clearsky = self._location.get_clearsky(pd.DatetimeIndex([timestamp]))
+      return {
+          'ghi': float(clearsky['ghi'].iloc[0]),
+          'dni': float(clearsky['dni'].iloc[0]),
+          'dhi': float(clearsky['dhi'].iloc[0]),
+      }
+
+    # Get solar position
+    solar_position = self._location.get_solarposition(
+        pd.DatetimeIndex([timestamp])
+    )
+
+    if self.irradiance_method == 'linear':
+      # Get clear sky irradiance
+      clearsky = self._location.get_clearsky(
+          pd.DatetimeIndex([timestamp]), model='ineichen'
+      )
+
+      # Estimate GHI from cloud cover using linear relationship
+      ghi = float(clearsky['ghi'].iloc[0]) * (
+          1.0 - 0.8 * (self.cloud_cover / 100.0)
+      )
+
+      # Estimate DNI using DISC model
+      dni_result = irradiance.disc(
+          pd.Series([ghi], index=pd.DatetimeIndex([timestamp])),
+          solar_position['zenith'],
+          pd.DatetimeIndex([timestamp]),
+      )
+      dni = float(dni_result['dni'].iloc[0])
+
+      # Calculate DHI
+      zenith_rad = np.radians(solar_position['zenith'].iloc[0])
+      dhi = ghi - dni * np.cos(zenith_rad)
+      dhi = max(0, dhi)  # Ensure non-negative
+
+    elif self.irradiance_method == 'campbell_norman':
+      dni_extra = irradiance.get_extra_radiation(pd.DatetimeIndex([timestamp]))
+      transmittance = 0.7 - 0.5 * (self.cloud_cover / 100.0)
+
+      irrads = irradiance.campbell_norman(
+          solar_position['apparent_zenith'].iloc[0],
+          transmittance,
+          dni_extra=dni_extra.iloc[0],
+      )
+      ghi = 0 if np.isnan(irrads['ghi']) else float(irrads['ghi'])
+      dni = 0 if np.isnan(irrads['dni']) else float(irrads['dni'])
+      dhi = 0 if np.isnan(irrads['dhi']) else float(irrads['dhi'])
+
+    else:
+      raise ValueError(f'Invalid irradiance_method: {self.irradiance_method}')
 
     return {
-        'ghi': float(clearsky['ghi'].iloc[0]),
-        'dni': float(clearsky['dni'].iloc[0]),
-        'dhi': float(clearsky['dhi'].iloc[0]),
+        'ghi': max(0, ghi),
+        'dni': max(0, dni),
+        'dhi': max(0, dhi),
     }
 
   def get_irradiance_poa(
@@ -320,8 +404,8 @@ class ReplayWeatherController:
     if self._location is not None:
       self._calculate_irradiance_columns(irradiance_method)
 
-      # Pre-calculate sky temperature
-      self._calculate_sky_temperature_column()
+    # Pre-calculate sky temperature (doesn't require location, only temp/dewpoint) # pylint: disable=line-too-long
+    self._calculate_sky_temperature_column()
 
   def _calculate_sky_temperature_column(self):
     """Pre-calculate sky temperature for all timestamps in weather data.
@@ -331,21 +415,21 @@ class ReplayWeatherController:
     # Stefan-Boltzmann constant
     sigma = 5.6697e-8  # W/(m^2*K^4)
 
-    # Get dry bulb temperature in Kelvin
+    # Get dry bulb temperature in Kelvin (use numpy operations for arrays)
     if 'TempC' in self._weather_data:
-      temp_k = utils.celsius_to_kelvin(self._weather_data['TempC'].values)
+      temp_k = self._weather_data['TempC'].values + 273.15
     elif 'TempF' in self._weather_data:
-      temp_k = utils.fahrenheit_to_kelvin(self._weather_data['TempF'].values)
+      temp_k = (self._weather_data['TempF'].values - 32) * 5.0 / 9.0 + 273.15
     else:
       raise ValueError(
           'Temperature column (TempC or TempF) not found in weather data.'
       )
 
-    # Get dew point temperature in Kelvin
+    # Get dew point temperature in Kelvin (use numpy operations for arrays)
     if 'DewPointC' in self._weather_data:
-      dp_k = utils.celsius_to_kelvin(self._weather_data['DewPointC'].values)
+      dp_k = self._weather_data['DewPointC'].values + 273.15
     elif 'DewPointF' in self._weather_data:
-      dp_k = utils.fahrenheit_to_kelvin(self._weather_data['DewPointF'].values)
+      dp_k = (self._weather_data['DewPointF'].values - 32) * 5.0 / 9.0 + 273.15
     else:
       raise ValueError(
           'Dew point temperature column (DewPointC or DewPointF) not found in'
@@ -412,10 +496,11 @@ class ReplayWeatherController:
     solar_position = self._location.get_solarposition(self._weather_data_.index)
 
     if method == 'linear':
+      # Create proper DatetimeIndex for pvlib functions
+      datetime_index = pd.DatetimeIndex(self._weather_data['Time'])
+
       # Get clear sky irradiance
-      clearsky = self._location.get_clearsky(
-          self._weather_data['Time'], model='ineichen'
-      )
+      clearsky = self._location.get_clearsky(datetime_index, model='ineichen')
 
       # Estimate GHI from cloud cover using linear relationship
       ghi = clearsky['ghi'].values * (
@@ -426,9 +511,9 @@ class ReplayWeatherController:
       from pvlib.irradiance import disc  # pylint: disable=import-outside-toplevel
 
       dni_result = disc(
-          pd.Series(ghi, index=self._weather_data_.index),
+          pd.Series(ghi, index=datetime_index),
           solar_position['zenith'],
-          self._weather_data_.index,
+          datetime_index,
       )
       dni = dni_result['dni'].values
 
