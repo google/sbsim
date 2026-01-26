@@ -64,6 +64,7 @@ class SmartDevice(metaclass=abc.ABCMeta):
   def device_id(self) -> str:
     """Returns device id."""
     return self._device_id
+
   @property
   def zone_id(self) -> Optional[str]:
     """Returns zone_id."""
