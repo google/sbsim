@@ -425,7 +425,7 @@ class VavTest(parameterized.TestCase):
     v = vav.Vav(max_air_flow_rate, reheat_max_water_flow_rate, t, b)
 
     self.assertSameElements(
-      v.observable_field_names,
+        v.observable_field_names,
         [
             'supply_air_damper_percentage_command',
             'supply_air_flowrate_setpoint',
@@ -477,7 +477,7 @@ class VavTest(parameterized.TestCase):
     v = vav.Vav(max_air_flow_rate, reheat_max_water_flow_rate, t, b)
 
     self.assertSameElements(
-      v.action_field_names, ['supply_air_damper_percentage_command']
+        v.action_field_names, ['supply_air_damper_percentage_command']
     )
 
   def test_action_supply_air_flowrate_setpoint(self):
