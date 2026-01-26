@@ -247,12 +247,12 @@ class BoilerTest(parameterized.TestCase):
     b = self.get_default_boiler()
 
     self.assertSameElements(
-      b.observable_field_names,
-      [
-        'supply_water_setpoint',
-        'supply_water_temperature_sensor',
-        'heating_request_count',
-      ],
+        b.observable_field_names,
+        [
+            'supply_water_setpoint',
+            'supply_water_temperature_sensor',
+            'heating_request_count',
+        ],
     )
 
   def test_observe_supply_water_setpoint(self):
