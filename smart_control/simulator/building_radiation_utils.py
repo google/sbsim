@@ -161,42 +161,213 @@ def net_radiative_heatflux_function_of_t(
   return q
 
 
+def calculate_exterior_lwr_for_fenestration_group(
+    fenestration_group: dict,
+    surface_temperatures: np.ndarray,
+    emissivity_array: np.ndarray,
+    ambient_temperature: float,
+    sky_temperature: float,
+) -> float:
+  r"""Calculate exterior longwave radiative heat flux for a fenestration group.
+
+  Calculates the net longwave radiative heat flux between exterior fenestration
+  surfaces and the sky/ground environment. The calculation considers:
+  - Radiation exchange with ground at ambient temperature
+  - Radiation exchange with sky (split between sky temperature and ambient)
+  - Emission from the fenestration surface
+
+  Equations:
+  ----------
+  For each exterior fenestration node, the net radiative heat flux is:
+
+  $$q_{\text{lwr}} = \epsilon \sigma \left( F_{\text{gnd}} T_{\text{air}}^4
+    + \beta F_{\text{sky}} T_{\text{sky}}^4
+    + (1 - \beta) F_{\text{sky}} T_{\text{air}}^4 \right)
+    - \epsilon \sigma \left( F_{\text{gnd}} + F_{\text{sky}} \right)
+    T_{\text{surf}}^4$$
+
+  where:
+  - $\beta = \sqrt{0.5 (1 + \cos\phi)}$ splits sky radiation between sky
+    temperature and ambient air temperature
+  - $\phi$ is the tilt angle (90° for vertical surfaces)
+
+  The total q_lwr for the group is summed over all exterior fenestration nodes,
+  then distributed equally to all nodes in the group.
+
+  Nomenclature and Units:
+  -----------------------
+  - $q_{\text{lwr}}$: Net exterior longwave radiative heat flux [W/m$^2$]
+  - $\epsilon$: Surface emissivity [dimensionless]
+  - $\sigma$: Stefan-Boltzmann constant [$\mathrm{W/(m^2 \cdot K^4)}$]
+  - $F_{\text{gnd}}$: Ground view factor [dimensionless]
+  - $F_{\text{sky}}$: Sky view factor [dimensionless]
+  - $\beta$: Sky radiation split factor [dimensionless]
+  - $T_{\text{air}}$: Ambient air temperature [K]
+  - $T_{\text{sky}}$: Sky temperature [K]
+  - $T_{\text{surf}}$: Surface temperature [K]
+  - $\phi$: Surface tilt angle [degrees]
+
+  Args:
+    fenestration_group: Dictionary containing fenestration group properties
+      including 'exterior_indices_array', 'indices_array', 'F_gnd', 'F_sky',
+      'beta', and 'count'.
+    surface_temperatures: 2D array of surface temperatures in K (floor_plan
+      shape).
+    emissivity_array: 2D array of surface emissivities (floor_plan shape).
+    ambient_temperature: Ambient air temperature in K.
+    sky_temperature: Sky temperature in K.
+
+  Returns:
+    Average q_lwr per node in the fenestration group [W/m^2]. Positive value
+    means heat gain to the surface.
+  """
+  sigma = 5.67e-8  # [W/m^2K^4] Stefan-Boltzmann constant
+
+  exterior_mask = fenestration_group['exterior_indices_array']
+  exterior_count = fenestration_group['exterior_count']
+  total_count = fenestration_group['count']
+
+  # If no exterior fenestration nodes, no LWR calculation needed
+  if exterior_count == 0:
+    return 0.0
+
+  F_gnd = fenestration_group['F_gnd']
+  F_sky = fenestration_group['F_sky']
+  beta = fenestration_group['beta']
+
+  # Get temperatures and emissivities for exterior fenestration nodes
+  T_surf = surface_temperatures[exterior_mask]
+  epsilon = emissivity_array[exterior_mask]
+
+  T_air = ambient_temperature
+  T_sky = sky_temperature
+
+  # Incoming radiation from environment
+  # q_in = epsilon * sigma * (F_gnd * T_air^4 + beta * F_sky * T_sky^4
+  #        + (1-beta) * F_sky * T_air^4)
+  q_in = (
+      epsilon
+      * sigma
+      * (
+          F_gnd * np.power(T_air, 4)
+          + beta * F_sky * np.power(T_sky, 4)
+          + (1 - beta) * F_sky * np.power(T_air, 4)
+      )
+  )
+
+  # Outgoing radiation from surface
+  # q_out = sigma * epsilon * (F_gnd + F_sky) * T_surf^4
+  q_out = sigma * epsilon * (F_gnd + F_sky) * np.power(T_surf, 4)
+
+  # Net heat flux (positive = heat gain to surface)
+  q_lwr_nodes = q_in - q_out
+
+  # Sum over all exterior fenestration nodes and distribute equally to all nodes
+  total_q_lwr = np.sum(q_lwr_nodes)
+  q_lwr_per_node = total_q_lwr / total_count
+
+  return q_lwr_per_node
+
+
+def net_exterior_radiative_heatflux(
+    floor_plan: np.ndarray,
+    fenestration_groups: dict,
+    surface_temperatures: np.ndarray,
+    emissivity_array: np.ndarray,
+    ambient_temperature: float,
+    sky_temperature: float,
+) -> np.ndarray:
+  r"""Calculate net exterior longwave radiative heat flux for all fenestrations.
+
+  Calculates the exterior longwave radiative heat flux (LWR) for all
+  fenestration groups and returns an array with the same shape as floor_plan.
+
+  For each fenestration group:
+  1. Calculate q_lwr for exterior fenestration nodes using the formula
+  2. Distribute equally to all nodes in the group
+  3. Add to the output array at the group's indices
+
+  Equations:
+  ----------
+  See `calculate_exterior_lwr_for_fenestration_group` for the detailed
+  calculation.
+
+  Args:
+    floor_plan: 2D array representing the building floor plan.
+    fenestration_groups: Dictionary of fenestration groups from
+      `group_fenestrations`.
+    surface_temperatures: 2D array of surface temperatures in K (floor_plan
+      shape).
+    emissivity_array: 2D array of surface emissivities (floor_plan shape).
+    ambient_temperature: Ambient air temperature in K.
+    sky_temperature: Sky temperature in K.
+
+  Returns:
+    2D array (floor_plan shape) with net exterior LWR heat flux [W/m^2] at
+    each fenestration position. Non-fenestration positions are 0.
+  """
+  q_lwr = np.zeros_like(floor_plan, dtype=float)
+
+  # If no fenestration groups, return zero array
+  if not fenestration_groups:
+    return q_lwr
+
+  for group_data in fenestration_groups.values():
+    # Calculate q_lwr for this group
+    q_lwr_per_node = calculate_exterior_lwr_for_fenestration_group(
+        fenestration_group=group_data,
+        surface_temperatures=surface_temperatures,
+        emissivity_array=emissivity_array,
+        ambient_temperature=ambient_temperature,
+        sky_temperature=sky_temperature,
+    )
+
+    # Add q_lwr to all nodes in the group
+    indices_array = group_data['indices_array']
+    q_lwr[indices_array] = q_lwr_per_node
+
+  return q_lwr
+
+
 def mark_air_connected_interior_walls(
     indexed_floor_plan: np.ndarray,
     start_pos: Tuple[int, int],
     interior_wall_value: int = constants.INTERIOR_WALL_VALUE_IN_FUNCTION,
     marked_value: int = TEMPORARY_MARKED_VALUE,
     air_value: int = constants.INTERIOR_SPACE_VALUE_IN_FUNCTION,
+    interior_fenestration_value: int = constants.INTERIOR_FENESTRATION_VALUE,
 ) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
   """
-  Mark all interior wall nodes that are connected to the same air space as the
-      starting position (interior wall or air cell).
-  Uses 4-directional connectivity to check wall-air adjacency.
-  All connected walls are marked.
+  Mark all interior surface nodes (walls and fenestration) that are connected
+      to the same air space as the starting position.
+  Uses 4-directional connectivity to check surface-air adjacency.
+  All connected surfaces are marked.
 
   Args:
     indexed_floor_plan (np.ndarray): 2D numpy array representing the floor plan
         where different values represent different types of cells (walls, air,
         etc.).
     start_pos (Tuple[int, int]): Starting position (row, col). Can be either an
-        interior wall or an air cell. If it's an interior wall, finds all walls
-        connected to the same air space. If it's an air cell, finds all walls
-        connected to that air space.
+        interior wall, interior fenestration, or an air cell. If it's an
+        interior surface, finds all surfaces connected to the same air space.
+        If it's an air cell, finds all surfaces connected to that air space.
     interior_wall_value (int, optional): Value used to represent interior walls
         in the floor plan. Defaults to -3 (from "constants.py").
-    marked_value (int, optional): Value used to mark connected interior walls.
-        Only used internally. Defaults to -33.
+    marked_value (int, optional): Value used to mark connected interior
+        surfaces. Only used internally. Defaults to -33.
     air_value (int, optional): Value used to represent air spaces in the floor
         plan. Defaults to 0 (from "constants.py").
+    interior_fenestration_value (int, optional): Value used to represent
+        interior fenestration in the floor plan. Defaults to -43.
 
   Returns:
     A tuple containing:
 
-      - `modified_floor_plan`: Copy of input floor plan with connected walls
+      - `modified_floor_plan`: Copy of input floor plan with connected surfaces
           marked with marked_value. `None` if `start_pos` is invalid.
 
       - `interior_space_array`: Extracted interior space containing only air and
-          marked walls, cropped to the bounding box of the connected region.
+          marked surfaces, cropped to the bounding box of the connected region.
           `None` if `start_pos` is invalid or no interior space is found.
 
   Raises:
@@ -204,9 +375,10 @@ def mark_air_connected_interior_walls(
 
   Note:
       This function is used as the first step in radiative heat transfer
-      calculations to identify all interior wall nodes that are connected to the
-      same air space. The marked_value (-33) indicates walls that can
-      potentially participate in radiative heat transfer with each other.
+      calculations to identify all interior surface nodes (walls and
+      fenestration) that are connected to the same air space. The marked_value
+      (-33) indicates surfaces that can potentially participate in radiative
+      heat transfer with each other.
   """
   # Make a copy to avoid modifying the original
   floor_plan = indexed_floor_plan.copy()
@@ -221,8 +393,14 @@ def mark_air_connected_interior_walls(
   start_row, start_col = start_pos
   start_cell_value = floor_plan[start_row, start_col]
 
-  # Return None if start_pos is neither interior_wall_value nor air_value
-  if start_cell_value != interior_wall_value and start_cell_value != air_value:
+  # Interior surface values include walls and fenestration
+  interior_surface_values = {interior_wall_value, interior_fenestration_value}
+
+  # Return None if start_pos is not an interior surface or air
+  if (
+      start_cell_value not in interior_surface_values
+      and start_cell_value != air_value
+  ):
     return None, None
 
   # 4-connectivity for all steps
@@ -237,7 +415,7 @@ def mark_air_connected_interior_walls(
     air_queue.append((start_row, start_col))
     connected_air_cells.add((start_row, start_col))
   else:
-    # If starting from an interior wall, find air cells adjacent to it
+    # If starting from an interior surface, find air cells adjacent to it
     for dr, dc in directions:
       new_row, new_col = start_row + dr, start_col + dc
       if (
@@ -262,40 +440,40 @@ def mark_air_connected_interior_walls(
         air_queue.append((new_row, new_col))
         connected_air_cells.add((new_row, new_col))
 
-  # Now find all interior walls that are adjacent to
-  #  any of the connected air cells (4-connectivity)
-  walls_to_mark = set()
+  # Now find all interior surfaces (walls and fenestration) that are adjacent
+  # to any of the connected air cells (4-connectivity)
+  surfaces_to_mark = set()
   for air_row, air_col in connected_air_cells:
     for dr, dc in directions:
-      wall_row, wall_col = air_row + dr, air_col + dc
+      surface_row, surface_col = air_row + dr, air_col + dc
       if (
-          0 <= wall_row < floor_plan.shape[0]
-          and 0 <= wall_col < floor_plan.shape[1]
-          and floor_plan[wall_row, wall_col] == interior_wall_value
+          0 <= surface_row < floor_plan.shape[0]
+          and 0 <= surface_col < floor_plan.shape[1]
+          and floor_plan[surface_row, surface_col] in interior_surface_values
       ):
-        walls_to_mark.add((wall_row, wall_col))
+        surfaces_to_mark.add((surface_row, surface_col))
 
-  # Mark all the connected interior walls
-  # If starting from an interior wall, exclude it from marking
+  # Mark all the connected interior surfaces
+  # If starting from an interior surface, exclude it from marking
   # (it will be marked separately)
-  # If starting from an air cell, mark all walls found
-  for wall_row, wall_col in walls_to_mark:
-    if start_cell_value == interior_wall_value and (wall_row, wall_col) == (
-        start_row,
-        start_col,
-    ):
-      # Skip marking the starting wall here; will mark it below if any walls
-      #  were found
+  # If starting from an air cell, mark all surfaces found
+  for surface_row, surface_col in surfaces_to_mark:
+    if start_cell_value in interior_surface_values and (
+        surface_row,
+        surface_col,
+    ) == (start_row, start_col):
+      # Skip marking the starting surface here; will mark it below if any
+      # surfaces were found
       continue
-    floor_plan[wall_row, wall_col] = marked_value
+    floor_plan[surface_row, surface_col] = marked_value
 
-  # If starting from an interior wall and any walls were found, mark the
+  # If starting from an interior surface and any surfaces were found, mark the
   # starting position
-  if start_cell_value == interior_wall_value and walls_to_mark:
+  if start_cell_value in interior_surface_values and surfaces_to_mark:
     floor_plan[start_row, start_col] = marked_value
 
-  # Create interior space array containing only air and marked walls
-  all_interior_positions = connected_air_cells.union(walls_to_mark)
+  # Create interior space array containing only air and marked surfaces
+  all_interior_positions = connected_air_cells.union(surfaces_to_mark)
   if not all_interior_positions:
     return floor_plan, None
 
@@ -315,11 +493,11 @@ def mark_air_connected_interior_walls(
   for air_row, air_col in connected_air_cells:
     interior_space[air_row - min_row, air_col - min_col] = air_value
 
-  # Mark all walls in interior space
-  # If starting from interior wall, it will be included in walls_to_mark
+  # Mark all surfaces in interior space
+  # If starting from interior surface, it will be included in surfaces_to_mark
   # and marked
-  for wall_row, wall_col in walls_to_mark:
-    interior_space[wall_row - min_row, wall_col - min_col] = marked_value
+  for surface_row, surface_col in surfaces_to_mark:
+    interior_space[surface_row - min_row, surface_col - min_col] = marked_value
 
   return floor_plan, interior_space
 
@@ -610,42 +788,57 @@ def get_vf(
   return vf
 
 
-def mark_interior_wall_adjacent_to_air(
+def mark_interior_surface_adjacent_to_air(
     arr: np.ndarray,
     interior_wall_value: int = constants.INTERIOR_WALL_VALUE_IN_FUNCTION,
+    interior_fenestration_value: int = constants.INTERIOR_FENESTRATION_VALUE,
     air_value: int = constants.INTERIOR_SPACE_VALUE_IN_FUNCTION,
 ) -> np.ndarray:
-  """Marks interior walls that are adjacent to air spaces.
+  """Marks interior surfaces (walls and fenestration) adjacent to air spaces.
 
-  Creates a boolean mask identifying interior walls that share an edge with an
-  air space (value of 0) in the floor plan. Checks for adjacency in four
-   directions:   up, down, left, and right.
+  Creates a boolean mask identifying interior walls (-3) and interior
+  fenestration (-43) that share an edge with an air space (value of 0) in
+  the floor plan. Checks for adjacency in four directions: up, down, left,
+  and right.
 
   Args:
     arr: 2D array representing the floor plan with interior walls marked as
-      interior_wall_value and air spaces as 0.
+      interior_wall_value, interior fenestration as interior_fenestration_value,
+      and air spaces as air_value.
     interior_wall_value: Value used to represent interior walls in the floor
       plan. Defaults to -3 (constants.INTERIOR_WALL_VALUE_IN_FUNCTION).
+    interior_fenestration_value: Value used to represent interior fenestration
+      in the floor plan. Default: -43 (constants.INTERIOR_FENESTRATION_VALUE).
+    air_value: Value used to represent air spaces. Defaults to 0.
 
   Returns:
-    Boolean mask array where True indicates an interior wall that is adjacent to
-    at least one air space.
+    Boolean mask array where True indicates an interior surface (wall or
+    fenestration) that is adjacent to at least one air space.
   """
-  mask_minus_interior_wall = arr == interior_wall_value
-  mask_zero = arr == air_value
-  # Find -3s that have a 0 neighbor (up/down/left/right)
+  # Interior surfaces include both interior walls and interior fenestration
+  mask_interior_surface = (arr == interior_wall_value) | (
+      arr == interior_fenestration_value
+  )
+  mask_air = arr == air_value
+
+  # Find interior surfaces that have an air neighbor (up/down/left/right)
   contact = np.zeros_like(arr, dtype=bool)
   # up
-  contact[1:, :] |= mask_zero[:-1, :] & mask_minus_interior_wall[1:, :]
+  contact[1:, :] |= mask_air[:-1, :] & mask_interior_surface[1:, :]
   # down
-  contact[:-1, :] |= mask_zero[1:, :] & mask_minus_interior_wall[:-1, :]
+  contact[:-1, :] |= mask_air[1:, :] & mask_interior_surface[:-1, :]
   # left
-  contact[:, 1:] |= mask_zero[:, :-1] & mask_minus_interior_wall[:, 1:]
+  contact[:, 1:] |= mask_air[:, :-1] & mask_interior_surface[:, 1:]
   # right
-  contact[:, :-1] |= mask_zero[:, 1:] & mask_minus_interior_wall[:, :-1]
-  # Only mark the -3 cells that are adjacent to a 0
-  marked = mask_minus_interior_wall & contact
+  contact[:, :-1] |= mask_air[:, 1:] & mask_interior_surface[:, :-1]
+
+  # Only mark the interior surface cells that are adjacent to air
+  marked = mask_interior_surface & contact
   return marked
+
+
+# Keep the old function name as an alias for backward compatibility
+mark_interior_wall_adjacent_to_air = mark_interior_surface_adjacent_to_air
 
 
 def get_line_points(
@@ -967,3 +1160,751 @@ def mark_directly_seeing_nodes(
   # Mark the base node with a special value
   floor_plan_copy[base_row, base_col] = blocked_value + marked_value
   return floor_plan_copy
+
+
+def validate_fenestration_connectivity(
+    floor_plan: np.ndarray,
+    fenestration_value: int = constants.FENESTRATION_VALUE_IN_FILE_INPUT,
+    air_value: int = constants.INTERIOR_SPACE_VALUE_IN_FILE_INPUT,
+) -> bool:
+  """Validate that fenestration nodes are properly connected.
+
+  Validates that:
+  1. All fenestration nodes form connected groups (4-way connectivity)
+  2. Each fenestration group is connected to at least one indoor air node (0)
+
+  Args:
+    floor_plan: 2D array representing the floor plan with fenestration marked
+        as fenestration_value (default 4).
+    fenestration_value: Value used to represent fenestration nodes in the
+        floor plan. Defaults to 4.
+    air_value: Value used to represent indoor air in the floor plan.
+        Defaults to 0.
+
+  Returns:
+    True if all fenestration groups are valid (connected to indoor air).
+
+  Raises:
+    ValueError: If any fenestration group is not connected to indoor air.
+  """
+  if not np.any(floor_plan == fenestration_value):
+    return True  # No fenestration, validation passes
+
+  # Find all fenestration groups using flood fill
+  fenestration_groups = _find_connected_groups(floor_plan, fenestration_value)
+
+  # Check each group is connected to indoor air
+  directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]
+
+  for group_name, group_info in fenestration_groups.items():
+    connected_to_air = False
+    for row, col in group_info['indices']:
+      for dr, dc in directions:
+        nr, nc = row + dr, col + dc
+        if (
+            0 <= nr < floor_plan.shape[0]
+            and 0 <= nc < floor_plan.shape[1]
+            and floor_plan[nr, nc] == air_value
+        ):
+          connected_to_air = True
+          break
+      if connected_to_air:
+        break
+
+    if not connected_to_air:
+      raise ValueError(
+          f'Fenestration group {group_name} is not connected to indoor air. '
+          'All fenestration nodes must be adjacent (4-way) to at least one '
+          f'indoor air node (value {air_value}).'
+      )
+
+  return True
+
+
+def _find_connected_groups(
+    floor_plan: np.ndarray,
+    target_value: int,
+) -> dict:
+  """Find all connected groups of nodes with the target value.
+
+  Uses 4-way connectivity (not diagonal) to identify connected components.
+
+  Args:
+    floor_plan: 2D array representing the floor plan.
+    target_value: Value to search for connected groups.
+
+  Returns:
+    Dictionary with group names as keys and group info as values:
+    {
+      'group_1': {
+        'count': int,
+        'indices': list of (row, col) tuples
+      },
+      ...
+    }
+  """
+  visited = np.zeros_like(floor_plan, dtype=bool)
+  groups = {}
+  group_count = 0
+  directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]
+
+  for row in range(floor_plan.shape[0]):
+    for col in range(floor_plan.shape[1]):
+      if floor_plan[row, col] == target_value and not visited[row, col]:
+        # Start BFS for this group
+        group_count += 1
+        group_indices = []
+        queue = deque([(row, col)])
+        visited[row, col] = True
+
+        while queue:
+          r, c = queue.popleft()
+          group_indices.append((r, c))
+
+          for dr, dc in directions:
+            nr, nc = r + dr, c + dc
+            if (
+                0 <= nr < floor_plan.shape[0]
+                and 0 <= nc < floor_plan.shape[1]
+                and floor_plan[nr, nc] == target_value
+                and not visited[nr, nc]
+            ):
+              visited[nr, nc] = True
+              queue.append((nr, nc))
+
+        groups[f'group_{group_count}'] = {
+            'count': len(group_indices),
+            'indices': group_indices,
+        }
+
+  return groups
+
+
+def mark_fenestration_positions(
+    floor_plan: np.ndarray,
+    fenestration_value: int = constants.FENESTRATION_VALUE_IN_FUNCTION,
+    exterior_space_value: int = constants.EXTERIOR_SPACE_VALUE_IN_FUNCTION,
+    air_value: int = constants.INTERIOR_SPACE_VALUE_IN_FUNCTION,
+    exterior_fenestration: int = constants.EXTERIOR_FENESTRATION_VALUE,
+    interior_fenestration: int = constants.INTERIOR_FENESTRATION_VALUE,
+    inbetween_fenestration: int = constants.INBETWEEN_FENESTRATION_VALUE,
+) -> np.ndarray:
+  """Mark fenestration nodes based on their position (exterior/interior/between)
+
+  Exterior fenestration nodes (-42): Adjacent to exterior space (value -1)
+  Interior fenestration nodes (-43): Adjacent to indoor air (value 0)
+  In-between fenestration nodes (-425): Neither exterior nor interior adjacent
+
+  Args:
+    floor_plan: 2D array with fenestration marked as fenestration_value.
+    fenestration_value: Current fenestration marker value. Defaults to -4.
+    exterior_space_value: Value for exterior space. Defaults to -1.
+    air_value: Value for indoor air. Defaults to 0.
+    exterior_fenestration: Value to mark exterior fenestration. Defaults to -42.
+    interior_fenestration: Value to mark interior fenestration. Defaults to -43.
+    inbetween_fenestration: Value for in-between fenestration. Defaults to -425.
+
+  Returns:
+    Copy of floor plan with fenestration nodes marked by position.
+  """
+  result = floor_plan.copy()
+  directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]
+
+  fenestration_positions = np.where(floor_plan == fenestration_value)
+
+  for row, col in zip(fenestration_positions[0], fenestration_positions[1]):
+    adjacent_to_exterior = False
+    adjacent_to_air = False
+
+    for dr, dc in directions:
+      nr, nc = row + dr, col + dc
+      if 0 <= nr < floor_plan.shape[0] and 0 <= nc < floor_plan.shape[1]:
+        neighbor_val = floor_plan[nr, nc]
+        if neighbor_val == exterior_space_value:
+          adjacent_to_exterior = True
+        elif neighbor_val == air_value:
+          adjacent_to_air = True
+
+    # Determine fenestration position type
+    if adjacent_to_exterior and not adjacent_to_air:
+      result[row, col] = exterior_fenestration
+    elif adjacent_to_air and not adjacent_to_exterior:
+      result[row, col] = interior_fenestration
+    elif adjacent_to_air and adjacent_to_exterior:
+      # Both adjacent - mark as interior (closest to air)
+      result[row, col] = interior_fenestration
+    else:
+      # Neither - in-between
+      result[row, col] = inbetween_fenestration
+
+  return result
+
+
+def group_fenestrations(
+    floor_plan: np.ndarray,
+    exterior_fenestration: int = constants.EXTERIOR_FENESTRATION_VALUE,
+    interior_fenestration: int = constants.INTERIOR_FENESTRATION_VALUE,
+    inbetween_fenestration: int = constants.INBETWEEN_FENESTRATION_VALUE,
+    exterior_space_value: int = constants.EXTERIOR_SPACE_VALUE_IN_FUNCTION,
+) -> dict:
+  """Group adjacent fenestration nodes and calculate their properties.
+
+  Groups fenestration nodes that are 4-way adjacent and calculates:
+  - count: Number of fenestration nodes in the group
+  - exterior_count: Number of exterior fenestration nodes (-42) in the group
+  - indices: List of (row, col) tuples for all nodes
+  - indices_array: Boolean array (floor_plan shape) with True at group positions
+  - phi: Tilt angle (always 90 degrees for vertical surfaces)
+  - azimuth: Direction the fenestration faces:
+      - 0 (top/north), 90 (right/east), 180 (bottom/south), 270 (left/west)
+  - F_gnd: Ground view factor
+  - F_sky: Sky view factor
+  - F_air: Ambient air view factor
+
+  View factor formulas (for vertical surface, phi = 90 degrees):
+  - F_gnd = 0.5 * (1 - cos(phi))
+  - F_sky = 0.5 * (1 + cos(phi)) * sqrt(0.5 * (1 + cos(phi)))
+  - F_air = 0.5 * (1 + cos(phi)) * (1 - sqrt(0.5 * (1 + cos(phi))))
+
+  Args:
+    floor_plan: 2D array with marked fenestration positions.
+    exterior_fenestration: Value for exterior fenestration (-42).
+    interior_fenestration: Value for interior fenestration (-43).
+    inbetween_fenestration: Value for in-between fenestration (-425).
+    exterior_space_value: Value for exterior space (-1).
+
+  Returns:
+    Dictionary with fenestration group information:
+    {
+      'fenestration_1': {
+        'count': int,
+        'exterior_count': int,
+        'indices': list of (row, col) tuples,
+        'indices_array': np.ndarray of bool (floor_plan shape),
+        'exterior_indices_array': np.ndarray of bool (floor_plan shape),
+          True only at exterior fenestration (-42) positions,
+        'phi': 90.0,
+        'azimuth': float (0, 90, 180, or 270),
+        'F_gnd': float,
+        'F_sky': float,
+        'F_air': float,
+        'beta': float, sqrt(0.5 * (1 + cos(phi))), sky radiation split factor,
+      },
+      ...
+    }
+  """
+  # Find all fenestration nodes (all three types)
+  fenestration_mask = (
+      (floor_plan == exterior_fenestration)
+      | (floor_plan == interior_fenestration)
+      | (floor_plan == inbetween_fenestration)
+  )
+
+  visited = np.zeros_like(floor_plan, dtype=bool)
+  groups = {}
+  group_count = 0
+  directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]
+
+  for row in range(floor_plan.shape[0]):
+    for col in range(floor_plan.shape[1]):
+      if fenestration_mask[row, col] and not visited[row, col]:
+        group_count += 1
+        group_indices = []
+        exterior_count = 0
+        queue = deque([(row, col)])
+        visited[row, col] = True
+
+        while queue:
+          r, c = queue.popleft()
+          group_indices.append((r, c))
+
+          # Count exterior fenestration nodes
+          if floor_plan[r, c] == exterior_fenestration:
+            exterior_count += 1
+
+          for dr, dc in directions:
+            nr, nc = r + dr, c + dc
+            if (
+                0 <= nr < floor_plan.shape[0]
+                and 0 <= nc < floor_plan.shape[1]
+                and fenestration_mask[nr, nc]
+                and not visited[nr, nc]
+            ):
+              visited[nr, nc] = True
+              queue.append((nr, nc))
+
+        # Create indices_array: boolean array with True at group positions
+        indices_array = np.zeros_like(floor_plan, dtype=bool)
+        for r, c in group_indices:
+          indices_array[r, c] = True
+
+        # Determine azimuth based on exterior space direction
+        azimuth = _determine_fenestration_azimuth(
+            floor_plan, group_indices, exterior_space_value
+        )
+
+        # Create exterior_indices_array: boolean array with True at exterior
+        # fenestration positions only
+        exterior_indices_array = np.zeros_like(floor_plan, dtype=bool)
+        for r, c in group_indices:
+          if floor_plan[r, c] == exterior_fenestration:
+            exterior_indices_array[r, c] = True
+
+        # Calculate view factors
+        phi = constants.FENESTRATION_TILT_ANGLE  # 90 degrees
+        phi_rad = math.radians(phi)
+        cos_phi = math.cos(phi_rad)
+
+        # F_gnd = 0.5 * (1 - cos(phi))
+        F_gnd = 0.5 * (1 - cos_phi)
+
+        # F_sky = 0.5 * (1 + cos(phi)) * sqrt(0.5 * (1 + cos(phi)))
+        factor = 0.5 * (1 + cos_phi)
+        F_sky = factor * math.sqrt(factor)
+
+        # F_air = 0.5 * (1 + cos(phi)) * (1 - sqrt(0.5 * (1 + cos(phi))))
+        F_air = factor * (1 - math.sqrt(factor))
+
+        # Beta factor for sky radiation split between sky temperature and
+        # ambient air temperature
+        beta = math.sqrt(factor)
+
+        groups[f'fenestration_{group_count}'] = {
+            'count': len(group_indices),
+            'exterior_count': exterior_count,
+            'indices': group_indices,
+            'indices_array': indices_array,
+            'exterior_indices_array': exterior_indices_array,
+            'phi': float(phi),
+            'azimuth': float(azimuth),
+            'F_gnd': F_gnd,
+            'F_sky': F_sky,
+            'F_air': F_air,
+            'beta': beta,
+        }
+
+  return groups
+
+
+def _determine_fenestration_azimuth(
+    floor_plan: np.ndarray,
+    group_indices: list,
+    exterior_space_value: int = constants.EXTERIOR_SPACE_VALUE_IN_FUNCTION,
+    exterior_fenestration_value: int = constants.EXTERIOR_FENESTRATION_VALUE,
+) -> int:
+  """Determine the azimuth (facing direction) of a fenestration group.
+
+  Checks which direction the fenestration group faces by:
+  1. First checking if exterior fenestration (-42) is at the array boundary
+  2. Then checking for exterior space adjacency
+
+  Args:
+    floor_plan: 2D array with the floor plan.
+    group_indices: List of (row, col) tuples for the fenestration group.
+    exterior_space_value: Value for exterior space (-1).
+    exterior_fenestration_value: Value for exterior fenestration (-42).
+
+  Returns:
+    Azimuth angle in degrees:
+      - 0: Top (north)
+      - 90: Right (east)
+      - 180: Bottom (south)
+      - 270: Left (west)
+  """
+  rows, cols = floor_plan.shape
+
+  # First, check if any exterior fenestration node is at the array boundary
+  # This handles the case where -42 is at the edge of the floor plan
+  for row, col in group_indices:
+    if floor_plan[row, col] == exterior_fenestration_value:
+      # Check if at top boundary (row 0)
+      if row == 0:
+        return constants.FENESTRATION_AZIMUTH_TOP
+      # Check if at bottom boundary (last row)
+      if row == rows - 1:
+        return constants.FENESTRATION_AZIMUTH_BOTTOM
+      # Check if at left boundary (col 0)
+      if col == 0:
+        return constants.FENESTRATION_AZIMUTH_LEFT
+      # Check if at right boundary (last col)
+      if col == cols - 1:
+        return constants.FENESTRATION_AZIMUTH_RIGHT
+
+  # Direction mapping: (dr, dc) -> azimuth
+  direction_azimuth = {
+      (-1, 0): constants.FENESTRATION_AZIMUTH_TOP,  # Top/North
+      (1, 0): constants.FENESTRATION_AZIMUTH_BOTTOM,  # Bottom/South
+      (0, 1): constants.FENESTRATION_AZIMUTH_RIGHT,  # Right/East
+      (0, -1): constants.FENESTRATION_AZIMUTH_LEFT,  # Left/West
+  }
+
+  # Check each node in the group for exterior adjacency
+  for row, col in group_indices:
+    for (dr, dc), azimuth in direction_azimuth.items():
+      nr, nc = row + dr, col + dc
+      if (
+          0 <= nr < rows
+          and 0 <= nc < cols
+          and floor_plan[nr, nc] == exterior_space_value
+      ):
+        return azimuth
+
+  # Default to 0 if no exterior adjacency found
+  return constants.FENESTRATION_AZIMUTH_TOP
+
+
+def group_air_nodes(
+    floor_plan: np.ndarray,
+    air_value: int = constants.INTERIOR_SPACE_VALUE_IN_FUNCTION,
+    interior_wall_value: int = constants.INTERIOR_WALL_VALUE_IN_FUNCTION,  # pylint: disable=unused-argument
+    exterior_wall_value: int = constants.EXTERIOR_WALL_VALUE_IN_FUNCTION,  # pylint: disable=unused-argument
+    exterior_fenestration: int = constants.EXTERIOR_FENESTRATION_VALUE,
+    interior_fenestration: int = constants.INTERIOR_FENESTRATION_VALUE,
+    inbetween_fenestration: int = constants.INBETWEEN_FENESTRATION_VALUE,
+    fenestration_groups: dict = None,
+) -> dict:
+  """Group indoor air nodes that are 4-way connected.
+
+  Air nodes are grouped based on 4-way connectivity, where walls and
+  fenestrations act as barriers. Each group represents a separate air space
+  (e.g., different rooms).
+
+  Args:
+    floor_plan: 2D array with the floor plan (after fenestration marking).
+    air_value: Value for indoor air. Defaults to 0.
+    interior_wall_value: Value for interior walls. Defaults to -3.
+    exterior_wall_value: Value for exterior walls. Defaults to -2.
+    exterior_fenestration: Value for exterior fenestration. Defaults to -42.
+    interior_fenestration: Value for interior fenestration. Defaults to -43.
+    inbetween_fenestration: Value for in-between fenestration. Defaults to -425.
+    fenestration_groups: Optional dict from group_fenestrations() to link
+        adjacent fenestrations.
+
+  Returns:
+    Dictionary with air group information:
+    {
+      'air_1': {
+        'count': int,
+        'indices': list of (row, col) tuples,
+        'indices_array': np.ndarray of bool (floor_plan shape),
+        'fenestration_groups': list of fenestration group names adjacent,
+      },
+      ...
+    }
+  """
+  visited = np.zeros_like(floor_plan, dtype=bool)
+  groups = {}
+  group_count = 0
+  directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]
+
+  # Build reverse mapping: fenestration index -> group name
+  fenestration_index_to_group = {}
+  if fenestration_groups:
+    for group_name, group_info in fenestration_groups.items():
+      for idx in group_info['indices']:
+        fenestration_index_to_group[idx] = group_name
+
+  for row in range(floor_plan.shape[0]):
+    for col in range(floor_plan.shape[1]):
+      if floor_plan[row, col] == air_value and not visited[row, col]:
+        group_count += 1
+        group_indices = []
+        adjacent_fenestrations = set()
+        queue = deque([(row, col)])
+        visited[row, col] = True
+
+        while queue:
+          r, c = queue.popleft()
+          group_indices.append((r, c))
+
+          for dr, dc in directions:
+            nr, nc = r + dr, c + dc
+            if 0 <= nr < floor_plan.shape[0] and 0 <= nc < floor_plan.shape[1]:
+              neighbor_val = floor_plan[nr, nc]
+
+              # Check if neighbor is fenestration (to track adjacent fenestrations) # pylint: disable=line-too-long
+              if (
+                  neighbor_val == interior_fenestration
+                  or neighbor_val == exterior_fenestration
+                  or neighbor_val == inbetween_fenestration
+              ):
+                if (nr, nc) in fenestration_index_to_group:
+                  adjacent_fenestrations.add(
+                      fenestration_index_to_group[(nr, nc)]
+                  )
+
+              # Continue BFS only through air nodes
+              if neighbor_val == air_value and not visited[nr, nc]:
+                visited[nr, nc] = True
+                queue.append((nr, nc))
+
+        # Create indices_array: boolean array with True at group positions
+        indices_array = np.zeros_like(floor_plan, dtype=bool)
+        for r, c in group_indices:
+          indices_array[r, c] = True
+
+        groups[f'air_{group_count}'] = {
+            'count': len(group_indices),
+            'indices': group_indices,
+            'indices_array': indices_array,
+            'fenestration_groups': sorted(list(adjacent_fenestrations)),
+        }
+
+  return groups
+
+
+def calculate_poa_irradiance(
+    irradiance_components: dict[str, float],
+    surface_tilt: float,
+    surface_azimuth: float,
+    solar_zenith: float,
+    solar_azimuth: float,
+) -> float:
+  """Calculate plane-of-array (POA) global irradiance.
+
+  Converts horizontal irradiance components (GHI, DNI, DHI) to the irradiance
+  incident on a tilted surface. Uses the pvlib library's get_total_irradiance
+  function.
+
+  Args:
+    irradiance_components: Dictionary with 'ghi', 'dni', and 'dhi' keys,
+      containing Global Horizontal Irradiance, Direct Normal Irradiance,
+      and Diffuse Horizontal Irradiance in W/m2.
+    surface_tilt: Surface tilt angle from horizontal in degrees (0 = horizontal,
+      90 = vertical).
+    surface_azimuth: Surface azimuth angle in degrees (180 = south-facing in
+      Northern Hemisphere, compass direction that the surface normal points).
+    solar_zenith: Solar zenith angle in degrees (angle from vertical).
+    solar_azimuth: Solar azimuth angle in degrees (compass direction of sun).
+
+  Returns:
+    POA global irradiance in W/m2.
+
+  Example:
+    >>> irrad = {'ghi': 800.0, 'dni': 700.0, 'dhi': 100.0}
+    >>> poa = calculate_poa_irradiance(irrad, surface_tilt=30.0,
+    ...     surface_azimuth=180.0, solar_zenith=30.0, solar_azimuth=180.0)
+  """
+  # Import here to avoid circular imports and keep pvlib as optional dependency
+  from pvlib import irradiance as pvlib_irradiance  # pylint: disable=import-outside-toplevel
+
+  poa_irrad = pvlib_irradiance.get_total_irradiance(
+      surface_tilt=surface_tilt,
+      surface_azimuth=surface_azimuth,
+      dni=irradiance_components['dni'],
+      ghi=irradiance_components['ghi'],
+      dhi=irradiance_components['dhi'],
+      solar_zenith=solar_zenith,
+      solar_azimuth=solar_azimuth,
+  )
+
+  return float(poa_irrad['poa_global'])
+
+
+def calculate_solar_absorbed_for_fenestration_group(
+    fenestration_group: dict,
+    irradiance_components: dict[str, float],
+    solar_zenith: float,
+    solar_azimuth: float,
+    alpha: float = constants.FENESTRATION_SOLAR_ABSORPTANCE,
+) -> float:
+  """Calculate total absorbed solar radiation for a fenestration group.
+
+  Computes q_sol_alpha = G_Ts * alpha for each exterior fenestration node,
+  sums them, and distributes evenly to all nodes in the fenestration group.
+
+  Args:
+    fenestration_group: Dictionary containing fenestration group properties
+      including 'exterior_indices_array', 'indices_array', 'phi', 'azimuth',
+      'count', and 'exterior_count'.
+    irradiance_components: Dictionary with 'ghi', 'dni', 'dhi', 'solar_zenith',
+      'solar_azimuth' keys.
+    solar_zenith: Solar zenith angle in degrees.
+    solar_azimuth: Solar azimuth angle in degrees.
+    alpha: Solar absorptance of the fenestration (0-1). Defaults to 0.1.
+
+  Returns:
+    Absorbed solar heat flux per node (W/m2) distributed evenly to all
+    fenestration nodes in the group. Returns 0.0 if no exterior fenestration.
+  """
+  exterior_count = fenestration_group.get('exterior_count', 0)
+  if exterior_count == 0:
+    return 0.0
+
+  # Calculate POA irradiance for this fenestration surface
+  surface_tilt = fenestration_group['phi']
+  surface_azimuth = fenestration_group['azimuth']
+
+  g_ts = calculate_poa_irradiance(
+      irradiance_components,
+      surface_tilt,
+      surface_azimuth,
+      solar_zenith,
+      solar_azimuth,
+  )
+
+  # Total absorbed solar radiation = G_Ts * alpha * number_of_exterior_nodes
+  total_absorbed = g_ts * alpha * exterior_count
+
+  # Distribute evenly to all fenestration nodes in the group
+  total_count = fenestration_group['count']
+  return total_absorbed / total_count if total_count > 0 else 0.0
+
+
+def net_solar_absorbed_heatflux(
+    floor_plan: np.ndarray,
+    fenestration_groups: dict,
+    irradiance_components: dict[str, float],
+    solar_zenith: float,
+    solar_azimuth: float,
+    alpha: float = constants.FENESTRATION_SOLAR_ABSORPTANCE,
+) -> np.ndarray:
+  """Calculate absorbed solar radiation array for all fenestration groups.
+
+  Creates a floor_plan-shaped array where each fenestration position contains
+  the absorbed solar heat flux (q_sol_alpha) for that node.
+
+  Args:
+    floor_plan: 2D array representing the floor plan.
+    fenestration_groups: Dictionary from group_fenestrations().
+    irradiance_components: Dictionary with 'ghi', 'dni', 'dhi' keys.
+    solar_zenith: Solar zenith angle in degrees.
+    solar_azimuth: Solar azimuth angle in degrees.
+    alpha: Solar absorptance of the fenestration (0-1). Defaults to 0.1.
+
+  Returns:
+    2D array (same shape as floor_plan) with absorbed solar heat flux (W/m2)
+    at fenestration positions, 0 elsewhere.
+  """
+  q_sol_alpha_array = np.zeros_like(floor_plan, dtype=float)
+
+  if not fenestration_groups:
+    return q_sol_alpha_array
+
+  for group_info in fenestration_groups.values():
+    q_sol_alpha_per_node = calculate_solar_absorbed_for_fenestration_group(
+        group_info,
+        irradiance_components,
+        solar_zenith,
+        solar_azimuth,
+        alpha,
+    )
+
+    # Add q_sol_alpha to all nodes in this fenestration group
+    indices_array = group_info['indices_array']
+    q_sol_alpha_array[indices_array] += q_sol_alpha_per_node
+
+  return q_sol_alpha_array
+
+
+def calculate_solar_transmitted_for_fenestration_group(
+    fenestration_group: dict,
+    irradiance_components: dict[str, float],
+    solar_zenith: float,
+    solar_azimuth: float,
+    tau: float = constants.FENESTRATION_SOLAR_TRANSMITTANCE,
+) -> float:
+  """Calculate total transmitted solar radiation for a fenestration group.
+
+  Computes total q_sol_tau = sum(G_Ts * tau) for all exterior fenestration
+  nodes in the group.
+
+  Args:
+    fenestration_group: Dictionary containing fenestration group properties.
+    irradiance_components: Dictionary with 'ghi', 'dni', 'dhi' keys.
+    solar_zenith: Solar zenith angle in degrees.
+    solar_azimuth: Solar azimuth angle in degrees.
+    tau: Solar transmittance of the fenestration (0-1). Defaults to 0.8.
+
+  Returns:
+    Total transmitted solar heat flux (W/m2 * count) for the entire group.
+    Returns 0.0 if no exterior fenestration.
+  """
+  exterior_count = fenestration_group.get('exterior_count', 0)
+  if exterior_count == 0:
+    return 0.0
+
+  # Calculate POA irradiance for this fenestration surface
+  surface_tilt = fenestration_group['phi']
+  surface_azimuth = fenestration_group['azimuth']
+
+  g_ts = calculate_poa_irradiance(
+      irradiance_components,
+      surface_tilt,
+      surface_azimuth,
+      solar_zenith,
+      solar_azimuth,
+  )
+
+  # Total transmitted solar radiation = G_Ts * tau * number_of_exterior_nodes
+  return g_ts * tau * exterior_count
+
+
+def net_solar_transmitted_heatflux(
+    floor_plan: np.ndarray,
+    fenestration_groups: dict,
+    air_groups: dict,
+    irradiance_components: dict[str, float],
+    solar_zenith: float,
+    solar_azimuth: float,
+    tau: float = constants.FENESTRATION_SOLAR_TRANSMITTANCE,
+) -> np.ndarray:
+  """Calculate transmitted solar radiation array for air groups.
+
+  For each air group, sums q_sol_tau from all connected fenestration groups,
+  then distributes evenly to all air nodes in the group. This represents
+  solar radiation transmitted through windows into the interior space.
+
+  Args:
+    floor_plan: 2D array representing the floor plan.
+    fenestration_groups: Dictionary from group_fenestrations().
+    air_groups: Dictionary from group_air_nodes().
+    irradiance_components: Dictionary with 'ghi', 'dni', 'dhi' keys.
+    solar_zenith: Solar zenith angle in degrees.
+    solar_azimuth: Solar azimuth angle in degrees.
+    tau: Solar transmittance of the fenestration (0-1). Defaults to 0.8.
+
+  Returns:
+    2D array (same shape as floor_plan) with transmitted solar heat flux (W/m2)
+    at air node positions (or interior mass positions), 0 elsewhere.
+  """
+  q_sol_tau_array = np.zeros_like(floor_plan, dtype=float)
+
+  if not fenestration_groups or not air_groups:
+    return q_sol_tau_array
+
+  # First, calculate q_sol_tau for each fenestration group
+  fenestration_q_sol_tau = {}
+  for group_name, group_info in fenestration_groups.items():
+    fenestration_q_sol_tau[group_name] = (
+        calculate_solar_transmitted_for_fenestration_group(
+            group_info,
+            irradiance_components,
+            solar_zenith,
+            solar_azimuth,
+            tau,
+        )
+    )
+
+  # For each air group, sum q_sol_tau from connected fenestration groups
+  for air_group_info in air_groups.values():
+    connected_fenestrations = air_group_info.get('fenestration_groups', [])
+
+    # Sum q_sol_tau from all connected fenestration groups
+    total_q_sol_tau = 0.0
+    for fen_group_name in connected_fenestrations:
+      if fen_group_name in fenestration_q_sol_tau:
+        total_q_sol_tau += fenestration_q_sol_tau[fen_group_name]
+
+    if total_q_sol_tau == 0.0:
+      continue
+
+    # Distribute evenly to all air nodes in this air group
+    air_count = air_group_info['count']
+    q_sol_tau_per_node = total_q_sol_tau / air_count if air_count > 0 else 0.0
+
+    # Add to air node positions
+    indices_array = air_group_info['indices_array']
+    q_sol_tau_array[indices_array] += q_sol_tau_per_node
+
+  return q_sol_tau_array

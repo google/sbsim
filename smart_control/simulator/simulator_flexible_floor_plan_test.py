@@ -1,6 +1,7 @@
 """Tests for simulator."""
 
 import copy
+import os
 from unittest import mock
 
 from absl.testing import absltest
@@ -301,15 +302,32 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
       include_radiative_heat_transfer=False,
       convergence_threshold=0.001,
       iteration_limit=100,
+      weather_controller=None,
   ):
-    """Creates a building and simulator instance with shared parameters."""
-    weather_controller = mock.create_autospec(
-        weather_controller_py.WeatherController
-    )
+    """Creates a building and simulator instance with shared parameters.
+
+    Args:
+      initial_temp: Initial temperature of all CVs in building.
+      include_interior_mass: Whether to include interior mass in building.
+      include_radiative_heat_transfer: include radiative heat transfer.
+      convergence_threshold: Convergence threshold for temperature solver.
+      iteration_limit: Maximum number of iterations for temperature solver.
+      weather_controller: Optional weather controller instance. If None, creates
+          a mock WeatherController. Can be a real WeatherController or
+          ReplayWeatherController instance.
+
+    Returns:
+      Tuple of (simulator, building) instances.
+    """
+    # Use provided weather controller or create a mock
+    if weather_controller is None:
+      weather_controller = mock.create_autospec(
+          weather_controller_py.WeatherController
+      )
     time_step_sec = 300.0
     hvac = self._create_small_hvac()
     iteration_warning = 10
-    start_timestamp = pd.Timestamp("2012-12-21")
+    start_timestamp = pd.Timestamp("2023-07-01 09:30:00")
 
     # Building geometry and base properties
     cv_size_cm = 20.0
@@ -1768,6 +1786,51 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
     # Test convergence with same temperature (should converge quickly)
     converged = simulator.finite_differences_timestep(
         ambient_temperature=292.0, convection_coefficient=12.0
+    )
+
+    self.assertTrue(
+        converged,
+        msg="converged.",
+    )
+
+  def test_interior_mass_convergence_with_lwx_lwr(self):
+    """
+    a
+    """
+
+    data_path = os.path.join(
+        os.path.dirname(__file__), "local_weather_test_data.csv"
+    )
+    weather_controller = weather_controller_py.ReplayWeatherController(
+        local_weather_path=data_path,
+        convection_coefficient=10.0,
+        tz="US/Pacific",
+        latitude=37.4,
+        longitude=-122.1,
+        irradiance_method="campbell_norman",
+    )
+
+    simulator, _ = self._create_simulator_and_building(
+        convergence_threshold=0.001,
+        iteration_limit=100,
+        include_interior_mass=True,
+        include_radiative_heat_transfer=True,
+        weather_controller=weather_controller,
+    )
+    # Test convergence with same temperature (should converge quickly)
+
+    start_timestamp = simulator._start_timestamp
+    ambient_temperature = simulator._weather_controller.get_current_temp(
+        start_timestamp
+    )
+    sky_temperature = simulator._weather_controller.get_current_sky_temperature(
+        start_timestamp
+    )
+    # passs sky_temp and irradiance and calculate exterior radiation.
+    converged = simulator.finite_differences_timestep(
+        ambient_temperature=ambient_temperature,
+        convection_coefficient=12.0,
+        sky_temperature=sky_temperature,
     )
 
     self.assertTrue(

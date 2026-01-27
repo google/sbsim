@@ -28,6 +28,24 @@ def _create_dummy_floor_plan():
   return plan
 
 
+def _create_large_dummy_floor_plan():
+  """Creates a large dummy floor plan for
+  exterior radiative heat transfer testing."""
+  plan = np.array([
+      [2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2],
+      [2, 1, 1, 1, 1, 4, 1, 1, 1, 1, 2],
+      [2, 1, 1, 1, 1, 4, 1, 1, 1, 1, 2],
+      [4, 4, 4, 4, 0, 0, 1, 0, 0, 4, 4],
+      [4, 4, 4, 4, 0, 0, 1, 0, 0, 1, 2],
+      [2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2],
+      [2, 1, 1, 1, 0, 0, 1, 0, 0, 1, 2],
+      [4, 4, 4, 4, 0, 0, 1, 0, 0, 1, 2],
+      [2, 1, 1, 1, 4, 1, 1, 1, 4, 1, 2],
+      [2, 2, 2, 2, 4, 2, 2, 2, 4, 2, 2],
+  ])
+  return plan
+
+
 def _create_dummy_floor_plan_matching_deprecation():
   plan = np.array([
       [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
@@ -1769,6 +1787,79 @@ class BuildingTest(parameterized.TestCase):
     # Check that interior mass is only assigned to air nodes
     with self.subTest("Check that interior mass is only assigned to air nodes"):
       self.assertEqual(np.sum(b.interior_mass_mask), np.sum(b.floor_plan == 0))
+
+  def test_building_with_fenestration_radiative_heat_transfer(self):
+    """Test with fenestration and radiative heat transfer."""
+    cv_size_cm = 20.0
+    floor_height_cm = 300.0
+    initial_temp = 292.0
+
+    floor_plan = _create_large_dummy_floor_plan()
+    zone_map = _create_large_dummy_floor_plan()
+
+    # Create building with radiative heat transfer enabled
+    b = building.FloorPlanBasedBuilding(
+        cv_size_cm=cv_size_cm,
+        floor_height_cm=floor_height_cm,
+        initial_temp=initial_temp,
+        floor_plan=floor_plan,
+        zone_map=zone_map,
+        buffer_from_walls=0,
+        include_radiative_heat_transfer=True,
+    )
+
+    # Check that fenestration groups are created
+    with self.subTest("fenestration_groups_created"):
+      self.assertIsNotNone(b.fenestration_groups)
+      self.assertGreater(len(b.fenestration_groups), 0)
+
+    # Check that air groups are created
+    with self.subTest("air_groups_created"):
+      self.assertIsNotNone(b.air_groups)
+      self.assertGreater(len(b.air_groups), 0)
+
+    # Check fenestration in indexed floor plan
+    with self.subTest("fenestration_marked_in_indexed_floor_plan"):
+      has_ext_fen = np.any(
+          b.indexed_floor_plan == constants.EXTERIOR_FENESTRATION_VALUE
+      )
+      has_int_fen = np.any(
+          b.indexed_floor_plan == constants.INTERIOR_FENESTRATION_VALUE
+      )
+      self.assertTrue(has_ext_fen or has_int_fen)
+
+    # Verify radiative properties arrays exist
+    with self.subTest("radiative_properties_exist"):
+      self.assertIsNotNone(b._epsilon)
+      self.assertIsNotNone(b._alpha)
+      self.assertIsNotNone(b._tau)
+
+  def test_building_without_fenestration_radiative_heat_transfer(self):
+    """Test that building without fenestration with radiative heat."""
+    cv_size_cm = 20.0
+    floor_height_cm = 300.0
+    initial_temp = 292.0
+
+    # Use dummy floor plan without fenestration
+    floor_plan = _create_dummy_floor_plan()
+    zone_map = _create_dummy_floor_plan()
+
+    b = building.FloorPlanBasedBuilding(
+        cv_size_cm=cv_size_cm,
+        floor_height_cm=floor_height_cm,
+        initial_temp=initial_temp,
+        floor_plan=floor_plan,
+        zone_map=zone_map,
+        buffer_from_walls=0,
+        include_radiative_heat_transfer=True,
+    )
+
+    # Check that fenestration groups are None (no fenestration)
+    with self.subTest("no_fenestration_groups"):
+      self.assertIsNone(b.fenestration_groups)
+
+    with self.subTest("no_air_groups"):
+      self.assertIsNone(b.air_groups)
 
 
 if __name__ == "__main__":

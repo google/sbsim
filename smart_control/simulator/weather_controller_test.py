@@ -10,6 +10,7 @@ import pandas as pd
 from pvlib import irradiance
 from pvlib import location
 
+from smart_control.simulator import building_radiation_utils
 from smart_control.simulator import weather_controller
 from smart_control.utils import conversion_utils as utils
 
@@ -186,6 +187,8 @@ class WeatherControllerTest(parameterized.TestCase):
     self.assertIn('ghi', irrad)
     self.assertIn('dni', irrad)
     self.assertIn('dhi', irrad)
+    self.assertIn('solar_zenith', irrad)
+    self.assertIn('solar_azimuth', irrad)
     self.assertGreater(irrad['ghi'], 0)
     self.assertGreater(irrad['dni'], 0)
     self.assertGreater(irrad['dhi'], 0)
@@ -195,6 +198,10 @@ class WeatherControllerTest(parameterized.TestCase):
     self.assertEqual(round(irrad['dni']), 872)
     self.assertEqual(round(irrad['dhi']), 121)
 
+    # Solar position should be reasonable at noon
+    self.assertGreater(irrad['solar_zenith'], 0)
+    self.assertLess(irrad['solar_zenith'], 90)  # Sun above horizon
+
     # Direct pvlib clearsky validation
     pvlib_location = location.Location(
         latitude, longitude, tz='America/Los_Angeles'
@@ -203,6 +210,19 @@ class WeatherControllerTest(parameterized.TestCase):
     self.assertAlmostEqual(irrad['ghi'], clearsky['ghi'].iloc[0], places=4)
     self.assertAlmostEqual(irrad['dni'], clearsky['dni'].iloc[0], places=4)
     self.assertAlmostEqual(irrad['dhi'], clearsky['dhi'].iloc[0], places=4)
+
+    # Validate solar position against pvlib
+    solar_position = pvlib_location.get_solarposition(
+        pd.DatetimeIndex([timestamp])
+    )
+    self.assertAlmostEqual(
+        irrad['solar_zenith'],
+        solar_position['apparent_zenith'].iloc[0],
+        places=4,
+    )
+    self.assertAlmostEqual(
+        irrad['solar_azimuth'], solar_position['azimuth'].iloc[0], places=4
+    )
 
   def test_get_current_irradiance_no_location(self):
     """Test that irradiance calculation raises error without location."""
@@ -216,8 +236,8 @@ class WeatherControllerTest(parameterized.TestCase):
     with self.assertRaises(ValueError):
       weather.get_current_irradiance(timestamp)
 
-  def test_get_irradiance_poa_weather_controller(self):
-    """Test POA irradiance calculation for WeatherController."""
+  def test_get_irradiance_with_solar_position_weather_controller(self):
+    """Test irradiance with solar position for WeatherController."""
     low_temp = 273.15
     high_temp = 298.15
     latitude = 37.4
@@ -232,10 +252,27 @@ class WeatherControllerTest(parameterized.TestCase):
     )
 
     timestamp = pd.Timestamp('2023-07-01 12:00:00', tz='US/Pacific')
+
+    # Get irradiance which now includes solar position
+    irrad = weather.get_current_irradiance(timestamp)
+
+    # Verify solar position is included
+    self.assertIn('solar_zenith', irrad)
+    self.assertIn('solar_azimuth', irrad)
+    self.assertGreater(irrad['solar_zenith'], 0)
+    self.assertLess(irrad['solar_zenith'], 90)  # Sun is above horizon at noon
+
+    # Test POA calculation using utility function
     surface_tilt = 30.0  # 30 degrees tilt
     surface_azimuth = 180.0  # South-facing
 
-    poa = weather.get_irradiance_poa(timestamp, surface_tilt, surface_azimuth)
+    poa = building_radiation_utils.calculate_poa_irradiance(
+        irradiance_components=irrad,
+        surface_tilt=surface_tilt,
+        surface_azimuth=surface_azimuth,
+        solar_zenith=irrad['solar_zenith'],
+        solar_azimuth=irrad['solar_azimuth'],
+    )
 
     # POA should be positive at noon
     self.assertGreater(poa, 0)
@@ -316,6 +353,8 @@ class WeatherControllerTest(parameterized.TestCase):
     self.assertIn('ghi', irrad)
     self.assertIn('dni', irrad)
     self.assertIn('dhi', irrad)
+    self.assertIn('solar_zenith', irrad)
+    self.assertIn('solar_azimuth', irrad)
     self.assertGreaterEqual(irrad['ghi'], 0)
     self.assertGreaterEqual(irrad['dni'], 0)
     self.assertGreaterEqual(irrad['dhi'], 0)
@@ -347,6 +386,16 @@ class WeatherControllerTest(parameterized.TestCase):
     self.assertAlmostEqual(irrad['dni'], expected_irrad['dni'], places=4)
     self.assertAlmostEqual(irrad['dhi'], expected_irrad['dhi'], places=4)
 
+    # Validate solar position against pvlib
+    self.assertAlmostEqual(
+        irrad['solar_zenith'],
+        solar_position['apparent_zenith'].iloc[0],
+        places=4,
+    )
+    self.assertAlmostEqual(
+        irrad['solar_azimuth'], solar_position['azimuth'].iloc[0], places=4
+    )
+
   def test_get_current_irradiance_with_cloud_cover_linear(self):
     """Test irradiance calculation with cloud cover using linear method."""
     low_temp = 273.15
@@ -372,6 +421,8 @@ class WeatherControllerTest(parameterized.TestCase):
     self.assertIn('ghi', irrad)
     self.assertIn('dni', irrad)
     self.assertIn('dhi', irrad)
+    self.assertIn('solar_zenith', irrad)
+    self.assertIn('solar_azimuth', irrad)
     self.assertGreaterEqual(irrad['ghi'], 0)
     self.assertGreaterEqual(irrad['dni'], 0)
     self.assertGreaterEqual(irrad['dhi'], 0)
@@ -406,6 +457,16 @@ class WeatherControllerTest(parameterized.TestCase):
     self.assertAlmostEqual(irrad['dni'], expected_dni, places=4)
     self.assertAlmostEqual(irrad['dhi'], expected_dhi, places=4)
 
+    # Validate solar position against pvlib
+    self.assertAlmostEqual(
+        irrad['solar_zenith'],
+        solar_position['apparent_zenith'].iloc[0],
+        places=4,
+    )
+    self.assertAlmostEqual(
+        irrad['solar_azimuth'], solar_position['azimuth'].iloc[0], places=4
+    )
+
   def test_invalid_cloud_cover_raises_error(self):
     """Test that invalid cloud cover values raise errors."""
     low_temp = 273.15
@@ -422,6 +483,107 @@ class WeatherControllerTest(parameterized.TestCase):
       weather_controller.WeatherController(
           low_temp, high_temp, cloud_cover=150.0
       )
+
+  def test_dynamic_cloud_cover(self):
+    """Test dynamic cloud cover with sinusoidal pattern."""
+    low_temp = 273.15
+    high_temp = 298.15
+    cloud_cover_low = 20.0
+    cloud_cover_high = 80.0
+
+    weather = weather_controller.WeatherController(
+        low_temp,
+        high_temp,
+        cloud_cover_low=cloud_cover_low,
+        cloud_cover_high=cloud_cover_high,
+    )
+
+    # At midnight (0 seconds), cloud cover should be at low
+    midnight = pd.Timestamp('2023-07-01 00:00:00', tz='UTC')
+    cc_midnight = weather.get_current_cloud_cover(midnight)
+    self.assertAlmostEqual(cc_midnight, cloud_cover_low, places=1)
+
+    # At noon (12 hours), cloud cover should be at high
+    noon = pd.Timestamp('2023-07-01 12:00:00', tz='UTC')
+    cc_noon = weather.get_current_cloud_cover(noon)
+    self.assertAlmostEqual(cc_noon, cloud_cover_high, places=1)
+
+    # At 6am (6 hours), cloud cover should be midpoint
+    morning = pd.Timestamp('2023-07-01 06:00:00', tz='UTC')
+    cc_morning = weather.get_current_cloud_cover(morning)
+    expected_mid = (cloud_cover_low + cloud_cover_high) / 2
+    self.assertAlmostEqual(cc_morning, expected_mid, places=1)
+
+  def test_dynamic_cloud_cover_validation(self):
+    """Test validation for dynamic cloud cover parameters."""
+    low_temp = 273.15
+    high_temp = 298.15
+
+    # Only cloud_cover_low provided (should raise error)
+    with self.assertRaises(ValueError):
+      weather_controller.WeatherController(
+          low_temp, high_temp, cloud_cover_low=20.0
+      )
+
+    # Only cloud_cover_high provided (should raise error)
+    with self.assertRaises(ValueError):
+      weather_controller.WeatherController(
+          low_temp, high_temp, cloud_cover_high=80.0
+      )
+
+    # cloud_cover_low > cloud_cover_high (should raise error)
+    with self.assertRaises(ValueError):
+      weather_controller.WeatherController(
+          low_temp, high_temp, cloud_cover_low=80.0, cloud_cover_high=20.0
+      )
+
+    # cloud_cover_low < 0 (should raise error)
+    with self.assertRaises(ValueError):
+      weather_controller.WeatherController(
+          low_temp, high_temp, cloud_cover_low=-10.0, cloud_cover_high=80.0
+      )
+
+    # cloud_cover_high > 100 (should raise error)
+    with self.assertRaises(ValueError):
+      weather_controller.WeatherController(
+          low_temp, high_temp, cloud_cover_low=20.0, cloud_cover_high=150.0
+      )
+
+  def test_dynamic_cloud_cover_affects_irradiance(self):
+    """Test that dynamic cloud cover affects irradiance calculation."""
+    low_temp = 273.15
+    high_temp = 298.15
+    latitude = 37.4
+    longitude = -122.1
+
+    # Weather with dynamic cloud cover (low at midnight, high at noon)
+    weather_dynamic = weather_controller.WeatherController(
+        low_temp,
+        high_temp,
+        latitude=latitude,
+        longitude=longitude,
+        tz='US/Pacific',
+        cloud_cover_low=0.0,
+        cloud_cover_high=80.0,
+        irradiance_method='campbell_norman',
+    )
+
+    # Weather with clearsky (no cloud cover)
+    weather_clearsky = weather_controller.WeatherController(
+        low_temp,
+        high_temp,
+        latitude=latitude,
+        longitude=longitude,
+        tz='US/Pacific',
+    )
+
+    # At noon when dynamic cloud cover is at maximum (80%)
+    noon = pd.Timestamp('2023-07-01 12:00:00', tz='US/Pacific')
+    irrad_dynamic = weather_dynamic.get_current_irradiance(noon)
+    irrad_clearsky = weather_clearsky.get_current_irradiance(noon)
+
+    # Dynamic irradiance should be less than clearsky at noon
+    self.assertLess(irrad_dynamic['ghi'], irrad_clearsky['ghi'])
 
   def test_invalid_irradiance_method_raises_error(self):
     """Test that invalid irradiance method raises error."""
@@ -480,12 +642,18 @@ class WeatherControllerTest(parameterized.TestCase):
     self.assertIn('ghi', irrad)
     self.assertIn('dni', irrad)
     self.assertIn('dhi', irrad)
+    self.assertIn('solar_zenith', irrad)
+    self.assertIn('solar_azimuth', irrad)
     self.assertGreaterEqual(irrad['ghi'], 0)
     self.assertGreaterEqual(irrad['dni'], 0)
     self.assertGreaterEqual(irrad['dhi'], 0)
     self.assertEqual(round(irrad['ghi']), 523.0)
     self.assertEqual(round(irrad['dni']), 235.0)
     self.assertEqual(round(irrad['dhi']), 304.0)
+
+    # Solar position should be reasonable at noon
+    self.assertGreater(irrad['solar_zenith'], 0)
+    self.assertLess(irrad['solar_zenith'], 90)  # Sun above horizon
 
     # Direct pvlib campbell_norman validation
     # At noon UTC (20:00 US/Pacific previous day), cloud cover is 100%
@@ -514,8 +682,18 @@ class WeatherControllerTest(parameterized.TestCase):
     self.assertAlmostEqual(irrad['dni'], expected_irrad['dni'], delta=1.0)
     self.assertAlmostEqual(irrad['dhi'], expected_irrad['dhi'], delta=1.0)
 
-  def test_get_irradiance_poa_replay_controller(self):
-    """Test POA irradiance calculation for ReplayWeatherController."""
+    # Validate solar position against pvlib
+    self.assertAlmostEqual(
+        irrad['solar_zenith'],
+        solar_position['apparent_zenith'].iloc[0],
+        places=4,
+    )
+    self.assertAlmostEqual(
+        irrad['solar_azimuth'], solar_position['azimuth'].iloc[0], places=4
+    )
+
+  def test_get_irradiance_with_solar_position_replay_controller(self):
+    """Test irradiance with solar position for ReplayWeatherController."""
     data_path = os.path.join(
         os.path.dirname(__file__), 'local_weather_test_data.csv'
     )
@@ -526,11 +704,24 @@ class WeatherControllerTest(parameterized.TestCase):
     )
 
     timestamp = pd.Timestamp('2023-07-01 12:00:00+00:00')
+
+    # Get irradiance which now includes solar position
+    irrad = controller.get_current_irradiance(timestamp)
+
+    # Verify solar position is included
+    self.assertIn('solar_zenith', irrad)
+    self.assertIn('solar_azimuth', irrad)
+
+    # Test POA calculation using utility function
     surface_tilt = 30.0
     surface_azimuth = 180.0
 
-    poa = controller.get_irradiance_poa(
-        timestamp, surface_tilt, surface_azimuth
+    poa = building_radiation_utils.calculate_poa_irradiance(
+        irradiance_components=irrad,
+        surface_tilt=surface_tilt,
+        surface_azimuth=surface_azimuth,
+        solar_zenith=irrad['solar_zenith'],
+        solar_azimuth=irrad['solar_azimuth'],
     )
 
     # POA should be non-negative
@@ -538,8 +729,6 @@ class WeatherControllerTest(parameterized.TestCase):
 
     # Direct pvlib validation for POA calculation
     pvlib_location = location.Location(latitude, longitude, tz='UTC')
-    # Get the irradiance components from the controller
-    irrad = controller.get_current_irradiance(timestamp)
     solar_position = pvlib_location.get_solarposition(
         pd.DatetimeIndex([timestamp])
     )

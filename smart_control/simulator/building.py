@@ -177,6 +177,35 @@ class DefaultExteriorWallRadiationProperties(RadiationProperties):
     super().__init__(alpha=0.65, epsilon=0.93, tau=0.0, rho=0.35)
 
 
+@gin.configurable
+@dataclasses.dataclass
+class DefaultFenestrationMaterialProperties(MaterialProperties):
+  """The default material properties for fenestration (windows/glass).
+
+  These properties represent typical double-pane window glass:
+  - conductivity: Effective U-value for double-pane glass (W/m·K)
+  - heat_capacity: Specific heat of glass (J/kg·K)
+  - density: Density of glass (kg/m³)
+  """
+
+  def __init__(self):
+    super().__init__(conductivity=0.8, heat_capacity=840.0, density=2500.0)
+
+
+@dataclasses.dataclass
+class DefaultFenestrationRadiationProperties(RadiationProperties):
+  """The default radiation properties for fenestration (windows/glass).
+
+  These properties represent typical window glass:
+  - alpha (absorptivity): Low for clear glass (~0.02-0.04)
+  - epsilon (emissivity): High for glass (~0.9-0.95)
+  - tau (transmittance): High for clear glass (solar radiation passes through)
+  """
+
+  def __init__(self):
+    super().__init__(alpha=0.03, epsilon=0.9, tau=0.85, rho=0.12)
+
+
 def _check_room_sizes(matrix_shape: Shape2D, room_shape: Shape2D):
   """Raises a ValueError if room_shape is not compatible with matrix_shape.
 
@@ -782,7 +811,7 @@ class FloorPlanBasedBuilding(BaseSimulatorBuilding):
     interior_wall_index: matrix representing the index of the interior
       walls of the building. Used only for calculating interior radiative
       heat transfer.
-    interior_wall_VF: matrix representing the view factors of the
+    interior_wall_vf: matrix representing the view factors of the
       interior walls of the building, which is denoted as F in the equation.
       Used only for calculating interior radiative heat transfer.
     epsilon: matrix representing the emissivity of the nodes of
@@ -796,14 +825,15 @@ class FloorPlanBasedBuilding(BaseSimulatorBuilding):
     include_interior_mass: bool to note whether to include interior mass nodes.
     interior_mass_mask: matrix indicating which CVs have interior mass nodes.
     interior_mass_temp: matrix representing temperature of interior mass nodes.
+    fenestration_groups: dict containing fenestration groups with properties
+      including count, indices, phi (tilt angle), azimuth, and view factors
+      (F_gnd, F_sky, F_air). Only populated when include_radiative_heat_transfer
+      is True and floor_plan contains fenestration nodes.
+    air_groups: dict containing indoor air node groups with their indices and
+      adjacent fenestration groups. Only populated when
+      include_radiative_heat_transfer is True and floor_plan contains
+      fenestration nodes.
 
-      The longwave radiation ($q_{lwx}$) is calculated as:
-
-      $$q_{lwx} = \\sigma(I-F)\\tilde{A}_{inv}T^4$$
-
-      Where the term $(I-F)\\tilde{A}_{inv}$ can be pre-calculated as:
-
-      $$IFA_{inv} = (I-F)\\tilde{A}_{inv}$$
   """
 
   def __init__(
@@ -815,6 +845,7 @@ class FloorPlanBasedBuilding(BaseSimulatorBuilding):
       inside_wall_properties: MaterialProperties | None = None,
       building_exterior_properties: MaterialProperties | None = None,
       interior_mass_properties: MaterialProperties | None = None,
+      fenestration_properties: MaterialProperties | None = None,  # pylint: disable=unused-argument
       zone_map: Optional[np.ndarray] = None,
       zone_map_filepath: Optional[str] = None,
       floor_plan: Optional[np.ndarray] = None,
@@ -828,6 +859,7 @@ class FloorPlanBasedBuilding(BaseSimulatorBuilding):
       inside_wall_radiative_properties: RadiationProperties | None = None,
       building_exterior_radiative_properties: RadiationProperties | None = None,
       interior_mass_radiative_properties: RadiationProperties | None = None,
+      fenestration_radiative_properties: RadiationProperties | None = None,
       include_radiative_heat_transfer: bool = False,
       view_factor_method: str = "ScriptF",
       include_interior_mass: bool = False,
@@ -844,6 +876,11 @@ class FloorPlanBasedBuilding(BaseSimulatorBuilding):
         defaults to DefaultInsideWallMaterialProperties.
       building_exterior_properties: MaterialProperties for building's exterior.
         If None, defaults to DefaultExteriorWallMaterialProperties.
+      interior_mass_properties: MaterialProperties for interior mass nodes
+        attached to air CVs.
+      fenestration_properties: MaterialProperties for fenestration (windows).
+        If None, defaults to DefaultFenestrationMaterialProperties. Only used
+        when the floor_plan contains fenestration nodes (value 4).
       zone_map: an np.ndarray noting where the VAV zones are.
       zone_map_filepath: a string of where to find the zone_map in CNS. Note
         that the user requires only to provide one of either zone_map_filepath
@@ -860,16 +897,18 @@ class FloorPlanBasedBuilding(BaseSimulatorBuilding):
       inside_wall_radiative_properties: RadiationProperties for interior walls.
       building_exterior_radiative_properties: RadiationProperties for building's
         exterior.
+      interior_mass_radiative_properties: RadiationProperties for interior mass
+        nodes attached to air CVs.
+      fenestration_radiative_properties: RadiationProperties for fenestration
+        (windows). If None, defaults to DefaultFenestrationRadiationProperties.
+        Only used when include_radiative_heat_transfer is True and the
+        floor_plan contains fenestration nodes.
       include_radiative_heat_transfer: bool to note whether to include radiative
         heat transfer.
       view_factor_method: str to note the method to use for view factors.
         Either "ScriptF" or "CarrollMRT". See
         [LW Radiation Exchange Among Zone Surfaces](https://bigladdersoftware.com/epx/docs/9-6/engineering-reference/inside-heat-balance.html#lw-radiation-exchange-among-zone-surfaces)
         for more details.
-      interior_mass_properties: MaterialProperties for interior mass nodes
-        attached to air CVs.
-      interior_mass_radiative_properties: RadiationProperties for interior mass
-        nodes attached to air CVs.
       include_interior_mass: bool to note whether to include interior mass nodes
         for air CVs.
     """
@@ -994,6 +1033,7 @@ class FloorPlanBasedBuilding(BaseSimulatorBuilding):
         inside_wall_radiative_properties,
         building_exterior_radiative_properties,
         inside_air_radiative_properties,
+        fenestration_radiative_properties,
     )
 
     self.reset()
@@ -1006,6 +1046,7 @@ class FloorPlanBasedBuilding(BaseSimulatorBuilding):
       inside_wall_radiative_properties,
       building_exterior_radiative_properties,
       inside_air_radiative_properties,
+      fenestration_radiative_properties,
   ):
     if self.include_radiative_heat_transfer:
       self.view_factor_method = view_factor_method
@@ -1021,10 +1062,54 @@ class FloorPlanBasedBuilding(BaseSimulatorBuilding):
           self.indexed_floor_plan == constants.INTERIOR_WALL_VALUE_IN_FILE_INPUT
       ] = constants.INTERIOR_WALL_VALUE_IN_FUNCTION
 
+      # Process fenestration nodes if present
+      self._has_fenestration = np.any(
+          self.floor_plan == constants.FENESTRATION_VALUE_IN_FILE_INPUT
+      )
+
+      if self._has_fenestration:
+        # Validate fenestration connectivity before processing
+        building_radiation_utils.validate_fenestration_connectivity(
+            self.floor_plan,
+            constants.FENESTRATION_VALUE_IN_FILE_INPUT,
+            constants.INTERIOR_SPACE_VALUE_IN_FILE_INPUT,
+        )
+
+        # Convert fenestration values from 4 to -4
+        self.indexed_floor_plan[
+            self.indexed_floor_plan
+            == constants.FENESTRATION_VALUE_IN_FILE_INPUT
+        ] = constants.FENESTRATION_VALUE_IN_FUNCTION
+
+        # Mark fenestration positions (exterior:-42,interior:-43, between:-425)
+        self.indexed_floor_plan = (
+            building_radiation_utils.mark_fenestration_positions(
+                self.indexed_floor_plan,
+                fenestration_value=constants.FENESTRATION_VALUE_IN_FUNCTION,
+                exterior_space_value=constants.EXTERIOR_SPACE_VALUE_IN_FUNCTION,
+                air_value=constants.INTERIOR_SPACE_VALUE_IN_FUNCTION,
+            )
+        )
+
+        # Group fenestrations and calculate view factors
+        self.fenestration_groups = building_radiation_utils.group_fenestrations(
+            self.indexed_floor_plan,
+        )
+
+        # Group air nodes and link to fenestrations
+        self.air_groups = building_radiation_utils.group_air_nodes(
+            self.indexed_floor_plan,
+            fenestration_groups=self.fenestration_groups,
+        )
+      else:
+        self.fenestration_groups = None
+        self.air_groups = None
+
       self.interior_wall_mask = (
           building_radiation_utils.mark_interior_wall_adjacent_to_air(
               self.indexed_floor_plan,
               constants.INTERIOR_WALL_VALUE_IN_FUNCTION,
+              constants.INTERIOR_FENESTRATION_VALUE,
               constants.INTERIOR_SPACE_VALUE_IN_FUNCTION,
           )
       )
@@ -1059,6 +1144,10 @@ class FloorPlanBasedBuilding(BaseSimulatorBuilding):
           inside_air_radiative_properties
           or DefaultInsideAirRadiationProperties()
       )
+      fenestration_radiative_properties = (
+          fenestration_radiative_properties
+          or DefaultFenestrationRadiationProperties()
+      )
 
       # emissivity
       self._epsilon = _assign_interior_and_exterior_values(
@@ -1084,6 +1173,23 @@ class FloorPlanBasedBuilding(BaseSimulatorBuilding):
           exterior_wall_value=building_exterior_radiative_properties.tau,
           interior_and_exterior_space_value=inside_air_radiative_properties.tau,
       )
+
+      # Assign fenestration radiative properties if fenestration exists
+      if self._has_fenestration:
+        fenestration_mask = (
+            (self.indexed_floor_plan == constants.EXTERIOR_FENESTRATION_VALUE)
+            | (self.indexed_floor_plan == constants.INTERIOR_FENESTRATION_VALUE)
+            | (
+                self.indexed_floor_plan
+                == constants.INBETWEEN_FENESTRATION_VALUE
+            )
+        )
+        self._epsilon[fenestration_mask] = (
+            fenestration_radiative_properties.epsilon
+        )
+        self._alpha[fenestration_mask] = fenestration_radiative_properties.alpha
+        self._tau[fenestration_mask] = fenestration_radiative_properties.tau
+
       if self.include_interior_mass:
         epsilon_temp = np.zeros_like(self._epsilon)
         epsilon_temp[self.interior_mass_mask] = self._epsilon_interior_mass[
@@ -1113,6 +1219,9 @@ class FloorPlanBasedBuilding(BaseSimulatorBuilding):
       self._epsilon = None
       self._tau = None
       self.ifa_inv = None
+      self.fenestration_groups = None
+      self.air_groups = None
+      self._has_fenestration = False
 
   def _assign_interior_mass_properties(
       self,
@@ -1358,3 +1467,101 @@ class FloorPlanBasedBuilding(BaseSimulatorBuilding):
           temperature_estimates[self.interior_wall_mask], self.ifa_inv
       )
     return q_lwx
+
+  def apply_longwave_exterior_radiative_heat_transfer(
+      self,
+      temperature_estimates: np.ndarray,
+      ambient_temperature: float,
+      sky_temperature: float,
+  ) -> np.ndarray:
+    """Applies long-wave exterior radiative heat transfer for fenestrations.
+
+    This function calculates the net radiative heat flux between exterior
+    fenestration surfaces and the sky/ground environment. The calculation
+    considers radiation exchange with:
+    - Ground at ambient temperature
+    - Sky (split between sky temperature and ambient air temperature)
+    - Emission from the fenestration surface
+
+    Args:
+      temperature_estimates: Current temperature estimates for all CVs in K.
+      ambient_temperature: Ambient air temperature in K.
+      sky_temperature: Sky temperature in K.
+
+    Returns:
+      2D array (floor_plan shape) with net exterior LWR heat flux [W/m^2] at
+      each fenestration position. Non-fenestration positions are 0.
+    """
+    # If no fenestration groups, return zero array
+    if not hasattr(self, "fenestration_groups") or not self.fenestration_groups:
+      return np.zeros_like(self.indexed_floor_plan, dtype=float)
+
+    q_lwr = building_radiation_utils.net_exterior_radiative_heatflux(
+        floor_plan=self.indexed_floor_plan,
+        fenestration_groups=self.fenestration_groups,
+        surface_temperatures=temperature_estimates,
+        emissivity_array=self.emissivity,
+        ambient_temperature=ambient_temperature,
+        sky_temperature=sky_temperature,
+    )
+    return q_lwr
+
+  def apply_shortwave_solar_radiation(
+      self,
+      irradiance_components: dict[str, float],
+      solar_zenith: float,
+      solar_azimuth: float,
+      alpha: float = constants.FENESTRATION_SOLAR_ABSORPTANCE,
+      tau: float = constants.FENESTRATION_SOLAR_TRANSMITTANCE,
+  ) -> tuple[np.ndarray, np.ndarray]:
+    """Applies shortwave solar radiation for fenestrations.
+
+    Calculates two components of solar radiation:
+    1. q_sol_alpha: Solar radiation absorbed by fenestration surfaces,
+       distributed evenly to all fenestration nodes in each group.
+    2. q_sol_tau: Solar radiation transmitted through fenestrations,
+       distributed evenly to air nodes (or interior mass) connected to
+       each fenestration group.
+
+    Args:
+      irradiance_components: Dictionary with 'ghi', 'dni', 'dhi' keys
+        containing irradiance values in W/m2.
+      solar_zenith: Solar zenith angle in degrees.
+      solar_azimuth: Solar azimuth angle in degrees.
+      alpha: Solar absorptance of fenestration (0-1). Defaults to 0.1.
+      tau: Solar transmittance of fenestration (0-1). Defaults to 0.8.
+
+    Returns:
+      Tuple of two 2D arrays (floor_plan shape):
+      - q_sol_alpha_array: Absorbed solar heat flux [W/m2] at fenestration
+        positions.
+      - q_sol_tau_array: Transmitted solar heat flux [W/m2] at air node
+        positions (to be applied to interior mass if enabled).
+    """
+    # If no fenestration groups, return zero arrays
+    if not hasattr(self, "fenestration_groups") or not self.fenestration_groups:
+      zero_array = np.zeros_like(self.indexed_floor_plan, dtype=float)
+      return zero_array, zero_array.copy()
+
+    # Calculate absorbed solar radiation (q_sol_alpha)
+    q_sol_alpha_array = building_radiation_utils.net_solar_absorbed_heatflux(
+        floor_plan=self.indexed_floor_plan,
+        fenestration_groups=self.fenestration_groups,
+        irradiance_components=irradiance_components,
+        solar_zenith=solar_zenith,
+        solar_azimuth=solar_azimuth,
+        alpha=alpha,
+    )
+
+    # Calculate transmitted solar radiation (q_sol_tau)
+    q_sol_tau_array = building_radiation_utils.net_solar_transmitted_heatflux(
+        floor_plan=self.indexed_floor_plan,
+        fenestration_groups=self.fenestration_groups,
+        air_groups=self.air_groups,
+        irradiance_components=irradiance_components,
+        solar_zenith=solar_zenith,
+        solar_azimuth=solar_azimuth,
+        tau=tau,
+    )
+
+    return q_sol_alpha_array, q_sol_tau_array

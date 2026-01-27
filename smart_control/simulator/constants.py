@@ -50,6 +50,7 @@ EXTERIOR_SPACE_VALUE_IN_COMPONENT = 0
 # that designates interior space in the file input.
 INTERIOR_SPACE_VALUE_IN_FILE_INPUT = 0
 
+
 # Here we pick out a specific value that we know will code for interior space
 # after connectedComponents() processes it. We know this because we have ensured
 # that the CV at index (0,0) will always be an "space" CV when ready for
@@ -130,3 +131,32 @@ WATT_LIMIT = 500
 INTERIOR_MASS_NODE_MARKER = 1
 # Label for interior mass CV type
 LABEL_FOR_INTERIOR_MASS = "interior_mass"
+
+# Fenestration node constants
+FENESTRATION_VALUE_IN_FILE_INPUT = 4
+FENESTRATION_VALUE_IN_FUNCTION = -4
+
+# Fenestration position markers for radiative heat transfer
+# Exterior fenestration nodes (adjacent to exterior space, value 2)
+EXTERIOR_FENESTRATION_VALUE = -42
+# Most interior fenestration nodes (adjacent to indoor air, value 0)
+INTERIOR_FENESTRATION_VALUE = -43
+# In-between fenestration nodes (neither exterior nor interior adjacent)
+INBETWEEN_FENESTRATION_VALUE = -425
+
+# Fenestration azimuth angles (degrees)
+# Based on direction the fenestration faces outward
+FENESTRATION_AZIMUTH_TOP = 0  # Fenestration at top of building faces north
+FENESTRATION_AZIMUTH_RIGHT = 90  # Fenestration at right side faces east
+FENESTRATION_AZIMUTH_BOTTOM = 180  # Fenestration at bottom faces south
+FENESTRATION_AZIMUTH_LEFT = 270  # Fenestration at left side faces west
+
+# Default fenestration tilt angle (vertical surface)
+FENESTRATION_TILT_ANGLE = 90  # degrees from horizontal
+
+# Fenestration optical properties (default values for typical window glass)
+# Solar absorptance: fraction of solar radiation absorbed by the glass
+FENESTRATION_SOLAR_ABSORPTANCE = 0.1  # typical for single pane clear glass
+# Solar transmittance: fraction of solar radiation transmitted through the glass
+FENESTRATION_SOLAR_TRANSMITTANCE = 0.8  # typical for single pane clear glass
+# Note: reflectance = 1 - absorptance - transmittance = 0.1

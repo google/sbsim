@@ -47,7 +47,10 @@ class WeatherController(BaseWeatherController):
     longitude: Longitude for the weather data.
     dewpoint_depression: Difference between dry bulb and dew point temperatures
       in K. Default is 5.0 K.
-    cloud_cover: Cloud cover in percent (0-100). If None, uses clearsky model.
+    cloud_cover: Static cloud cover in percent (0-100). If None and
+      cloud_cover_low/high not set, uses clearsky model.
+    cloud_cover_low: Low cloud cover in percent at midnight for dynamic mode.
+    cloud_cover_high: High cloud cover in percent at noon for dynamic mode.
     irradiance_method: Method for converting cloud cover to irradiance
       ('clearsky', 'linear', or 'campbell_norman'). Defaults to 'clearsky'.
   """
@@ -63,6 +66,8 @@ class WeatherController(BaseWeatherController):
       longitude: float | None = None,
       dewpoint_depression: float = 5.0,
       cloud_cover: float | None = None,
+      cloud_cover_low: float | None = None,
+      cloud_cover_high: float | None = None,
       irradiance_method: str = 'clearsky',
   ):
     self.default_low_temp = default_low_temp
@@ -74,12 +79,30 @@ class WeatherController(BaseWeatherController):
     self.longitude = longitude
     self.dewpoint_depression = dewpoint_depression  # Dry bulb - dew point (K)
     self.cloud_cover = cloud_cover
+    self.cloud_cover_low = cloud_cover_low
+    self.cloud_cover_high = cloud_cover_high
     self.irradiance_method = irradiance_method
 
-    # Validate cloud_cover
+    # Validate cloud_cover (static mode)
     if self.cloud_cover is not None:
       if self.cloud_cover < 0 or self.cloud_cover > 100:
         raise ValueError('cloud_cover must be between 0 and 100.')
+
+    # Validate cloud_cover_low and cloud_cover_high (dynamic mode)
+    if self.cloud_cover_low is not None or self.cloud_cover_high is not None:
+      if self.cloud_cover_low is None or self.cloud_cover_high is None:
+        raise ValueError(
+            'Both cloud_cover_low and cloud_cover_high must be provided '
+            'for dynamic cloud cover.'
+        )
+      if self.cloud_cover_low < 0 or self.cloud_cover_low > 100:
+        raise ValueError('cloud_cover_low must be between 0 and 100.')
+      if self.cloud_cover_high < 0 or self.cloud_cover_high > 100:
+        raise ValueError('cloud_cover_high must be between 0 and 100.')
+      if self.cloud_cover_low > self.cloud_cover_high:
+        raise ValueError(
+            'cloud_cover_low cannot be greater than cloud_cover_high.'
+        )
 
     # Validate irradiance_method
     valid_methods = ('clearsky', 'linear', 'campbell_norman')
@@ -109,6 +132,23 @@ class WeatherController(BaseWeatherController):
             f'Low temp cannot be greater than high temp for special day: {day}.'
         )
 
+  def _ensure_timestamp_tz(self, timestamp: pd.Timestamp) -> pd.Timestamp:
+    """Ensure timestamp has timezone info, localizing if necessary.
+
+    Args:
+      timestamp: Pandas timestamp, may be naive or timezone-aware.
+
+    Returns:
+      Timezone-aware timestamp. If input was naive, localizes to self.tz.
+      If input was already timezone-aware, converts to self.tz.
+    """
+    if timestamp.tzinfo is None:
+      # Naive timestamp - localize to controller's timezone
+      return timestamp.tz_localize(self.tz)
+    else:
+      # Already timezone-aware - convert to controller's timezone
+      return timestamp.tz_convert(self.tz)
+
   def seconds_to_rads(self, seconds_in_day: int) -> float:
     """Returns radians corresponding to number of second in the day.
 
@@ -123,8 +163,10 @@ class WeatherController(BaseWeatherController):
     """Returns current temperature in K.
 
     Args:
-      timestamp: Pandas timestamp to get temperature for.
+      timestamp: Pandas timestamp to get temperature for. If naive (no tz),
+        will be localized to the controller's timezone.
     """
+    timestamp = self._ensure_timestamp_tz(timestamp)
     today = timestamp.dayofyear
     tomorrow = (today + 1) % _DAYS_IN_A_YEAR
 
@@ -154,21 +196,48 @@ class WeatherController(BaseWeatherController):
     """Returns the convection coefficient (W/m2/K) based on the current wind.
 
     Args:
-      timestamp: Pandas timestamp to get convection coefficient for.
+      timestamp: Pandas timestamp to get convection coefficient for. If naive
+        (no timezone), will be localized to the controller's timezone.
     """
     return self.convection_coefficient
 
   def get_current_cloud_cover(self, timestamp: pd.Timestamp) -> float:
     """Returns current cloud cover in percent.
 
+    Cloud cover can be:
+    1. Static: Set via `cloud_cover` parameter (constant value)
+    2. Dynamic: Set via `cloud_cover_low` and `cloud_cover_high` parameters
+       (sinusoidal pattern: low at midnight, high at noon)
+    3. Clearsky: If neither is set, returns 0.0
+
     Args:
-      timestamp: Pandas timestamp (unused, included for API consistency).
+      timestamp: Pandas timestamp to get cloud cover for. If naive (no timezone)
+       , will be localized to the controller's timezone.
 
     Returns:
-      Cloud cover in percent (0-100). Returns 0 if cloud_cover not set.
+      Cloud cover in percent (0-100).
     """
-    del timestamp  # Unused, but kept for API consistency with ReplayController
-    return self.cloud_cover if self.cloud_cover is not None else 0.0
+    timestamp = self._ensure_timestamp_tz(timestamp)
+
+    # Dynamic cloud cover mode (sinusoidal pattern like temperature)
+    if self.cloud_cover_low is not None and self.cloud_cover_high is not None:
+      seconds_in_day = (timestamp - timestamp.normalize()).total_seconds()
+      rad = self.seconds_to_rads(seconds_in_day)
+      # Same sinusoidal pattern as temperature: low at midnight, high at noon
+      cloud_cover = (
+          0.5
+          * (math.sin(rad) + 1)
+          * (self.cloud_cover_high - self.cloud_cover_low)
+          + self.cloud_cover_low
+      )
+      return cloud_cover
+
+    # Static cloud cover mode
+    if self.cloud_cover is not None:
+      return self.cloud_cover
+
+    # Default: clearsky (no clouds)
+    return 0.0
 
   def get_current_irradiance(
       self, timestamp: pd.Timestamp
@@ -176,35 +245,52 @@ class WeatherController(BaseWeatherController):
     """Returns current irradiance (GHI, DNI, DHI) in W/m2.
 
     Uses clearsky model by default, or adjusts for cloud cover if specified.
+    Supports both static cloud cover and dynamic cloud cover (sinusoidal).
     Consistent with ReplayWeatherController irradiance methods.
 
     Args:
-      timestamp: Pandas timestamp to get irradiance for.
+      timestamp: Pandas timestamp to get irradiance for. If naive (no timezone),
+        will be localized to the controller's timezone.
 
     Returns:
-      Dictionary with 'ghi', 'dni', and 'dhi' keys.
+      Dictionary with 'ghi', 'dni', 'dhi', 'solar_zenith', and 'solar_azimuth'
+      keys. Irradiance values in W/m2, angles in degrees.
 
     Raises:
       ValueError: If latitude/longitude not provided during initialization.
     """
+    timestamp = self._ensure_timestamp_tz(timestamp)
+
     if self._location is None:
       raise ValueError(
           'Latitude and longitude must be provided to calculate irradiance.'
       )
 
-    # If no cloud cover or clearsky method, return clearsky irradiance
-    if self.cloud_cover is None or self.irradiance_method == 'clearsky':
+    # Get solar position (needed for all methods and output)
+    solar_position = self._location.get_solarposition(
+        pd.DatetimeIndex([timestamp])
+    )
+    solar_zenith = float(solar_position['apparent_zenith'].iloc[0])
+    solar_azimuth = float(solar_position['azimuth'].iloc[0])
+
+    # Get current cloud cover (handles both static and dynamic modes)
+    current_cloud_cover = self.get_current_cloud_cover(timestamp)
+
+    # Check if we should use clearsky model
+    has_cloud_cover = self.cloud_cover is not None or (
+        self.cloud_cover_low is not None and self.cloud_cover_high is not None
+    )
+
+    # If no cloud cover configured or clearsky method, return clearsky irradiance # pylint: disable=line-too-long
+    if not has_cloud_cover or self.irradiance_method == 'clearsky':
       clearsky = self._location.get_clearsky(pd.DatetimeIndex([timestamp]))
       return {
           'ghi': float(clearsky['ghi'].iloc[0]),
           'dni': float(clearsky['dni'].iloc[0]),
           'dhi': float(clearsky['dhi'].iloc[0]),
+          'solar_zenith': solar_zenith,
+          'solar_azimuth': solar_azimuth,
       }
-
-    # Get solar position
-    solar_position = self._location.get_solarposition(
-        pd.DatetimeIndex([timestamp])
-    )
 
     if self.irradiance_method == 'linear':
       # Get clear sky irradiance
@@ -214,7 +300,7 @@ class WeatherController(BaseWeatherController):
 
       # Estimate GHI from cloud cover using linear relationship
       ghi = float(clearsky['ghi'].iloc[0]) * (
-          1.0 - 0.8 * (self.cloud_cover / 100.0)
+          1.0 - 0.8 * (current_cloud_cover / 100.0)
       )
 
       # Estimate DNI using DISC model
@@ -232,7 +318,7 @@ class WeatherController(BaseWeatherController):
 
     elif self.irradiance_method == 'campbell_norman':
       dni_extra = irradiance.get_extra_radiation(pd.DatetimeIndex([timestamp]))
-      transmittance = 0.7 - 0.5 * (self.cloud_cover / 100.0)
+      transmittance = 0.7 - 0.5 * (current_cloud_cover / 100.0)
 
       irrads = irradiance.campbell_norman(
           solar_position['apparent_zenith'].iloc[0],
@@ -250,66 +336,26 @@ class WeatherController(BaseWeatherController):
         'ghi': max(0, ghi),
         'dni': max(0, dni),
         'dhi': max(0, dhi),
+        'solar_zenith': solar_zenith,
+        'solar_azimuth': solar_azimuth,
     }
-
-  def get_irradiance_poa(
-      self,
-      timestamp: pd.Timestamp,
-      surface_tilt: float,
-      surface_azimuth: float,
-  ) -> float:
-    """Returns plane-of-array (POA) irradiance in W/m2.
-
-    Args:
-      timestamp: Pandas timestamp to get irradiance for.
-      surface_tilt: Surface tilt angle in degrees.
-      surface_azimuth: Surface azimuth angle in degrees.
-
-    Returns:
-      POA global irradiance in W/m2.
-
-    Raises:
-      ValueError: If latitude/longitude not provided during initialization.
-    """
-    if self._location is None:
-      raise ValueError(
-          'Latitude and longitude must be provided to calculate irradiance.'
-      )
-
-    # Get irradiance components
-    irrad = self.get_current_irradiance(timestamp)
-
-    # Get solar position
-    solar_position = self._location.get_solarposition(
-        pd.DatetimeIndex([timestamp])
-    )
-
-    # Calculate POA irradiance
-    poa_irrad = irradiance.get_total_irradiance(
-        surface_tilt=surface_tilt,
-        surface_azimuth=surface_azimuth,
-        dni=irrad['dni'],
-        ghi=irrad['ghi'],
-        dhi=irrad['dhi'],
-        solar_zenith=solar_position['apparent_zenith'].iloc[0],
-        solar_azimuth=solar_position['azimuth'].iloc[0],
-    )
-
-    return float(poa_irrad['poa_global'])
 
   def get_current_sky_temperature(self, timestamp: pd.Timestamp) -> float:
     """Returns sky temperature in K using Clark & Allen formula.
 
     Args:
-      timestamp: Pandas timestamp to get sky temperature for.
+      timestamp: Pandas timestamp to get sky temperature for. If naive
+        (no timezone), will be localized to the controller's timezone.
 
     Returns:
       Sky temperature in K.
     """
+    timestamp = self._ensure_timestamp_tz(timestamp)
+
     # Stefan-Boltzmann constant
     sigma = 5.6697e-8  # W/(m^2*K^4)
 
-    # Get dry bulb temperature
+    # Get dry bulb temperature (timestamp already localized)
     temp_k = self.get_current_temp(timestamp)
 
     # Estimate dew point temperature
@@ -355,6 +401,123 @@ def get_replay_temperatures(
     time = utils.proto_to_pandas_timestamp(r.timestamp)
     temps[str(time)] = temp
   return temps
+
+
+def get_replay_cloud_cover(
+    observation_responses: Sequence[
+        smart_control_building_pb2.ObservationResponse
+    ],
+) -> Mapping[str, float]:
+  """Returns cloud cover replays from past observations.
+
+  Args:
+    observation_responses: array of observations to extract weather from
+
+  Returns: map from timestamp to cloud cover (percent, 0-100)
+  """
+
+  def get_cloud_cover(observation_response):
+    for r in observation_response.single_observation_responses:
+      if r.single_observation_request.measurement_name == 'cloud_cover_sensor':
+        return r.continuous_value
+    return 0.0  # Default to clear sky
+
+  cloud_covers = {}
+  for r in observation_responses:
+    cloud_cover = get_cloud_cover(r)
+    time = utils.proto_to_pandas_timestamp(r.timestamp)
+    cloud_covers[str(time)] = cloud_cover
+  return cloud_covers
+
+
+def get_replay_sky_temperature(
+    observation_responses: Sequence[
+        smart_control_building_pb2.ObservationResponse
+    ],
+    dewpoint_depression: float = 5.0,
+) -> Mapping[str, float]:
+  """Returns sky temperature replays from past observations.
+
+  Calculates sky temperature using Clark & Allen formula from dry bulb
+  temperature and dew point (estimated from dewpoint_depression if not
+  available).
+
+  Args:
+    observation_responses: array of observations to extract weather from
+    dewpoint_depression: Difference between dry bulb and dew point temperatures
+      in K. Used if dew point sensor not available. Default is 5.0 K.
+
+  Returns: map from timestamp to sky temperature (K)
+  """
+  # Stefan-Boltzmann constant
+  sigma = 5.6697e-8  # W/(m^2*K^4)
+
+  def get_value(observation_response, measurement_name):
+    for r in observation_response.single_observation_responses:
+      if r.single_observation_request.measurement_name == measurement_name:
+        return r.continuous_value
+    return None
+
+  sky_temps = {}
+  for r in observation_responses:
+    # Get dry bulb temperature
+    temp_k = get_value(r, 'outside_air_temperature_sensor')
+    if temp_k is None:
+      continue
+
+    # Try to get dew point temperature, otherwise estimate from depression
+    dp_k = get_value(r, 'dew_point_temperature_sensor')
+    if dp_k is None:
+      dp_k = temp_k - dewpoint_depression
+
+    # Calculate sky emissivity (Clark & Allen)
+    epsilon_sky = 0.787 + 0.764 * np.log(dp_k / 273.0)
+
+    # Calculate horizontal infrared radiation
+    ir_h = epsilon_sky * sigma * (temp_k**4)
+
+    # Calculate sky temperature
+    temp_sky_k = (ir_h / sigma) ** 0.25
+
+    time = utils.proto_to_pandas_timestamp(r.timestamp)
+    sky_temps[str(time)] = temp_sky_k
+
+  return sky_temps
+
+
+def get_replay_irradiance(
+    observation_responses: Sequence[
+        smart_control_building_pb2.ObservationResponse
+    ],
+) -> Mapping[str, Mapping[str, float]]:
+  """Returns irradiance replays from past observations.
+
+  Args:
+    observation_responses: array of observations to extract weather from
+
+  Returns: map from timestamp to dict with 'ghi', 'dni', 'dhi' keys (W/m2)
+  """
+
+  def get_value(observation_response, measurement_name):
+    for r in observation_response.single_observation_responses:
+      if r.single_observation_request.measurement_name == measurement_name:
+        return r.continuous_value
+    return 0.0
+
+  irradiances = {}
+  for r in observation_responses:
+    ghi = get_value(r, 'ghi_sensor')
+    dni = get_value(r, 'dni_sensor')
+    dhi = get_value(r, 'dhi_sensor')
+
+    time = utils.proto_to_pandas_timestamp(r.timestamp)
+    irradiances[str(time)] = {
+        'ghi': ghi,
+        'dni': dni,
+        'dhi': dhi,
+    }
+
+  return irradiances
 
 
 @gin.configurable
@@ -406,6 +569,23 @@ class ReplayWeatherController:
 
     # Pre-calculate sky temperature (doesn't require location, only temp/dewpoint) # pylint: disable=line-too-long
     self._calculate_sky_temperature_column()
+
+  def _ensure_timestamp_tz(self, timestamp: pd.Timestamp) -> pd.Timestamp:
+    """Ensure timestamp has timezone info, localizing if necessary.
+
+    Args:
+      timestamp: Pandas timestamp, may be naive or timezone-aware.
+
+    Returns:
+      Timezone-aware timestamp. If input was naive, localizes to self.tz.
+      If input was already timezone-aware, converts to self.tz.
+    """
+    if timestamp.tzinfo is None:
+      # Naive timestamp - localize to controller's timezone
+      return timestamp.tz_localize(self.tz)
+    else:
+      # Already timezone-aware - convert to controller's timezone
+      return timestamp.tz_convert(self.tz)
 
   def _calculate_sky_temperature_column(self):
     """Pre-calculate sky temperature for all timestamps in weather data.
@@ -562,9 +742,10 @@ class ReplayWeatherController:
     """Returns current temperature in K.
 
     Args:
-      timestamp: Pandas timestamp to get temperature for interpolation.
+      timestamp: Pandas timestamp to get temperature for interpolation. If naive
+        (no timezone), will be localized to the controller's timezone.
     """
-    timestamp = timestamp.tz_convert(self.tz)
+    timestamp = self._ensure_timestamp_tz(timestamp)
     min_time = min(self._weather_data['Time'])
     if timestamp < min_time:
 
@@ -594,13 +775,19 @@ class ReplayWeatherController:
 
   # pylint: disable=unused-argument
   def get_air_convection_coefficient(self, timestamp: pd.Timestamp) -> float:
+    """Returns the convection coefficient (W/m2/K).
+
+    Args:
+      timestamp: Pandas timestamp (unused but kept for API consistency).
+    """
     return self.convection_coefficient
 
   def get_current_cloud_cover(self, timestamp: pd.Timestamp) -> float:
     """Returns current cloud cover in percent.
 
     Args:
-      timestamp: Pandas timestamp to get cloud cover for.
+      timestamp: Pandas timestamp to get cloud cover for. If naive (no tz),
+        will be localized to the controller's timezone.
 
     Returns:
       Cloud cover in percent (0-100).
@@ -609,7 +796,7 @@ class ReplayWeatherController:
       ValueError: If timestamp is outside weather data range or no SkyCoverage
       column.
     """
-    timestamp = timestamp.tz_convert(self.tz)
+    timestamp = self._ensure_timestamp_tz(timestamp)
     min_time = min(self._weather_data['Time'])
     if timestamp < min_time:
       raise ValueError(
@@ -637,14 +824,16 @@ class ReplayWeatherController:
       self, timestamp: pd.Timestamp
   ) -> Mapping[str, float]:
     # pylint: disable=line-too-long
-    """Returns current irradiance (GHI, DNI, DHI) in W/m2 by interpolating
-       pre-calculated values.
+    """Returns current irradiance (GHI, DNI, DHI) and solar position by
+       interpolating pre-calculated values.
 
     Args:
-      timestamp: Pandas timestamp to get irradiance for.
+      timestamp: Pandas timestamp to get irradiance for. If naive (no timezone),
+        will be localized to the controller's timezone.
 
     Returns:
-      Dictionary with 'ghi', 'dni', and 'dhi' keys.
+      Dictionary with 'ghi', 'dni', 'dhi', 'solar_zenith', and 'solar_azimuth'
+      keys. Irradiance values in W/m2, angles in degrees.
 
     Raises:
       ValueError: If latitude/longitude not provided or timestamp out of range
@@ -670,7 +859,7 @@ class ReplayWeatherController:
           ' provided during initialization.'
       )
 
-    timestamp = timestamp.tz_convert(self.tz)
+    timestamp = self._ensure_timestamp_tz(timestamp)
     min_time = min(self._weather_data['Time'])
     if timestamp < min_time:
       raise ValueError(
@@ -692,62 +881,25 @@ class ReplayWeatherController:
     dni = np.interp(target_timestamp, times, self._weather_data['dni'])
     dhi = np.interp(target_timestamp, times, self._weather_data['dhi'])
 
-    return {
-        'ghi': float(ghi),
-        'dni': float(dni),
-        'dhi': float(dhi),
-    }
-
-  def get_irradiance_poa(
-      self,
-      timestamp: pd.Timestamp,
-      surface_tilt: float,
-      surface_azimuth: float,
-  ) -> float:
-    """Returns plane-of-array (POA) irradiance in W/m2.
-
-    Args:
-      timestamp: Pandas timestamp to get irradiance for.
-      surface_tilt: Surface tilt angle in degrees.
-      surface_azimuth: Surface azimuth angle in degrees.
-
-    Returns:
-      POA global irradiance in W/m2.
-
-    Raises:
-      ValueError: If latitude/longitude not provided or timestamp out of range.
-    """
-    if self._location is None:
-      raise ValueError(
-          'Latitude and longitude must be provided to calculate irradiance.'
-      )
-
-    # Get irradiance components from pre-calculated values
-    irrad = self.get_current_irradiance(timestamp)
-
-    # Get solar position
+    # Get solar position for this timestamp
     solar_position = self._location.get_solarposition(
         pd.DatetimeIndex([timestamp])
     )
 
-    # Calculate POA irradiance
-    poa_irrad = irradiance.get_total_irradiance(
-        surface_tilt=surface_tilt,
-        surface_azimuth=surface_azimuth,
-        dni=irrad['dni'],
-        ghi=irrad['ghi'],
-        dhi=irrad['dhi'],
-        solar_zenith=solar_position['apparent_zenith'].iloc[0],
-        solar_azimuth=solar_position['azimuth'].iloc[0],
-    )
-
-    return float(poa_irrad['poa_global'])
+    return {
+        'ghi': float(ghi),
+        'dni': float(dni),
+        'dhi': float(dhi),
+        'solar_zenith': float(solar_position['apparent_zenith'].iloc[0]),
+        'solar_azimuth': float(solar_position['azimuth'].iloc[0]),
+    }
 
   def get_current_sky_temperature(self, timestamp: pd.Timestamp) -> float:
     """Returns sky temperature in K by interpolating pre-calculated values.
 
     Args:
-      timestamp: Pandas timestamp to get sky temperature for.
+      timestamp: Pandas timestamp to get sky temperature for. If naive
+        (no timezone), will be localized to the controller's timezone.
 
     Returns:
       Sky temperature in K.
@@ -762,7 +914,7 @@ class ReplayWeatherController:
           ' during initialization.'
       )
 
-    timestamp = timestamp.tz_convert(self.tz)
+    timestamp = self._ensure_timestamp_tz(timestamp)
     min_time = min(self._weather_data['Time'])
     if timestamp < min_time:
       raise ValueError(

@@ -89,22 +89,78 @@ class Simulator:
       temperature_estimates: np.ndarray,
       ambient_temperature: float,
       convection_coefficient: float,
+      sky_temperature: float,
+      irradiance_components: dict[str, float] | None = None,
+      solar_zenith: float | None = None,
+      solar_azimuth: float | None = None,
   ) -> float:
-    """Returns temperature estimate for corner CV in K for next time step.
+    r"""Returns temperature estimate for corner CV in K for next time step.
 
     This function calculates the solution to an equation involving the energy
-    transfer by conduction to neighoring air CVs as well as energy transfer by
-    convection from the external ambient air.
+    transfer by conduction to neighboring air CVs as well as energy transfer by
+    convection from the external ambient air. Corner CVs have 2 neighbors and
+    2 exposed faces at the boundary.
+
+    Equations:
+    --------------------
+    The energy balance for a corner control volume (CV) is given by:
+
+    $$\begin{multline}
+      k (z) \frac{T_{\text{n1}} - T_{i,j}}{\delta_x} +
+      k (z) \frac{T_{\text{n2}} - T_{i,j}}{\delta_x} +
+      h (\delta_x z) (T_{\text{amb}} - T_{i,j}) + q_{\text{lwr}}
+      + q_{\text{sol},\alpha} \\
+      = \frac{\rho c \delta_x^2 z}{4 \Delta t}
+      \left( T_{i,j} - T_{i,j}^{(-)} \right)
+    \end{multline}$$
+
+    The factor of 1/4 in the thermal mass term accounts for the corner CV
+    having one-quarter the volume of an interior CV (two faces at the boundary).
+
+    Solving for $T_{i,j}$:
+
+    $$T_{i,j} = \frac{k (T_{\text{n1}} + T_{\text{n2}}) +
+      h \delta_x T_{\text{amb}} + \frac{q_{\text{lwr}}
+      + q_{\text{sol},\alpha}}{z}
+      + t_0 T_{i,j}^{(-)}}
+      {2 k + h \delta_x + t_0}$$
+
+    where the temporal parameter is:
+
+    $$t_0 = \frac{\rho c \delta_x^2}{4 \Delta t}$$
+
+    Nomenclature and Units:
+    -----------------------
+    - $T_{i,j}$: Temperature at corner CV $(i,j)$ at new time step [K]
+    - $T_{i,j}^{(-)}$: Temperature at corner CV $(i,j)$ at previous time step[K]
+    - $T_{\text{n1}}, T_{\text{n2}}$: Temperatures of the 2 neighboring CVs [K]
+    - $T_{\text{amb}}$: Ambient (external) air temperature [K]
+    - $k$: Thermal conductivity [$\mathrm{W/(m \cdot K)}$]
+    - $h$: Convection coefficient [$\mathrm{W/(m^2 \cdot K)}$]
+    - $\delta_x$: Spatial discretization (CV size) [$\mathrm{m}$]
+    - $z$: CV height (floor height) [$\mathrm{m}$]
+    - $\rho$: Density [$\mathrm{kg/m^3}$]
+    - $c$: Specific heat capacity [$\mathrm{J/(kg \cdot K)}$]
+    - $\Delta t$: Time step [$\mathrm{s}$]
+    - $t_0$: Temporal parameter [dimensionless]
+    - $q_{\text{lwr}}$: Exterior longwave radiative heat flux [$\mathrm{W/m^2}$]
+    - $q_{\text{sol},\alpha}$: Absorbed solar radiation [$\mathrm{W/m^2}$]
 
     Args:
       cv_coordinates: 2-Tuple representing coordinates in building of CV.
       temperature_estimates: Current temperature estimate for each CV.
       ambient_temperature: Current temperature in K of external air.
       convection_coefficient: Current wind convection coefficient (W/m2/K).
+      sky_temperature: Sky temperature in K for exterior LWR calculation.
+      irradiance_components: Dictionary with 'ghi', 'dni', 'dhi' keys for
+        solar irradiance in W/m2. If None, solar radiation is not calculated.
+      solar_zenith: Solar zenith angle in degrees.
+      solar_azimuth: Solar azimuth angle in degrees.
     """
     x, y = cv_coordinates
     delta_x = self.building.cv_size_cm / 100.0
     delta_t = self._time_step_sec
+    z = self.building.floor_height_cm / 100.0
     density = self.building.density[x][y]
     conductivity = self.building.conductivity[x][y]
     heat_capacity = self.building.heat_capacity[x][y]
@@ -115,18 +171,47 @@ class Simulator:
     # Ensure corner CV.
     assert len(neighbors) == 2
 
-    t0 = density * delta_x**2 * heat_capacity / delta_t / 2.0
+    t0 = density * delta_x**2 * heat_capacity / delta_t / 4.0  # corner 1/4
     retained_heat = t0 * last_temp
     neighbor_transfer = conductivity * sum(neighbor_temps)
-    convection_transfer = (
-        2.0 * convection_coefficient * delta_x * ambient_temperature
-    )
-    denominator = (
-        2.0 * conductivity + 2.0 * convection_coefficient * delta_x + t0
-    )
+    convection_transfer = convection_coefficient * delta_x * ambient_temperature
+    denominator = 2.0 * conductivity + convection_coefficient * delta_x + t0
+
+    # Exterior LWR heat transfer (for fenestration CVs)
+    q_lwr = 0.0
+    q_sol_alpha = 0.0
+    if (
+        hasattr(self.building, 'include_radiative_heat_transfer')
+        and self.building.include_radiative_heat_transfer
+        and hasattr(self.building, 'fenestration_groups')
+        and self.building.fenestration_groups
+    ):
+      q_lwr_array = (
+          self.building.apply_longwave_exterior_radiative_heat_transfer(
+              temperature_estimates, ambient_temperature, sky_temperature
+          )
+      )
+      if q_lwr_array[x, y] != 0.0:
+        q_lwr = q_lwr_array[x, y] / z
+
+      # Absorbed solar radiation (for fenestration CVs)
+      if (
+          irradiance_components is not None
+          and solar_zenith is not None
+          and solar_azimuth is not None
+      ):
+        q_sol_alpha_array, _ = self.building.apply_shortwave_solar_radiation(
+            irradiance_components, solar_zenith, solar_azimuth
+        )
+        if q_sol_alpha_array[x, y] != 0.0:
+          q_sol_alpha = q_sol_alpha_array[x, y] / z
 
     return (
-        neighbor_transfer + convection_transfer + retained_heat
+        neighbor_transfer
+        + convection_transfer
+        + retained_heat
+        + q_lwr
+        + q_sol_alpha
     ) / denominator
 
   def _get_edge_cv_temp_estimate(
@@ -135,22 +220,83 @@ class Simulator:
       temperature_estimates: np.ndarray,
       ambient_temperature: float,
       convection_coefficient: float,
+      sky_temperature: float,
+      irradiance_components: dict[str, float] | None = None,
+      solar_zenith: float | None = None,
+      solar_azimuth: float | None = None,
   ) -> float:
-    """Returns temperature estimate for edge CV in K for next time step.
+    r"""Returns temperature estimate for edge CV in K for next time step.
 
     This function calculates the solution to an equation involving the energy
-    transfer by conduction to neighoring air CVs as well as energy transfer by
-    convection from the external ambient air.
+    transfer by conduction to neighboring air CVs as well as energy transfer by
+    convection from the external ambient air. Edge CVs have 3 neighbors and
+    1 exposed face for convection.
+
+    Equations:
+    --------------------
+    The energy balance for an edge control volume (CV) is given by:
+
+    $$\begin{multline}
+      \sum_{n=1}^{3} f_n k (z) \frac{T_{\text{n}} - T_{i,j}}{\delta_x} +
+      h (\delta_x z) (T_{\text{amb}} - T_{i,j}) + q_{\text{lwr}}
+      + q_{\text{sol},\alpha} \\
+      = \frac{\rho c \delta_x^2 z}{2 \Delta t}
+      \left( T_{i,j} - T_{i,j}^{(-)} \right)
+    \end{multline}$$
+
+    where $f_n$ is the edge factor for each neighbor:
+    - $f_n = 0.5$ if the neighbor is an edge or corner CV (fewer than 4
+      neighbors)
+    - $f_n = 1.0$ if the neighbor is an interior CV (4 neighbors)
+
+    The factor of 1/2 in the thermal mass term accounts for the edge CV having
+    half the volume of an interior CV.
+
+    Solving for $T_{i,j}$:
+
+    $$T_{i,j} = \frac{k \sum_{n=1}^{3} f_n T_{\text{n}} +
+      h \delta_x T_{\text{amb}} + \frac{q_{\text{lwr}}
+      + q_{\text{sol},\alpha}}{z}
+      + t_0 T_{i,j}^{(-)}}
+      {2 k + h \delta_x + t_0}$$
+
+    where the temporal parameter is:
+
+    $$t_0 = \frac{\rho c \delta_x^2}{2 \Delta t}$$
+
+    Nomenclature and Units:
+    -----------------------
+    - $T_{i,j}$: Temperature at edge CV $(i,j)$ at new time step [K]
+    - $T_{i,j}^{(-)}$: Temperature at edge CV $(i,j)$ at previous time step [K]
+    - $T_{\text{n}}$: Temperature of neighbor $n$ [K]
+    - $T_{\text{amb}}$: Ambient (external) air temperature [K]
+    - $f_n$: Edge factor for neighbor $n$ (0.5 or 1.0) [dimensionless]
+    - $k$: Thermal conductivity [$\mathrm{W/(m \cdot K)}$]
+    - $h$: Convection coefficient [$\mathrm{W/(m^2 \cdot K)}$]
+    - $\delta_x$: Spatial discretization (CV size) [$\mathrm{m}$]
+    - $z$: CV height (floor height) [$\mathrm{m}$]
+    - $\rho$: Density [$\mathrm{kg/m^3}$]
+    - $c$: Specific heat capacity [$\mathrm{J/(kg \cdot K)}$]
+    - $\Delta t$: Time step [$\mathrm{s}$]
+    - $t_0$: Temporal parameter [dimensionless]
+    - $q_{\text{lwr}}$: Exterior longwave radiative heat flux [$\mathrm{W/m^2}$]
+    - $q_{\text{sol},\alpha}$: Absorbed solar radiation [$\mathrm{W/m^2}$]
 
     Args:
       cv_coordinates: 2-Tuple representing coordinates in building of CV.
       temperature_estimates: Current temperature estimate for each CV.
       ambient_temperature: Current temperature in K of external air.
       convection_coefficient: Current wind convection coefficient (W/m2/K).
+      sky_temperature: Sky temperature in K for exterior LWR calculation.
+      irradiance_components: Dictionary with 'ghi', 'dni', 'dhi' keys for
+        solar irradiance in W/m2. If None, solar radiation is not calculated.
+      solar_zenith: Solar zenith angle in degrees.
+      solar_azimuth: Solar azimuth angle in degrees.
     """
     x, y = cv_coordinates
     delta_x = self.building.cv_size_cm / 100.0
     delta_t = self._time_step_sec
+    z = self.building.floor_height_cm / 100.0
     density = self.building.density[x][y]
     conductivity = self.building.conductivity[x][y]
     heat_capacity = self.building.heat_capacity[x][y]
@@ -178,19 +324,63 @@ class Simulator:
 
     denominator = 2.0 * conductivity + convection_coefficient * delta_x + t0
 
+    # Exterior LWR heat transfer (for fenestration CVs)
+    q_lwr = 0.0
+    q_sol_alpha = 0.0
+    if (
+        hasattr(self.building, 'include_radiative_heat_transfer')
+        and self.building.include_radiative_heat_transfer
+        and hasattr(self.building, 'fenestration_groups')
+        and self.building.fenestration_groups
+    ):
+      q_lwr_array = (
+          self.building.apply_longwave_exterior_radiative_heat_transfer(
+              temperature_estimates, ambient_temperature, sky_temperature
+          )
+      )
+      if q_lwr_array[x, y] != 0.0:
+        q_lwr = q_lwr_array[x, y] / z
+
+      # Absorbed solar radiation (for fenestration CVs)
+      if (
+          irradiance_components is not None
+          and solar_zenith is not None
+          and solar_azimuth is not None
+      ):
+        q_sol_alpha_array, _ = self.building.apply_shortwave_solar_radiation(
+            irradiance_components, solar_zenith, solar_azimuth
+        )
+        if q_sol_alpha_array[x, y] != 0.0:
+          q_sol_alpha = q_sol_alpha_array[x, y] / z
+
     return (
-        neighbor_transfer + convection_transfer + retained_heat
+        neighbor_transfer
+        + convection_transfer
+        + retained_heat
+        + q_lwr
+        + q_sol_alpha
     ) / denominator
 
   def _get_interior_cv_temp_estimate(
-      self, cv_coordinates: CVCoordinates, temperature_estimates: np.ndarray
+      self,
+      cv_coordinates: CVCoordinates,
+      temperature_estimates: np.ndarray,
+      ambient_temperature: float,
+      sky_temperature: float,
+      irradiance_components: dict[str, float] | None = None,
+      solar_zenith: float | None = None,
+      solar_azimuth: float | None = None,
   ) -> float:
     r"""Returns temperature estimate for interior CV in K for next time step.
 
     This function calculates the solution to an equation involving the energy
     transfer by conduction to neighboring air CVs, heat input from a diffuser,
-    radiative exchange with interior surfaces, and heat exchange with interior
-    mass nodes (if present).
+    radiative exchange with interior surfaces, exterior radiative exchange
+    (for fenestration), and heat exchange with interior mass nodes (if present).
+
+    Note: Transmitted solar radiation (q_sol_tau) is applied to interior mass
+    nodes in update_interior_mass_temperatures(), not here. If interior mass
+    is disabled, q_sol_tau is applied to air nodes directly here.
 
     Equations:
     --------------------
@@ -203,7 +393,8 @@ class Simulator:
       k_3 (v z) \frac{T_{i+1,j} - T_{i,j}}{u} +
       k_4 (u z) \frac{T_{i,j+1} - T_{i,j}}{v} \\
       + Q_x + \frac{k_{\text{mass}} u v}{z}
-      (T_{\text{mass},i,j} - T_{i,j}) + q_{\text{lwx}} =
+      (T_{\text{mass},i,j} - T_{i,j}) + q_{\text{lwx}} + q_{\text{lwr}}
+      + q_{\text{sol},\tau} =
       \frac{\rho c u v z}{\Delta t} \left( T_{i,j} - T_{i,j}^{(-)} \right)
       \end{multline}$$
 
@@ -212,7 +403,9 @@ class Simulator:
 
     $$T_{i,j} = \frac{\sum_{\text{neighbors}} T_{\text{neighbor}} +
       \frac{Q_x}{z k} + \frac{k_{\text{mass}} \delta_x^2}{z^2 k}
-      T_{\text{mass},i,j}+\frac{q_\text{lwx}}{zk} + t_0 T_{i,j}^{(-)}}
+      T_{\text{mass},i,j}+\frac{q_\text{lwx}}{zk}+\frac{q_\text{lwr}}{zk}
+      +\frac{q_{\text{sol},\tau}}{zk}
+      + t_0 T_{i,j}^{(-)}}
       {4 + \frac{k_{\text{mass}} \delta_x^2}{z^2 k} + t_0}$$
 
     where the temporal parameter is:
@@ -237,7 +430,10 @@ class Simulator:
     - $k_{\text{mass}}$: Thermal conductivity of interior mass
       [$\mathrm{W/(m \cdot K)}$]
     - $Q_x$: External heat source (e.g., diffuser) [$\mathrm{W}$]
-    - $q_{\text{lwx}}$: Longwave radiative exchange [$\mathrm{W}$]
+    - $q_{\text{lwx}}$: Interior longwave radiative exchange [$\mathrm{W/m^2}$]
+    - $q_{\text{lwr}}$: Exterior longwave radiative heat flux [$\mathrm{W/m^2}$]
+    - $q_{\text{sol},\tau}$: Transmitted solar radiation [$\mathrm{W/m^2}$]
+      (only when interior mass is disabled)
     - $u, v$: CV dimensions in x and y directions [$\mathrm{m}$]
     - $\delta_x$: Spatial discretization (uniform CV size) [$\mathrm{m}$]
     - $z$: CV height (floor height) [$\mathrm{m}$]
@@ -250,6 +446,12 @@ class Simulator:
     Args:
       cv_coordinates: 2-Tuple representing coordinates in building of CV.
       temperature_estimates: Current temperature estimate for each CV.
+      ambient_temperature: Ambient air temperature in K for exterior LWR.
+      sky_temperature: Sky temperature in K for exterior LWR calculation.
+      irradiance_components: Dictionary with 'ghi', 'dni', 'dhi' keys for
+        solar irradiance in W/m2. If None, solar radiation is not calculated.
+      solar_zenith: Solar zenith angle in degrees.
+      solar_azimuth: Solar azimuth angle in degrees.
     """
     x, y = cv_coordinates
     delta_x = self.building.cv_size_cm / 100.0
@@ -276,12 +478,15 @@ class Simulator:
 
     thermal_source = input_q / conductivity / z
 
-    # Interior mass heat transfer (adiabatic node connected only to air CV)
-    if (
+    # Check if interior mass is enabled
+    include_interior_mass = (
         hasattr(self.building, 'include_interior_mass')
         and self.building.include_interior_mass
         and self.building.interior_mass_mask[x, y]
-    ):
+    )
+
+    # Interior mass heat transfer (adiabatic node connected only to air CV)
+    if include_interior_mass:
       interior_mass_conductivity = self.building.interior_mass_conductivity[x][
           y
       ]
@@ -310,7 +515,7 @@ class Simulator:
         hasattr(self.building, 'include_radiative_heat_transfer')
         and self.building.include_radiative_heat_transfer
     ):
-      # Radiative heat transfer
+      # Interior radiative heat transfer (LWX)
       q_lwx_array = (
           self.building.apply_longwave_interior_radiative_heat_transfer(
               temperature_estimates
@@ -323,11 +528,49 @@ class Simulator:
           if q_lwx_idx != -1
           else 0.0
       )
+
+      # Exterior LWR heat transfer (for fenestration CVs)
+      q_lwr = 0.0
+      q_sol_tau = 0.0
+      if (
+          hasattr(self.building, 'fenestration_groups')
+          and self.building.fenestration_groups
+      ):
+        q_lwr_array = (
+            self.building.apply_longwave_exterior_radiative_heat_transfer(
+                temperature_estimates, ambient_temperature, sky_temperature
+            )
+        )
+        if q_lwr_array[x, y] != 0.0:
+          q_lwr = q_lwr_array[x, y] / conductivity / z
+
+        # Transmitted solar radiation (for air CVs, only if interior mass is
+        # disabled)
+        # When interior mass is enabled, q_sol_tau is applied in
+        # update_interior_mass_temperatures
+        if (
+            not include_interior_mass
+            and irradiance_components is not None
+            and solar_zenith is not None
+            and solar_azimuth is not None
+        ):
+          _, q_sol_tau_array = self.building.apply_shortwave_solar_radiation(
+              irradiance_components, solar_zenith, solar_azimuth
+          )
+          if q_sol_tau_array[x, y] != 0.0:
+            q_sol_tau = q_sol_tau_array[x, y] / conductivity / z
     else:
       q_lwx = 0.0
+      q_lwr = 0.0
+      q_sol_tau = 0.0
 
     return (
-        neighbor_transfer + thermal_source + retained_heat + q_lwx
+        neighbor_transfer
+        + thermal_source
+        + retained_heat
+        + q_lwx
+        + q_lwr
+        + q_sol_tau
     ) / denominator
 
   def _get_cv_temp_estimate(
@@ -336,6 +579,10 @@ class Simulator:
       temperature_estimates: np.ndarray,
       ambient_temperature: float,
       convection_coefficient: float,
+      sky_temperature: float | None = None,
+      irradiance_components: dict[str, float] | None = None,
+      solar_zenith: float | None = None,
+      solar_azimuth: float | None = None,
   ) -> float:
     """Returns temperature estimate for CV for next time step.
 
@@ -344,7 +591,17 @@ class Simulator:
       temperature_estimates: Current temperature estimate for each CV.
       ambient_temperature: Current temperature in K of external air.
       convection_coefficient: Current wind convection coefficient (W/m2/K).
+      sky_temperature: Sky temperature in K for exterior LWR calculation.
+        If None, defaults to ambient_temperature.
+      irradiance_components: Dictionary with 'ghi', 'dni', 'dhi' keys for
+        solar irradiance in W/m2. If None, solar radiation is not calculated.
+      solar_zenith: Solar zenith angle in degrees.
+      solar_azimuth: Solar azimuth angle in degrees.
     """
+    # Default sky_temperature to ambient_temperature if not provided
+    if sky_temperature is None:
+      sky_temperature = ambient_temperature
+
     x, y = cv_coordinates
     neighbors = self.building.neighbors[x][y]
     if len(neighbors) <= 1:
@@ -356,6 +613,10 @@ class Simulator:
           temperature_estimates,
           ambient_temperature,
           convection_coefficient,
+          sky_temperature,
+          irradiance_components,
+          solar_zenith,
+          solar_azimuth,
       )
     elif len(neighbors) == 3:
       return self._get_edge_cv_temp_estimate(
@@ -363,10 +624,20 @@ class Simulator:
           temperature_estimates,
           ambient_temperature,
           convection_coefficient,
+          sky_temperature,
+          irradiance_components,
+          solar_zenith,
+          solar_azimuth,
       )
     else:
       return self._get_interior_cv_temp_estimate(
-          cv_coordinates, temperature_estimates
+          cv_coordinates,
+          temperature_estimates,
+          ambient_temperature,
+          sky_temperature,
+          irradiance_components,
+          solar_zenith,
+          solar_azimuth,
       )
 
   def update_temperature_estimates(
@@ -374,6 +645,10 @@ class Simulator:
       temperature_estimates: np.ndarray,
       ambient_temperature: float,
       convection_coefficient: float,
+      sky_temperature: float | None = None,
+      irradiance_components: dict[str, float] | None = None,
+      solar_zenith: float | None = None,
+      solar_azimuth: float | None = None,
   ) -> tuple[np.ndarray, float]:
     """Iterates across all CVs and updates the temperature estimate.
 
@@ -385,11 +660,21 @@ class Simulator:
         updated with new values.
       ambient_temperature: Current temperature in K of external air.
       convection_coefficient: Current wind convection coefficient (W/m2/K).
+      sky_temperature: Sky temperature in K for exterior LWR calculation.
+        If None, defaults to ambient_temperature.
+      irradiance_components: Dictionary with 'ghi', 'dni', 'dhi' keys for
+        solar irradiance in W/m2. If None, solar radiation is not calculated.
+      solar_zenith: Solar zenith angle in degrees.
+      solar_azimuth: Solar azimuth angle in degrees.
 
     Returns:
       Maximum difference in temperture_estimates across all CVs before and after
       operation.
     """
+    # Default sky_temperature to ambient_temperature if not provided
+    if sky_temperature is None:
+      sky_temperature = ambient_temperature
+
     nrows, ncols = temperature_estimates.shape
     max_delta = 0.0
 
@@ -400,6 +685,10 @@ class Simulator:
             temperature_estimates,
             ambient_temperature,
             convection_coefficient,
+            sky_temperature,
+            irradiance_components,
+            solar_zenith,
+            solar_azimuth,
         )
 
         delta = abs(temp_estimate - temperature_estimates[x][y])
@@ -410,7 +699,11 @@ class Simulator:
     return temperature_estimates, max_delta
 
   def update_interior_mass_temperatures(
-      self, air_temperature_estimates: np.ndarray
+      self,
+      air_temperature_estimates: np.ndarray,
+      irradiance_components: dict[str, float] | None = None,
+      solar_zenith: float | None = None,
+      solar_azimuth: float | None = None,
   ) -> tuple[np.ndarray, float]:
     r"""Updates interior mass node temperatures based on heat transfer with air
        CVs.
@@ -419,30 +712,35 @@ class Simulator:
     exchange heat with their corresponding air CV. The heat exchange occurs
     through the vertical direction (height z) of the control volume.
 
+    When solar radiation is provided, transmitted solar radiation (q_sol_tau)
+    is added as an additional heat input to the interior mass node.
+
     Equations:
     --------------------
     The energy balance for the interior mass node exchanging heat only with its
     corresponding air CV through a characteristic length z is:
 
-    $$\frac{k_{\text{mass}} u v}{z} (T_{i,j} - T_{\text{mass},i,j}) =
+    $$\frac{k_{\text{mass}} u v}{z} (T_{i,j} - T_{\text{mass},i,j})
+      + q_{\text{sol},\tau} \cdot u \cdot v =
       \rho_{\text{mass}} c_{\text{mass}} u v z
       \frac{T_{\text{mass},i,j} - T_{\text{mass},i,j}^{(-)}}{\Delta t}$$
 
     Dividing both sides by $(u v)$ and rearranging:
 
-    $$\frac{k_{\text{mass}}}{z} (T_{i,j} - T_{\text{mass},i,j}) =
+    $$\frac{k_{\text{mass}}}{z} (T_{i,j} - T_{\text{mass},i,j})
+      + q_{\text{sol},\tau} =
       \rho_{\text{mass}} c_{\text{mass}} z
       \frac{T_{\text{mass},i,j} - T_{\text{mass},i,j}^{(-)}}{\Delta t}$$
 
     Multiplying both sides by $z$:
 
-    $$k_{\text{mass}} (T_{i,j} - T_{\text{mass},i,j}) =
+    $$k_{\text{mass}} (T_{i,j} - T_{\text{mass},i,j}) + q_{\text{sol},\tau} z =
       \rho_{\text{mass}} c_{\text{mass}} z^2
       \frac{T_{\text{mass},i,j} - T_{\text{mass},i,j}^{(-)}}{\Delta t}$$
 
     Expanding and collecting terms with $T_{\text{mass},i,j}$:
 
-    $$k_{\text{mass}} T_{i,j} +
+    $$k_{\text{mass}} T_{i,j} + q_{\text{sol},\tau} z +
       \rho_{\text{mass}} c_{\text{mass}} \frac{z^2}{\Delta t}
       T_{\text{mass},i,j}^{(-)} =
       \left( k_{\text{mass}} +
@@ -463,7 +761,8 @@ class Simulator:
     The final solution for the interior mass temperature update is:
 
     $$T_{\text{mass},i,j} =
-      \frac{T_{i,j} + t_{0,\text{mass}} \cdot T_{\text{mass},i,j}^{(-)}}
+      \frac{T_{i,j} + \frac{q_{\text{sol},\tau} \cdot z}{k_{\text{mass}}}
+      + t_{0,\text{mass}} \cdot T_{\text{mass},i,j}^{(-)}}
       {1 + t_{0,\text{mass}}}$$
 
     This formulation is consistent with the air CV energy balance where the
@@ -489,9 +788,14 @@ class Simulator:
       [$\mathrm{m}$]
     - $\Delta t$: Time step [$\mathrm{s}$]
     - $t_{0,\text{mass}}$: Temporal parameter for interior mass [dimensionless]
+    - $q_{\text{sol},\tau}$: Transmitted solar radiation [$\mathrm{W/m^2}$]
 
     Args:
       air_temperature_estimates: Current air temperature estimates for each CV.
+      irradiance_components: Dictionary with 'ghi', 'dni', 'dhi' keys for
+        solar irradiance in W/m2. If None, solar radiation is not calculated.
+      solar_zenith: Solar zenith angle in degrees.
+      solar_azimuth: Solar azimuth angle in degrees.
 
     Returns:
       Tuple of (updated interior mass temperatures, maximum temperature change)
@@ -504,6 +808,19 @@ class Simulator:
 
     z = self.building.floor_height_cm / 100.0
     delta_t = self._time_step_sec
+
+    # Calculate q_sol_tau array if irradiance is provided
+    q_sol_tau_array = None
+    if (
+        irradiance_components is not None
+        and solar_zenith is not None
+        and solar_azimuth is not None
+        and hasattr(self.building, 'fenestration_groups')
+        and self.building.fenestration_groups
+    ):
+      _, q_sol_tau_array = self.building.apply_shortwave_solar_radiation(
+          irradiance_components, solar_zenith, solar_azimuth
+      )
 
     # Copy current interior mass temperatures for updates
     interior_mass_temp_estimates = self.building.interior_mass_temp.copy()
@@ -539,8 +856,18 @@ class Simulator:
         t0_mass = z**2 / (delta_t * alpha_mass)
         denominator = 1.0 + t0_mass
 
+        # Calculate transmitted solar radiation contribution
+        q_sol_tau_term = 0.0
+        if q_sol_tau_array is not None and q_sol_tau_array[x, y] != 0.0:
+          # q_sol_tau * z / k_mass
+          q_sol_tau_term = (
+              q_sol_tau_array[x, y] * z / interior_mass_conductivity
+          )
+
         # New interior mass temperature
-        new_temp = (air_temp + t0_mass * interior_mass_temp) / denominator
+        new_temp = (
+            air_temp + q_sol_tau_term + t0_mass * interior_mass_temp
+        ) / denominator
 
         # Track maximum change
         delta = abs(new_temp - interior_mass_temp)
@@ -551,7 +878,14 @@ class Simulator:
     return interior_mass_temp_estimates, max_delta
 
   def finite_differences_timestep(
-      self, *, ambient_temperature: float, convection_coefficient: float
+      self,
+      *,
+      ambient_temperature: float,
+      convection_coefficient: float,
+      sky_temperature: float | None = None,
+      irradiance_components: dict[str, float] | None = None,
+      solar_zenith: float | None = None,
+      solar_azimuth: float | None = None,
   ) -> bool:
     """Calculates the temperature for each Control Volume (CV) after a step.
 
@@ -573,10 +907,21 @@ class Simulator:
     Args:
       ambient_temperature: Current temperature in K of external air.
       convection_coefficient: Current wind convection coefficient (W/m2/K).
+      sky_temperature: Sky temperature in K for exterior LWR calculation.
+        If None, defaults to ambient_temperature.
+      irradiance_components: Dictionary with 'ghi', 'dni', 'dhi' keys for
+        solar irradiance in W/m2. If None, solar radiation is not calculated.
+      solar_zenith: Solar zenith angle in degrees. Required if
+        irradiance_components is provided.
+      solar_azimuth: Solar azimuth angle in degrees. Required if
+        irradiance_components is provided.
 
     Returns:
       Whether or not there was convergence before iteration_limit was reached.
     """
+    # Default sky_temperature to ambient_temperature if not provided
+    if sky_temperature is None:
+      sky_temperature = ambient_temperature
     # Initialize estimates with the last update.
     # TODO(gusatb): Please provide a unit test for convergence.
     temp_estimate = self.building.temp.copy()
@@ -594,6 +939,10 @@ class Simulator:
           temp_estimate,
           ambient_temperature=ambient_temperature,
           convection_coefficient=convection_coefficient,
+          sky_temperature=sky_temperature,
+          irradiance_components=irradiance_components,
+          solar_zenith=solar_zenith,
+          solar_azimuth=solar_azimuth,
       )
 
       # Update interior mass temperatures if enabled
@@ -601,7 +950,12 @@ class Simulator:
         # Update interior mass temperatures based on current air temperature
         # estimates
         interior_mass_temp_estimate, max_delta_mass = (
-            self.update_interior_mass_temperatures(temp_estimate)
+            self.update_interior_mass_temperatures(
+                temp_estimate,
+                irradiance_components=irradiance_components,
+                solar_zenith=solar_zenith,
+                solar_azimuth=solar_azimuth,
+            )
         )
         # Store the updated interior mass temperatures
         self.building.interior_mass_temp = interior_mass_temp_estimate
