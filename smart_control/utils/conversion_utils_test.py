@@ -49,12 +49,12 @@ class ConversionUtilsTest(parameterized.TestCase):
   def test_normalize_hod_invalid(self):
     """ValueError when hour of day is outside [0, 23]."""
     with self.assertRaisesRegex(
-        ValueError, r"Hour of day \(hod\) must be within the range \[0, 23\]"
+        ValueError, r'Hour of day \(hod\) must be within the range \[0, 23\]'
     ):
       conversion_utils.normalize_hod(24)
 
     with self.assertRaisesRegex(
-        ValueError, r"Hour of day \(hod\) must be within the range \[0, 23\]"
+        ValueError, r'Hour of day \(hod\) must be within the range \[0, 23\]'
     ):
       conversion_utils.normalize_hod(-1)
 
@@ -65,12 +65,12 @@ class ConversionUtilsTest(parameterized.TestCase):
   def test_normalize_dow_invalid(self):
     """ValueError when day of week is outside [0, 6]."""
     with self.assertRaisesRegex(
-        ValueError, r"Day of week \(dow\) must be within the range \[0, 6\]"
+        ValueError, r'Day of week \(dow\) must be within the range \[0, 6\]'
     ):
       conversion_utils.normalize_dow(7)
 
     with self.assertRaisesRegex(
-        ValueError, r"Day of week \(dow\) must be within the range \[0, 6\]"
+        ValueError, r'Day of week \(dow\) must be within the range \[0, 6\]'
     ):
       conversion_utils.normalize_dow(-1)
 

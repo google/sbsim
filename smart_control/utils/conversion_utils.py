@@ -68,26 +68,25 @@ def zone_id_to_coordinates(zone_id: str) -> Tuple[int, int]:
   m = re.match(r'^zone_id_\((\d+),\s*(\d+)\)$', zone_id)
   if not m:
     raise ValueError(
-      f"Invalid zone_id format: {zone_id!r}. "
-      "Expected 'zone_id_(<row>,<col>)'"
+        f"Invalid zone_id format: {zone_id!r}. Expected 'zone_id_(<row>,<col>)'"
     )
   return int(m.group(1)), int(m.group(2))
 
 
 def normalize_dow(dow: int) -> float:
   """Returns a normalized day of week, mapping [0, 6] to [-1., 1.]."""
-  if not (0 <= dow <= 6): # More Pythonic way to express range check
+  if dow < 0 or dow > 6:
     raise ValueError(
-        f"Day of week (dow) must be within the range [0, 6] (got {dow})."
+        f'Day of week (dow) must be within the range [0, 6] (got {dow}).'
     )
   return (float(dow) - 3.0) / 3.0
 
 
 def normalize_hod(hod: int) -> float:
   """Returns a normlized hour of day, mapping  [0,23] to [-1., 1.]."""
-  if not (0 <= hod <= 23): # More Pythonic way to express range check
+  if hod < 0 or hod > 23:
     raise ValueError(
-        f"Hour of day (hod) must be within the range [0, 23] (got {hod})."
+        f'Hour of day (hod) must be within the range [0, 23] (got {hod}).'
     )
   return (float(hod) - 11.5) / 11.5
 

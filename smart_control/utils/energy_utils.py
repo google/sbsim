@@ -63,20 +63,20 @@ def get_humidity_ratio(
 
   Returns: water mass to air mass ratio in kg Water / kg Air
   """
-  if not (len(temps) == len(relative_humidities) == len(pressures)):
+  if len(temps) != len(relative_humidities) or len(temps) != len(pressures):
     raise ValueError(
-        f"Input arrays must have equal length. "
-        f"Got: temps={len(temps)}, relative_humidities={len(relative_humidities)}, "
-        f"pressures={len(pressures)}."
+        f'Input arrays must have equal length. Got: temps={len(temps)}, '
+        f'relative_humidities={len(relative_humidities)}, '
+        f'pressures={len(pressures)}.'
     )
 
   # Sanity-check each RH and pressure
   for i, rh in enumerate(relative_humidities):
-    if not (0.0 < rh <= 1.0):
-      raise ValueError(f"relative_humidities[{i}] must be in [0,1], got {rh}.")
+    if rh <= 0.0 or rh > 1.0:
+      raise ValueError(f'relative_humidities[{i}] must be in [0,1], got {rh}.')
   for i, p in enumerate(pressures):
     if p <= 0.0:
-      raise ValueError(f"pressures[{i}] must be greater than 0 (bar), got {p}.")
+      raise ValueError(f'pressures[{i}] must be greater than 0 (bar), got {p}.')
 
   psat = [p / 1000.0 for p in get_water_vapor_partial_pressure(temps)]
   return [
@@ -120,12 +120,12 @@ def get_air_conditioning_energy_rate(
       == len(ambient_pressures)
   ):
     raise ValueError(
-        "All input vectors must be of the same length. "
-        f"Got lengths: air_flow_rates={len(air_flow_rates)}, "
-        f"outside_temps={len(outside_temps)}, "
-        f"outside_relative_humidities={len(outside_relative_humidities)}, "
-        f"supply_temps={len(supply_temps)}, "
-        f"ambient_pressures={len(ambient_pressures)}."
+        'All input vectors must be of the same length. '
+        f'Got lengths: air_flow_rates={len(air_flow_rates)}, '
+        f'outside_temps={len(outside_temps)}, '
+        f'outside_relative_humidities={len(outside_relative_humidities)}, '
+        f'supply_temps={len(supply_temps)}, '
+        f'ambient_pressures={len(ambient_pressures)}.'
     )
 
   x = get_humidity_ratio(

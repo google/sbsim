@@ -150,10 +150,12 @@ class ProtoReader(reader_lib.BaseReader):
     def _read_timestamp(filepath: str) -> pd.Timestamp:
       """Reads the timestamp from the filepath."""
       if not filepath:
-        raise ValueError("Filepath cannot be empty when reading timestamp.")
+        raise ValueError('Filepath cannot be empty when reading timestamp.')
       matches = re.findall(r'\d{4}\.\d{2}\.\d{2}\.\d{2}', filepath)
       if not matches:
-        raise ValueError(f"Could not extract timestamp from filepath: {filepath!r}")
+        raise ValueError(
+            f'Could not extract timestamp from filepath: {filepath!r}'
+        )
       return pd.Timestamp(matches[-1])
 
     def _between(

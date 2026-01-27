@@ -109,7 +109,9 @@ class Vav(smart_device.SmartDevice):
   @max_air_flow_rate.setter
   def max_air_flow_rate(self, value: float):
     if value <= 0:
-      raise ValueError(f"Maximum air flow rate must be greater than 0 (got {value}).")
+      raise ValueError(
+          f'Maximum air flow rate must be greater than 0 (got {value}).'
+      )
     self._max_air_flow_rate = value
 
   @property
@@ -172,9 +174,9 @@ class Vav(smart_device.SmartDevice):
     # Ensure air_flow_rate is positive to avoid ZeroDivisionError
     if air_flow_rate <= 0:
       raise ValueError(
-          f"Air flow rate must be > 0 to compute zone supply temp. "
-          f"damper_setting={self.damper_setting}, "
-          f"max_air_flow_rate={self._max_air_flow_rate}."
+          'Air flow rate must be > 0 to compute zone supply temp. '
+          f'damper_setting={self.damper_setting}, '
+          f'max_air_flow_rate={self._max_air_flow_rate}.'
       )
 
     heat_difference = (

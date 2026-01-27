@@ -40,7 +40,7 @@ class NaturalGasEnergyCost(BaseEnergyCost):
       self, gas_price_by_month: Sequence[float] = GAS_PRICE_BY_MONTH_SOURCE
   ):
     if len(gas_price_by_month) != 12:
-      raise ValueError("Gas price per month must have exactly 12 values.")
+      raise ValueError('Gas price per month must have exactly 12 values.')
 
     # Convert the month-by-month gas price from $/1000 cubic feet to $/Joule.
     self._month_gas_price = (

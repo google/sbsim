@@ -103,7 +103,7 @@ class LIGHTSWITCHOccupancyTest(parameterized.TestCase):
     random_state = np.random.RandomState(seed=SEED)
 
     with self.assertRaisesRegex(
-        ValueError, "Arrival and departure hours must be strictly increasing"
+        ValueError, 'Arrival and departure hours must be strictly increasing'
     ):
       ZoneOccupant(
           earliest_expected_arrival_hour=8,
@@ -121,7 +121,7 @@ class LIGHTSWITCHOccupancyTest(parameterized.TestCase):
     random_state = np.random.RandomState(seed=SEED)
 
     with self.assertRaisesRegex(
-        ValueError, "lunch_start_hour must be before lunch_end_hour"
+        ValueError, 'lunch_start_hour must be before lunch_end_hour'
     ):
       ZoneOccupant(
           earliest_expected_arrival_hour=8,

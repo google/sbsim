@@ -148,7 +148,7 @@ class RandomizedArrivalDepartureOccupancyTest(parameterized.TestCase):
 
     # latest_arrival >= earliest_departure is invalid
     with self.assertRaisesRegex(
-        ValueError, "Arrival and departure hours must be strictly increasing"
+        ValueError, 'Arrival and departure hours must be strictly increasing'
     ):
       randomized_arrival_departure_occupancy.ZoneOccupant(
           earliest_expected_arrival_hour=8,
@@ -167,7 +167,9 @@ class RandomizedArrivalDepartureOccupancyTest(parameterized.TestCase):
         8, 12, 13, 18, step_size, random_state
     )
 
-    with self.assertRaisesRegex(ValueError, "Start hour must be less than end hour"):
+    with self.assertRaisesRegex(
+        ValueError, 'Start hour must be less than end hour'
+    ):
       occupant._get_event_probability(start_hour=12, end_hour=8)
 
   def test_average_zone_occupancy_matches_manual_two_steps(self):

@@ -138,12 +138,12 @@ class VavTest(parameterized.TestCase):
     v = vav.Vav(0.6, 0.4, t, b)
 
     with self.assertRaisesRegex(
-        ValueError, "Maximum air flow rate must be greater than 0"
+        ValueError, 'Maximum air flow rate must be greater than 0'
     ):
       v.max_air_flow_rate = 0.0
 
     with self.assertRaisesRegex(
-        ValueError, "Maximum air flow rate must be greater than 0"
+        ValueError, 'Maximum air flow rate must be greater than 0'
     ):
       v.max_air_flow_rate = -0.5
 

@@ -35,7 +35,9 @@ class EnergyUtilsTest(parameterized.TestCase):
 
   def test_get_humidity_ratio_mismatched_lengths(self):
     """ValueError when input arrays have different lengths."""
-    with self.assertRaisesRegex(ValueError, "Input arrays must have equal length"):
+    with self.assertRaisesRegex(
+        ValueError, 'Input arrays must have equal length'
+    ):
       energy_utils.get_humidity_ratio(
           temps=[293, 300],  # 2 elements
           relative_humidities=[0.6],  # 1 element
@@ -45,7 +47,7 @@ class EnergyUtilsTest(parameterized.TestCase):
   def test_get_humidity_ratio_invalid_relative_humidity(self):
     """ValueError when relative_humidity is outside (0, 1]."""
     with self.assertRaisesRegex(
-        ValueError, r"relative_humidities\[0\] must be in \[0,1\]"
+        ValueError, r'relative_humidities\[0\] must be in \[0,1\]'
     ):
       energy_utils.get_humidity_ratio(
           temps=[293], relative_humidities=[1.5], pressures=[1.02]
@@ -54,7 +56,7 @@ class EnergyUtilsTest(parameterized.TestCase):
   def test_get_humidity_ratio_invalid_pressure(self):
     """ValueError when pressure <= 0."""
     with self.assertRaisesRegex(
-        ValueError, r"pressures\[0\] must be greater than 0"
+        ValueError, r'pressures\[0\] must be greater than 0'
     ):
       energy_utils.get_humidity_ratio(
           temps=[293], relative_humidities=[0.6], pressures=[-1.0]
@@ -73,7 +75,7 @@ class EnergyUtilsTest(parameterized.TestCase):
   def test_get_air_conditioning_energy_rate_mismatched_lengths(self):
     """ValueError when input vectors have different lengths."""
     with self.assertRaisesRegex(
-        ValueError, "All input vectors must be of the same length"
+        ValueError, 'All input vectors must be of the same length'
     ):
       energy_utils.get_air_conditioning_energy_rate(
           air_flow_rates=[0.170, 0.180],  # 2 elements

@@ -295,8 +295,8 @@ class Boiler(smart_device.SmartDevice):
 
     if water_temp < outside_temp:
       raise ValueError(
-          f"Water temperature must be >= outside temperature. "
-          f"Got water_temp={water_temp}, outside_temp={outside_temp}."
+          'Water temperature must be >= outside temperature. '
+          f'Got water_temp={water_temp}, outside_temp={outside_temp}.'
       )
     delta_temp = water_temp - outside_temp
     numerator = self._tank_length * 2.0 * np.pi * delta_temp

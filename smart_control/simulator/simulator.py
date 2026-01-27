@@ -115,8 +115,9 @@ class Simulator:
     # Ensure corner CV.
     if len(neighbors) != 2:
       raise ValueError(
-          f"Expected 2 neighbors for a corner CV, but found {len(neighbors)} "
-          f"at coordinates {cv_coordinates}. This indicates an invalid building structure."
+          f'Expected 2 neighbors for a corner CV, but found {len(neighbors)} '
+          f'at coordinates {cv_coordinates}. '
+          'This indicates an invalid building structure.'
       )
 
     t0 = density * delta_x**2 * heat_capacity / delta_t / 2.0
@@ -165,8 +166,9 @@ class Simulator:
     # Ensure edge CV.
     if len(neighbors) != 3:
       raise ValueError(
-          f"Expected 3 neighbors for an edge CV, but found {len(neighbors)} "
-          f"at coordinates {cv_coordinates}. This indicates an invalid building structure."
+          f'Expected 3 neighbors for an edge CV, but found {len(neighbors)} '
+          f'at coordinates {cv_coordinates}. '
+          'This indicates an invalid building structure.'
       )
 
     t0 = density * delta_x**2 / 2 * heat_capacity / delta_t
@@ -274,8 +276,9 @@ class Simulator:
     # Ensure interior CV.
     if len(neighbors) != 4:
       raise ValueError(
-          f"Expected 4 neighbors for an interior CV, but found {len(neighbors)} "
-          f"at coordinates {cv_coordinates}. This indicates an invalid building structure."
+          'Expected 4 neighbors for an interior CV, but found'
+          f' {len(neighbors)} at coordinates {cv_coordinates}. This indicates'
+          ' an invalid building structure.'
       )
 
     alpha = conductivity / density / heat_capacity
