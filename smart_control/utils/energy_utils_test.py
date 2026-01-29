@@ -44,30 +44,39 @@ class EnergyUtilsTest(parameterized.TestCase):
           pressures=[1.02],  # 1 element
       )
 
-  def test_get_humidity_ratio_invalid_relative_humidity(self):
+  @parameterized.parameters(
+      (1.5, r'Relative humidities must be in \(0,1\]'),
+      (0.0, r'Relative humidities must be in \(0,1\]'),
+      (-0.1, r'Relative humidities must be in \(0,1\]'),
+  )
+  def test_get_humidity_ratio_invalid_relative_humidity(
+      self, invalid_rh, expected_pattern
+  ):  # pylint: disable=line-too-long
     """ValueError when relative_humidity is outside (0, 1]."""
-    with self.assertRaisesRegex(
-        ValueError, r'relative_humidities\[0\] must be in \[0,1\]'
-    ):
+    with self.assertRaisesRegex(ValueError, expected_pattern):
       energy_utils.get_humidity_ratio(
-          temps=[293], relative_humidities=[1.5], pressures=[1.02]
+          temps=[293], relative_humidities=[invalid_rh], pressures=[1.02]
       )
 
-  def test_get_humidity_ratio_invalid_pressure(self):
+  @parameterized.parameters(
+      (-1.0, r'Pressures must be greater than 0'),
+      (0.0, r'Pressures must be greater than 0'),
+  )
+  def test_get_humidity_ratio_invalid_pressure(
+      self, invalid_pressure, expected_pattern
+  ):
     """ValueError when pressure <= 0."""
-    with self.assertRaisesRegex(
-        ValueError, r'pressures\[0\] must be greater than 0'
-    ):
+    with self.assertRaisesRegex(ValueError, expected_pattern):
       energy_utils.get_humidity_ratio(
-          temps=[293], relative_humidities=[0.6], pressures=[-1.0]
+          temps=[293], relative_humidities=[0.6], pressures=[invalid_pressure]
       )
 
   def test_get_air_conditioning_energy_rate(self):
     power = energy_utils.get_air_conditioning_energy_rate(
         air_flow_rates=[0.170],
-        outside_temps=[15 + 273.0],
+        outside_temps=[288],
         outside_relative_humidities=[0.75],
-        supply_temps=[120 + 273.0],
+        supply_temps=[393],
         ambient_pressures=[1.025],
     )
     self.assertAlmostEqual(18230.6705, power[0], 4)
@@ -79,9 +88,9 @@ class EnergyUtilsTest(parameterized.TestCase):
     ):
       energy_utils.get_air_conditioning_energy_rate(
           air_flow_rates=[0.170, 0.180],  # 2 elements
-          outside_temps=[15 + 273.0],  # 1 element
+          outside_temps=[288],  # 1 element
           outside_relative_humidities=[0.75],
-          supply_temps=[120 + 273.0],
+          supply_temps=[393],
           ambient_pressures=[1.025],
       )
 

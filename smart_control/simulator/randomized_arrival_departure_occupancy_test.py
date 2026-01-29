@@ -164,7 +164,12 @@ class RandomizedArrivalDepartureOccupancyTest(parameterized.TestCase):
     random_state = np.random.RandomState(seed=55213)
     step_size = pd.Timedelta(5, unit='minute')
     occupant = randomized_arrival_departure_occupancy.ZoneOccupant(
-        8, 12, 13, 18, step_size, random_state
+        earliest_expected_arrival_hour=8,
+        latest_expected_arrival_hour=12,
+        earliest_expected_departure_hour=13,
+        latest_expected_departure_hour=18,
+        step_size=step_size,
+        random_state=random_state,
     )
 
     with self.assertRaisesRegex(

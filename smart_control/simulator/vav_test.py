@@ -131,21 +131,22 @@ class VavTest(parameterized.TestCase):
     with self.assertRaises(ValueError):
       v.damper_setting = -0.1
 
-  def test_max_air_flow_rate_setter_raises_value_error(self):
+  @parameterized.parameters(0.0, -0.5)
+  def test_max_air_flow_rate_setter_raises_value_error(self, invalid_value):
     """ValueError when max_air_flow_rate is set to 0 or negative."""
     t = _get_default_thermostat()
     b = _get_default_boiler()
-    v = vav.Vav(0.6, 0.4, t, b)
+    v = vav.Vav(
+        max_air_flow_rate=0.6,
+        reheat_max_water_flow_rate=0.4,
+        therm=t,
+        boiler=b,
+    )
 
     with self.assertRaisesRegex(
         ValueError, 'Maximum air flow rate must be greater than 0'
     ):
-      v.max_air_flow_rate = 0.0
-
-    with self.assertRaisesRegex(
-        ValueError, 'Maximum air flow rate must be greater than 0'
-    ):
-      v.max_air_flow_rate = -0.5
+      v.max_air_flow_rate = invalid_value
 
   @parameterized.parameters(
       (pd.Timestamp('2021-05-09 14:00'), 293, 0.1, 0.0),

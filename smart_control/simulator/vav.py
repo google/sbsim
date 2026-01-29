@@ -166,6 +166,17 @@ class Vav(smart_device.SmartDevice):
       input_water_temp: Temperature in K of input water.
     """
 
+    # Ensure damper_setting and max_air_flow_rate are positive
+    if self.damper_setting <= 0:
+      raise ValueError(
+          f'Damper setting must be greater than 0, got {self.damper_setting}.'
+      )
+    if self._max_air_flow_rate <= 0:
+      raise ValueError(
+          'Maximum air flow rate must be greater than 0, '
+          f'got {self._max_air_flow_rate}.'
+      )
+
     reheat_flow_rate = (
         self._reheat_valve_setting * self._reheat_max_water_flow_rate
     )

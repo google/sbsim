@@ -282,8 +282,8 @@ class SetpointEnergyCarbonRegretTest(parameterized.TestCase):
 
   def test_invalid_productivity_bounds(self):
     """ValueError if max_productivity <= min_productivity."""
-    electricity_cost = TestEnergyCost(0.05, 0.01)
-    natural_gas_cost = TestEnergyCost(0.05, 0.01)
+    electricity_cost = TestEnergyCost(usd_per_kwh=0.05, kg_per_kwh=0.01)
+    natural_gas_cost = TestEnergyCost(usd_per_kwh=0.05, kg_per_kwh=0.01)
 
     with self.assertRaisesRegex(
         ValueError,

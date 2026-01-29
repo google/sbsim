@@ -63,20 +63,32 @@ def get_humidity_ratio(
 
   Returns: water mass to air mass ratio in kg Water / kg Air
   """
-  if len(temps) != len(relative_humidities) or len(temps) != len(pressures):
+  if not (len(temps) == len(relative_humidities) == len(pressures)):  # pylint: disable=superfluous-parens
     raise ValueError(
         f'Input arrays must have equal length. Got: temps={len(temps)}, '
         f'relative_humidities={len(relative_humidities)}, '
         f'pressures={len(pressures)}.'
     )
 
-  # Sanity-check each RH and pressure
-  for i, rh in enumerate(relative_humidities):
-    if rh <= 0.0 or rh > 1.0:
-      raise ValueError(f'relative_humidities[{i}] must be in [0,1], got {rh}.')
-  for i, p in enumerate(pressures):
-    if p <= 0.0:
-      raise ValueError(f'pressures[{i}] must be greater than 0 (bar), got {p}.')
+  # Sanity-check each RH and pressure using numpy
+  relative_humidities_array = np.array(relative_humidities)
+  pressures_array = np.array(pressures)
+
+  invalid_rh_indices = np.where(
+      (relative_humidities_array <= 0.0) | (relative_humidities_array > 1.0)
+  )[0]
+  if len(invalid_rh_indices) > 0:
+    i = invalid_rh_indices[0]
+    raise ValueError(
+        f'Relative humidities must be in (0,1], got {relative_humidities[i]}.'
+    )
+
+  invalid_p_indices = np.where(pressures_array <= 0.0)[0]
+  if len(invalid_p_indices) > 0:
+    i = invalid_p_indices[0]
+    raise ValueError(
+        f'Pressures must be greater than 0 (bar), got {pressures[i]}.'
+    )
 
   psat = [p / 1000.0 for p in get_water_vapor_partial_pressure(temps)]
   return [
