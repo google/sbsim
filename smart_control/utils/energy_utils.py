@@ -71,14 +71,11 @@ def get_humidity_ratio(
     )
 
   # Sanity-check each RH and pressure using numpy
-  relative_humidities_array = np.array(relative_humidities)
-  pressures_array = np.array(pressures)
-
-  if np.any(
-      (relative_humidities_array <= 0.0) | (relative_humidities_array > 1.0)
-  ):
+  humidities_array = np.array(relative_humidities)
+  if np.any((humidities_array <= 0.0) | (humidities_array > 1.0)):
     raise ValueError('Relative humidities must be in the range (0, 1].')
 
+  pressures_array = np.array(pressures)
   if np.any(pressures_array <= 0.0):
     raise ValueError('Pressures must be greater than 0 (bar).')
 
