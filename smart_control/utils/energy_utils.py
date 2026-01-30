@@ -74,21 +74,13 @@ def get_humidity_ratio(
   relative_humidities_array = np.array(relative_humidities)
   pressures_array = np.array(pressures)
 
-  invalid_rh_indices = np.where(
+  if np.any(
       (relative_humidities_array <= 0.0) | (relative_humidities_array > 1.0)
-  )[0]
-  if len(invalid_rh_indices) > 0:
-    i = invalid_rh_indices[0]
-    raise ValueError(
-        f'Relative humidities must be in (0,1], got {relative_humidities[i]}.'
-    )
+  ):
+    raise ValueError('Relative humidities must be in the range (0, 1].')
 
-  invalid_p_indices = np.where(pressures_array <= 0.0)[0]
-  if len(invalid_p_indices) > 0:
-    i = invalid_p_indices[0]
-    raise ValueError(
-        f'Pressures must be greater than 0 (bar), got {pressures[i]}.'
-    )
+  if np.any(pressures_array <= 0.0):
+    raise ValueError('Pressures must be greater than 0 (bar).')
 
   psat = [p / 1000.0 for p in get_water_vapor_partial_pressure(temps)]
   return [

@@ -44,29 +44,22 @@ class EnergyUtilsTest(parameterized.TestCase):
           pressures=[1.02],  # 1 element
       )
 
-  @parameterized.parameters(
-      (1.5, r'Relative humidities must be in \(0,1\]'),
-      (0.0, r'Relative humidities must be in \(0,1\]'),
-      (-0.1, r'Relative humidities must be in \(0,1\]'),
-  )
-  def test_get_humidity_ratio_invalid_relative_humidity(
-      self, invalid_rh, expected_pattern
-  ):  # pylint: disable=line-too-long
+  @parameterized.parameters(1.5, 0.0, -0.1)
+  def test_get_humidity_ratio_invalid_relative_humidity(self, invalid_rh):
     """ValueError when relative_humidity is outside (0, 1]."""
-    with self.assertRaisesRegex(ValueError, expected_pattern):
+    with self.assertRaisesRegex(
+        ValueError, r'Relative humidities must be in the range \(0, 1\]'
+    ):
       energy_utils.get_humidity_ratio(
           temps=[293], relative_humidities=[invalid_rh], pressures=[1.02]
       )
 
-  @parameterized.parameters(
-      (-1.0, r'Pressures must be greater than 0'),
-      (0.0, r'Pressures must be greater than 0'),
-  )
-  def test_get_humidity_ratio_invalid_pressure(
-      self, invalid_pressure, expected_pattern
-  ):
+  @parameterized.parameters(-1.0, 0.0)
+  def test_get_humidity_ratio_invalid_pressure(self, invalid_pressure):
     """ValueError when pressure <= 0."""
-    with self.assertRaisesRegex(ValueError, expected_pattern):
+    with self.assertRaisesRegex(
+        ValueError, r'Pressures must be greater than 0'
+    ):
       energy_utils.get_humidity_ratio(
           temps=[293], relative_humidities=[0.6], pressures=[invalid_pressure]
       )
