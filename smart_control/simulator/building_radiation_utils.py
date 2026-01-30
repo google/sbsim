@@ -183,7 +183,8 @@ def calculate_exterior_lwr_for_fenestration_group(
   $$q_{\text{lwr}} = \epsilon \sigma \left( F_{\text{gnd}} T_{\text{air}}^4
     + \beta F_{\text{sky}} T_{\text{sky}}^4
     + (1 - \beta) F_{\text{sky}} T_{\text{air}}^4 \right)
-    - \epsilon \sigma \left( F_{\text{gnd}} + F_{\text{sky}} \right)
+    - \epsilon \sigma \left( F_{\text{gnd}} + \beta F_{\text{sky}}
+    + (1 - \beta) F_{\text{sky}} \right)
     T_{\text{surf}}^4$$
 
   where:
@@ -243,6 +244,7 @@ def calculate_exterior_lwr_for_fenestration_group(
   T_sky = sky_temperature
 
   # Incoming radiation from environment
+  # $T_{gnd} \approx T_{air}$
   # q_in = epsilon * sigma * (F_gnd * T_air^4 + beta * F_sky * T_sky^4
   #        + (1-beta) * F_sky * T_air^4)
   q_in = (
@@ -327,6 +329,199 @@ def net_exterior_radiative_heatflux(
     q_lwr[indices_array] = q_lwr_per_node
 
   return q_lwr
+
+
+def get_exterior_wall_boundary_mask(
+    floor_plan: np.ndarray,
+    exterior_wall_value: int = constants.EXTERIOR_WALL_VALUE_IN_FUNCTION,
+) -> np.ndarray:
+  """Identify exterior wall nodes at the array boundary.
+
+  Exterior walls at the boundary are the outermost layer of the building
+  that are exposed to outdoor environment for LWR and solar radiation.
+
+  TODO : we may need different algorithm when floor_plan has ambient nodes.
+
+  Args:
+    floor_plan: 2D array representing the indexed floor plan.
+    exterior_wall_value: Value representing exterior walls (-2 by default).
+
+  Returns:
+    Boolean mask array with True at exterior wall positions that are at the
+    array boundary (row 0, last row, col 0, last col).
+  """
+  rows, cols = floor_plan.shape
+  mask = np.zeros_like(floor_plan, dtype=bool)
+
+  # Find exterior wall positions
+  exterior_wall_positions = floor_plan == exterior_wall_value
+
+  # Mark only those at the boundary
+  # Row 0 (top boundary)
+  mask[0, :] = exterior_wall_positions[0, :]
+  # Last row (bottom boundary)
+  mask[rows - 1, :] = exterior_wall_positions[rows - 1, :]
+  # Col 0 (left boundary)
+  mask[:, 0] = exterior_wall_positions[:, 0]
+  # Last col (right boundary)
+  mask[:, cols - 1] = exterior_wall_positions[:, cols - 1]
+
+  return mask
+
+
+def calculate_exterior_lwr_for_exterior_wall(
+    exterior_wall_boundary_mask: np.ndarray,
+    surface_temperatures: np.ndarray,
+    emissivity_array: np.ndarray,
+    ambient_temperature: float,
+    sky_temperature: float,
+    phi: float = 90.0,
+) -> np.ndarray:
+  r"""Calculate exterior LWR heat flux for boundary exterior walls.
+
+  Calculates the net longwave radiative heat flux between exterior wall
+  surfaces at the boundary and the sky/ground environment. Currently, all nodes
+  are assumed to be vertical surfaces (i.e., F_gnd, F_sky, and F_air are all
+  the same).
+
+  Equations:
+  ----------
+  For each exterior wall node at boundary, the net radiative heat flux is:
+
+  $$q_{\text{lwr}} = \epsilon \sigma \left( F_{\text{gnd}} T_{\text{air}}^4
+    + \beta F_{\text{sky}} T_{\text{sky}}^4
+    + (1 - \beta) F_{\text{sky}} T_{\text{air}}^4 \right)
+    - \epsilon \sigma \left( F_{\text{gnd}} + F_{\text{sky}} \right)
+    T_{\text{surf}}^4$$
+
+  where:
+  - $\beta = \sqrt{0.5 (1 + \cos\phi)}$ splits sky radiation between sky
+    temperature and ambient air temperature
+  - $\phi$ is the tilt angle (90° for vertical surfaces)
+
+  Args:
+    exterior_wall_boundary_mask: Boolean mask for exterior walls at boundary.
+    surface_temperatures: 2D array of surface temperatures in K.
+    emissivity_array: 2D array of surface emissivities.
+    ambient_temperature: Ambient air temperature in K.
+    sky_temperature: Sky temperature in K.
+    phi: Surface tilt angle in degrees. Defaults to 90 (vertical).
+
+  Returns:
+    2D array with net exterior LWR heat flux [W/m^2] at boundary exterior wall
+    positions. Non-boundary positions are 0. Positive = heat gain.
+  """
+  sigma = 5.67e-8  # [W/m^2K^4] Stefan-Boltzmann constant
+
+  q_lwr = np.zeros_like(surface_temperatures, dtype=float)
+
+  if not np.any(exterior_wall_boundary_mask):
+    return q_lwr
+
+  # Calculate view factors for vertical surface (phi = 90 degrees)
+  phi_rad = math.radians(phi)
+  cos_phi = math.cos(phi_rad)
+
+  F_gnd = 0.5 * (1 - cos_phi)  # ~0.5 for vertical
+  factor = 0.5 * (1 + cos_phi)  # ~0.5 for vertical
+  F_sky = factor * math.sqrt(factor)  # ~0.354 for vertical
+  # F_air = factor * (1 - math.sqrt(factor))  # ~0.146 for vertical
+  beta = math.sqrt(factor)  # sky radiation split factor
+
+  # Get temperatures and emissivities for boundary exterior walls
+  T_surf = surface_temperatures[exterior_wall_boundary_mask]
+  epsilon = emissivity_array[exterior_wall_boundary_mask]
+
+  T_air = ambient_temperature
+  T_sky = sky_temperature
+
+  # Incoming radiation from environment
+  q_in = (
+      epsilon
+      * sigma
+      * (
+          F_gnd * np.power(T_air, 4)
+          + beta * F_sky * np.power(T_sky, 4)
+          + (1 - beta) * F_sky * np.power(T_air, 4)
+      )
+  )
+
+  # Outgoing radiation from surface
+  q_out = sigma * epsilon * (F_gnd + F_sky) * np.power(T_surf, 4)
+
+  # Net heat flux (positive = heat gain to surface)
+  q_lwr_nodes = q_in - q_out
+
+  # Assign to output array
+  q_lwr[exterior_wall_boundary_mask] = q_lwr_nodes
+
+  return q_lwr
+
+
+def calculate_solar_absorbed_for_exterior_wall(
+    exterior_wall_boundary_mask: np.ndarray,
+    floor_plan: np.ndarray,
+    irradiance_components: dict[str, float],
+    solar_zenith: float,
+    solar_azimuth: float,
+    alpha: float,
+    phi: float = 90.0,
+) -> np.ndarray:
+  r"""Calculate absorbed solar radiation for boundary exterior walls.
+
+  For exterior walls at the boundary, calculates absorbed solar radiation
+  based on the wall orientation (determined by which boundary it's on).
+
+  Args:
+    exterior_wall_boundary_mask: Boolean mask for exterior walls at boundary.
+    floor_plan: 2D array representing the indexed floor plan.
+    irradiance_components: Dictionary with 'ghi', 'dni', 'dhi' keys.
+    solar_zenith: Solar zenith angle in degrees.
+    solar_azimuth: Solar azimuth angle in degrees.
+    alpha: Solar absorptance of the wall surface (0-1).
+    phi: Surface tilt angle in degrees. Defaults to 90 (vertical).
+
+  Returns:
+    2D array with absorbed solar heat flux [W/m^2] at boundary exterior wall
+    positions. Non-boundary positions are 0.
+  """
+  q_sol_alpha = np.zeros_like(floor_plan, dtype=float)
+
+  if not np.any(exterior_wall_boundary_mask):
+    return q_sol_alpha
+
+  rows, cols = floor_plan.shape
+
+  # Process each boundary separately (different azimuth for each)
+  boundaries = [
+      (0, slice(None), constants.FENESTRATION_AZIMUTH_TOP),  # Top row -> North
+      (rows - 1, slice(None), constants.FENESTRATION_AZIMUTH_BOTTOM),  # Bottom
+      (slice(None), 0, constants.FENESTRATION_AZIMUTH_LEFT),  # Left col -> West
+      (slice(None), cols - 1, constants.FENESTRATION_AZIMUTH_RIGHT),  # Right
+  ]
+
+  for row_idx, col_idx, azimuth in boundaries:
+    # Get mask for this boundary
+    boundary_mask = np.zeros_like(floor_plan, dtype=bool)
+    boundary_mask[row_idx, col_idx] = True
+    wall_at_boundary = exterior_wall_boundary_mask & boundary_mask
+
+    if not np.any(wall_at_boundary):
+      continue
+
+    # Calculate POA irradiance for this orientation
+    g_ts = calculate_poa_irradiance(
+        irradiance_components,
+        surface_tilt=phi,
+        surface_azimuth=float(azimuth),
+        solar_zenith=solar_zenith,
+        solar_azimuth=solar_azimuth,
+    )
+
+    # Absorbed solar radiation = G_Ts * alpha
+    q_sol_alpha[wall_at_boundary] = g_ts * alpha
+
+  return q_sol_alpha
 
 
 def mark_air_connected_interior_walls(
@@ -1166,12 +1361,19 @@ def validate_fenestration_connectivity(
     floor_plan: np.ndarray,
     fenestration_value: int = constants.FENESTRATION_VALUE_IN_FILE_INPUT,
     air_value: int = constants.INTERIOR_SPACE_VALUE_IN_FILE_INPUT,
+    exterior_wall_value: int = constants.EXTERIOR_SPACE_VALUE_IN_FILE_INPUT,
+    interior_wall_value: int = constants.INTERIOR_WALL_VALUE_IN_FILE_INPUT,
 ) -> bool:
   """Validate that fenestration nodes are properly connected.
 
   Validates that:
   1. All fenestration nodes form connected groups (4-way connectivity)
   2. Each fenestration group is connected to at least one indoor air node (0)
+  3. Each fenestration group is exposed to exterior (at boundary or adjacent to
+     exterior wall)
+  4. Each fenestration node in a group can reach both exterior and air through
+     the fenestration chain (no blocked nodes)
+  5. No fenestration node is surrounded only by air (floating in interior)
 
   Args:
     floor_plan: 2D array representing the floor plan with fenestration marked
@@ -1180,12 +1382,14 @@ def validate_fenestration_connectivity(
         floor plan. Defaults to 4.
     air_value: Value used to represent indoor air in the floor plan.
         Defaults to 0.
+    exterior_wall_value: Value used to represent exterior walls. Defaults to 2.
+    interior_wall_value: Value used to represent interior walls. Defaults to 1.
 
   Returns:
-    True if all fenestration groups are valid (connected to indoor air).
+    True if all fenestration groups are valid.
 
   Raises:
-    ValueError: If any fenestration group is not connected to indoor air.
+    ValueError: If any fenestration group fails validation.
   """
   if not np.any(floor_plan == fenestration_value):
     return True  # No fenestration, validation passes
@@ -1193,32 +1397,289 @@ def validate_fenestration_connectivity(
   # Find all fenestration groups using flood fill
   fenestration_groups = _find_connected_groups(floor_plan, fenestration_value)
 
-  # Check each group is connected to indoor air
   directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]
+  rows, cols = floor_plan.shape
 
   for group_name, group_info in fenestration_groups.items():
-    connected_to_air = False
-    for row, col in group_info['indices']:
+    group_indices = group_info['indices']
+
+    # Track which fenestration nodes are connected to air and exterior
+    nodes_adjacent_to_air = set()
+    nodes_adjacent_to_exterior = set()
+    nodes_surrounded_by_air = []
+
+    for row, col in group_indices:
+      adjacent_to_air = False
+      adjacent_to_exterior = False
+      air_neighbor_count = 0
+
       for dr, dc in directions:
         nr, nc = row + dr, col + dc
-        if (
-            0 <= nr < floor_plan.shape[0]
-            and 0 <= nc < floor_plan.shape[1]
-            and floor_plan[nr, nc] == air_value
-        ):
-          connected_to_air = True
-          break
-      if connected_to_air:
-        break
 
-    if not connected_to_air:
+        # Check if fenestration node is at boundary (exposed to exterior)
+        # This means the fenestration itself touches the building envelope
+        if nr < 0 or nr >= rows or nc < 0 or nc >= cols:
+          adjacent_to_exterior = True
+          continue
+
+        neighbor_val = floor_plan[nr, nc]
+
+        if neighbor_val == air_value:
+          adjacent_to_air = True
+          air_neighbor_count += 1
+        elif neighbor_val == exterior_wall_value:
+          # Adjacent to exterior wall - this is NOT sufficient for exterior
+          # exposure. Fenestration must be AT the boundary itself.
+          # Being adjacent to exterior wall just means it's near the wall,
+          # not that it's actually exposed to outdoors.
+          # (fenestration behind exterior wall is NOT exposed to outdoor)
+          pass
+
+      if adjacent_to_air:
+        nodes_adjacent_to_air.add((row, col))
+      if adjacent_to_exterior:
+        nodes_adjacent_to_exterior.add((row, col))
+
+      # Check if fenestration is surrounded only by air (floating in interior)
+      # A fenestration surrounded by air has 4 air neighbors and no exterior
+      if air_neighbor_count == 4 and not adjacent_to_exterior:
+        nodes_surrounded_by_air.append((row, col))
+
+    # Validation 1: Group must be connected to indoor air
+    if not nodes_adjacent_to_air:
       raise ValueError(
           f'Fenestration group {group_name} is not connected to indoor air. '
           'All fenestration nodes must be adjacent (4-way) to at least one '
           f'indoor air node (value {air_value}).'
       )
 
+    # Validation 2: Group must be exposed to exterior
+    if not nodes_adjacent_to_exterior:
+      raise ValueError(
+          f'Fenestration group {group_name} is not exposed to exterior. '
+          'Fenestration must be adjacent to exterior wall or at the boundary '
+          'of the floor plan.'
+      )
+
+    # Validation 3: Check for fenestration nodes surrounded by air
+    if nodes_surrounded_by_air:
+      raise ValueError(
+          f'Fenestration group {group_name} has nodes surrounded by air at '
+          f'positions {nodes_surrounded_by_air}. Fenestration cannot be '
+          'floating in interior space - it must connect exterior to interior.'
+      )
+
+    # Validation 4: Check that each fenestration node can reach both exterior
+    # and air through the fenestration chain
+    # Use BFS to check reachability from exterior nodes to air nodes
+    _validate_fenestration_chain_connectivity(
+        floor_plan=floor_plan,
+        group_name=group_name,
+        group_indices=group_indices,
+        nodes_adjacent_to_air=nodes_adjacent_to_air,
+        nodes_adjacent_to_exterior=nodes_adjacent_to_exterior,
+        fenestration_value=fenestration_value,
+        air_value=air_value,
+        interior_wall_value=interior_wall_value,
+    )
+
   return True
+
+
+def _validate_fenestration_chain_connectivity(
+    floor_plan: np.ndarray,
+    group_name: str,
+    group_indices: list,
+    nodes_adjacent_to_air: set,
+    nodes_adjacent_to_exterior: set,
+    fenestration_value: int,
+    air_value: int,
+    interior_wall_value: int,
+) -> None:
+  """Validate that fenestration nodes form a proper chain from exterior to air.
+
+  Each fenestration node must be reachable from nodes adjacent to exterior
+  through other fenestration nodes, eventually reaching nodes adjacent to air.
+  This detects cases where interior walls block the fenestration chain.
+
+  Additionally validates that:
+  - Interior-facing edge nodes (at the edge towards air) are adjacent to air,
+    not interior wall
+  - No fenestration node is blocked by interior wall on its air-facing side
+
+  Args:
+    floor_plan: 2D array representing the floor plan.
+    group_name: Name of the fenestration group for error messages.
+    group_indices: List of (row, col) tuples for all nodes in the group.
+    nodes_adjacent_to_air: Set of (row, col) tuples for nodes adjacent to air.
+    nodes_adjacent_to_exterior: Set of (row, col) tuples for nodes adjacent to
+        exterior.
+    fenestration_value: Value used to represent fenestration nodes.
+    air_value: Value used to represent indoor air.
+    interior_wall_value: Value used to represent interior walls.
+
+  Raises:
+    ValueError: If any fenestration node is blocked from reaching air or
+        exterior through the fenestration chain.
+  """
+  directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]
+  direction_names = {
+      (-1, 0): 'north',
+      (1, 0): 'south',
+      (0, -1): 'west',
+      (0, 1): 'east',
+  }
+  rows, cols = floor_plan.shape
+  group_set = set(group_indices)
+
+  # BFS from exterior nodes to find all reachable fenestration nodes
+  reachable_from_exterior = set()
+  queue = deque(nodes_adjacent_to_exterior)
+  reachable_from_exterior.update(nodes_adjacent_to_exterior)
+
+  while queue:
+    row, col = queue.popleft()
+    for dr, dc in directions:
+      nr, nc = row + dr, col + dc
+      if (nr, nc) in group_set and (nr, nc) not in reachable_from_exterior:
+        reachable_from_exterior.add((nr, nc))
+        queue.append((nr, nc))
+
+  # BFS from air-adjacent nodes to find all reachable fenestration nodes
+  reachable_from_air = set()
+  queue = deque(nodes_adjacent_to_air)
+  reachable_from_air.update(nodes_adjacent_to_air)
+
+  while queue:
+    row, col = queue.popleft()
+    for dr, dc in directions:
+      nr, nc = row + dr, col + dc
+      if (nr, nc) in group_set and (nr, nc) not in reachable_from_air:
+        reachable_from_air.add((nr, nc))
+        queue.append((nr, nc))
+
+  # Check for nodes that can't reach either exterior or air
+  for row, col in group_indices:
+    if (row, col) not in reachable_from_exterior:
+      raise ValueError(
+          f'Fenestration group {group_name} has a node at ({row}, {col}) that '
+          'is blocked from exterior. Each fenestration node must be reachable '
+          'from exterior through the fenestration chain.'
+      )
+
+    if (row, col) not in reachable_from_air:
+      raise ValueError(
+          f'Fenestration group {group_name} has a node at ({row}, {col}) that '
+          'is blocked from indoor air. Each fenestration node must be '
+          'reachable from air through the fenestration chain.'
+      )
+
+  # Determine the interior direction (direction from exterior towards air)
+  # based on where the exterior-adjacent nodes are located
+  interior_direction = _determine_interior_direction(
+      nodes_adjacent_to_exterior, rows, cols, floor_plan
+  )
+
+  if interior_direction is not None:
+    # Find interior-facing edge nodes: nodes with no fenestration neighbor
+    # in the interior direction
+    interior_facing_edge_nodes = []
+    for row, col in group_indices:
+      dr, dc = interior_direction
+      nr, nc = row + dr, col + dc
+      # Check if the interior-direction neighbor is NOT fenestration
+      if (nr, nc) not in group_set:
+        interior_facing_edge_nodes.append((row, col))
+
+    # Check that interior-facing edge nodes are adjacent to air, not interior
+    # wall
+    blocked_by_interior_wall = []
+    for row, col in interior_facing_edge_nodes:
+      dr, dc = interior_direction
+      nr, nc = row + dr, col + dc
+
+      # Check what's in the interior direction
+      if 0 <= nr < rows and 0 <= nc < cols:
+        neighbor_val = floor_plan[nr, nc]
+        if neighbor_val == interior_wall_value:
+          # Interior wall is blocking this fenestration from air
+          blocked_by_interior_wall.append((row, col))
+        elif neighbor_val != air_value and neighbor_val != fenestration_value:
+          # Something other than air or fenestration in interior direction
+          # This might also be a problem
+          blocked_by_interior_wall.append((row, col))
+
+    if blocked_by_interior_wall:
+      dir_name = direction_names.get(
+          interior_direction, str(interior_direction)
+      )
+      raise ValueError(
+          f'Fenestration group {group_name} has nodes blocked by interior '
+          f'wall at positions {blocked_by_interior_wall}. These nodes are at '
+          f'the interior-facing edge (direction: {dir_name}) but are blocked '
+          'by interior wall instead of connecting to indoor air. Fenestration '
+          'must have a clear path to indoor air on its interior side.'
+      )
+
+
+def _determine_interior_direction(
+    nodes_adjacent_to_exterior: set,
+    rows: int,
+    cols: int,
+    floor_plan: np.ndarray,
+) -> tuple:
+  """Determine the direction from exterior towards interior for a fenestration.
+
+  Based on where the exterior-adjacent nodes are located, determines which
+  direction points towards the interior (air).
+
+  Args:
+    nodes_adjacent_to_exterior: Set of (row, col) tuples for nodes adjacent to
+        exterior.
+    rows: Number of rows in floor plan.
+    cols: Number of columns in floor plan.
+    floor_plan: 2D array representing the floor plan.
+
+  Returns:
+    Tuple (dr, dc) representing the direction towards interior, or None if
+    cannot be determined.
+  """
+  if not nodes_adjacent_to_exterior:
+    return None
+
+  # Check if exterior is at array boundary
+  for row, col in nodes_adjacent_to_exterior:
+    if row == 0:
+      return (1, 0)  # Exterior at top, interior is south
+    if row == rows - 1:
+      return (-1, 0)  # Exterior at bottom, interior is north
+    if col == 0:
+      return (0, 1)  # Exterior at left, interior is east
+    if col == cols - 1:
+      return (0, -1)  # Exterior at right, interior is west
+
+  # Check which direction has exterior wall neighbors
+  directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]
+  opposite = {
+      (-1, 0): (1, 0),
+      (1, 0): (-1, 0),
+      (0, -1): (0, 1),
+      (0, 1): (0, -1),
+  }
+  exterior_wall_value = constants.EXTERIOR_SPACE_VALUE_IN_FILE_INPUT
+
+  for row, col in nodes_adjacent_to_exterior:
+    for dr, dc in directions:
+      nr, nc = row + dr, col + dc
+      if (
+          0 <= nr < rows
+          and 0 <= nc < cols
+          and floor_plan[nr, nc] == exterior_wall_value
+      ):
+        # Exterior wall is in this direction, interior is opposite
+        return opposite[(dr, dc)]
+
+  return None
 
 
 def _find_connected_groups(
@@ -1291,9 +1752,18 @@ def mark_fenestration_positions(
 ) -> np.ndarray:
   """Mark fenestration nodes based on their position (exterior/interior/between)
 
-  Exterior fenestration nodes (-42): Adjacent to exterior space (value -1)
-  Interior fenestration nodes (-43): Adjacent to indoor air (value 0)
-  In-between fenestration nodes (-425): Neither exterior nor interior adjacent
+  Exterior fenestration nodes (-42): At array boundary OR adjacent to exterior
+      space (value -1). This is the outermost layer of the fenestration.
+  Interior fenestration nodes (-43): Adjacent to indoor air (value 0). This is
+      the innermost layer of the fenestration facing the room.
+  In-between fenestration nodes (-425): Neither exterior nor interior adjacent.
+      These are middle layers of thick fenestration (e.g., multi-pane windows).
+
+  The classification priority is:
+  1. At array boundary -> exterior (-42)
+  2. Adjacent to exterior space (-1) -> exterior (-42)
+  3. Adjacent to indoor air (0) -> interior (-43)
+  4. Neither -> in-between (-425)
 
   Args:
     floor_plan: 2D array with fenestration marked as fenestration_value.
@@ -1308,6 +1778,7 @@ def mark_fenestration_positions(
     Copy of floor plan with fenestration nodes marked by position.
   """
   result = floor_plan.copy()
+  rows, cols = floor_plan.shape
   directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]
 
   fenestration_positions = np.where(floor_plan == fenestration_value)
@@ -1315,10 +1786,16 @@ def mark_fenestration_positions(
   for row, col in zip(fenestration_positions[0], fenestration_positions[1]):
     adjacent_to_exterior = False
     adjacent_to_air = False
+    at_boundary = False
+
+    # Check if fenestration is at the array boundary (edge/corner)
+    # Fenestration at boundary is always exterior fenestration
+    if row == 0 or row == rows - 1 or col == 0 or col == cols - 1:
+      at_boundary = True
 
     for dr, dc in directions:
       nr, nc = row + dr, col + dc
-      if 0 <= nr < floor_plan.shape[0] and 0 <= nc < floor_plan.shape[1]:
+      if 0 <= nr < rows and 0 <= nc < cols:
         neighbor_val = floor_plan[nr, nc]
         if neighbor_val == exterior_space_value:
           adjacent_to_exterior = True
@@ -1326,15 +1803,26 @@ def mark_fenestration_positions(
           adjacent_to_air = True
 
     # Determine fenestration position type
-    if adjacent_to_exterior and not adjacent_to_air:
+    # Priority:
+    # 1. At array boundary -> exterior (-42) regardless of other adjacencies
+    # 2. Adjacent to both exterior and air -> interior (-43) for single-layer
+    # 3. Adjacent to exterior only -> exterior (-42)
+    # 4. Adjacent to air only -> interior (-43)
+    # 5. Neither -> in-between (-425)
+    if at_boundary:
+      # At array boundary -> always exterior fenestration
       result[row, col] = exterior_fenestration
-    elif adjacent_to_air and not adjacent_to_exterior:
-      result[row, col] = interior_fenestration
     elif adjacent_to_air and adjacent_to_exterior:
-      # Both adjacent - mark as interior (closest to air)
+      # Both adjacent (single-layer fenestration) -> mark as interior
+      result[row, col] = interior_fenestration
+    elif adjacent_to_exterior:
+      # Only exterior adjacent -> exterior fenestration
+      result[row, col] = exterior_fenestration
+    elif adjacent_to_air:
+      # Only air adjacent -> interior fenestration
       result[row, col] = interior_fenestration
     else:
-      # Neither - in-between
+      # Neither -> in-between fenestration
       result[row, col] = inbetween_fenestration
 
   return result

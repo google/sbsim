@@ -1324,6 +1324,176 @@ class BuildingRadiationUtilsTest(absltest.TestCase):
     # All zeros when no fenestrations
     self.assertTrue(np.all(q_sol_tau_array == 0.0))
 
+  def test_wrong_fenestration_floor_plan_1_interior_wall_connection(self):
+    """Test detection: fenestration connected to interior wall instead of air.
+
+    In this floor plan, the left-side fenestration group at row 5 is connected
+    to interior wall (1) instead of air (0), breaking the proper connection
+    from exterior to indoor air.
+    """
+    # fmt: off
+    wrong_fenestration_floor_plan_1 = np.array([
+        [2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2],
+        [2, 1, 1, 1, 1, 4, 1, 1, 1, 1, 2],
+        [2, 1, 1, 1, 1, 4, 1, 1, 1, 1, 2],
+        [4, 4, 4, 4, 0, 0, 1, 0, 0, 4, 4],
+        [4, 4, 4, 4, 0, 0, 1, 0, 0, 1, 2],
+        [4, 4, 4, 4, 1, 1, 1, 1, 1, 1, 2],
+        [2, 1, 1, 1, 0, 0, 1, 0, 0, 1, 2],
+        [4, 4, 4, 4, 0, 0, 1, 0, 0, 1, 2],
+        [2, 1, 1, 1, 4, 1, 1, 1, 4, 1, 2],
+        [2, 2, 2, 2, 4, 2, 2, 2, 4, 2, 2],
+    ])
+    # fmt: on
+
+    with self.assertRaises(ValueError) as context:
+      utils.validate_fenestration_connectivity(
+          wrong_fenestration_floor_plan_1,
+          fenestration_value=constants.FENESTRATION_VALUE_IN_FILE_INPUT,
+          air_value=constants.INTERIOR_SPACE_VALUE_IN_FILE_INPUT,
+      )
+    # Should detect that fenestration at row 5 is blocked by interior wall
+    self.assertIn("blocked", str(context.exception).lower())
+
+  def test_wrong_fenestration_floor_plan_2_blocked_by_interior_wall(self):
+    """Test detection: fenestration blocked by interior wall.
+
+    In this floor plan, the fenestration at row 7 is blocked by an interior
+    wall at position (7,3), preventing proper connection to air.
+    """
+    # fmt: off
+    wrong_fenestration_floor_plan_2 = np.array([
+        [2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2],
+        [2, 1, 1, 1, 1, 4, 1, 1, 1, 1, 2],
+        [2, 1, 1, 1, 1, 4, 1, 1, 1, 1, 2],
+        [4, 4, 4, 4, 0, 0, 1, 0, 0, 4, 4],
+        [4, 4, 4, 4, 0, 0, 1, 0, 0, 1, 2],
+        [2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2],
+        [2, 1, 1, 1, 0, 0, 1, 0, 0, 1, 2],
+        [4, 4, 4, 1, 0, 0, 1, 0, 0, 1, 2],
+        [2, 1, 1, 1, 4, 1, 1, 1, 4, 1, 2],
+        [2, 2, 2, 2, 4, 2, 2, 2, 4, 2, 2],
+    ])
+    # fmt: on
+
+    with self.assertRaises(ValueError) as context:
+      utils.validate_fenestration_connectivity(
+          wrong_fenestration_floor_plan_2,
+          fenestration_value=constants.FENESTRATION_VALUE_IN_FILE_INPUT,
+          air_value=constants.INTERIOR_SPACE_VALUE_IN_FILE_INPUT,
+      )
+    # Should detect blocked fenestration (blocked from air or not connected)
+    error_msg = str(context.exception).lower()
+    self.assertTrue(
+        "blocked" in error_msg or "not connected" in error_msg,
+        "Expected 'blocked' or 'not connected' in error message, got:"
+        f" {error_msg}",
+    )
+
+  def test_wrong_fenestration_floor_plan_3_not_exposed_to_outdoor(self):
+    """Test detection: fenestration not exposed to outdoor.
+
+    In this floor plan, the fenestration at row 7 is blocked from exterior
+    by an exterior wall at position (7,0), meaning it's not properly exposed
+    to outdoor.
+    """
+    # fmt: off
+    wrong_fenestration_floor_plan_3 = np.array([
+        [2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2],
+        [2, 1, 1, 1, 1, 4, 1, 1, 1, 1, 2],
+        [2, 1, 1, 1, 1, 4, 1, 1, 1, 1, 2],
+        [4, 4, 4, 4, 0, 0, 1, 0, 0, 4, 4],
+        [4, 4, 4, 4, 0, 0, 1, 0, 0, 1, 2],
+        [2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2],
+        [2, 1, 1, 1, 0, 0, 1, 0, 0, 1, 2],
+        [2, 4, 4, 4, 0, 0, 1, 0, 0, 1, 2],
+        [2, 1, 1, 1, 4, 1, 1, 1, 4, 1, 2],
+        [2, 2, 2, 2, 4, 2, 2, 2, 4, 2, 2],
+    ])
+    # fmt: on
+
+    with self.assertRaises(ValueError) as context:
+      utils.validate_fenestration_connectivity(
+          wrong_fenestration_floor_plan_3,
+          fenestration_value=constants.FENESTRATION_VALUE_IN_FILE_INPUT,
+          air_value=constants.INTERIOR_SPACE_VALUE_IN_FILE_INPUT,
+      )
+    # Should detect fenestration not exposed to exterior
+    self.assertIn("exterior", str(context.exception).lower())
+
+  def test_wrong_fenestration_floor_plan_4_partial_blockage(self):
+    """Test detection: part of fenestration blocked by interior wall.
+
+    In this floor plan, the top fenestration at column 4-5 has a partial
+    blockage where part of the fenestration is connected to air while
+    another part is blocked by interior wall at (2,4).
+    """
+    # fmt: off
+    wrong_fenestration_floor_plan_4 = np.array([
+        [2, 2, 2, 2, 4, 4, 2, 2, 2, 2, 2],
+        [2, 1, 1, 1, 4, 4, 1, 1, 1, 1, 2],
+        [2, 1, 1, 1, 1, 4, 1, 1, 1, 1, 2],
+        [4, 4, 4, 4, 0, 0, 1, 0, 0, 4, 4],
+        [4, 4, 4, 4, 0, 0, 1, 0, 0, 1, 2],
+        [2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2],
+        [2, 1, 1, 1, 0, 0, 1, 0, 0, 1, 2],
+        [4, 4, 4, 4, 0, 0, 1, 0, 0, 1, 2],
+        [2, 1, 1, 1, 4, 1, 1, 1, 4, 1, 2],
+        [2, 2, 2, 2, 4, 2, 2, 2, 4, 2, 2],
+    ])
+    # fmt: on
+
+    with self.assertRaises(ValueError) as context:
+      utils.validate_fenestration_connectivity(
+          wrong_fenestration_floor_plan_4,
+          fenestration_value=constants.FENESTRATION_VALUE_IN_FILE_INPUT,
+          air_value=constants.INTERIOR_SPACE_VALUE_IN_FILE_INPUT,
+      )
+    # Should detect blocked or disconnected fenestration node
+    error_msg = str(context.exception).lower()
+    self.assertTrue(
+        "blocked" in error_msg or "disconnect" in error_msg,
+        "Expected 'blocked' or 'disconnect' in error message, got:"
+        f" {error_msg}",
+    )
+
+  def test_wrong_fenestration_floor_plan_5_fenestration_within_air(self):
+    """Test detection: fenestration node within air (surrounded by air).
+
+    In this floor plan, the fenestration at position (6,6) is surrounded
+    by air nodes, meaning it's not properly connecting exterior to interior
+    (it's floating in the middle of the air space).
+    """
+    # fmt: off
+    wrong_fenestration_floor_plan_5 = np.array([
+        [2, 2, 2, 2, 1, 4, 2, 2, 2, 2, 2],
+        [2, 1, 1, 1, 1, 4, 1, 1, 1, 1, 2],
+        [2, 1, 1, 1, 1, 4, 1, 1, 1, 1, 2],
+        [2, 1, 1, 1, 0, 0, 1, 0, 0, 4, 4],
+        [2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2],
+        [2, 1, 1, 1, 1, 0, 0, 0, 0, 1, 2],
+        [2, 1, 1, 1, 0, 0, 4, 0, 0, 1, 2],
+        [4, 4, 4, 4, 0, 0, 0, 0, 0, 1, 2],
+        [2, 1, 1, 1, 4, 1, 1, 1, 4, 1, 2],
+        [2, 2, 2, 2, 4, 2, 2, 2, 4, 2, 2],
+    ])
+    # fmt: on
+
+    with self.assertRaises(ValueError) as context:
+      utils.validate_fenestration_connectivity(
+          wrong_fenestration_floor_plan_5,
+          fenestration_value=constants.FENESTRATION_VALUE_IN_FILE_INPUT,
+          air_value=constants.INTERIOR_SPACE_VALUE_IN_FILE_INPUT,
+      )
+    # Should detect fenestration surrounded by air
+    error_msg = str(context.exception).lower()
+    self.assertTrue(
+        "surrounded by air" in error_msg
+        or "not exposed to exterior" in error_msg,
+        "Expected 'surrounded by air' or 'not exposed to exterior' in error"
+        f" message, got: {error_msg}",
+    )
+
 
 if __name__ == "__main__":
   absltest.main()

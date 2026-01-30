@@ -10,6 +10,7 @@ import pandas as pd
 from smart_control.models.base_occupancy import BaseOccupancy
 from smart_control.proto import smart_control_reward_pb2
 from smart_control.simulator import building as building_py
+from smart_control.simulator import constants
 from smart_control.simulator import hvac as hvac_py
 from smart_control.simulator import weather_controller as weather_controller_py
 from smart_control.utils import conversion_utils
@@ -177,34 +178,73 @@ class Simulator:
     convection_transfer = convection_coefficient * delta_x * ambient_temperature
     denominator = 2.0 * conductivity + convection_coefficient * delta_x + t0
 
-    # Exterior LWR heat transfer (for fenestration CVs)
+    # Exterior LWR and solar radiation heat transfer
     q_lwr = 0.0
     q_sol_alpha = 0.0
     if (
         hasattr(self.building, 'include_radiative_heat_transfer')
         and self.building.include_radiative_heat_transfer
-        and hasattr(self.building, 'fenestration_groups')
-        and self.building.fenestration_groups
     ):
-      q_lwr_array = (
-          self.building.apply_longwave_exterior_radiative_heat_transfer(
-              temperature_estimates, ambient_temperature, sky_temperature
+      # Check if this CV is a fenestration or boundary exterior wall
+      is_fenestration = (
+          hasattr(self.building, 'fenestration_groups')
+          and self.building.fenestration_groups
+          and hasattr(self.building, 'indexed_floor_plan')
+          and self.building.indexed_floor_plan[x, y]
+          in (
+              constants.EXTERIOR_FENESTRATION_VALUE,
+              constants.INTERIOR_FENESTRATION_VALUE,
+              constants.INBETWEEN_FENESTRATION_VALUE,
           )
       )
-      if q_lwr_array[x, y] != 0.0:
-        q_lwr = q_lwr_array[x, y] / z
+      is_boundary_exterior_wall = (
+          hasattr(self.building, 'exterior_wall_boundary_mask')
+          and self.building.exterior_wall_boundary_mask is not None
+          and self.building.exterior_wall_boundary_mask[x, y]
+      )
 
-      # Absorbed solar radiation (for fenestration CVs)
-      if (
-          irradiance_components is not None
-          and solar_zenith is not None
-          and solar_azimuth is not None
-      ):
-        q_sol_alpha_array, _ = self.building.apply_shortwave_solar_radiation(
-            irradiance_components, solar_zenith, solar_azimuth
+      # Fenestration LWR and solar
+      if is_fenestration:
+        q_lwr_array = (
+            self.building.apply_longwave_exterior_radiative_heat_transfer(
+                temperature_estimates, ambient_temperature, sky_temperature
+            )
         )
-        if q_sol_alpha_array[x, y] != 0.0:
-          q_sol_alpha = q_sol_alpha_array[x, y] / z
+        if q_lwr_array[x, y] != 0.0:
+          q_lwr = q_lwr_array[x, y] / z
+
+        if (
+            irradiance_components is not None
+            and solar_zenith is not None
+            and solar_azimuth is not None
+        ):
+          q_sol_alpha_array, _ = self.building.apply_shortwave_solar_radiation(
+              irradiance_components, solar_zenith, solar_azimuth
+          )
+          if q_sol_alpha_array[x, y] != 0.0:
+            q_sol_alpha = q_sol_alpha_array[x, y] / z
+
+      # Boundary exterior wall LWR and solar
+      elif is_boundary_exterior_wall:
+        bldg = self.building
+        q_lwr_array = bldg.apply_longwave_exterior_radiative_heat_transfer_exterior_wall(  # pylint: disable=line-too-long
+            temperature_estimates, ambient_temperature, sky_temperature
+        )
+        if q_lwr_array[x, y] != 0.0:
+          q_lwr = q_lwr_array[x, y] / z
+
+        if (
+            irradiance_components is not None
+            and solar_zenith is not None
+            and solar_azimuth is not None
+        ):
+          q_sol_alpha_array = (
+              bldg.apply_shortwave_solar_radiation_exterior_wall(
+                  irradiance_components, solar_zenith, solar_azimuth
+              )
+          )
+          if q_sol_alpha_array[x, y] != 0.0:
+            q_sol_alpha = q_sol_alpha_array[x, y] / z
 
     return (
         neighbor_transfer
@@ -324,34 +364,73 @@ class Simulator:
 
     denominator = 2.0 * conductivity + convection_coefficient * delta_x + t0
 
-    # Exterior LWR heat transfer (for fenestration CVs)
+    # Exterior LWR and solar radiation heat transfer
     q_lwr = 0.0
     q_sol_alpha = 0.0
     if (
         hasattr(self.building, 'include_radiative_heat_transfer')
         and self.building.include_radiative_heat_transfer
-        and hasattr(self.building, 'fenestration_groups')
-        and self.building.fenestration_groups
     ):
-      q_lwr_array = (
-          self.building.apply_longwave_exterior_radiative_heat_transfer(
-              temperature_estimates, ambient_temperature, sky_temperature
+      # Check if this CV is a fenestration or boundary exterior wall
+      is_fenestration = (
+          hasattr(self.building, 'fenestration_groups')
+          and self.building.fenestration_groups
+          and hasattr(self.building, 'indexed_floor_plan')
+          and self.building.indexed_floor_plan[x, y]
+          in (
+              constants.EXTERIOR_FENESTRATION_VALUE,
+              constants.INTERIOR_FENESTRATION_VALUE,
+              constants.INBETWEEN_FENESTRATION_VALUE,
           )
       )
-      if q_lwr_array[x, y] != 0.0:
-        q_lwr = q_lwr_array[x, y] / z
+      is_boundary_exterior_wall = (
+          hasattr(self.building, 'exterior_wall_boundary_mask')
+          and self.building.exterior_wall_boundary_mask is not None
+          and self.building.exterior_wall_boundary_mask[x, y]
+      )
 
-      # Absorbed solar radiation (for fenestration CVs)
-      if (
-          irradiance_components is not None
-          and solar_zenith is not None
-          and solar_azimuth is not None
-      ):
-        q_sol_alpha_array, _ = self.building.apply_shortwave_solar_radiation(
-            irradiance_components, solar_zenith, solar_azimuth
+      # Fenestration LWR and solar
+      if is_fenestration:
+        q_lwr_array = (
+            self.building.apply_longwave_exterior_radiative_heat_transfer(
+                temperature_estimates, ambient_temperature, sky_temperature
+            )
         )
-        if q_sol_alpha_array[x, y] != 0.0:
-          q_sol_alpha = q_sol_alpha_array[x, y] / z
+        if q_lwr_array[x, y] != 0.0:
+          q_lwr = q_lwr_array[x, y] / z
+
+        if (
+            irradiance_components is not None
+            and solar_zenith is not None
+            and solar_azimuth is not None
+        ):
+          q_sol_alpha_array, _ = self.building.apply_shortwave_solar_radiation(
+              irradiance_components, solar_zenith, solar_azimuth
+          )
+          if q_sol_alpha_array[x, y] != 0.0:
+            q_sol_alpha = q_sol_alpha_array[x, y] / z
+
+      # Boundary exterior wall LWR and solar
+      elif is_boundary_exterior_wall:
+        bldg = self.building
+        q_lwr_array = bldg.apply_longwave_exterior_radiative_heat_transfer_exterior_wall(  # pylint: disable=line-too-long
+            temperature_estimates, ambient_temperature, sky_temperature
+        )
+        if q_lwr_array[x, y] != 0.0:
+          q_lwr = q_lwr_array[x, y] / z
+
+        if (
+            irradiance_components is not None
+            and solar_zenith is not None
+            and solar_azimuth is not None
+        ):
+          q_sol_alpha_array = (
+              bldg.apply_shortwave_solar_radiation_exterior_wall(
+                  irradiance_components, solar_zenith, solar_azimuth
+              )
+          )
+          if q_sol_alpha_array[x, y] != 0.0:
+            q_sol_alpha = q_sol_alpha_array[x, y] / z
 
     return (
         neighbor_transfer
@@ -511,31 +590,51 @@ class Simulator:
 
     # checking for implementation of `include_radiative_heat_transfer` because
     # the `FloorPlanBasedBuilding` implements it, but the `Building` doesn't
+    q_lwx = 0.0
+    q_lwr = 0.0
+    q_sol_tau = 0.0
+
     if (
         hasattr(self.building, 'include_radiative_heat_transfer')
         and self.building.include_radiative_heat_transfer
     ):
-      # Interior radiative heat transfer (LWX)
-      q_lwx_array = (
-          self.building.apply_longwave_interior_radiative_heat_transfer(
-              temperature_estimates
-          )
+      # Interior radiative heat transfer (LWX) - only for interior walls/mass
+      # Optimization: skip if CV is not in interior_wall_mask_all
+      is_in_lwx_mask = (
+          hasattr(self.building, 'interior_wall_mask_all')
+          and self.building.interior_wall_mask_all is not None
+          and self.building.interior_wall_mask_all[x, y]
       )
-      # q_lwx_idx is -1 if the CV does not have LWX
-      q_lwx_idx = self.building.lwx_index[x, y]
-      q_lwx = (
-          (q_lwx_array[q_lwx_idx] / conductivity / z)
-          if q_lwx_idx != -1
-          else 0.0
-      )
+      if is_in_lwx_mask:
+        q_lwx_array = (
+            self.building.apply_longwave_interior_radiative_heat_transfer(
+                temperature_estimates
+            )
+        )
+        q_lwx_idx = self.building.lwx_index[x, y]
+        if q_lwx_idx != -1:
+          q_lwx = q_lwx_array[q_lwx_idx] / conductivity / z
 
-      # Exterior LWR heat transfer (for fenestration CVs)
-      q_lwr = 0.0
-      q_sol_tau = 0.0
-      if (
+      # Check if this CV is a fenestration or boundary exterior wall
+      is_fenestration = (
           hasattr(self.building, 'fenestration_groups')
           and self.building.fenestration_groups
-      ):
+          and hasattr(self.building, 'indexed_floor_plan')
+          and self.building.indexed_floor_plan[x, y]
+          in (
+              constants.EXTERIOR_FENESTRATION_VALUE,
+              constants.INTERIOR_FENESTRATION_VALUE,
+              constants.INBETWEEN_FENESTRATION_VALUE,
+          )
+      )
+      is_boundary_exterior_wall = (
+          hasattr(self.building, 'exterior_wall_boundary_mask')
+          and self.building.exterior_wall_boundary_mask is not None
+          and self.building.exterior_wall_boundary_mask[x, y]
+      )
+
+      # Fenestration exterior LWR
+      if is_fenestration:
         q_lwr_array = (
             self.building.apply_longwave_exterior_radiative_heat_transfer(
                 temperature_estimates, ambient_temperature, sky_temperature
@@ -544,25 +643,32 @@ class Simulator:
         if q_lwr_array[x, y] != 0.0:
           q_lwr = q_lwr_array[x, y] / conductivity / z
 
-        # Transmitted solar radiation (for air CVs, only if interior mass is
-        # disabled)
-        # When interior mass is enabled, q_sol_tau is applied in
-        # update_interior_mass_temperatures
-        if (
-            not include_interior_mass
-            and irradiance_components is not None
-            and solar_zenith is not None
-            and solar_azimuth is not None
-        ):
-          _, q_sol_tau_array = self.building.apply_shortwave_solar_radiation(
-              irradiance_components, solar_zenith, solar_azimuth
-          )
-          if q_sol_tau_array[x, y] != 0.0:
-            q_sol_tau = q_sol_tau_array[x, y] / conductivity / z
-    else:
-      q_lwx = 0.0
-      q_lwr = 0.0
-      q_sol_tau = 0.0
+      # Boundary exterior wall LWR
+      elif is_boundary_exterior_wall:
+        bldg = self.building
+        q_lwr_array = bldg.apply_longwave_exterior_radiative_heat_transfer_exterior_wall(  # pylint: disable=line-too-long
+            temperature_estimates, ambient_temperature, sky_temperature
+        )
+        if q_lwr_array[x, y] != 0.0:
+          q_lwr = q_lwr_array[x, y] / conductivity / z
+
+      # Transmitted solar radiation (for air CVs, only if interior mass is
+      # disabled)
+      # When interior mass is enabled, q_sol_tau is applied in
+      # update_interior_mass_temperatures
+      if (
+          hasattr(self.building, 'fenestration_groups')
+          and self.building.fenestration_groups
+          and not include_interior_mass
+          and irradiance_components is not None
+          and solar_zenith is not None
+          and solar_azimuth is not None
+      ):
+        _, q_sol_tau_array = self.building.apply_shortwave_solar_radiation(
+            irradiance_components, solar_zenith, solar_azimuth
+        )
+        if q_sol_tau_array[x, y] != 0.0:
+          q_sol_tau = q_sol_tau_array[x, y] / conductivity / z
 
     return (
         neighbor_transfer

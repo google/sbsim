@@ -1116,13 +1116,21 @@ class FloorPlanBasedBuilding(BaseSimulatorBuilding):
       self.lwx_index = np.full(self.indexed_floor_plan.shape, -1)
       # convert mask index => range for view factor matrix order.
       if self.include_interior_mass:
-        interior_wall_mask_all = (
+        self.interior_wall_mask_all = (
             self.interior_wall_mask | self.interior_mass_mask
         )
       else:
-        interior_wall_mask_all = self.interior_wall_mask
-      self.lwx_index[interior_wall_mask_all] = np.arange(
-          np.sum(interior_wall_mask_all)
+        self.interior_wall_mask_all = self.interior_wall_mask
+      self.lwx_index[self.interior_wall_mask_all] = np.arange(
+          np.sum(self.interior_wall_mask_all)
+      )
+
+      # Track exterior walls at boundary for exterior LWR and solar radiation
+      self.exterior_wall_boundary_mask = (
+          building_radiation_utils.get_exterior_wall_boundary_mask(
+              self.indexed_floor_plan,
+              constants.EXTERIOR_WALL_VALUE_IN_FUNCTION,
+          )
       )
       self.interior_wall_vf = building_radiation_utils.get_vf(
           indexed_floor_plan=self.indexed_floor_plan,
@@ -1213,6 +1221,7 @@ class FloorPlanBasedBuilding(BaseSimulatorBuilding):
       self.view_factor_method = None
       self.indexed_floor_plan = None
       self.interior_wall_mask = None
+      self.interior_wall_mask_all = None
       self.interior_wall_index = None
       self.interior_wall_vf = None
       self._alpha = None
@@ -1222,6 +1231,7 @@ class FloorPlanBasedBuilding(BaseSimulatorBuilding):
       self.fenestration_groups = None
       self.air_groups = None
       self._has_fenestration = False
+      self.exterior_wall_boundary_mask = None
 
   def _assign_interior_mass_properties(
       self,
@@ -1500,7 +1510,7 @@ class FloorPlanBasedBuilding(BaseSimulatorBuilding):
         floor_plan=self.indexed_floor_plan,
         fenestration_groups=self.fenestration_groups,
         surface_temperatures=temperature_estimates,
-        emissivity_array=self.emissivity,
+        emissivity_array=self._epsilon,
         ambient_temperature=ambient_temperature,
         sky_temperature=sky_temperature,
     )
@@ -1565,3 +1575,88 @@ class FloorPlanBasedBuilding(BaseSimulatorBuilding):
     )
 
     return q_sol_alpha_array, q_sol_tau_array
+
+  def apply_longwave_exterior_radiative_heat_transfer_exterior_wall(
+      self,
+      temperature_estimates: np.ndarray,
+      ambient_temperature: float,
+      sky_temperature: float,
+  ) -> np.ndarray:
+    """Applies exterior longwave radiative heat transfer for boundary walls.
+
+    Calculates q_lwr for exterior walls at the building boundary (outermost
+    layer) that are exposed to the outdoor environment.
+
+    Args:
+      temperature_estimates: 2D array of CV temperature estimates in K.
+      ambient_temperature: Ambient air temperature in K.
+      sky_temperature: Sky temperature in K.
+
+    Returns:
+      2D array (floor_plan shape) with net exterior LWR heat flux [W/m^2] at
+      boundary exterior wall positions. Positive = heat gain.
+    """
+    if (
+        not hasattr(self, "exterior_wall_boundary_mask")
+        or self.exterior_wall_boundary_mask is None
+        or not np.any(self.exterior_wall_boundary_mask)
+    ):
+      return np.zeros_like(self.indexed_floor_plan, dtype=float)
+
+    q_lwr = building_radiation_utils.calculate_exterior_lwr_for_exterior_wall(
+        exterior_wall_boundary_mask=self.exterior_wall_boundary_mask,
+        surface_temperatures=temperature_estimates,
+        emissivity_array=self._epsilon,
+        ambient_temperature=ambient_temperature,
+        sky_temperature=sky_temperature,
+    )
+    return q_lwr
+
+  def apply_shortwave_solar_radiation_exterior_wall(
+      self,
+      irradiance_components: dict[str, float],
+      solar_zenith: float,
+      solar_azimuth: float,
+      alpha: float | None = None,
+  ) -> np.ndarray:
+    """Applies shortwave solar radiation for boundary exterior walls.
+
+    Calculates absorbed solar radiation for exterior walls at the building
+    boundary, considering the wall orientation based on which boundary edge
+    it's located on.
+
+    Args:
+      irradiance_components: Dictionary with 'ghi', 'dni', 'dhi' keys
+        containing irradiance values in W/m2.
+      solar_zenith: Solar zenith angle in degrees.
+      solar_azimuth: Solar azimuth angle in degrees.
+      alpha: Solar absorptance of the wall surface (0-1). If None, uses
+        the building's exterior wall absorptance from _alpha array.
+
+    Returns:
+      2D array (floor_plan shape) with absorbed solar heat flux [W/m^2] at
+      boundary exterior wall positions.
+    """
+    if (
+        not hasattr(self, "exterior_wall_boundary_mask")
+        or self.exterior_wall_boundary_mask is None
+        or not np.any(self.exterior_wall_boundary_mask)
+    ):
+      return np.zeros_like(self.indexed_floor_plan, dtype=float)
+
+    # Use provided alpha or get average from exterior wall positions
+    if alpha is None:
+      # Use the alpha values from the building's radiative properties
+      alpha = np.mean(self._alpha[self.exterior_wall_boundary_mask])
+
+    q_sol_alpha = (
+        building_radiation_utils.calculate_solar_absorbed_for_exterior_wall(
+            exterior_wall_boundary_mask=self.exterior_wall_boundary_mask,
+            floor_plan=self.indexed_floor_plan,
+            irradiance_components=irradiance_components,
+            solar_zenith=solar_zenith,
+            solar_azimuth=solar_azimuth,
+            alpha=alpha,
+        )
+    )
+    return q_sol_alpha

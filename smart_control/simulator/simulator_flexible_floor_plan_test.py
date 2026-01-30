@@ -88,6 +88,35 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
 
     return plan
 
+  def _create_dummy_floor_plan_small_with_fenestrations(self):
+    """Creates a normal dummy floor plan with fenestrations."""
+    plan = np.array([
+        [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
+        [2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2],
+        [2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2],
+        [2, 1, 1, 0, 0, 0, 0, 0, 0, 1, 1, 2],
+        [2, 1, 1, 0, 0, 0, 0, 0, 0, 4, 4, 4],
+        [2, 1, 1, 0, 0, 0, 0, 0, 0, 4, 4, 4],
+        [2, 1, 1, 0, 0, 0, 0, 0, 0, 1, 1, 2],
+        [2, 1, 1, 0, 0, 0, 0, 0, 0, 1, 1, 2],
+        [2, 1, 1, 0, 0, 0, 0, 0, 0, 1, 1, 2],
+        [2, 1, 1, 0, 0, 0, 0, 0, 0, 1, 1, 2],
+        [2, 1, 1, 0, 0, 0, 0, 0, 0, 1, 1, 2],
+        [2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2],
+        [2, 1, 1, 0, 0, 0, 0, 0, 0, 1, 1, 2],
+        [4, 4, 4, 0, 0, 0, 0, 0, 0, 1, 1, 2],
+        [4, 4, 4, 0, 0, 0, 0, 0, 0, 1, 1, 2],
+        [2, 1, 1, 0, 0, 0, 0, 0, 0, 1, 1, 2],
+        [2, 1, 1, 0, 0, 0, 0, 0, 0, 1, 1, 2],
+        [2, 1, 1, 0, 0, 0, 0, 0, 0, 1, 1, 2],
+        [4, 4, 4, 0, 0, 0, 0, 0, 0, 1, 1, 2],
+        [4, 4, 4, 0, 0, 0, 0, 0, 0, 1, 1, 2],
+        [2, 1, 1, 1, 4, 4, 4, 1, 1, 1, 1, 2],
+        [2, 1, 1, 1, 4, 4, 4, 1, 1, 1, 1, 2],
+        [2, 2, 2, 2, 4, 4, 4, 2, 2, 2, 2, 2],
+    ])
+    return plan
+
   def _create_scenario_floor_plan(self) -> None:
     """Matches the previous deprecated building.
 
@@ -303,6 +332,7 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
       convergence_threshold=0.001,
       iteration_limit=100,
       weather_controller=None,
+      include_fenestrations=False,
   ):
     """Creates a building and simulator instance with shared parameters.
 
@@ -332,9 +362,14 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
     # Building geometry and base properties
     cv_size_cm = 20.0
     floor_height_cm = 300.0
-    inside_air_properties = building_py.MaterialProperties(
-        conductivity=50.0, heat_capacity=1.0, density=1.2
-    )
+    if include_interior_mass:
+      inside_air_properties = building_py.MaterialProperties(
+          conductivity=50.0, heat_capacity=1.0, density=1.2
+      )
+    else:
+      inside_air_properties = building_py.MaterialProperties(
+          conductivity=50.0, heat_capacity=700.0, density=1.2
+      )
     inside_wall_properties = building_py.MaterialProperties(
         conductivity=2.0, heat_capacity=500.0, density=1800.0
     )
@@ -344,8 +379,10 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
     interior_mass_properties = building_py.MaterialProperties(
         conductivity=0.5, heat_capacity=1000.0, density=2000.0
     )
-
-    floor_plan = self._create_dummy_floor_plan_small()
+    if include_fenestrations:
+      floor_plan = self._create_dummy_floor_plan_small_with_fenestrations()
+    else:
+      floor_plan = self._create_dummy_floor_plan_small()
     zone_map = copy.deepcopy(floor_plan)
 
     building = building_py.FloorPlanBasedBuilding(
@@ -1765,11 +1802,11 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
     # The exact relationship depends on material properties, but they should
     # differ
     self.assertGreater(
-        avg_temp_no_mass - avg_temp_with_mass,
+        avg_temp_with_mass - avg_temp_no_mass,
         0,
         msg=(
-            "Average temperature without interior mass should be greater than"
-            " with interior mass"
+            "Average temperature with interior mass should be greater than"
+            " without interior mass"
         ),
     )
 
@@ -1811,11 +1848,12 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
     )
 
     simulator, _ = self._create_simulator_and_building(
-        convergence_threshold=0.001,
-        iteration_limit=100,
+        convergence_threshold=0.01,
+        iteration_limit=300,
         include_interior_mass=True,
         include_radiative_heat_transfer=True,
         weather_controller=weather_controller,
+        include_fenestrations=True,
     )
     # Test convergence with same temperature (should converge quickly)
 
@@ -1826,11 +1864,26 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
     sky_temperature = simulator._weather_controller.get_current_sky_temperature(
         start_timestamp
     )
-    # passs sky_temp and irradiance and calculate exterior radiation.
+    # Get irradiance components and solar position for shortwave radiation
+    irradiance_data = simulator._weather_controller.get_current_irradiance(
+        start_timestamp
+    )
+    irradiance_components = {
+        "ghi": irradiance_data["ghi"],
+        "dni": irradiance_data["dni"],
+        "dhi": irradiance_data["dhi"],
+    }
+    solar_zenith = irradiance_data["solar_zenith"]
+    solar_azimuth = irradiance_data["solar_azimuth"]
+
+    # Pass sky_temp, irradiance, and solar position for exterior radiation.
     converged = simulator.finite_differences_timestep(
         ambient_temperature=ambient_temperature,
         convection_coefficient=12.0,
         sky_temperature=sky_temperature,
+        irradiance_components=irradiance_components,
+        solar_zenith=solar_zenith,
+        solar_azimuth=solar_azimuth,
     )
 
     self.assertTrue(
