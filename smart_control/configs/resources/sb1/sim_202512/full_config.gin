@@ -73,6 +73,7 @@ sim/FloorPlanBasedBuilding:
 
 morning_start_hour =  6
 evening_start_hour = 19
+# temperature setpoints in Kelvin:
 heating_setpoint_day = 294
 cooling_setpoint_day = 297
 heating_setpoint_night = 289
@@ -88,7 +89,7 @@ hvac/SetpointSchedule:
 
 
 ##########################
-### HVAC (NEW!)
+### HVAC
 ##########################
 
 water_pump_differential_head =  6.0
@@ -97,14 +98,14 @@ reheat_water_setpoint = 360.0
 boiler_heating_rate = 0.5 # K / min
 boiler_cooling_rate = 0.1 # K / min
 
-fan_static_pressure = 10000.0
+fan_static_pressure = 10000.0  # pascal
 fan_efficiency = 0.9
 
 air_handler_heating_setpoint = 285.0
 air_handler_cooling_setpoint = 298.0
 air_handler_recirculation_ratio = 0.3
 
-vav_max_air_flowrate = 2.0 # 0.035
+vav_max_air_flowrate = 2.0
 vav_reheat_water_flowrate =  0.03
 
 floor_1_rooms = [
@@ -152,7 +153,7 @@ hvac/AirHandlerSystem:
     @ahu_1/AirHandler(): %floor_1_rooms,
     @ahu_2/AirHandler(): %floor_2_rooms,
   }
-  device_id = 'ahu'
+  device_id = 'ahs'
 
 hvac/WaterPump:
   water_pump_differential_head = %water_pump_differential_head
@@ -175,6 +176,11 @@ sim/FloorPlanBasedHvac:
   schedule = @hvac/SetpointSchedule()
   vav_max_air_flow_rate = %vav_max_air_flowrate
   vav_reheat_max_water_flow_factor = %vav_reheat_water_flowrate
+  # prepare for future update associating floors with zones:
+  # floor_zones_map = {
+  #     1: %floor_1_rooms,
+  #     2: %floor_2_rooms,
+  # }
 
 
 ##########################
@@ -185,12 +191,17 @@ time_step_sec =  300  # should not be changed b/c apparently it affects the sim
 
 work_occupancy = 1 # number of workers per zone
 
+earliest_expected_arrival_hour = 3
+latest_expected_arrival_hour = 12
+earliest_expected_departure_hour = 13
+latest_expected_departure_hour = 23
+
 randomized_occupancy/RandomizedArrivalDepartureOccupancy:
   zone_assignment = %work_occupancy
-  earliest_expected_arrival_hour = 3
-  latest_expected_arrival_hour = 12
-  earliest_expected_departure_hour = 13
-  latest_expected_departure_hour = 23
+  earliest_expected_arrival_hour = %earliest_expected_arrival_hour
+  latest_expected_arrival_hour = %latest_expected_arrival_hour
+  earliest_expected_departure_hour = %earliest_expected_departure_hour
+  latest_expected_departure_hour = %latest_expected_departure_hour
   time_step_sec = %time_step_sec
   time_zone = %time_zone
 
@@ -203,7 +214,7 @@ randomized_occupancy/RandomizedArrivalDepartureOccupancy:
 convergence_threshold = 0.1
 iteration_limit = 100
 iteration_warning = 20
-start_timestamp = '2024-12-16 08:00:00' # '2025-07-10 06:00' # '2021-04-01 00:00'
+start_timestamp = '2024-12-16 00:00:00'
 
 sim/to_timestamp.date_str = %start_timestamp
 
@@ -225,14 +236,6 @@ SimulatorBuilding.occupancy = @randomized_occupancy/RandomizedArrivalDepartureOc
 ### REWARDS
 ##########################
 
-productivity_personhour_usd = 300.00
-
-productivity_midpoint_delta_temp =  1.5
-decay_stiffness =  4.3
-
-electricity_weight =  1.0
-carbon_weight =  1.0
-
 reward_normalizer_shift = 0.0
 reward_normalizer_scale = 450.0
 
@@ -241,8 +244,8 @@ min_productivity_personhour_usd = 100.00
 productivity_midpoint_delta =  0.5
 productivity_decay_stiffness =  4.3
 
-max_electricity_rate=160000
-max_natural_gas_rate=400000
+max_electricity_rate=160000  # watts
+max_natural_gas_rate=400000  # watts
 
 productivity_weight=0.2
 energy_cost_weight=0.4
@@ -265,13 +268,8 @@ SetpointEnergyCarbonRegretFunction.carbon_emission_weight = %carbon_emission_wei
 ### ACTIONS
 ##########################
 
-# include "actions_config.gin"
-# provides:
-# - %default_actions
-# - %default_hybrid_actions
-# - @ActionConfig()
 
-### HVAC (NEW!)
+### HVAC
 
 water_pump_differential_head =  6.0
 water_pump_efficiency = 0.98
@@ -286,7 +284,7 @@ air_handler_heating_setpoint = 285.0
 air_handler_cooling_setpoint = 298.0
 air_handler_recirculation_ratio = 0.3
 
-vav_max_air_flowrate = 2.0 # 0.035
+vav_max_air_flowrate = 2.0
 vav_reheat_water_flowrate =  0.03
 
 floor_1_rooms = [
@@ -334,7 +332,7 @@ hvac/AirHandlerSystem:
     @ahu_1/AirHandler(): %floor_1_rooms,
     @ahu_2/AirHandler(): %floor_2_rooms,
   }
-  device_id = 'ahu'
+  device_id = 'ahs'
 
 hvac/WaterPump:
   water_pump_differential_head = %water_pump_differential_head
@@ -363,27 +361,27 @@ sim/FloorPlanBasedHvac:
 # Action Normalization Parameters -> edited to match real building: https://source.corp.google.com/piper///depot/google3/corp/ml/smart_buildings/smart_control/configs/real_building/us_mtv_1055/base_config.gin;rcl=520286766;l=89
 supply_water_bounded_action_normalizer/set_action_normalization_constants.min_normalized_value = -1.
 supply_water_bounded_action_normalizer/set_action_normalization_constants.max_normalized_value = 1.0
-supply_water_bounded_action_normalizer/set_action_normalization_constants.min_native_value = 310 #300.0
+supply_water_bounded_action_normalizer/set_action_normalization_constants.min_native_value = 310
 supply_water_bounded_action_normalizer/set_action_normalization_constants.max_native_value = 350.0
 
 supply_air_heating_temperature_setpoint/set_action_normalization_constants.min_normalized_value = -1.
 supply_air_heating_temperature_setpoint/set_action_normalization_constants.max_normalized_value = 1.
-supply_air_heating_temperature_setpoint/set_action_normalization_constants.min_native_value = 285 #275.0
+supply_air_heating_temperature_setpoint/set_action_normalization_constants.min_native_value = 285
 supply_air_heating_temperature_setpoint/set_action_normalization_constants.max_native_value = 295.0
 
 supply_air_temperature_setpoint/set_action_normalization_constants.min_normalized_value = -1.
 supply_air_temperature_setpoint/set_action_normalization_constants.max_normalized_value = 1.
-supply_air_temperature_setpoint/set_action_normalization_constants.min_native_value = 285 #275.0
+supply_air_temperature_setpoint/set_action_normalization_constants.min_native_value = 285
 supply_air_temperature_setpoint/set_action_normalization_constants.max_native_value = 305.0
 
 differential_pressure_setpoint/set_action_normalization_constants.min_normalized_value = -1.
 differential_pressure_setpoint/set_action_normalization_constants.max_normalized_value = 1.
-differential_pressure_setpoint/set_action_normalization_constants.min_native_value = 0 #275.0
+differential_pressure_setpoint/set_action_normalization_constants.min_native_value = 0
 differential_pressure_setpoint/set_action_normalization_constants.max_native_value = 20.0
 
 static_pressure_setpoint/set_action_normalization_constants.min_normalized_value = -1.
 static_pressure_setpoint/set_action_normalization_constants.max_normalized_value = 1.
-static_pressure_setpoint/set_action_normalization_constants.min_native_value = 0 #275.0
+static_pressure_setpoint/set_action_normalization_constants.min_native_value = 0
 static_pressure_setpoint/set_action_normalization_constants.max_native_value = 20000.0
 
 run_command/set_action_normalization_constants.min_normalized_value = -1.
@@ -417,10 +415,10 @@ continuous/ActionConfig:
     action_normalizers = %action_normalizer_map_continuous
 
 device_action_tuples = [
-    ('ahu', 'ahu_1_supply_air_temperature_setpoint'),
-    ('ahu', 'ahu_1_static_pressure_setpoint'),
-    ('ahu', 'ahu_2_supply_air_temperature_setpoint'),
-    ('ahu', 'ahu_2_static_pressure_setpoint'),
+    ('ahs', 'ahu_1_supply_air_temperature_setpoint'),
+    ('ahs', 'ahu_1_static_pressure_setpoint'),
+    ('ahs', 'ahu_2_supply_air_temperature_setpoint'),
+    ('ahs', 'ahu_2_static_pressure_setpoint'),
     ('hws', 'supply_water_setpoint'),
     ('hws', 'differential_pressure'),
 ]
@@ -428,10 +426,10 @@ device_action_tuples = [
 default_actions = {
     'hws_supply_water_setpoint': 340.0,
     'hws_differential_pressure': 20.0,
-    'ahu_ahu_1_supply_air_temperature_setpoint': 293.0,
-    'ahu_ahu_1_static_pressure_setpoint': 20000.0,
-    'ahu_ahu_2_supply_air_temperature_setpoint': 293.0,
-    'ahu_ahu_2_static_pressure_setpoint': 20000.0,
+    'ahs_ahu_1_supply_air_temperature_setpoint': 293.0,
+    'ahs_ahu_1_static_pressure_setpoint': 20000.0,
+    'ahs_ahu_2_supply_air_temperature_setpoint': 293.0,
+    'ahs_ahu_2_static_pressure_setpoint': 20000.0,
 
 }
 
@@ -452,12 +450,12 @@ hybrid/ActionConfig:
     action_normalizers = %action_normalizer_map_hybrid
 
 hybrid_device_action_tuples = [
-    ('ahu', 'ahu_1_supervisor_run_command'),
-    ('ahu', 'ahu_2_supervisor_run_command'),
-    ('ahu', 'ahu_1_supply_air_temperature_setpoint'),
-    ('ahu', 'ahu_1_static_pressure_setpoint'),
-    ('ahu', 'ahu_2_supply_air_temperature_setpoint'),
-    ('ahu', 'ahu_2_static_pressure_setpoint'),
+    ('ahs', 'ahu_1_supervisor_run_command'),
+    ('ahs', 'ahu_2_supervisor_run_command'),
+    ('ahs', 'ahu_1_supply_air_temperature_setpoint'),
+    ('ahs', 'ahu_1_static_pressure_setpoint'),
+    ('ahs', 'ahu_2_supply_air_temperature_setpoint'),
+    ('ahs', 'ahu_2_static_pressure_setpoint'),
     ('hws', 'supervisor_run_command'),
     ('hws', 'supply_water_setpoint'),
     ('hws', 'differential_pressure'),
@@ -467,12 +465,12 @@ hybrid_default_actions = {
     'hws_supply_water_setpoint': 340.0,
     'hws_differential_pressure': 20.0,
     'hws_supervisor_run_command': 1.0,
-    'ahu_ahu_1_supply_air_temperature_setpoint': 293.0,
-    'ahu_ahu_1_static_pressure_setpoint': 20000.0,
-    'ahu_ahu_2_supply_air_temperature_setpoint': 293.0,
-    'ahu_ahu_2_static_pressure_setpoint': 20000.0,
-    'ahu_ahu_1_supervisor_run_command': 1.0,
-    'ahu_ahu_2_supervisor_run_command': 1.0,
+    'ahs_ahu_1_supply_air_temperature_setpoint': 293.0,
+    'ahs_ahu_1_static_pressure_setpoint': 20000.0,
+    'ahs_ahu_2_supply_air_temperature_setpoint': 293.0,
+    'ahs_ahu_2_static_pressure_setpoint': 20000.0,
+    'ahs_ahu_1_supervisor_run_command': 1.0,
+    'ahs_ahu_2_supervisor_run_command': 1.0,
 }
 
 ##########################
