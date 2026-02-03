@@ -1,4 +1,9 @@
-"""Reinforcement learning environment utility functions."""
+"""Utility functions for use in gin configuration files.
+
+TODO(mjrossetti): Let's consider renaming this file to "gin_utils.py" or
+"config_utils.py", because the functionality is more related to gin configs than
+it is about the environment.
+"""
 
 import gin
 import pandas as pd
