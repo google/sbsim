@@ -107,10 +107,10 @@ class Simulator:
     The energy balance for a corner control volume (CV) is given by:
 
     $$\begin{multline}
-      k (z) \frac{T_{\text{n1}} - T_{i,j}}{\delta_x} +
-      k (z) \frac{T_{\text{n2}} - T_{i,j}}{\delta_x} +
-      h (\delta_x z) (T_{\text{amb}} - T_{i,j}) + q_{\text{lwr}}
-      + q_{\text{sol},\alpha} \\
+      k (\delta_x z /2) \frac{T_{\text{n1}} - T_{i,j}}{\delta_x} +
+      k (\delta_x z /2) \frac{T_{\text{n2}} - T_{i,j}}{\delta_x} +
+      2h (\delta_x  z /2) (T_{\text{amb}} - T_{i,j})
+      + q_{\text{lwr}} (\delta_x z ) + q_{\text{sol},\alpha} (\delta_x z ) \\
       = \frac{\rho c \delta_x^2 z}{4 \Delta t}
       \left( T_{i,j} - T_{i,j}^{(-)} \right)
     \end{multline}$$
@@ -121,14 +121,14 @@ class Simulator:
     Solving for $T_{i,j}$:
 
     $$T_{i,j} = \frac{k (T_{\text{n1}} + T_{\text{n2}}) +
-      h \delta_x T_{\text{amb}} + \frac{q_{\text{lwr}}
-      + q_{\text{sol},\alpha}}{z}
+      2 h \delta_x T_{\text{amb}} + (2 q_{\text{lwr}}
+      + 2 q_{\text{sol},\alpha}) \delta_x
       + t_0 T_{i,j}^{(-)}}
-      {2 k + h \delta_x + t_0}$$
+      {2 k + 2 h \delta_x + t_0}$$
 
     where the temporal parameter is:
 
-    $$t_0 = \frac{\rho c \delta_x^2}{4 \Delta t}$$
+    $$t_0 = \frac{\rho c \delta_x^2}{2 \Delta t}$$
 
     Nomenclature and Units:
     -----------------------
@@ -143,6 +143,7 @@ class Simulator:
     - $\rho$: Density [$\mathrm{kg/m^3}$]
     - $c$: Specific heat capacity [$\mathrm{J/(kg \cdot K)}$]
     - $\Delta t$: Time step [$\mathrm{s}$]
+    - $\delta_x z$: Control volume vertical face area [$\mathrm{m^2}$]
     - $t_0$: Temporal parameter [dimensionless]
     - $q_{\text{lwr}}$: Exterior longwave radiative heat flux [$\mathrm{W/m^2}$]
     - $q_{\text{sol},\alpha}$: Absorbed solar radiation [$\mathrm{W/m^2}$]
@@ -161,7 +162,6 @@ class Simulator:
     x, y = cv_coordinates
     delta_x = self.building.cv_size_cm / 100.0
     delta_t = self._time_step_sec
-    z = self.building.floor_height_cm / 100.0
     density = self.building.density[x][y]
     conductivity = self.building.conductivity[x][y]
     heat_capacity = self.building.heat_capacity[x][y]
@@ -172,11 +172,15 @@ class Simulator:
     # Ensure corner CV.
     assert len(neighbors) == 2
 
-    t0 = density * delta_x**2 * heat_capacity / delta_t / 4.0  # corner 1/4
+    t0 = density * delta_x**2 * heat_capacity / delta_t / 2.0
     retained_heat = t0 * last_temp
     neighbor_transfer = conductivity * sum(neighbor_temps)
-    convection_transfer = convection_coefficient * delta_x * ambient_temperature
-    denominator = 2.0 * conductivity + convection_coefficient * delta_x + t0
+    convection_transfer = (
+        2.0 * convection_coefficient * delta_x * ambient_temperature
+    )
+    denominator = (
+        2.0 * conductivity + 2.0 * convection_coefficient * delta_x + t0
+    )
 
     # Exterior LWR and solar radiation heat transfer
     q_lwr = 0.0
@@ -211,27 +215,26 @@ class Simulator:
             )
         )
         if q_lwr_array[x, y] != 0.0:
-          q_lwr = q_lwr_array[x, y] / z
+          q_lwr = 2 * q_lwr_array[x, y] * delta_x
 
         if (
             irradiance_components is not None
             and solar_zenith is not None
             and solar_azimuth is not None
         ):
-          q_sol_alpha_array, _ = self.building.apply_shortwave_solar_radiation(
+          q_sol_alpha_array, _ = self.building.apply_shortwave_solar_radiation_fenestration(  # pylint: disable=line-too-long
               irradiance_components, solar_zenith, solar_azimuth
           )
           if q_sol_alpha_array[x, y] != 0.0:
-            q_sol_alpha = q_sol_alpha_array[x, y] / z
+            q_sol_alpha = 2 * q_sol_alpha_array[x, y] * delta_x
 
       # Boundary exterior wall LWR and solar
       elif is_boundary_exterior_wall:
-        bldg = self.building
-        q_lwr_array = bldg.apply_longwave_exterior_radiative_heat_transfer_exterior_wall(  # pylint: disable=line-too-long
+        q_lwr_array = self.building.apply_longwave_exterior_radiative_heat_transfer_exterior_wall(  # pylint: disable=line-too-long
             temperature_estimates, ambient_temperature, sky_temperature
         )
         if q_lwr_array[x, y] != 0.0:
-          q_lwr = q_lwr_array[x, y] / z
+          q_lwr = 2 * q_lwr_array[x, y] * delta_x
 
         if (
             irradiance_components is not None
@@ -239,12 +242,12 @@ class Simulator:
             and solar_azimuth is not None
         ):
           q_sol_alpha_array = (
-              bldg.apply_shortwave_solar_radiation_exterior_wall(
+              self.building.apply_shortwave_solar_radiation_exterior_wall(
                   irradiance_components, solar_zenith, solar_azimuth
               )
           )
           if q_sol_alpha_array[x, y] != 0.0:
-            q_sol_alpha = q_sol_alpha_array[x, y] / z
+            q_sol_alpha = 2 * q_sol_alpha_array[x, y] * delta_x
 
     return (
         neighbor_transfer
@@ -277,9 +280,9 @@ class Simulator:
     The energy balance for an edge control volume (CV) is given by:
 
     $$\begin{multline}
-      \sum_{n=1}^{3} f_n k (z) \frac{T_{\text{n}} - T_{i,j}}{\delta_x} +
-      h (\delta_x z) (T_{\text{amb}} - T_{i,j}) + q_{\text{lwr}}
-      + q_{\text{sol},\alpha} \\
+      \sum_{n=1}^{3} f_n k (\delta_x z) \frac{T_{\text{n}} - T_{i,j}}{\delta_x}
+      + h (\delta_x z) (T_{\text{amb}} - T_{i,j}) + q_{\text{lwr}} (\delta_x z)
+      + q_{\text{sol},\alpha} (\delta_x z) \\
       = \frac{\rho c \delta_x^2 z}{2 \Delta t}
       \left( T_{i,j} - T_{i,j}^{(-)} \right)
     \end{multline}$$
@@ -295,8 +298,8 @@ class Simulator:
     Solving for $T_{i,j}$:
 
     $$T_{i,j} = \frac{k \sum_{n=1}^{3} f_n T_{\text{n}} +
-      h \delta_x T_{\text{amb}} + \frac{q_{\text{lwr}}
-      + q_{\text{sol},\alpha}}{z}
+      h \delta_x T_{\text{amb}} + (q_{\text{lwr}}
+      + q_{\text{sol},\alpha}) \delta_x
       + t_0 T_{i,j}^{(-)}}
       {2 k + h \delta_x + t_0}$$
 
@@ -336,7 +339,6 @@ class Simulator:
     x, y = cv_coordinates
     delta_x = self.building.cv_size_cm / 100.0
     delta_t = self._time_step_sec
-    z = self.building.floor_height_cm / 100.0
     density = self.building.density[x][y]
     conductivity = self.building.conductivity[x][y]
     heat_capacity = self.building.heat_capacity[x][y]
@@ -397,27 +399,26 @@ class Simulator:
             )
         )
         if q_lwr_array[x, y] != 0.0:
-          q_lwr = q_lwr_array[x, y] / z
+          q_lwr = q_lwr_array[x, y] * delta_x
 
         if (
             irradiance_components is not None
             and solar_zenith is not None
             and solar_azimuth is not None
         ):
-          q_sol_alpha_array, _ = self.building.apply_shortwave_solar_radiation(
+          q_sol_alpha_array, _ = self.building.apply_shortwave_solar_radiation_fenestration(  # pylint: disable=line-too-long
               irradiance_components, solar_zenith, solar_azimuth
           )
           if q_sol_alpha_array[x, y] != 0.0:
-            q_sol_alpha = q_sol_alpha_array[x, y] / z
+            q_sol_alpha = q_sol_alpha_array[x, y] * delta_x
 
       # Boundary exterior wall LWR and solar
       elif is_boundary_exterior_wall:
-        bldg = self.building
-        q_lwr_array = bldg.apply_longwave_exterior_radiative_heat_transfer_exterior_wall(  # pylint: disable=line-too-long
+        q_lwr_array = self.building.apply_longwave_exterior_radiative_heat_transfer_exterior_wall(  # pylint: disable=line-too-long
             temperature_estimates, ambient_temperature, sky_temperature
         )
         if q_lwr_array[x, y] != 0.0:
-          q_lwr = q_lwr_array[x, y] / z
+          q_lwr = q_lwr_array[x, y] * delta_x
 
         if (
             irradiance_components is not None
@@ -425,12 +426,12 @@ class Simulator:
             and solar_azimuth is not None
         ):
           q_sol_alpha_array = (
-              bldg.apply_shortwave_solar_radiation_exterior_wall(
+              self.building.apply_shortwave_solar_radiation_exterior_wall(
                   irradiance_components, solar_zenith, solar_azimuth
               )
           )
           if q_sol_alpha_array[x, y] != 0.0:
-            q_sol_alpha = q_sol_alpha_array[x, y] / z
+            q_sol_alpha = q_sol_alpha_array[x, y] * delta_x
 
     return (
         neighbor_transfer
@@ -455,35 +456,64 @@ class Simulator:
     This function calculates the solution to an equation involving the energy
     transfer by conduction to neighboring air CVs, heat input from a diffuser,
     radiative exchange with interior surfaces, exterior radiative exchange
-    (for fenestration), and heat exchange with interior mass nodes (if present).
+    (for fenestration), absorbed and transmitted solar radiation, and heat
+    exchange with interior mass nodes (if present).
 
-    Note: Transmitted solar radiation (q_sol_tau) is applied to interior mass
-    nodes in update_interior_mass_temperatures(), not here. If interior mass
-    is disabled, q_sol_tau is applied to air nodes directly here.
+    Solar Radiation Handling:
+    -------------------------
+    - **Absorbed short-wave (q_sol_alpha)**: Applied to fenestration interior
+      nodes. Calculated as G_{Ts,i,j} * alpha_{i,j} [W/m²].
+    - **Transmitted short-wave (q_sol_tau)**: Applied to air nodes when interior
+      mass is disabled. Calculated as G_{Ts,i,j} * tau_{i,j} [W/m²]. When
+      interior mass is enabled, q_sol_tau is applied to interior mass nodes in
+      update_interior_mass_temperatures(), not here.
+    - **Exterior long-wave (q_lwr)**: Applied to fenestration interior nodes
+      and boundary exterior wall nodes [W/m²].
 
     Equations:
-    --------------------
+    ----------
     The energy balance for an interior control volume (CV) with interior mass
     is given by:
 
     $$\begin{multline}
-      k_1 (v z) \frac{T_{i-1,j} - T_{i,j}}{u} +
-      k_2 (u z) \frac{T_{i,j-1} - T_{i,j}}{v} +
-      k_3 (v z) \frac{T_{i+1,j} - T_{i,j}}{u} +
-      k_4 (u z) \frac{T_{i,j+1} - T_{i,j}}{v} \\
-      + Q_x + \frac{k_{\text{mass}} u v}{z}
-      (T_{\text{mass},i,j} - T_{i,j}) + q_{\text{lwx}} + q_{\text{lwr}}
-      + q_{\text{sol},\tau} =
-      \frac{\rho c u v z}{\Delta t} \left( T_{i,j} - T_{i,j}^{(-)} \right)
+      k_1 (\delta_x z) \frac{T_{i-1,j} - T_{i,j}}{\delta_x} +
+      k_2 (\delta_x z) \frac{T_{i,j-1} - T_{i,j}}{\delta_x} +
+      k_3 (\delta_x z) \frac{T_{i+1,j} - T_{i,j}}{\delta_x} +
+      k_4 (\delta_x z) \frac{T_{i,j+1} - T_{i,j}}{\delta_x} \\
+      + Q_x + \frac{k_{\text{mass}} \delta_x^2}{z}
+      (T_{\text{mass},i,j} - T_{i,j}) + q_{\text{lwx}} (\delta_x z)
+      + q_{\text{lwr}} (\delta_x z) + q_{\text{sol},\alpha} (\delta_x z)
+      + q_{\text{sol},\tau} (\delta_x z) = \\
+      \frac{\rho c \delta_x^2 z}{\Delta t}
+      \left( T_{i,j} - T_{i,j}^{(-)} \right)
       \end{multline}$$
 
     Solving for $T_{i,j}$ with uniform spacing ($u = v = \delta_x$) and uniform
     conductivity ($k_1 = k_2 = k_3 = k_4 = k$):
 
+    **General interior node:**
+
     $$T_{i,j} = \frac{\sum_{\text{neighbors}} T_{\text{neighbor}} +
       \frac{Q_x}{z k} + \frac{k_{\text{mass}} \delta_x^2}{z^2 k}
-      T_{\text{mass},i,j}+\frac{q_\text{lwx}}{zk}+\frac{q_\text{lwr}}{zk}
-      +\frac{q_{\text{sol},\tau}}{zk}
+      T_{\text{mass},i,j}+\frac{q_\text{lwx} \delta_x}{k}
+      + t_0 T_{i,j}^{(-)}}
+      {4 + \frac{k_{\text{mass}} \delta_x^2}{z^2 k} + t_0}$$
+
+    **Air node (no interior mass, receives transmitted solar):**
+
+    $$T_{i,j} = \frac{\sum_{\text{neighbors}} T_{\text{neighbor}} +
+      \frac{Q_x}{z k} +\frac{q_\text{lwx} \delta_x}{k}
+      +\frac{q_{\text{sol},\tau} \delta_x}{k}
+      + t_0 T_{i,j}^{(-)}}
+      {4 + t_0}$$
+
+    **Fenestration interior node (receives absorbed SW + exterior LW):**
+
+    $$T_{i,j} = \frac{\sum_{\text{neighbors}} T_{\text{neighbor}} +
+      \frac{Q_x}{z k} + \frac{k_{\text{mass}} \delta_x^2}{z^2 k}
+      T_{\text{mass},i,j}+\frac{q_\text{lwx} \delta_x}{k}
+      +\frac{q_\text{lwr} \delta_x}{k}
+      +\frac{q_{\text{sol},\alpha} \delta_x}{k}
       + t_0 T_{i,j}^{(-)}}
       {4 + \frac{k_{\text{mass}} \delta_x^2}{z^2 k} + t_0}$$
 
@@ -509,12 +539,22 @@ class Simulator:
     - $k_{\text{mass}}$: Thermal conductivity of interior mass
       [$\mathrm{W/(m \cdot K)}$]
     - $Q_x$: External heat source (e.g., diffuser) [$\mathrm{W}$]
-    - $q_{\text{lwx}}$: Interior longwave radiative exchange [$\mathrm{W/m^2}$]
-    - $q_{\text{lwr}}$: Exterior longwave radiative heat flux [$\mathrm{W/m^2}$]
-    - $q_{\text{sol},\tau}$: Transmitted solar radiation [$\mathrm{W/m^2}$]
-      (only when interior mass is disabled)
-    - $u, v$: CV dimensions in x and y directions [$\mathrm{m}$]
+    - $q_{\text{lwx}}$: Interior longwave radiative exchange flux
+      [$\mathrm{W/m^2}$]
+    - $q_{\text{lwr}}$: Exterior longwave radiative heat flux (for fenestration
+      and boundary exterior walls) [$\mathrm{W/m^2}$]
+    - $q_{\text{sol},\alpha}$: Absorbed solar radiation flux [$\mathrm{W/m^2}$]
+      (for fenestration nodes), calculated as $G_{Ts,i,j} \cdot \alpha_{i,j}$
+    - $q_{\text{sol},\tau}$: Transmitted solar radiation flux [$\mathrm{W/m^2}$]
+      (for air nodes when interior mass is disabled), calculated as
+      $G_{Ts,i,j} \cdot \tau_{i,j}$
+    - $G_{Ts,i,j}$: Total solar radiation flux incident on surface $(i,j)$
+      [$\mathrm{W/m^2}$]
+    - $\alpha_{i,j}$: Absorptivity of surface at node $(i,j)$ [-]
+    - $\tau_{i,j}$: Transmissivity of surface at node $(i,j)$ [-]
     - $\delta_x$: Spatial discretization (uniform CV size) [$\mathrm{m}$]
+    - $\delta_x^2$: Control volume horizontal (floor) area [$\mathrm{m^2}$]
+    - $\delta_x z$: Control volume vertical face area [$\mathrm{m^2}$]
     - $z$: CV height (floor height) [$\mathrm{m}$]
     - $\rho$: Density [$\mathrm{kg/m^3}$]
     - $c$: Specific heat capacity [$\mathrm{J/(kg \cdot K)}$]
@@ -528,9 +568,12 @@ class Simulator:
       ambient_temperature: Ambient air temperature in K for exterior LWR.
       sky_temperature: Sky temperature in K for exterior LWR calculation.
       irradiance_components: Dictionary with 'ghi', 'dni', 'dhi' keys for
-        solar irradiance in W/m2. If None, solar radiation is not calculated.
+        solar irradiance in W/m². If None, solar radiation is not calculated.
       solar_zenith: Solar zenith angle in degrees.
       solar_azimuth: Solar azimuth angle in degrees.
+
+    Returns:
+      Temperature estimate for the interior CV at the next time step in K.
     """
     x, y = cv_coordinates
     delta_x = self.building.cv_size_cm / 100.0
@@ -592,6 +635,7 @@ class Simulator:
     # the `FloorPlanBasedBuilding` implements it, but the `Building` doesn't
     q_lwx = 0.0
     q_lwr = 0.0
+    q_sol_alpha = 0.0
     q_sol_tau = 0.0
 
     if (
@@ -613,7 +657,7 @@ class Simulator:
         )
         q_lwx_idx = self.building.lwx_index[x, y]
         if q_lwx_idx != -1:
-          q_lwx = q_lwx_array[q_lwx_idx] / conductivity / z
+          q_lwx = q_lwx_array[q_lwx_idx] * delta_x / conductivity
 
       # Check if this CV is a fenestration or boundary exterior wall
       is_fenestration = (
@@ -633,7 +677,7 @@ class Simulator:
           and self.building.exterior_wall_boundary_mask[x, y]
       )
 
-      # Fenestration exterior LWR
+      # Fenestration exterior LWR and solar
       if is_fenestration:
         q_lwr_array = (
             self.building.apply_longwave_exterior_radiative_heat_transfer(
@@ -641,34 +685,52 @@ class Simulator:
             )
         )
         if q_lwr_array[x, y] != 0.0:
-          q_lwr = q_lwr_array[x, y] / conductivity / z
+          q_lwr = q_lwr_array[x, y] * delta_x / conductivity
 
-      # Boundary exterior wall LWR
+        # Absorbed solar radiation for fenestration interior nodes
+        if (
+            irradiance_components is not None
+            and solar_zenith is not None
+            and solar_azimuth is not None
+        ):
+          q_sol_alpha_array, q_sol_tau_array = (
+              self.building.apply_shortwave_solar_radiation_fenestration(
+                  irradiance_components, solar_zenith, solar_azimuth
+              )
+          )
+          # Absorbed solar goes to fenestration interior nodes
+          if q_sol_alpha_array[x, y] != 0.0:
+            q_sol_alpha = q_sol_alpha_array[x, y] * delta_x / conductivity
+
+          # Transmitted solar goes to air node only if interior mass is disabled
+          if not include_interior_mass and q_sol_tau_array[x, y] != 0.0:
+            q_sol_tau = q_sol_tau_array[x, y] * delta_x / conductivity
+
+      # Boundary exterior wall LWR and solar
       elif is_boundary_exterior_wall:
-        bldg = self.building
-        q_lwr_array = bldg.apply_longwave_exterior_radiative_heat_transfer_exterior_wall(  # pylint: disable=line-too-long
+        q_lwr_array = self.building.apply_longwave_exterior_radiative_heat_transfer_exterior_wall(  # pylint: disable=line-too-long
             temperature_estimates, ambient_temperature, sky_temperature
         )
         if q_lwr_array[x, y] != 0.0:
-          q_lwr = q_lwr_array[x, y] / conductivity / z
+          q_lwr = q_lwr_array[x, y] * delta_x / conductivity
 
       # Transmitted solar radiation (for air CVs, only if interior mass is
       # disabled)
       # When interior mass is enabled, q_sol_tau is applied in
       # update_interior_mass_temperatures
-      if (
-          hasattr(self.building, 'fenestration_groups')
-          and self.building.fenestration_groups
+      elif (
+          not is_fenestration
+          and not is_boundary_exterior_wall
           and not include_interior_mass
           and irradiance_components is not None
           and solar_zenith is not None
           and solar_azimuth is not None
       ):
-        _, q_sol_tau_array = self.building.apply_shortwave_solar_radiation(
+        _, q_sol_tau_array = self.building.apply_shortwave_solar_radiation_fenestration(  # pylint: disable=line-too-long
             irradiance_components, solar_zenith, solar_azimuth
         )
         if q_sol_tau_array[x, y] != 0.0:
-          q_sol_tau = q_sol_tau_array[x, y] / conductivity / z
+          q_sol_tau = q_sol_tau_array[x, y] * delta_x / conductivity
 
     return (
         neighbor_transfer
@@ -676,6 +738,7 @@ class Simulator:
         + retained_heat
         + q_lwx
         + q_lwr
+        + q_sol_alpha
         + q_sol_tau
     ) / denominator
 
@@ -826,12 +889,12 @@ class Simulator:
     The energy balance for the interior mass node exchanging heat only with its
     corresponding air CV through a characteristic length z is:
 
-    $$\frac{k_{\text{mass}} u v}{z} (T_{i,j} - T_{\text{mass},i,j})
-      + q_{\text{sol},\tau} \cdot u \cdot v =
-      \rho_{\text{mass}} c_{\text{mass}} u v z
+    $$\frac{k_{\text{mass}} \delta_x^2}{z} (T_{i,j} - T_{\text{mass},i,j})
+      + q_{\text{sol},\tau} \cdot \delta_x^2 =
+      \rho_{\text{mass}} c_{\text{mass}} \delta_x^2 z
       \frac{T_{\text{mass},i,j} - T_{\text{mass},i,j}^{(-)}}{\Delta t}$$
 
-    Dividing both sides by $(u v)$ and rearranging:
+    Dividing both sides by $(\delta_x^2)$ and rearranging:
 
     $$\frac{k_{\text{mass}}}{z} (T_{i,j} - T_{\text{mass},i,j})
       + q_{\text{sol},\tau} =
@@ -872,7 +935,7 @@ class Simulator:
       {1 + t_{0,\text{mass}}}$$
 
     This formulation is consistent with the air CV energy balance where the
-    interior mass coupling term is $\frac{k_{\text{mass}} u v}{z}
+    interior mass coupling term is $\frac{k_{\text{mass}} \delta_x^2}{z}
     (T_{\text{mass},i,j} - T_{i,j})$.
 
     Nomenclature and Units:
@@ -889,7 +952,8 @@ class Simulator:
       [$\mathrm{J/(kg \cdot K)}$]
     - $\alpha_{\text{mass}}$: Thermal diffusivity of interior mass
       [$\mathrm{m^2/s}$]
-    - $u, v$: CV dimensions in x and y directions [$\mathrm{m}$]
+    - $\delta_x$: Spatial discretization (uniform CV size) [$\mathrm{m}$]
+    - $\delta_x^2$: Control volume horizontal (floor) area [$\mathrm{m^2}$]
     - $z$: CV height (floor height), characteristic length for heat exchange
       [$\mathrm{m}$]
     - $\Delta t$: Time step [$\mathrm{s}$]
@@ -924,7 +988,7 @@ class Simulator:
         and hasattr(self.building, 'fenestration_groups')
         and self.building.fenestration_groups
     ):
-      _, q_sol_tau_array = self.building.apply_shortwave_solar_radiation(
+      _, q_sol_tau_array = self.building.apply_shortwave_solar_radiation_fenestration(  # pylint: disable=line-too-long
           irradiance_components, solar_zenith, solar_azimuth
       )
 

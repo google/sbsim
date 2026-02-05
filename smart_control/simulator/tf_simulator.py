@@ -556,6 +556,70 @@ class TFSimulator(simulator.SimulatorFlexibleGeometries):
     if self.include_interior_mass:
       self._initialize_interior_mass_tensors(building)
 
+    # Initialize exterior radiative heat transfer tensors
+    if self.include_radiative_heat_transfer:
+      self._initialize_exterior_radiation_tensors(building)
+
+  def _initialize_exterior_radiation_tensors(
+      self, building: building_py.FloorPlanBasedBuilding
+  ) -> None:
+    """Initializes tensors for exterior radiative heat transfer calculations.
+
+    Sets up masks and scaling factors for:
+    - Fenestration exterior LWR and solar radiation
+    - Boundary exterior wall LWR and solar radiation
+    - CV type scaling factors for radiation terms
+
+    Args:
+      building: The FloorPlanBasedBuilding instance.
+    """
+    shape = building.temp.shape
+
+    # Initialize fenestration-related tensors
+    if (
+        hasattr(building, 'fenestration_groups')
+        and building.fenestration_groups
+    ):
+      # Create combined fenestration mask for all fenestration types
+      from smart_control.simulator import constants  # pylint: disable=import-outside-toplevel
+
+      self._t_fenestration_mask = tf.convert_to_tensor(
+          np.isin(
+              building.indexed_floor_plan,
+              [
+                  constants.EXTERIOR_FENESTRATION_VALUE,
+                  constants.INTERIOR_FENESTRATION_VALUE,
+                  constants.INBETWEEN_FENESTRATION_VALUE,
+              ],
+          ),
+          dtype=tf.bool,
+      )
+      self._has_fenestration = True
+    else:
+      self._t_fenestration_mask = tf.zeros(shape, dtype=tf.bool)
+      self._has_fenestration = False
+
+    # Initialize exterior wall boundary tensors
+    if (
+        hasattr(building, 'exterior_wall_boundary_mask')
+        and building.exterior_wall_boundary_mask is not None
+    ):
+      self._t_exterior_wall_boundary_mask = tf.convert_to_tensor(
+          building.exterior_wall_boundary_mask, dtype=tf.bool
+      )
+      self._has_exterior_wall_boundary = np.any(
+          building.exterior_wall_boundary_mask
+      )
+    else:
+      self._t_exterior_wall_boundary_mask = tf.zeros(shape, dtype=tf.bool)
+      self._has_exterior_wall_boundary = False
+
+    # Create CV scaling factors tensor for radiation terms
+    # Corner CVs: 2 * delta_x (factor = 2.0)
+    # Edge CVs: delta_x (factor = 1.0)
+    # Interior CVs: delta_x / k (handled separately in numerator)
+    self._t_boundary_radiation_scale = self._compute_boundary_radiation_scale()
+
   def _get_tensor_exterior_mask(
       self, building: building_py.Building
   ) -> tf.Tensor:
@@ -567,6 +631,32 @@ class TFSimulator(simulator.SimulatorFlexibleGeometries):
     for i, j in exterior_cv_mapping:
       exterior_mask[i][j] = True
     return tf.convert_to_tensor(exterior_mask)
+
+  def _compute_boundary_radiation_scale(self) -> tf.Tensor:
+    """Computes scaling factors for radiation terms at boundary CVs.
+
+    For boundary CVs (corners and edges), the radiation terms in the numerator
+    need to be scaled by delta_x for proper energy balance:
+    - Corner CVs: 2 * delta_x (two exposed faces)
+    - Edge CVs: delta_x (one exposed face)
+    - Interior CVs: delta_x / k (handled in the conductivity-normalized term)
+
+    Returns:
+      Tensor with radiation scaling factors for each CV position.
+    """
+    delta_x = self.building.cv_size_cm / 100.0
+    shape = self.building.temp.shape
+    scale = np.zeros(shape, dtype=np.float32)
+
+    for (i, j), cv_type in self._boundary_cv_mapping.items():
+      if cv_type.boundary == CVBoundaryType.CORNER:
+        # Corner CVs: 2 * delta_x
+        scale[i, j] = 2.0 * delta_x
+      elif cv_type.boundary == CVBoundaryType.EDGE:
+        # Edge CVs: delta_x
+        scale[i, j] = delta_x
+
+    return tf.convert_to_tensor(scale, dtype=tf.float32)
 
   def _initialize_interior_mass_tensors(
       self, building: building_py.FloorPlanBasedBuilding
@@ -604,7 +694,11 @@ class TFSimulator(simulator.SimulatorFlexibleGeometries):
     )
 
   def update_interior_mass_temperatures(
-      self, air_temperature_estimates: np.ndarray
+      self,
+      air_temperature_estimates: np.ndarray,
+      irradiance_components: Optional[dict[str, float]] = None,
+      solar_zenith: Optional[float] = None,
+      solar_azimuth: Optional[float] = None,
   ) -> tuple[np.ndarray, float]:
     r"""Tensorized version of interior mass temperature update.
 
@@ -612,13 +706,17 @@ class TFSimulator(simulator.SimulatorFlexibleGeometries):
     approach for efficiency. The heat exchange occurs through the vertical
     direction (height z) of the control volume.
 
+    When solar radiation is provided, transmitted solar radiation (q_sol_tau)
+    is added as an additional heat input to the interior mass node.
+
     Equations:
     --------------------
     After the air CV temperatures converge, update the interior mass
     temperatures using element-wise tensor operations:
 
     $$T_{\text{mass}} =
-      \frac{T+t_{0,\text{mass}}\odot T_{\text{mass}}^{(-)}}{1+t_{0,\text{mass}}}
+      \frac{T + \frac{q_{\text{sol},\tau} \cdot z}{k_{\text{mass}}}
+      + t_{0,\text{mass}}\odot T_{\text{mass}}^{(-)}}{1+t_{0,\text{mass}}}
     $$
 
     where $\odot$ represents element-wise multiplication and the division is
@@ -652,9 +750,14 @@ class TFSimulator(simulator.SimulatorFlexibleGeometries):
     - $z$: CV height (floor height), characteristic length for heat exchange
       [$\mathrm{m}$]
     - $\Delta t$: Time step [$\mathrm{s}$]
+    - $q_{\text{sol},\tau}$: Transmitted solar radiation [$\mathrm{W/m^2}$]
 
     Args:
       air_temperature_estimates: Current air temperature estimates for each CV.
+      irradiance_components: Dictionary with 'ghi', 'dni', 'dhi' keys for
+        solar irradiance in W/m2. If None, solar radiation is not calculated.
+      solar_zenith: Solar zenith angle in degrees.
+      solar_azimuth: Solar azimuth angle in degrees.
 
     Returns:
       Tuple of (updated interior mass temperatures, maximum temperature change)
@@ -676,6 +779,37 @@ class TFSimulator(simulator.SimulatorFlexibleGeometries):
     numerator = tf.math.add(
         t_air_temp, tf.math.multiply(self._t_0_mass, t_temp_mass_prev)
     )
+
+    # Add transmitted solar radiation term: q_sol_tau * z / k_mass
+    if (
+        self.include_radiative_heat_transfer
+        and irradiance_components is not None
+        and solar_zenith is not None
+        and solar_azimuth is not None
+        and self._has_fenestration
+    ):
+      # Get transmitted solar radiation array from building
+      _, q_sol_tau_array = (
+          self.building.apply_shortwave_solar_radiation_fenestration(
+              irradiance_components, solar_zenith, solar_azimuth
+          )
+      )
+
+      # Calculate q_sol_tau * z / k_mass for interior mass nodes
+      z = self.building.floor_height_cm / 100.0
+      t_q_sol_tau = tf.convert_to_tensor(q_sol_tau_array, dtype=tf.float32)
+
+      # q_sol_tau_term = q_sol_tau * z/k_mass (only where interior mass exists)
+      t_q_sol_tau_term = tf.where(
+          self._t_interior_mass_mask,
+          tf.math.divide(
+              tf.math.multiply(t_q_sol_tau, z),
+              self._t_interior_mass_conductivity,
+          ),
+          tf.constant(0.0, dtype=tf.float32),
+      )
+
+      numerator = tf.math.add(numerator, t_q_sol_tau_term)
 
     # Calculate denominator: 1 + t_0_mass
     denominator = tf.math.add(
@@ -702,6 +836,10 @@ class TFSimulator(simulator.SimulatorFlexibleGeometries):
       temperature_estimates: np.ndarray,
       ambient_temperature: float,
       convection_coefficient: float,
+      sky_temperature: Optional[float] = None,
+      irradiance_components: Optional[dict[str, float]] = None,
+      solar_zenith: Optional[float] = None,
+      solar_azimuth: Optional[float] = None,
   ) -> tuple[np.ndarray, float]:
     r"""Iterates across all CVs and updates the temperature estimate.
 
@@ -712,14 +850,15 @@ class TFSimulator(simulator.SimulatorFlexibleGeometries):
     Equations:
     --------------------
     The tensorized heat balance equation for air CV with interior mass
-    coupling is:
+    coupling and exterior radiative heat transfer is:
 
     $$\begin{multline}
       T = \left[Q_x + Vz\left[K_1U^{-1}T_1 + H_1T_\infty + K_3U^{-1}T_3 +
         H_3T_\infty\right] \right. \\
       \left. + Uz\left[K_2V^{-1}T_2 + H_2T_\infty + K_4V^{-1}T_4 +
         H_4T_\infty\right] \right. \\
-      \left. + K_{\text{mass}}UVz^{-1}T_{\text{mass}} + Q_{\text{lwx}} +
+      \left. + K_{\text{mass}}UVz^{-1}T_{\text{mass}} + Q_{\text{lwx}}
+        + Q_{\text{lwr}} + Q_{\text{sol},\alpha} + Q_{\text{sol},\tau} +
         \frac{C\rho UVz}{\Delta t}T^{(-)}\right] \\
       \cdot \left[Vz\left[K_1U^{-1} + H_1 + K_3U^{-1} + H_3\right] +
         Uz\left[K_2V^{-1} + H_2 + K_4V^{-1} + H_4\right] \right. \\
@@ -733,6 +872,21 @@ class TFSimulator(simulator.SimulatorFlexibleGeometries):
     - $T_3 = \text{shift}(T, \text{RIGHT})$
     - $T_4 = \text{shift}(T, \text{UP})$
 
+    Exterior Radiative Heat Transfer:
+    ---------------------------------
+    For boundary CVs (corners and edges):
+    - Corner CVs: $Q_{\text{lwr}} = 2 \delta_x (q_{\text{lwr}} +
+      q_{\text{sol},\alpha})$
+    - Edge CVs: $Q_{\text{lwr}} = \delta_x (q_{\text{lwr}} +
+      q_{\text{sol},\alpha})$
+
+    For interior CVs (fenestration and boundary exterior walls):
+    - $Q_{\text{lwr}} = \frac{q_{\text{lwr}} \delta_x}{k}$
+    - $Q_{\text{sol},\alpha} = \frac{q_{\text{sol},\alpha} \delta_x}{k}$
+
+    For air nodes (when interior mass is disabled):
+    - $Q_{\text{sol},\tau} = \frac{q_{\text{sol},\tau} \delta_x}{k}$
+
     Nomenclature and Units:
     -----------------------
     - $T$: Air temperature tensor at new time step [K]
@@ -742,7 +896,12 @@ class TFSimulator(simulator.SimulatorFlexibleGeometries):
     - $T_{\text{mass}}$: Interior mass temperature tensor [K]
     - $T_\infty$: Ambient temperature (scalar) [K]
     - $Q_x$: External heat source tensor [$\mathrm{W}$]
-    - $Q_{\text{lwx}}$: Longwave radiative exchange tensor [$\mathrm{W}$]
+    - $Q_{\text{lwx}}$: Interior longwave radiative exchange tensor
+      [$\mathrm{W}$]
+    - $Q_{\text{lwr}}$: Exterior longwave radiative heat flux tensor
+      [$\mathrm{W}$]
+    - $Q_{\text{sol},\alpha}$: Absorbed solar radiation tensor [$\mathrm{W}$]
+    - $Q_{\text{sol},\tau}$: Transmitted solar radiation tensor [$\mathrm{W}$]
     - $K_1, K_2, K_3, K_4$: Thermal conductivity tensors for left, down,
       right, up faces [$\mathrm{W/(m \cdot K)}$]
     - $K_{\text{mass}}$: Interior mass conductivity tensor
@@ -764,11 +923,20 @@ class TFSimulator(simulator.SimulatorFlexibleGeometries):
         updated with new values.
       ambient_temperature: Current temperature in K of external air.
       convection_coefficient: Current wind convection coefficient (W/m2/K).
+      sky_temperature: Sky temperature in K for exterior LWR calculation.
+        If None, defaults to ambient_temperature.
+      irradiance_components: Dictionary with 'ghi', 'dni', 'dhi' keys for
+        solar irradiance in W/m2. If None, solar radiation is not calculated.
+      solar_zenith: Solar zenith angle in degrees.
+      solar_azimuth: Solar azimuth angle in degrees.
 
     Returns:
       Maximum difference in temperture_estimates across all CVs before and after
       operation.
     """
+    # Default sky_temperature to ambient_temperature if not provided
+    if sky_temperature is None:
+      sky_temperature = ambient_temperature
 
     def _get_input_tensors(
         building,
@@ -1018,6 +1186,142 @@ class TFSimulator(simulator.SimulatorFlexibleGeometries):
       t_numer = tf.math.add(t_numer, nt5)
       return t_numer
 
+    def _get_exterior_radiation_terms(
+        building,
+        temperature_estimates: np.ndarray,
+        ambient_temperature: float,
+        sky_temperature: float,
+        irradiance_components: Optional[dict[str, float]],
+        solar_zenith: Optional[float],
+        solar_azimuth: Optional[float],
+        t_conductivity: tf.Tensor,
+        delta_x: float,
+    ) -> tf.Tensor:
+      """Computes exterior radiative heat transfer terms for the numerator.
+
+      Calculates exterior LWR and solar radiation contributions for:
+      - Fenestration (windows): exterior LWR + absorbed solar
+      - Boundary exterior walls: exterior LWR + absorbed solar
+      - Air nodes: transmitted solar (only if interior mass is disabled)
+
+      The terms are scaled appropriately:
+      - Boundary CVs (corner/edge): scaled by delta_x (or 2*delta_x for corners)
+      - Interior CVs: scaled by delta_x / k
+
+      Args:
+        building: The building instance.
+        temperature_estimates: Current temperature estimates.
+        ambient_temperature: Ambient temperature in K.
+        sky_temperature: Sky temperature in K.
+        irradiance_components: Solar irradiance components dict.
+        solar_zenith: Solar zenith angle in degrees.
+        solar_azimuth: Solar azimuth angle in degrees.
+        t_conductivity: Conductivity tensor.
+        delta_x: Control volume size in meters.
+
+      Returns:
+        Tensor with exterior radiation contribution to the numerator.
+      """
+      shape = temperature_estimates.shape
+      nt_ext_rad = tf.zeros(shape, dtype=tf.float32)
+
+      if not self.include_radiative_heat_transfer:
+        return nt_ext_rad
+
+      # Initialize combined arrays for radiation terms
+      q_lwr_combined = np.zeros(shape, dtype=np.float32)
+      q_sol_alpha_combined = np.zeros(shape, dtype=np.float32)
+      q_sol_tau_combined = np.zeros(shape, dtype=np.float32)
+
+      # Fenestration exterior LWR
+      if self._has_fenestration:
+        q_lwr_fenestration = (
+            building.apply_longwave_exterior_radiative_heat_transfer(
+                temperature_estimates, ambient_temperature, sky_temperature
+            )
+        )
+        q_lwr_combined += q_lwr_fenestration
+
+        # Fenestration solar radiation
+        if (
+            irradiance_components is not None
+            and solar_zenith is not None
+            and solar_azimuth is not None
+        ):
+          q_sol_alpha_fen, q_sol_tau_fen = (
+              building.apply_shortwave_solar_radiation_fenestration(
+                  irradiance_components, solar_zenith, solar_azimuth
+              )
+          )
+          q_sol_alpha_combined += q_sol_alpha_fen
+          # q_sol_tau goes to air nodes (or interior mass if enabled)
+          if not self.include_interior_mass:
+            q_sol_tau_combined += q_sol_tau_fen
+
+      # Boundary exterior wall LWR
+      if self._has_exterior_wall_boundary:
+        q_lwr_exterior_wall = building.apply_longwave_exterior_radiative_heat_transfer_exterior_wall(  # pylint: disable=line-too-long
+            temperature_estimates, ambient_temperature, sky_temperature
+        )
+        q_lwr_combined += q_lwr_exterior_wall
+
+        # Exterior wall solar radiation
+        if (
+            irradiance_components is not None
+            and solar_zenith is not None
+            and solar_azimuth is not None
+        ):
+          q_sol_alpha_ext_wall = (
+              building.apply_shortwave_solar_radiation_exterior_wall(
+                  irradiance_components, solar_zenith, solar_azimuth
+              )
+          )
+          q_sol_alpha_combined += q_sol_alpha_ext_wall
+
+      # Convert to tensors
+      t_q_lwr = tf.convert_to_tensor(q_lwr_combined, dtype=tf.float32)
+      t_q_sol_alpha = tf.convert_to_tensor(
+          q_sol_alpha_combined, dtype=tf.float32
+      )
+      t_q_sol_tau = tf.convert_to_tensor(q_sol_tau_combined, dtype=tf.float32)
+
+      # Apply scaling factors based on CV type:
+      # For boundary CVs: use pre-computed scale factors (2*delta_x for corners,
+      #                   delta_x for edges)
+      # For interior CVs: scale by delta_x / k
+
+      # Boundary CV contribution (corners and edges)
+      # q_lwr * boundary_scale + q_sol_alpha * boundary_scale
+      t_boundary_term = tf.math.multiply(
+          tf.math.add(t_q_lwr, t_q_sol_alpha), self._t_boundary_radiation_scale
+      )
+
+      # Interior CV contribution: (q_lwr + q_sol_alpha + q_sol_tau) * delta_x/k
+      # Create interior CV mask (4 neighbors = interior)
+      t_interior_cv_mask = tf.math.equal(
+          self._t_boundary_radiation_scale, tf.constant(0.0, dtype=tf.float32)
+      )
+
+      # For interior CVs, the scale is delta_x / k
+      t_interior_scale = tf.where(
+          t_interior_cv_mask,
+          tf.math.divide(
+              tf.constant(delta_x, dtype=tf.float32), t_conductivity
+          ),
+          tf.constant(0.0, dtype=tf.float32),
+      )
+
+      # Interior term: (q_lwr + q_sol_alpha + q_sol_tau) * delta_x / k
+      t_interior_term = tf.math.multiply(
+          tf.math.add(tf.math.add(t_q_lwr, t_q_sol_alpha), t_q_sol_tau),
+          t_interior_scale,
+      )
+
+      # Combine boundary and interior terms
+      nt_ext_rad = tf.math.add(t_boundary_term, t_interior_term)
+
+      return nt_ext_rad
+
     # Get the inputs to the equation as Tensors from the building.
     (
         t_temp,
@@ -1109,6 +1413,25 @@ class TFSimulator(simulator.SimulatorFlexibleGeometries):
         t_temp_mass,
     )
 
+    # Add exterior radiative heat transfer terms
+    if self.include_radiative_heat_transfer:
+      delta_x = self.building.cv_size_cm / 100.0
+      t_conductivity = tf.convert_to_tensor(
+          self.building.conductivity, dtype=tf.float32
+      )
+      t_ext_rad = _get_exterior_radiation_terms(
+          self.building,
+          temperature_estimates,
+          ambient_temperature,
+          sky_temperature,
+          irradiance_components,
+          solar_zenith,
+          solar_azimuth,
+          t_conductivity,
+          delta_x,
+      )
+      t_numer = tf.math.add(t_numer, t_ext_rad)
+
     # Finally, perform an elementwise division - not a matrix inversion.
     t_temperature_estimates = tf.math.divide(t_numer, t_denom)
 
@@ -1120,7 +1443,7 @@ class TFSimulator(simulator.SimulatorFlexibleGeometries):
 
     t_delta = tf.math.subtract(t_temperature_estimates, t_temp_old)
 
-    # Note: Interior mass temperatures are updated by the parent class's
+    # Note: Interior mass temperatures are updated by
     # finite_differences_timestep() method after this function returns.
     # Do NOT update them here to avoid double-updating.
 

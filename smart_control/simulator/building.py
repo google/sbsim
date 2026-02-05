@@ -978,6 +978,11 @@ class FloorPlanBasedBuilding(BaseSimulatorBuilding):
         )
     )
 
+    # Track exterior walls at boundary for exterior LWR and solar radiation
+    self.exterior_wall_boundary_mask = np.where(
+        exterior_walls == constants.EXTERIOR_WALL_VALUE_IN_FUNCTION, True, False
+    )
+
     self._exterior_walls, self._interior_walls = enlarge_exterior_walls(
         exterior_walls=exterior_walls, interior_walls=interior_walls
     )
@@ -1066,6 +1071,20 @@ class FloorPlanBasedBuilding(BaseSimulatorBuilding):
       self._has_fenestration = np.any(
           self.floor_plan == constants.FENESTRATION_VALUE_IN_FILE_INPUT
       )
+      # mark fenestration as not exterior wall
+      self.exterior_wall_boundary_mask[
+          (self.floor_plan == constants.FENESTRATION_VALUE_IN_FILE_INPUT)
+      ] = False
+
+      # Determine azimuth (facing direction) for each exterior wall boundary
+      # node
+      self.exterior_wall_boundary_azimuth = (
+          building_radiation_utils.determine_exterior_wall_azimuth_array(
+              self.exterior_wall_boundary_mask,
+              self.indexed_floor_plan,
+              constants.EXTERIOR_SPACE_VALUE_IN_FUNCTION,
+          )
+      )
 
       if self._has_fenestration:
         # Validate fenestration connectivity before processing
@@ -1125,13 +1144,6 @@ class FloorPlanBasedBuilding(BaseSimulatorBuilding):
           np.sum(self.interior_wall_mask_all)
       )
 
-      # Track exterior walls at boundary for exterior LWR and solar radiation
-      self.exterior_wall_boundary_mask = (
-          building_radiation_utils.get_exterior_wall_boundary_mask(
-              self.indexed_floor_plan,
-              constants.EXTERIOR_WALL_VALUE_IN_FUNCTION,
-          )
-      )
       self.interior_wall_vf = building_radiation_utils.get_vf(
           indexed_floor_plan=self.indexed_floor_plan,
           interior_wall_mask=self.interior_wall_mask,
@@ -1232,6 +1244,7 @@ class FloorPlanBasedBuilding(BaseSimulatorBuilding):
       self.air_groups = None
       self._has_fenestration = False
       self.exterior_wall_boundary_mask = None
+      self.exterior_wall_boundary_azimuth = None
 
   def _assign_interior_mass_properties(
       self,
@@ -1516,7 +1529,7 @@ class FloorPlanBasedBuilding(BaseSimulatorBuilding):
     )
     return q_lwr
 
-  def apply_shortwave_solar_radiation(
+  def apply_shortwave_solar_radiation_fenestration(
       self,
       irradiance_components: dict[str, float],
       solar_zenith: float,
@@ -1524,9 +1537,9 @@ class FloorPlanBasedBuilding(BaseSimulatorBuilding):
       alpha: float = constants.FENESTRATION_SOLAR_ABSORPTANCE,
       tau: float = constants.FENESTRATION_SOLAR_TRANSMITTANCE,
   ) -> tuple[np.ndarray, np.ndarray]:
-    """Applies shortwave solar radiation for fenestrations.
+    """Applies shortwave solar radiation for fenestrations (windows).
 
-    Calculates two components of solar radiation:
+    Calculates two components of solar radiation for fenestration elements:
     1. q_sol_alpha: Solar radiation absorbed by fenestration surfaces,
        distributed evenly to all fenestration nodes in each group.
     2. q_sol_tau: Solar radiation transmitted through fenestrations,
@@ -1553,25 +1566,29 @@ class FloorPlanBasedBuilding(BaseSimulatorBuilding):
       zero_array = np.zeros_like(self.indexed_floor_plan, dtype=float)
       return zero_array, zero_array.copy()
 
-    # Calculate absorbed solar radiation (q_sol_alpha)
-    q_sol_alpha_array = building_radiation_utils.net_solar_absorbed_heatflux(
-        floor_plan=self.indexed_floor_plan,
-        fenestration_groups=self.fenestration_groups,
-        irradiance_components=irradiance_components,
-        solar_zenith=solar_zenith,
-        solar_azimuth=solar_azimuth,
-        alpha=alpha,
+    # Calculate absorbed solar radiation (q_sol_alpha) for fenestrations
+    q_sol_alpha_array = (
+        building_radiation_utils.net_solar_absorbed_heatflux_fenestration(
+            floor_plan=self.indexed_floor_plan,
+            fenestration_groups=self.fenestration_groups,
+            irradiance_components=irradiance_components,
+            solar_zenith=solar_zenith,
+            solar_azimuth=solar_azimuth,
+            alpha=alpha,
+        )
     )
 
-    # Calculate transmitted solar radiation (q_sol_tau)
-    q_sol_tau_array = building_radiation_utils.net_solar_transmitted_heatflux(
-        floor_plan=self.indexed_floor_plan,
-        fenestration_groups=self.fenestration_groups,
-        air_groups=self.air_groups,
-        irradiance_components=irradiance_components,
-        solar_zenith=solar_zenith,
-        solar_azimuth=solar_azimuth,
-        tau=tau,
+    # Calculate transmitted solar radiation (q_sol_tau) through fenestrations
+    q_sol_tau_array = (
+        building_radiation_utils.net_solar_transmitted_heatflux_fenestration(
+            floor_plan=self.indexed_floor_plan,
+            fenestration_groups=self.fenestration_groups,
+            air_groups=self.air_groups,
+            irradiance_components=irradiance_components,
+            solar_zenith=solar_zenith,
+            solar_azimuth=solar_azimuth,
+            tau=tau,
+        )
     )
 
     return q_sol_alpha_array, q_sol_tau_array
@@ -1652,6 +1669,7 @@ class FloorPlanBasedBuilding(BaseSimulatorBuilding):
     q_sol_alpha = (
         building_radiation_utils.calculate_solar_absorbed_for_exterior_wall(
             exterior_wall_boundary_mask=self.exterior_wall_boundary_mask,
+            exterior_wall_boundary_azimuth=self.exterior_wall_boundary_azimuth,
             floor_plan=self.indexed_floor_plan,
             irradiance_components=irradiance_components,
             solar_zenith=solar_zenith,

@@ -16,40 +16,42 @@ SIM_VIDEOS_DIRPATH = os.getenv("SIM_VIDEOS_DIRPATH", default=DEFAULT_SIM_VIDEOS_
 # pylint: enable=line-too-long
 # fmt: on
 
+
+#################### FILE_INPUT ################################
+# Here we use a specific placeholder value, matching with the file input schema,
+# that designates interior space in the file input.
+# there is no exterior wall value in file input. 1 includes all walls.
+INTERIOR_WALL_VALUE_IN_FILE_INPUT = 1
+
+# Here we use a specific placeholder value, matching with the file input schema,
+# that designates exterior space in the file input.
+# this is ambient air.
+EXTERIOR_SPACE_VALUE_IN_FILE_INPUT = 2
+
+# Here we use a specific placeholder value, matching with the file input schema,
+# that designates interior space in the file input.
+INTERIOR_SPACE_VALUE_IN_FILE_INPUT = 0
+
+# Fenestration node constants
+FENESTRATION_VALUE_IN_FILE_INPUT = 4
+
+
+#################### FUNCTION ################################
 # Here we use a specific placeholder value that helps us pick out interior walls
 # and will not be used by connectedComponents() function (which only counts
 # upwards positively) or the FileInputFloorPlan, which has 0, 1, and 2.
 INTERIOR_WALL_VALUE_IN_FUNCTION = -3
-
-# Here we use a specific placeholder value that helps us pick out interior walls
-# AFTER connectedComponents labels them.
-INTERIOR_WALL_VALUE_IN_COMPONENT = 0
 
 # Here we use a specific placeholder value that helps us pick out exterior walls
 # and will not be used by connectedComponents() function (which only counts
 # upwards positively) or the FileInputFloorPlan, which has 0, 1, and 2.
 EXTERIOR_WALL_VALUE_IN_FUNCTION = -2
 
-# Here we use a specific placeholder value, matching with the file input schema,
-# that designates exterior space in the file input.
-EXTERIOR_SPACE_VALUE_IN_FILE_INPUT = 2
-
 # Here we designate a specific placeholder to help use demarcate which CVs
 # are for exterior space once processed in the function. It is intentionally
 # set to -1 so that the connectedComponent function can have access to all
 # nonzero integers to count upwards in an unbounded way.
 EXTERIOR_SPACE_VALUE_IN_FUNCTION = -1
-
-# Here we designate a specific placeholder to help use demarcate which CVs
-# are for exterior space are noted in the component. It is intentionally
-# set to -1 so that the connectedComponent function can have access to all
-# nonzero integers to count upwards in an unbounded way.
-EXTERIOR_SPACE_VALUE_IN_COMPONENT = 0
-
-# Here we use a specific placeholder value, matching with the file input schema,
-# that designates interior space in the file input.
-INTERIOR_SPACE_VALUE_IN_FILE_INPUT = 0
-
 
 # Here we pick out a specific value that we know will code for interior space
 # after connectedComponents() processes it. We know this because we have ensured
@@ -60,6 +62,27 @@ INTERIOR_SPACE_VALUE_IN_FILE_INPUT = 0
 # value 0 code for interior space, and so we set
 # _INTERIOR_SPACE_VALUE_IN_CONNECTION_INPUT equal to 0.
 INTERIOR_SPACE_VALUE_IN_FUNCTION = 0
+
+# Here we designate a specific placeholder to help use demarcate which CVs
+# are for interior walls once processed in the function. It is intentionally
+# set to -3 so that the connectedComponent function can have access to all
+# nonzero integers to count upwards in an unbounded way.
+INTERIOR_WALL_VALUE_IN_FUNCTION = -3
+
+# Fenestration node constants
+FENESTRATION_VALUE_IN_FUNCTION = -4
+
+# Here we designate a specific placeholder to help use demarcate which CVs
+# are for exterior space are noted in the component. It is intentionally
+# set to -1 so that the connectedComponent function can have access to all
+# nonzero integers to count upwards in an unbounded way.
+EXTERIOR_SPACE_VALUE_IN_COMPONENT = 0
+
+
+# Here we use a specific placeholder value that helps us pick out interior walls
+# AFTER connectedComponents labels them.
+INTERIOR_WALL_VALUE_IN_COMPONENT = 0
+
 
 # connectedComponents function operates by accepting a matrix in which
 # components, defined as 1's, are surrounded by 0's. This schema is
@@ -89,15 +112,6 @@ WALLS_AND_EXPANDED_BOOLS = 2
 # space value, i.e. 0.
 GENERIC_SPACE_VALUE_IN_CONNECTION_INPUT = 0
 
-# Here we use a specific placeholder value, matching with the file input schema,
-# that designates interior space in the file input.
-INTERIOR_WALL_VALUE_IN_FILE_INPUT = 1
-
-# Here we designate a specific placeholder to help use demarcate which CVs
-# are for interior walls once processed in the function. It is intentionally
-# set to -3 so that the connectedComponent function can have access to all
-# nonzero integers to count upwards in an unbounded way.
-INTERIOR_WALL_VALUE_IN_FUNCTION = -3
 
 # Here we set a specific string for exterior space to be labelled as in
 # constructing a room dictionary.
@@ -132,9 +146,6 @@ INTERIOR_MASS_NODE_MARKER = 1
 # Label for interior mass CV type
 LABEL_FOR_INTERIOR_MASS = "interior_mass"
 
-# Fenestration node constants
-FENESTRATION_VALUE_IN_FILE_INPUT = 4
-FENESTRATION_VALUE_IN_FUNCTION = -4
 
 # Fenestration position markers for radiative heat transfer
 # Exterior fenestration nodes (adjacent to exterior space, value 2)

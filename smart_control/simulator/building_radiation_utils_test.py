@@ -592,19 +592,24 @@ class BuildingRadiationUtilsTest(absltest.TestCase):
       self.assertEqual(air_in_line, 0, "No air in line of sight.")
 
   def test_fenestration_validation_passes_with_connected_fenestration(self):
-    """Test that fenestration validation passes when connected to air."""
+    """Test that fenestration validation passes when connected to air.
+
+    Outermost layer is all 2 (exterior space); fenestration (4) connects
+    exterior to interior air (0) in the wall layer.
+    """
     # Create a floor plan with fenestration connected to air
+    # Most exterior cells are 2; fenestration sits inside, adjacent to 2 and 0
     floor_plan = np.array([
-        [2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2],
+        [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
         [2, 1, 1, 1, 1, 4, 1, 1, 1, 1, 2],
         [2, 1, 1, 1, 1, 4, 1, 1, 1, 1, 2],
-        [4, 4, 4, 4, 0, 0, 1, 0, 0, 4, 4],
-        [4, 4, 4, 4, 0, 0, 1, 0, 0, 1, 2],
+        [2, 4, 4, 4, 0, 0, 1, 0, 0, 4, 2],
+        [2, 4, 4, 4, 0, 0, 1, 0, 0, 1, 2],
         [2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2],
         [2, 1, 1, 1, 0, 0, 1, 0, 0, 1, 2],
-        [4, 4, 4, 4, 0, 0, 1, 0, 0, 1, 2],
+        [2, 4, 4, 4, 0, 0, 1, 0, 0, 1, 2],
         [2, 1, 1, 1, 4, 1, 1, 1, 4, 1, 2],
-        [2, 2, 2, 2, 4, 2, 2, 2, 4, 2, 2],
+        [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
     ])
     # Should not raise
     result = utils.validate_fenestration_connectivity(
@@ -1134,8 +1139,8 @@ class BuildingRadiationUtilsTest(absltest.TestCase):
     expected = g_ts * alpha * group["exterior_count"] / group["count"]
     self.assertAlmostEqual(q_sol_alpha_per_node, expected, places=5)
 
-  def test_net_solar_absorbed_heatflux(self):
-    """Test absorbed solar radiation array calculation."""
+  def test_net_solar_absorbed_heatflux_fenestration(self):
+    """Test absorbed solar radiation array calculation for fenestrations."""
     floor_plan = np.array([
         [-1, -1, -42, -42, -1],
         [-1, -3, -43, -43, -1],
@@ -1151,7 +1156,7 @@ class BuildingRadiationUtilsTest(absltest.TestCase):
         "dhi": 100.0,
     }
 
-    q_sol_alpha_array = utils.net_solar_absorbed_heatflux(
+    q_sol_alpha_array = utils.net_solar_absorbed_heatflux_fenestration(
         floor_plan,
         fenestration_groups,
         irradiance_components,
@@ -1219,8 +1224,8 @@ class BuildingRadiationUtilsTest(absltest.TestCase):
     expected = g_ts * tau * group["exterior_count"]
     self.assertAlmostEqual(total_q_sol_tau, expected, places=5)
 
-  def test_net_solar_transmitted_heatflux(self):
-    """Test transmitted solar radiation distribution to air nodes."""
+  def test_net_solar_transmitted_heatflux_fenestration(self):
+    """Test transmitted solar radiation through fenestrations to air nodes."""
     floor_plan = np.array([
         [-1, -1, -42, -42, -1],
         [-1, -3, -43, -43, -1],
@@ -1239,7 +1244,7 @@ class BuildingRadiationUtilsTest(absltest.TestCase):
         "dhi": 100.0,
     }
 
-    q_sol_tau_array = utils.net_solar_transmitted_heatflux(
+    q_sol_tau_array = utils.net_solar_transmitted_heatflux_fenestration(
         floor_plan,
         fenestration_groups,
         air_groups,
@@ -1265,7 +1270,7 @@ class BuildingRadiationUtilsTest(absltest.TestCase):
     self.assertEqual(q_sol_tau_array[0, 2], 0.0)  # fenestration
     self.assertEqual(q_sol_tau_array[1, 1], 0.0)  # wall
 
-  def test_net_solar_absorbed_heatflux_no_fenestrations(self):
+  def test_net_solar_absorbed_heatflux_fenestration_no_fenestrations(self):
     """Test that q_sol_alpha is zero when there are no fenestrations."""
     floor_plan = np.array([
         [-1, -1, -1, -1],
@@ -1283,7 +1288,7 @@ class BuildingRadiationUtilsTest(absltest.TestCase):
         "dhi": 100.0,
     }
 
-    q_sol_alpha_array = utils.net_solar_absorbed_heatflux(
+    q_sol_alpha_array = utils.net_solar_absorbed_heatflux_fenestration(
         floor_plan,
         fenestration_groups,
         irradiance_components,
@@ -1294,7 +1299,7 @@ class BuildingRadiationUtilsTest(absltest.TestCase):
     # All zeros when no fenestrations
     self.assertTrue(np.all(q_sol_alpha_array == 0.0))
 
-  def test_net_solar_transmitted_heatflux_no_fenestrations(self):
+  def test_net_solar_transmitted_heatflux_fenestration_no_fenestrations(self):
     """Test that q_sol_tau is zero when there are no fenestrations."""
     floor_plan = np.array([
         [-1, -1, -1, -1],
@@ -1312,7 +1317,7 @@ class BuildingRadiationUtilsTest(absltest.TestCase):
         "dhi": 100.0,
     }
 
-    q_sol_tau_array = utils.net_solar_transmitted_heatflux(
+    q_sol_tau_array = utils.net_solar_transmitted_heatflux_fenestration(
         floor_plan,
         fenestration_groups,
         air_groups,
@@ -1333,16 +1338,16 @@ class BuildingRadiationUtilsTest(absltest.TestCase):
     """
     # fmt: off
     wrong_fenestration_floor_plan_1 = np.array([
-        [2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2],
+        [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
         [2, 1, 1, 1, 1, 4, 1, 1, 1, 1, 2],
         [2, 1, 1, 1, 1, 4, 1, 1, 1, 1, 2],
-        [4, 4, 4, 4, 0, 0, 1, 0, 0, 4, 4],
-        [4, 4, 4, 4, 0, 0, 1, 0, 0, 1, 2],
-        [4, 4, 4, 4, 1, 1, 1, 1, 1, 1, 2],
+        [2, 4, 4, 4, 0, 0, 1, 0, 0, 4, 2],
+        [2, 4, 4, 4, 0, 0, 1, 0, 0, 1, 2],
+        [2, 4, 4, 4, 1, 1, 1, 1, 1, 1, 2],
         [2, 1, 1, 1, 0, 0, 1, 0, 0, 1, 2],
-        [4, 4, 4, 4, 0, 0, 1, 0, 0, 1, 2],
+        [2, 4, 4, 4, 0, 0, 1, 0, 0, 1, 2],
         [2, 1, 1, 1, 4, 1, 1, 1, 4, 1, 2],
-        [2, 2, 2, 2, 4, 2, 2, 2, 4, 2, 2],
+        [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
     ])
     # fmt: on
 
@@ -1363,16 +1368,16 @@ class BuildingRadiationUtilsTest(absltest.TestCase):
     """
     # fmt: off
     wrong_fenestration_floor_plan_2 = np.array([
-        [2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2],
+        [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
         [2, 1, 1, 1, 1, 4, 1, 1, 1, 1, 2],
         [2, 1, 1, 1, 1, 4, 1, 1, 1, 1, 2],
-        [4, 4, 4, 4, 0, 0, 1, 0, 0, 4, 4],
-        [4, 4, 4, 4, 0, 0, 1, 0, 0, 1, 2],
+        [2, 4, 4, 4, 0, 0, 1, 0, 0, 4, 2],
+        [2, 4, 4, 4, 0, 0, 1, 0, 0, 1, 2],
         [2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2],
         [2, 1, 1, 1, 0, 0, 1, 0, 0, 1, 2],
-        [4, 4, 4, 1, 0, 0, 1, 0, 0, 1, 2],
+        [2, 4, 4, 1, 0, 0, 1, 0, 0, 1, 2],
         [2, 1, 1, 1, 4, 1, 1, 1, 4, 1, 2],
-        [2, 2, 2, 2, 4, 2, 2, 2, 4, 2, 2],
+        [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
     ])
     # fmt: on
 
@@ -1393,22 +1398,22 @@ class BuildingRadiationUtilsTest(absltest.TestCase):
   def test_wrong_fenestration_floor_plan_3_not_exposed_to_outdoor(self):
     """Test detection: fenestration not exposed to outdoor.
 
-    In this floor plan, the fenestration at row 7 is blocked from exterior
-    by an exterior wall at position (7,0), meaning it's not properly exposed
-    to outdoor.
+    In this floor plan, the fenestration at row 5 (cols 3-5) is completely
+    inside the building, surrounded by interior walls (1) and air (0),
+    with no exposure to exterior space (2) or array boundary.
     """
     # fmt: off
     wrong_fenestration_floor_plan_3 = np.array([
-        [2, 2, 2, 2, 2, 4, 2, 2, 2, 2, 2],
-        [2, 1, 1, 1, 1, 4, 1, 1, 1, 1, 2],
-        [2, 1, 1, 1, 1, 4, 1, 1, 1, 1, 2],
-        [4, 4, 4, 4, 0, 0, 1, 0, 0, 4, 4],
-        [4, 4, 4, 4, 0, 0, 1, 0, 0, 1, 2],
-        [2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2],
-        [2, 1, 1, 1, 0, 0, 1, 0, 0, 1, 2],
-        [2, 4, 4, 4, 0, 0, 1, 0, 0, 1, 2],
-        [2, 1, 1, 1, 4, 1, 1, 1, 4, 1, 2],
-        [2, 2, 2, 2, 4, 2, 2, 2, 4, 2, 2],
+        [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
+        [2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 2],
+        [2, 1, 1, 1, 1, 1, 1, 1, 1, 0, 2],
+        [2, 1, 1, 0, 0, 0, 0, 0, 1, 0, 2],
+        [2, 1, 1, 0, 0, 0, 0, 0, 1, 0, 2],
+        [2, 1, 4, 4, 4, 4, 0, 0, 1, 0, 2],  # fenestration inside building
+        [2, 1, 1, 0, 0, 0, 0, 0, 1, 0, 2],
+        [2, 1, 1, 1, 1, 1, 1, 1, 1, 0, 2],
+        [2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 2],
+        [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
     ])
     # fmt: on
 
@@ -1430,16 +1435,16 @@ class BuildingRadiationUtilsTest(absltest.TestCase):
     """
     # fmt: off
     wrong_fenestration_floor_plan_4 = np.array([
-        [2, 2, 2, 2, 4, 4, 2, 2, 2, 2, 2],
+        [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
         [2, 1, 1, 1, 4, 4, 1, 1, 1, 1, 2],
         [2, 1, 1, 1, 1, 4, 1, 1, 1, 1, 2],
-        [4, 4, 4, 4, 0, 0, 1, 0, 0, 4, 4],
-        [4, 4, 4, 4, 0, 0, 1, 0, 0, 1, 2],
+        [2, 4, 4, 4, 0, 0, 1, 0, 0, 4, 2],
+        [2, 4, 4, 4, 0, 0, 1, 0, 0, 1, 2],
         [2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2],
         [2, 1, 1, 1, 0, 0, 1, 0, 0, 1, 2],
-        [4, 4, 4, 4, 0, 0, 1, 0, 0, 1, 2],
+        [2, 4, 4, 4, 0, 0, 1, 0, 0, 1, 2],
         [2, 1, 1, 1, 4, 1, 1, 1, 4, 1, 2],
-        [2, 2, 2, 2, 4, 2, 2, 2, 4, 2, 2],
+        [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
     ])
     # fmt: on
 
@@ -1466,16 +1471,16 @@ class BuildingRadiationUtilsTest(absltest.TestCase):
     """
     # fmt: off
     wrong_fenestration_floor_plan_5 = np.array([
-        [2, 2, 2, 2, 1, 4, 2, 2, 2, 2, 2],
+        [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
         [2, 1, 1, 1, 1, 4, 1, 1, 1, 1, 2],
         [2, 1, 1, 1, 1, 4, 1, 1, 1, 1, 2],
-        [2, 1, 1, 1, 0, 0, 1, 0, 0, 4, 4],
+        [2, 1, 1, 1, 0, 0, 1, 0, 0, 4, 2],
         [2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2],
         [2, 1, 1, 1, 1, 0, 0, 0, 0, 1, 2],
         [2, 1, 1, 1, 0, 0, 4, 0, 0, 1, 2],
-        [4, 4, 4, 4, 0, 0, 0, 0, 0, 1, 2],
+        [2, 4, 4, 4, 0, 0, 0, 0, 0, 1, 2],
         [2, 1, 1, 1, 4, 1, 1, 1, 4, 1, 2],
-        [2, 2, 2, 2, 4, 2, 2, 2, 4, 2, 2],
+        [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
     ])
     # fmt: on
 
@@ -1493,6 +1498,362 @@ class BuildingRadiationUtilsTest(absltest.TestCase):
         "Expected 'surrounded by air' or 'not exposed to exterior' in error"
         f" message, got: {error_msg}",
     )
+
+  def test_get_exterior_wall_boundary_mask_with_ambient_air(self):
+    """Test exterior wall boundary mask with ambient air nodes.
+
+    The algorithm identifies exterior walls NOT adjacent to enclosed interior
+    AIR spaces. Interior walls (value 1) are treated as solid material.
+    """
+    # Test case: building with ambient air on the right, interior walls inside
+    # fmt: off
+    floor_plan = np.array([
+        [2, 2, 2, 2, 2, 2, 2, -1],
+        [2, 1, 1, 1, 1, 1, 1, -1],
+        [2, 1, 1, 1, 1, 1, 2, -1],
+        [2, 1, 1, 1, 1, 1, 2, -1],
+        [2, 2, 2, 2, 2, 2, 2, -1],
+    ])
+    # fmt: on
+
+    # Expected: all exterior walls are marked (no interior AIR to exclude)
+    # Interior walls (1) are solid, not air; adjacent exterior walls marked
+    # fmt: off
+    expected = np.array([
+        [True, True, True, True, True, True, True, False],
+        [True, False, False, False, False, False, False, False],
+        [True, False, False, False, False, False, True, False],
+        [True, False, False, False, False, False, True, False],
+        [True, True, True, True, True, True, True, False],
+    ])
+    # fmt: on
+
+    result = utils.get_exterior_wall_boundary_mask(
+        floor_plan, wall_value=2, exterior_space_value=-1
+    )
+
+    np.testing.assert_array_equal(
+        result,
+        expected,
+        "Exterior wall boundary mask does not match expected with ambient air",
+    )
+
+  def test_get_exterior_wall_boundary_mask_thick_walls(self):
+    """Test exterior wall boundary mask with thick walls.
+
+    When walls are multiple cells thick with interior walls (value 1) inside,
+    all exterior wall layers are marked since there's no interior AIR (0).
+    """
+    # Test case: thick exterior walls with interior walls (1), no interior air
+    # fmt: off
+    floor_plan = np.array([
+        [2, 2, 2, 2, 2, 2, 2, -1],
+        [2, 2, 2, 2, 2, 2, 2, -1],
+        [2, 2, 1, 1, 1, 2, 2, -1],
+        [2, 2, 2, 2, 2, 2, 2, -1],
+        [2, 2, 2, 2, 2, 2, 2, -1],
+    ])
+    # fmt: on
+
+    # Expected: all exterior walls marked (no interior air to exclude)
+    # Interior walls (1) don't block the exterior wall marking
+    # fmt: off
+    expected = np.array([
+        [True, True, True, True, True, True, True, False],
+        [True, True, True, True, True, True, True, False],
+        [True, True, False, False, False, True, True, False],
+        [True, True, True, True, True, True, True, False],
+        [True, True, True, True, True, True, True, False],
+    ])
+    # fmt: on
+
+    result = utils.get_exterior_wall_boundary_mask(
+        floor_plan, wall_value=2, exterior_space_value=-1
+    )
+
+    np.testing.assert_array_equal(
+        result,
+        expected,
+        "Exterior wall boundary mask does not match expected for thick walls",
+    )
+
+  def test_get_exterior_wall_boundary_mask_with_fenestration(self):
+    """Test exterior wall boundary mask with fenestration in walls.
+
+    Fenestration (value 4) is not an exterior wall, so it's not marked.
+    Exterior walls around fenestration are still marked normally.
+    """
+    # Test case: building with fenestration (4) in wall
+    # fmt: off
+    floor_plan = np.array([
+        [2, 2, 2, 2, 2, 2, 2, -1],
+        [2, 1, 1, 1, 1, 1, 4, -1],
+        [2, 1, 1, 1, 1, 1, 2, -1],
+        [2, 1, 1, 1, 1, 1, 2, -1],
+        [2, 2, 2, 2, 2, 2, 2, -1],
+    ])
+    # fmt: on
+
+    # Expected: all exterior walls marked, fenestration (4) not marked
+    # fmt: off
+    expected = np.array([
+        [True, True, True, True, True, True, True, False],
+        [True, False, False, False, False, False, False, False],
+        [True, False, False, False, False, False, True, False],
+        [True, False, False, False, False, False, True, False],
+        [True, True, True, True, True, True, True, False],
+    ])
+    # fmt: on
+
+    result = utils.get_exterior_wall_boundary_mask(
+        floor_plan, wall_value=2, exterior_space_value=-1
+    )
+
+    np.testing.assert_array_equal(
+        result,
+        expected,
+        "Exterior wall boundary mask does not match with fenestration",
+    )
+
+  def test_get_exterior_wall_boundary_mask_enclosed_interior_air(self):
+    """Test exterior wall boundary mask with enclosed interior AIR space.
+
+    When interior AIR (value 0) is enclosed by walls, exterior walls
+    adjacent to the enclosed air are NOT marked (they face inside).
+    """
+    # Test case: building with enclosed interior AIR (courtyard, value 0)
+    # fmt: off
+    floor_plan = np.array([
+        [-1, -1, -1, -1, -1, -1, -1, -1],
+        [-1, 2, 2, 2, 2, 2, 2, -1],
+        [-1, 2, 2, 2, 2, 2, 2, -1],
+        [-1, 2, 2, 0, 0, 2, 2, -1],
+        [-1, 2, 2, 2, 2, 2, 2, -1],
+        [-1, 2, 2, 2, 2, 2, 2, -1],
+        [-1, -1, -1, -1, -1, -1, -1, -1],
+    ])
+    # fmt: on
+
+    # Expected: walls adjacent to enclosed air (0) are NOT marked
+    # fmt: off
+    expected = np.array([
+        [False, False, False, False, False, False, False, False],
+        [False, True, True, True, True, True, True, False],
+        [False, True, True, False, False, True, True, False],
+        [False, True, False, False, False, False, True, False],
+        [False, True, True, False, False, True, True, False],
+        [False, True, True, True, True, True, True, False],
+        [False, False, False, False, False, False, False, False],
+    ])
+    # fmt: on
+
+    result = utils.get_exterior_wall_boundary_mask(
+        floor_plan, wall_value=2, exterior_space_value=-1
+    )
+
+    np.testing.assert_array_equal(
+        result,
+        expected,
+        "Exterior wall boundary mask does not match for enclosed interior air",
+    )
+
+  def test_get_exterior_wall_boundary_mask_enclosed_interior_wall(self):
+    """Test exterior wall boundary mask with enclosed interior WALL space.
+
+    When interior WALLS (value 1) are enclosed, they're treated as solid
+    material. All surrounding exterior walls are marked.
+    """
+    # Test case: building with enclosed interior WALLS (value 1)
+    # fmt: off
+    floor_plan = np.array([
+        [-1, -1, -1, -1, -1, -1, -1, -1],
+        [-1, 2, 2, 2, 2, 2, 2, -1],
+        [-1, 2, 2, 2, 2, 2, 2, -1],
+        [-1, 2, 2, 1, 1, 2, 2, -1],
+        [-1, 2, 2, 2, 2, 2, 2, -1],
+        [-1, 2, 2, 2, 2, 2, 2, -1],
+        [-1, -1, -1, -1, -1, -1, -1, -1],
+    ])
+    # fmt: on
+
+    # Expected: all exterior walls marked (interior walls are solid, not air)
+    # fmt: off
+    expected = np.array([
+        [False, False, False, False, False, False, False, False],
+        [False, True, True, True, True, True, True, False],
+        [False, True, True, True, True, True, True, False],
+        [False, True, True, False, False, True, True, False],
+        [False, True, True, True, True, True, True, False],
+        [False, True, True, True, True, True, True, False],
+        [False, False, False, False, False, False, False, False],
+    ])
+    # fmt: on
+
+    result = utils.get_exterior_wall_boundary_mask(
+        floor_plan, wall_value=2, exterior_space_value=-1
+    )
+
+    np.testing.assert_array_equal(
+        result,
+        expected,
+        "Exterior wall boundary mask does not match for enclosed interior"
+        " walls",
+    )
+
+  def test_get_exterior_wall_boundary_mask_no_ambient_air(self):
+    """Test when no ambient air nodes exist.
+
+    When there are no ambient air nodes, exterior walls at array boundary
+    are marked, and walls adjacent to enclosed interior air are excluded.
+    """
+    # Test case: no ambient air, exterior walls with interior walls
+    # fmt: off
+    floor_plan = np.array([
+        [2, 2, 2, 2, 2],
+        [2, 1, 1, 1, 2],
+        [2, 1, 1, 1, 2],
+        [2, 2, 2, 2, 2],
+    ])
+    # fmt: on
+
+    # Expected: all exterior walls marked (no interior AIR to exclude)
+    # Interior walls (1) don't cause exclusion
+    # fmt: off
+    expected = np.array([
+        [True, True, True, True, True],
+        [True, False, False, False, True],
+        [True, False, False, False, True],
+        [True, True, True, True, True],
+    ])
+    # fmt: on
+
+    result = utils.get_exterior_wall_boundary_mask(
+        floor_plan, wall_value=2, exterior_space_value=-1
+    )
+
+    np.testing.assert_array_equal(result, expected)
+
+  def test_get_exterior_wall_boundary_mask_no_ambient_with_interior_air(self):
+    """Test when no ambient air but has interior air.
+
+    When there's no ambient air but interior air doesn't touch array edges,
+    exterior walls at array boundary are still marked.
+    """
+    # Test case: no ambient air, exterior walls with interior air (0) inside
+    # Interior air doesn't touch array boundary
+    # fmt: off
+    floor_plan = np.array([
+        [2, 2, 2, 2, 2],
+        [2, 0, 0, 0, 2],
+        [2, 0, 0, 0, 2],
+        [2, 2, 2, 2, 2],
+    ])
+    # fmt: on
+
+    # Expected: exterior walls at boundary are marked
+    # Interior walls adjacent to enclosed interior air are NOT marked
+    # But all these exterior walls are at array boundary, so all are marked
+    # fmt: off
+    expected = np.array([
+        [True, True, True, True, True],
+        [True, False, False, False, True],
+        [True, False, False, False, True],
+        [True, True, True, True, True],
+    ])
+    # fmt: on
+
+    result = utils.get_exterior_wall_boundary_mask(
+        floor_plan, wall_value=2, exterior_space_value=-1
+    )
+
+    np.testing.assert_array_equal(result, expected)
+
+  def test_get_exterior_wall_boundary_mask_no_exterior_walls(self):
+    """Test with floor plan containing no exterior walls."""
+    floor_plan = np.array([
+        [-1, -1, -1],
+        [-1, 1, -1],
+        [-1, -1, -1],
+    ])
+
+    result = utils.get_exterior_wall_boundary_mask(
+        floor_plan, wall_value=2, exterior_space_value=-1
+    )
+
+    # Should return all False
+    self.assertFalse(np.any(result))
+
+  def test_determine_exterior_wall_azimuth_array(self):
+    """Test azimuth determination for exterior wall boundaries.
+
+    Walls are adjacent to exterior space (-1), not at array boundary.
+    Azimuth is based on which direction the exterior space is.
+    """
+    # Create floor plan: -1 = exterior space, -3 = wall, 0 = interior air
+    # fmt: off
+    indexed_floor_plan = np.array([
+        [-1, -1, -1, -1, -1],
+        [-1, -3, -3, -3, -1],
+        [-1, -3, 0, -3, -1],
+        [-1, -3, -3, -3, -1],
+        [-1, -1, -1, -1, -1],
+    ])
+    # fmt: on
+
+    # Walls at (1,1), (1,2), (1,3), (2,1), (2,3), (3,1), (3,2), (3,3)
+    # are adjacent to exterior space
+    exterior_wall_boundary_mask = indexed_floor_plan == -3
+
+    result = utils.determine_exterior_wall_azimuth_array(
+        exterior_wall_boundary_mask,
+        indexed_floor_plan,
+        exterior_space_value=-1,
+    )
+
+    # Check corners (intermediate angles)
+    self.assertEqual(result[1, 1], 315.0, "Top-left corner should be 315°")
+    self.assertEqual(result[1, 3], 45.0, "Top-right corner should be 45°")
+    self.assertEqual(result[3, 1], 225.0, "Bottom-left corner should be 225°")
+    self.assertEqual(result[3, 3], 135.0, "Bottom-right corner should be 135°")
+
+    # Check edges (cardinal directions)
+    self.assertEqual(result[1, 2], 0.0, "Top edge should be 0° (North)")
+    self.assertEqual(result[3, 2], 180.0, "Bottom edge should be 180° (South)")
+    self.assertEqual(result[2, 1], 270.0, "Left edge should be 270° (West)")
+    self.assertEqual(result[2, 3], 90.0, "Right edge should be 90° (East)")
+
+    # Check interior (should be 0, not a wall)
+    self.assertEqual(result[2, 2], 0.0, "Interior air should be 0")
+
+  def test_determine_exterior_wall_azimuth_array_l_shape(self):
+    """Test azimuth determination for L-shaped building."""
+    # L-shaped building: -1 = exterior space, -3 = wall, 0 = interior air
+    # fmt: off
+    indexed_floor_plan = np.array([
+        [-1, -1, -1, -1, -1, -1],
+        [-1, -3, -3, -3, -3, -1],
+        [-1, -3, 0, 0, -3, -1],
+        [-1, -3, 0, 0, -3, -3],
+        [-1, -3, -3, -3, -3, -3],
+        [-1, -1, -1, -1, -1, -1],
+    ])
+    # fmt: on
+
+    exterior_wall_boundary_mask = indexed_floor_plan == -3
+
+    result = utils.determine_exterior_wall_azimuth_array(
+        exterior_wall_boundary_mask,
+        indexed_floor_plan,
+        exterior_space_value=-1,
+    )
+
+    # Check key positions
+    self.assertEqual(result[1, 1], 315.0, "Top-left corner")
+    self.assertEqual(result[1, 2], 0.0, "Top edge (not corner)")
+    self.assertEqual(result[1, 4], 45.0, "Top-right corner (before notch)")
+    self.assertEqual(result[2, 4], 90.0, "Right edge")
+    self.assertEqual(result[4, 5], 135.0, "Bottom-right corner")
+    self.assertEqual(result[4, 1], 225.0, "Bottom-left corner")
 
 
 if __name__ == "__main__":
