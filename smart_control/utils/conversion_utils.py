@@ -29,12 +29,18 @@ import numpy as np
 import pandas as pd
 
 from smart_buildings.smart_control.proto import smart_control_reward_pb2
+from smart_buildings.smart_control.utils import temperature_conversion
 
 
 _COUNTRY = 'US'
 _SECONDS_IN_DAY = 24 * 3600
 _WATT_SECONDS_KWH = 1.0 / 3600.0 / 1000.0
 _DAYS_IN_WEEK = 7.0
+
+
+# Aliases temporarily kept here for backwards compatibility:
+kelvin_to_fahrenheit = temperature_conversion.kelvin_to_fahrenheit
+fahrenheit_to_kelvin = temperature_conversion.fahrenheit_to_kelvin
 
 
 def pandas_to_proto_timestamp(
@@ -135,42 +141,6 @@ def get_radian_time(
   return 2.0 * np.pi * interval_frac
 
 
-def kelvin_to_fahrenheit(kelvin: float) -> float:
-  """Converts Kelvin to °F.
-
-  Args:
-    kelvin: Temperature in Kelvin, where 273K = 32°F.
-
-  Returns:
-    The temperature in °F.
-
-  Raises:
-    A ValueError if the input value is negative.
-  """
-  if kelvin <= 0.0:
-    raise ValueError('Temperature must be greater than absolute zero.')
-  celsius = kelvin - 273.15
-  return celsius * 9.0 / 5.0 + 32.0
-
-
-def fahrenheit_to_kelvin(fahrenheit: float) -> float:
-  """Converts °F to Kelvin.
-
-  Args:
-    fahrenheit: Temperature in Kelvin, where 273K = 32°F.
-
-  Returns:
-    The temperature in K.
-
-  Raises:
-    A ValueError if the input value <= absolute 0, −459.67°F.
-  """
-  if fahrenheit <= -495.67:
-    raise ValueError('Temperature must be greater than absolute zero.')
-  celsius = (fahrenheit - 32.0) * 5.0 / 9.0
-  return celsius + 273.15
-
-
 # TODO(mjrossetti): Remove this function once all references are switched.
 def get_reward_info_energy_use(
     reward_info: smart_control_reward_pb2.RewardInfo,
@@ -235,3 +205,4 @@ def get_reward_info_energy_use(
     )
 
   return energy_use
+

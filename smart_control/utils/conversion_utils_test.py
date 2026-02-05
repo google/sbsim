@@ -79,30 +79,6 @@ class ConversionUtilsTest(parameterized.TestCase):
     )
 
   @parameterized.parameters(
-      (32.0, 273.15), (-10.0, 249.817), (70.0, 294.261), (110.0, 316.483)
-  )
-  def test_kelvin_to_fahrenheit(self, fahrenheit, kelvin):
-    self.assertAlmostEqual(
-        fahrenheit, conversion_utils.kelvin_to_fahrenheit(kelvin), places=2
-    )
-
-  def test_kelvin_to_fahrenheit_invalid(self):
-    with self.assertRaises(ValueError):
-      _ = conversion_utils.kelvin_to_fahrenheit(0.0)
-
-  @parameterized.parameters(
-      (32.0, 273.15), (-10.0, 249.817), (70.0, 294.261), (110.0, 316.483)
-  )
-  def test_fahrenheit_to_kelvin(self, fahrenheit, kelvin):
-    self.assertAlmostEqual(
-        kelvin, conversion_utils.fahrenheit_to_kelvin(fahrenheit), places=2
-    )
-
-  def test_fahrenheit_to_kelvin_invalid(self):
-    with self.assertRaises(ValueError):
-      _ = conversion_utils.fahrenheit_to_kelvin(-495.67)
-
-  @parameterized.parameters(
       (pd.Timestamp('2021-09-27 00:00:00+01'), 0),
       (pd.Timestamp('2021-10-10 23:59:59-07'), 6.28311258512742),
       (pd.Timestamp('2021-09-30 12:00:00+3'), np.pi),
