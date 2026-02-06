@@ -1,8 +1,11 @@
 """Tests for Tensorflow-enabled Finite Difference calculator."""
 
+import os
+import time
 from unittest import mock
 
 from absl.testing import absltest
+import matplotlib.pyplot as plt
 import numpy as np
 from numpy.testing import assert_array_almost_equal
 import pandas as pd
@@ -1098,6 +1101,472 @@ class TFSimulatorTest(absltest.TestCase):
           simulator_simulator.building.interior_mass_temp,
           decimal=5,
       )
+
+  def test_compare_temperature_estimates_with_interior_mass_lwx_lwr(self):
+    """Tests TFSimulator vs SimulatorFlexibleGeometries with full radiation.
+
+    This test compares both simulators with the complete radiative heat
+    transfer setup:
+    - Interior mass heat transfer
+    - Interior longwave radiative exchange (lwx)
+    - Exterior longwave radiative heat transfer (lwr)
+    - Solar radiation (shortwave) with fenestrations
+    - Sky temperature for exterior LWR
+
+    Creates two simulators with identical buildings, HVAC and parameters:
+    1. A SimulatorFlexibleGeometries instance (baseline/iterative approach)
+    2. A TFSimulator instance (tensor approach under test)
+
+    Runs one timestep on both with real weather data and verifies their
+    temperature arrays match, including both air CV temperatures and
+    interior mass temperatures.
+    """
+    # Load real weather data for realistic irradiance values
+    data_path = os.path.join(
+        os.path.dirname(__file__), "local_weather_test_data.csv"
+    )
+    weather_controller = weather_controller_py.ReplayWeatherController(
+        local_weather_path=data_path,
+        convection_coefficient=10.0,
+        tz="US/Pacific",
+        latitude=37.4,
+        longitude=-122.1,
+        irradiance_method="campbell_norman",
+    )
+
+    time_step_sec = 300.0
+    convergence_threshold = 1e-3
+    iteration_limit = 500
+    iteration_warning = 30
+    start_timestamp = pd.Timestamp("2023-07-01 09:30:00")
+
+    # Create baseline simulator with interior mass, lwx, and fenestrations
+    simulator = FlexibleFloorplanSimulatorTest()
+    simulator_hvac = simulator._create_small_hvac()
+
+    _, simulator_building = simulator._create_simulator_and_building(
+        convergence_threshold=convergence_threshold,
+        initial_temp=292.0,
+        iteration_limit=iteration_limit,
+        include_interior_mass=True,
+        include_radiative_heat_transfer=True,
+        weather_controller=weather_controller,
+        include_fenestrations=True,
+        relative_convergence_threshold=1e-5,
+        relative_convergence_streak=15,
+    )
+
+    # Create iterative SimulatorFlexibleGeometries
+    simulator_simulator = simulator_py.SimulatorFlexibleGeometries(
+        simulator_building,
+        simulator_hvac,
+        weather_controller,
+        time_step_sec,
+        convergence_threshold,
+        iteration_limit,
+        iteration_warning,
+        start_timestamp,
+        relative_convergence_threshold=1e-5,
+        relative_convergence_streak=15,
+    )
+
+    # Create TFSimulator with the same building
+    building = simulator_building
+    tf_simulator = tf_simulator_py.TFSimulator(
+        building,
+        simulator_hvac,
+        weather_controller,
+        time_step_sec,
+        convergence_threshold,
+        iteration_limit,
+        iteration_warning,
+        start_timestamp,
+        relative_convergence_threshold=1e-5,
+        relative_convergence_streak=15,
+    )
+
+    # Get weather data for the timestep
+    ambient_temperature = weather_controller.get_current_temp(start_timestamp)
+    sky_temperature = weather_controller.get_current_sky_temperature(
+        start_timestamp
+    )
+    irradiance_data = weather_controller.get_current_irradiance(start_timestamp)
+    irradiance_components = {
+        "ghi": irradiance_data["ghi"],
+        "dni": irradiance_data["dni"],
+        "dhi": irradiance_data["dhi"],
+    }
+    solar_zenith = irradiance_data["solar_zenith"]
+    solar_azimuth = irradiance_data["solar_azimuth"]
+
+    # Run TFSimulator
+    tf_result = tf_simulator.finite_differences_timestep(
+        ambient_temperature=ambient_temperature,
+        convection_coefficient=12.0,
+        sky_temperature=sky_temperature,
+        irradiance_components=irradiance_components,
+        solar_zenith=solar_zenith,
+        solar_azimuth=solar_azimuth,
+    )
+
+    # Run iterative SimulatorFlexibleGeometries
+    simulator_result = simulator_simulator.finite_differences_timestep(
+        ambient_temperature=ambient_temperature,
+        convection_coefficient=12.0,
+        sky_temperature=sky_temperature,
+        irradiance_components=irradiance_components,
+        solar_zenith=solar_zenith,
+        solar_azimuth=solar_azimuth,
+    )
+
+    self.assertTrue(tf_result, msg="TFSimulator should converge")
+    self.assertTrue(
+        simulator_result, msg="SimulatorFlexibleGeometries should converge"
+    )
+
+    # Compare air CV temperatures
+    with self.subTest("Air CV temperatures match"):
+      assert_array_almost_equal(
+          tf_simulator.building.temp,
+          simulator_simulator.building.temp,
+          decimal=4,
+      )
+
+    # Compare interior mass temperatures
+    with self.subTest("Interior mass temperatures match"):
+      assert_array_almost_equal(
+          tf_simulator.building.interior_mass_temp,
+          simulator_simulator.building.interior_mass_temp,
+          decimal=4,
+      )
+
+    # Visualize temperature comparison
+    output_path = os.path.join(
+        os.path.dirname(__file__), "temperature_comparison_lwx_lwr.png"
+    )
+    visualize_temperature_comparison(
+        iterative_temp=simulator_simulator.building.temp,
+        tf_temp=tf_simulator.building.temp,
+        floor_plan=building.floor_plan,
+        output_path=output_path,
+        title="Validation: Iterative vs Tensorized (with LWX + LWR)",
+    )
+
+  def test_benchmark_iterative_vs_tensorized_performance(self):
+    """Benchmarks iterative vs tensorized simulator performance.
+
+    Runs multiple timesteps on both SimulatorFlexibleGeometries (iterative)
+    and TFSimulator (tensorized) to compare execution times. The tensorized
+    version should be significantly faster due to matrix operations.
+
+    This test:
+    1. Creates identical simulators with full radiation setup
+    2. Runs 10 timesteps on each simulator
+    3. Measures and compares elapsed time
+    4. Asserts that TFSimulator is faster
+    5. Prints benchmark results
+    """
+    num_steps = 10
+
+    # Load real weather data for realistic irradiance values
+    data_path = os.path.join(
+        os.path.dirname(__file__), "local_weather_test_data.csv"
+    )
+    weather_controller_iterative = (
+        weather_controller_py.ReplayWeatherController(
+            local_weather_path=data_path,
+            convection_coefficient=10.0,
+            tz="US/Pacific",
+            latitude=37.4,
+            longitude=-122.1,
+            irradiance_method="campbell_norman",
+        )
+    )
+    weather_controller_tf = weather_controller_py.ReplayWeatherController(
+        local_weather_path=data_path,
+        convection_coefficient=10.0,
+        tz="US/Pacific",
+        latitude=37.4,
+        longitude=-122.1,
+        irradiance_method="campbell_norman",
+    )
+
+    time_step_sec = 300.0
+    convergence_threshold = 1e-3
+    iteration_limit = 500
+    iteration_warning = 30
+    start_timestamp = pd.Timestamp("2023-07-01 09:30:00")
+
+    # Create iterative simulator
+    simulator_test = FlexibleFloorplanSimulatorTest()
+    iterative_hvac = simulator_test._create_small_hvac()
+
+    _, iterative_building = simulator_test._create_simulator_and_building(
+        convergence_threshold=convergence_threshold,
+        initial_temp=292.0,
+        iteration_limit=iteration_limit,
+        include_interior_mass=True,
+        include_radiative_heat_transfer=True,
+        weather_controller=weather_controller_iterative,
+        include_fenestrations=True,
+        relative_convergence_threshold=1e-5,
+        relative_convergence_streak=15,
+    )
+
+    iterative_simulator = simulator_py.SimulatorFlexibleGeometries(
+        iterative_building,
+        iterative_hvac,
+        weather_controller_iterative,
+        time_step_sec,
+        convergence_threshold,
+        iteration_limit,
+        iteration_warning,
+        start_timestamp,
+        relative_convergence_threshold=1e-5,
+        relative_convergence_streak=15,
+    )
+
+    # Create TFSimulator with separate building instance
+    tf_hvac = simulator_test._create_small_hvac()
+
+    _, tf_building = simulator_test._create_simulator_and_building(
+        convergence_threshold=convergence_threshold,
+        initial_temp=292.0,
+        iteration_limit=iteration_limit,
+        include_interior_mass=True,
+        include_radiative_heat_transfer=True,
+        weather_controller=weather_controller_tf,
+        include_fenestrations=True,
+        relative_convergence_threshold=1e-5,
+        relative_convergence_streak=15,
+    )
+
+    tf_simulator = tf_simulator_py.TFSimulator(
+        tf_building,
+        tf_hvac,
+        weather_controller_tf,
+        time_step_sec,
+        convergence_threshold,
+        iteration_limit,
+        iteration_warning,
+        start_timestamp,
+        relative_convergence_threshold=1e-5,
+        relative_convergence_streak=15,
+    )
+
+    # Benchmark iterative simulator
+    iterative_times = []
+    current_timestamp = start_timestamp
+    for step in range(num_steps):
+      ambient_temperature = weather_controller_iterative.get_current_temp(
+          current_timestamp
+      )
+      sky_temperature = (
+          weather_controller_iterative.get_current_sky_temperature(
+              current_timestamp
+          )
+      )
+      irradiance_data = weather_controller_iterative.get_current_irradiance(
+          current_timestamp
+      )
+      irradiance_components = {
+          "ghi": irradiance_data["ghi"],
+          "dni": irradiance_data["dni"],
+          "dhi": irradiance_data["dhi"],
+      }
+      solar_zenith = irradiance_data["solar_zenith"]
+      solar_azimuth = irradiance_data["solar_azimuth"]
+
+      step_start = time.perf_counter()
+      converged = iterative_simulator.finite_differences_timestep(
+          ambient_temperature=ambient_temperature,
+          convection_coefficient=12.0,
+          sky_temperature=sky_temperature,
+          irradiance_components=irradiance_components,
+          solar_zenith=solar_zenith,
+          solar_azimuth=solar_azimuth,
+      )
+      step_end = time.perf_counter()
+      iterative_times.append(step_end - step_start)
+
+      self.assertTrue(converged, f"Iterative simulator failed at step {step}")
+      current_timestamp += pd.Timedelta(seconds=time_step_sec)
+
+    # Benchmark TFSimulator
+    tf_times = []
+    current_timestamp = start_timestamp
+    for step in range(num_steps):
+      ambient_temperature = weather_controller_tf.get_current_temp(
+          current_timestamp
+      )
+      sky_temperature = weather_controller_tf.get_current_sky_temperature(
+          current_timestamp
+      )
+      irradiance_data = weather_controller_tf.get_current_irradiance(
+          current_timestamp
+      )
+      irradiance_components = {
+          "ghi": irradiance_data["ghi"],
+          "dni": irradiance_data["dni"],
+          "dhi": irradiance_data["dhi"],
+      }
+      solar_zenith = irradiance_data["solar_zenith"]
+      solar_azimuth = irradiance_data["solar_azimuth"]
+
+      step_start = time.perf_counter()
+      converged = tf_simulator.finite_differences_timestep(
+          ambient_temperature=ambient_temperature,
+          convection_coefficient=12.0,
+          sky_temperature=sky_temperature,
+          irradiance_components=irradiance_components,
+          solar_zenith=solar_zenith,
+          solar_azimuth=solar_azimuth,
+      )
+      step_end = time.perf_counter()
+      tf_times.append(step_end - step_start)
+
+      self.assertTrue(converged, f"TFSimulator failed at step {step}")
+      current_timestamp += pd.Timedelta(seconds=time_step_sec)
+
+    # Calculate statistics
+    iterative_total = sum(iterative_times)
+    tf_total = sum(tf_times)
+    iterative_avg = iterative_total / num_steps
+    tf_avg = tf_total / num_steps
+    speedup = iterative_total / tf_total if tf_total > 0 else float("inf")
+
+    # Get grid size information
+    grid_shape = tf_building.floor_plan.shape
+    grid_rows, grid_cols = grid_shape
+    total_cvs = grid_rows * grid_cols
+
+    # Build benchmark report
+    report_lines = [
+        "=" * 60,
+        "BENCHMARK RESULTS: Iterative vs Tensorized Simulator",
+        "=" * 60,
+        "",
+        "Configuration:",
+        f"  Grid size:        {grid_rows} x {grid_cols} ({total_cvs} CVs)",
+        f"  Number of steps:  {num_steps}",
+        f"  Time step:        {time_step_sec} seconds",
+        f"  Convergence:      {convergence_threshold}",
+        f"  Iteration limit:  {iteration_limit}",
+        "",
+        "-" * 60,
+        "Iterative (SimulatorFlexibleGeometries):",
+        f"  Total time:       {iterative_total:.4f} seconds",
+        f"  Average time:     {iterative_avg:.4f} seconds/step",
+        f"  Per-step times:   {[f'{t:.4f}' for t in iterative_times]}",
+        "",
+        "-" * 60,
+        "Tensorized (TFSimulator):",
+        f"  Total time:       {tf_total:.4f} seconds",
+        f"  Average time:     {tf_avg:.4f} seconds/step",
+        f"  Per-step times:   {[f'{t:.4f}' for t in tf_times]}",
+        "",
+        "-" * 60,
+        f"SPEEDUP: {speedup:.2f}x faster with TFSimulator",
+        "=" * 60,
+    ]
+    report = "\n".join(report_lines)
+
+    # Print benchmark results
+    print("\n" + report + "\n")
+
+    # Save benchmark results to file
+    output_path = os.path.join(
+        os.path.dirname(__file__),
+        f"benchmark_results_{grid_rows}x{grid_cols}.txt",
+    )
+    with open(output_path, "w", encoding="utf-8") as f:
+      f.write(report)
+    print(f"Benchmark results saved to: {output_path}")
+
+    # Assert TFSimulator is faster
+    self.assertLess(
+        tf_total,
+        iterative_total,
+        msg=(
+            f"TFSimulator ({tf_total:.4f}s) should be faster than "
+            f"iterative ({iterative_total:.4f}s)"
+        ),
+    )
+
+
+def visualize_temperature_comparison(
+    iterative_temp: np.ndarray,
+    tf_temp: np.ndarray,
+    floor_plan: np.ndarray,
+    output_path: str | None = None,
+    title: str = "Temperature Comparison: Iterative vs Tensorized",
+) -> None:
+  """Visualizes temperature comparison between iterative and TF approaches.
+
+  Creates a side-by-side heatmap visualization comparing temperature
+  distributions from the iterative (SimulatorFlexibleGeometries) and
+  tensorized (TFSimulator) approaches.
+
+  Args:
+    iterative_temp: Temperature array from iterative simulator.
+    tf_temp: Temperature array from TFSimulator.
+    floor_plan: Floor plan array (2=ambient air, 1=wall, 0=indoor air).
+    output_path: Optional path to save the figure. If None, displays the plot.
+    title: Title for the overall figure.
+  """
+  # Calculate the base temperature (minimum) for display offset
+  min_temp = min(np.min(iterative_temp), np.min(tf_temp))
+
+  # Calculate temperature differences from base for better visualization
+  iterative_diff = iterative_temp - min_temp
+  tf_diff = tf_temp - min_temp
+
+  # Determine common color scale
+  vmin = 0
+  vmax = max(np.max(iterative_diff), np.max(tf_diff))
+
+  _, axes = plt.subplots(1, 2, figsize=(14, 8))
+
+  for ax, temp_diff, approach_name in [
+      (axes[0], iterative_diff, "Iterative Approach"),
+      (axes[1], tf_diff, "Tensorized Approach"),
+  ]:
+    # Plot temperature heatmap
+    im = ax.imshow(temp_diff, cmap="viridis", vmin=vmin, vmax=vmax)
+
+    # Overlay floor plan values on each cell
+    for i in range(floor_plan.shape[0]):
+      for j in range(floor_plan.shape[1]):
+        text_color = "white" if temp_diff[i, j] < (vmax - vmin) / 2 else "black"
+        ax.text(
+            j,
+            i,
+            str(int(floor_plan[i, j])),
+            ha="center",
+            va="center",
+            color=text_color,
+            fontsize=8,
+            fontweight="bold",
+        )
+
+    ax.set_title(f"{approach_name}+{min_temp:.5e}", fontsize=12)
+    ax.set_xlabel("Column")
+    ax.set_ylabel("Row")
+
+    # Add colorbar
+    cbar = plt.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+    cbar.set_label("Temperature (K)", rotation=270, labelpad=15)
+
+  plt.suptitle(title, fontsize=14, fontweight="bold")
+  plt.tight_layout()
+
+  if output_path:
+    plt.savefig(output_path, dpi=150, bbox_inches="tight")
+    print(f"Figure saved to {output_path}")
+  else:
+    plt.show()
+
+  plt.close()
 
 
 if __name__ == "__main__":

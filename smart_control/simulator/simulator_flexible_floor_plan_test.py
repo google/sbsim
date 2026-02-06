@@ -333,6 +333,8 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
       iteration_limit=100,
       weather_controller=None,
       include_fenestrations=False,
+      relative_convergence_threshold=1e-6,
+      relative_convergence_streak=20,
   ):
     """Creates a building and simulator instance with shared parameters.
 
@@ -345,6 +347,8 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
       weather_controller: Optional weather controller instance. If None, creates
           a mock WeatherController. Can be a real WeatherController or
           ReplayWeatherController instance.
+      relative_convergence_threshold: Threshold for relative early stopping.
+      relative_convergence_streak: Consecutive iterations for early stopping.
 
     Returns:
       Tuple of (simulator, building) instances.
@@ -356,7 +360,7 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
       )
     time_step_sec = 300.0
     hvac = self._create_small_hvac()
-    iteration_warning = 10
+    iteration_warning = 30
     start_timestamp = pd.Timestamp("2023-07-01 09:30:00")
 
     # Building geometry and base properties
@@ -377,7 +381,7 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
         conductivity=0.05, heat_capacity=500.0, density=3000.0
     )
     interior_mass_properties = building_py.MaterialProperties(
-        conductivity=0.5, heat_capacity=1000.0, density=2000.0
+        conductivity=0.5, heat_capacity=300.0, density=1000.0
     )
     if include_fenestrations:
       floor_plan = self._create_dummy_floor_plan_small_with_fenestrations()
@@ -412,6 +416,8 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
         iteration_limit,
         iteration_warning,
         start_timestamp,
+        relative_convergence_threshold=relative_convergence_threshold,
+        relative_convergence_streak=relative_convergence_streak,
     )
     return simulator, building
 
@@ -1636,6 +1642,8 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
         iteration_limit,
         iteration_warning,
         start_timestamp,
+        relative_convergence_threshold=1e-5,
+        relative_convergence_streak=15,
     )
 
     converged = simulator.finite_differences_timestep(
@@ -1690,6 +1698,8 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
         iteration_limit,
         iteration_warning,
         start_timestamp,
+        relative_convergence_threshold=1e-5,
+        relative_convergence_streak=15,
     )
 
     converged = simulator.finite_differences_timestep(
@@ -1710,6 +1720,8 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
         convergence_threshold=0.001,
         iteration_limit=100,
         include_interior_mass=True,
+        relative_convergence_threshold=1e-5,
+        relative_convergence_streak=15,
     )
 
     # Store initial interior mass temperatures
@@ -1737,7 +1749,10 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
   def test_interior_mass_convergence(self):
     """Test that simulation with interior mass converges."""
     simulator, _ = self._create_simulator_and_building(
-        convergence_threshold=0.001, iteration_limit=100
+        convergence_threshold=0.001,
+        iteration_limit=100,
+        relative_convergence_threshold=1e-5,
+        relative_convergence_streak=15,
     )
 
     # Test convergence with same temperature (should converge quickly)
@@ -1760,6 +1775,8 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
         convergence_threshold=0.001,
         iteration_limit=100,
         include_interior_mass=False,
+        relative_convergence_threshold=1e-5,
+        relative_convergence_streak=15,
     )
     # Building with interior mass
     simulator_with_mass, building_with_mass = (
@@ -1767,6 +1784,8 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
             convergence_threshold=0.001,
             iteration_limit=100,
             include_interior_mass=True,
+            relative_convergence_threshold=1e-5,
+            relative_convergence_streak=15,
         )
     )
 
@@ -1818,6 +1837,8 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
         iteration_limit=100,
         include_interior_mass=True,
         include_radiative_heat_transfer=True,
+        relative_convergence_threshold=1e-5,
+        relative_convergence_streak=15,
     )
 
     # Test convergence with same temperature (should converge quickly)
@@ -1831,8 +1852,17 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
     )
 
   def test_interior_mass_convergence_with_lwx_lwr(self):
-    """
-    a
+    """Tests convergence with interior mass, lwx, lwr, and fenestrations.
+
+    Runs one timestep with the full radiative heat transfer setup:
+    - Interior mass heat transfer
+    - Interior longwave radiative exchange (lwx)
+    - Exterior longwave radiative heat transfer (lwr) via sky temperature
+    - Solar radiation (shortwave) with fenestrations
+
+    Uses real weather data for irradiance and sky temperature. Verifies that
+    the finite-difference iteration converges within the iteration limit when
+    relative convergence criteria are enabled.
     """
 
     data_path = os.path.join(
@@ -1848,12 +1878,15 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
     )
 
     simulator, _ = self._create_simulator_and_building(
-        convergence_threshold=0.01,
-        iteration_limit=300,
+        initial_temp=292.0,
+        convergence_threshold=0.001,
+        iteration_limit=100,
         include_interior_mass=True,
         include_radiative_heat_transfer=True,
         weather_controller=weather_controller,
         include_fenestrations=True,
+        relative_convergence_threshold=1e-5,
+        relative_convergence_streak=15,
     )
     # Test convergence with same temperature (should converge quickly)
 

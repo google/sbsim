@@ -41,6 +41,8 @@ class Simulator:
       iteration_limit: int,
       iteration_warning: int,
       start_timestamp: pd.Timestamp,
+      relative_convergence_threshold: float | None = 1e-6,
+      relative_convergence_streak: int = 20,
   ):
     """Simulator init.
 
@@ -55,6 +57,13 @@ class Simulator:
       iteration_warning: Number of iterations for FDM after which a warning will
         be logged.
       start_timestamp: Pandas timestamp representing start time for simulation.
+      relative_convergence_threshold: If not None, also converge when the
+        change in max_delta is <= this value for
+        relative_convergence_streak consecutive iterations. Change is
+        |max_delta(n) - max_delta(n-1)|. Default 1e-6.
+        Set to None to disable early stopping.
+      relative_convergence_streak: Consecutive iterations required for early
+        stopping when relative_convergence_threshold is set. Default 20.
     """
     self.building = building
     self._hvac = hvac
@@ -64,6 +73,8 @@ class Simulator:
     self._iteration_limit = iteration_limit
     self._iteration_warning = iteration_warning
     self._start_timestamp = start_timestamp
+    self._relative_convergence_threshold = relative_convergence_threshold
+    self._relative_convergence_streak = relative_convergence_streak
     self.reset()
 
   def reset(self):
@@ -1069,8 +1080,11 @@ class Simulator:
     4.   If interior mass is enabled, update interior mass temperatures and
          check their convergence as well.
 
-    If the maximum difference in the grid is less than some small constant,
-    conversion_threshold, then quit. Otherwise, return to step 2.
+    Convergence is declared when either:
+    - The maximum difference is <= convergence_threshold (one-shot), or
+    - Early stopping: change in max_delta <= relative_convergence_threshold for
+      relative_convergence_streak consecutive iterations.
+      The change is |max_delta(n) - max_delta(n-1)|.
 
     The update_temperature_estimates function performs steps 2, and 3.
 
@@ -1101,6 +1115,11 @@ class Simulator:
         hasattr(self.building, 'include_interior_mass')
         and self.building.include_interior_mass
     )
+
+    # Track consecutive iterations meeting relative threshold (early stopping)
+    use_relative_stopping = self._relative_convergence_threshold is not None
+    relative_streak_count = 0
+    previous_max_delta = None  # Track max_delta from previous iteration
 
     converged_successfully = False
     for iteration_count in range(self._iteration_limit):
@@ -1153,9 +1172,25 @@ class Simulator:
               max_delta,
           )
 
+      # Primary convergence: one-shot threshold
       if max_delta <= self._convergence_threshold:
         converged_successfully = True
         break
+
+      # Early stopping: check if change in max_delta is small for N consecutive
+      # iterations
+      if use_relative_stopping and previous_max_delta is not None:
+        delta_change = abs(max_delta - previous_max_delta)
+        if delta_change <= self._relative_convergence_threshold:
+          relative_streak_count += 1
+          if relative_streak_count >= self._relative_convergence_streak:
+            converged_successfully = True
+            break
+        else:
+          relative_streak_count = 0
+
+      # Update previous_max_delta for next iteration
+      previous_max_delta = max_delta
     else:
       if include_interior_mass:
         logging.warning(

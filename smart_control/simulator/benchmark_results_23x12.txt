@@ -1,0 +1,26 @@
+============================================================
+BENCHMARK RESULTS: Iterative vs Tensorized Simulator
+============================================================
+
+Configuration:
+  Grid size:        23 x 12 (276 CVs)
+  Number of steps:  10
+  Time step:        300.0 seconds
+  Convergence:      0.001
+  Iteration limit:  500
+
+------------------------------------------------------------
+Iterative (SimulatorFlexibleGeometries):
+  Total time:       12.7040 seconds
+  Average time:     1.2704 seconds/step
+  Per-step times:   ['1.7503', '1.1455', '1.2557', '1.3243', '1.1481', '1.2126', '1.0076', '1.2936', '1.2021', '1.3642']
+
+------------------------------------------------------------
+Tensorized (TFSimulator):
+  Total time:       3.0304 seconds
+  Average time:     0.3030 seconds/step
+  Per-step times:   ['0.6018', '0.1637', '0.1831', '0.2934', '0.2906', '0.3044', '0.2448', '0.3163', '0.1486', '0.4836']
+
+------------------------------------------------------------
+SPEEDUP: 4.19x faster with TFSimulator
+============================================================
