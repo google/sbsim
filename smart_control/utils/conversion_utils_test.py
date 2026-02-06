@@ -46,9 +46,25 @@ class ConversionUtilsTest(parameterized.TestCase):
     self.assertEqual(conversion_utils.normalize_hod(0), -1.0)
     self.assertEqual(conversion_utils.normalize_hod(23), 1.0)
 
+  @parameterized.parameters(24, -1)
+  def test_normalize_hod_invalid_raises_error(self, invalid_hod):
+    """ValueError when hour of day is outside [0, 23]."""
+    with self.assertRaisesRegex(
+        ValueError, r'Hour of day \(hod\) must be within the range \[0, 23\]'
+    ):
+      conversion_utils.normalize_hod(invalid_hod)
+
   def test_normalize_dow(self):
     self.assertEqual(conversion_utils.normalize_dow(0), -1.0)
     self.assertEqual(conversion_utils.normalize_dow(6), 1.0)
+
+  @parameterized.parameters(7, -1)
+  def test_normalize_dow_invalid_raises_error(self, invalid_dow):
+    """ValueError when day of week is outside [0, 6]."""
+    with self.assertRaisesRegex(
+        ValueError, r'Day of week \(dow\) must be within the range \[0, 6\]'
+    ):
+      conversion_utils.normalize_dow(invalid_dow)
 
   @parameterized.parameters(
       (pd.Timestamp('2021-09-27 10:00:00-08:00'), 0),

@@ -43,14 +43,24 @@ class ZoneOccupant:
       latest_expected_departure_hour: int,
       step_size: pd.Timedelta,
       random_state: np.random.RandomState,
-      time_zone: Union[datetime.tzinfo, str] = 'UTC',
+      time_zone: Union[datetime.tzinfo, str] = "UTC",
   ):
-    assert (
+
+    if not (
         earliest_expected_arrival_hour
         < latest_expected_arrival_hour
         < earliest_expected_departure_hour
         < latest_expected_departure_hour
-    )
+    ):
+      raise ValueError(
+          "Arrival and departure hours must be strictly increasing: "
+          "earliest_arrival < latest_arrival < earliest_departure < "
+          "latest_departure. "
+          f"Got: {earliest_expected_arrival_hour}, "
+          f"{latest_expected_arrival_hour}, "
+          f"{earliest_expected_departure_hour}, "
+          f"{latest_expected_departure_hour}."
+      )
 
     self._earliest_expected_arrival_hour = earliest_expected_arrival_hour
     self._latest_expected_arrival_hour = latest_expected_arrival_hour
@@ -76,9 +86,15 @@ class ZoneOccupant:
 
   def _get_event_probability(self, start_hour, end_hour):
     """Returns the probability of an event based on the number of time steps."""
-    assert start_hour < end_hour
+
+    if start_hour >= end_hour:
+      raise ValueError(
+          "Start hour must be less than end hour to calculate event "
+          f"probability: start_hour={start_hour}, end_hour={end_hour}"
+      )
+
     # The window is the number of Bernoulli trials (i.e. tests for arrival).
-    window = pd.Timedelta(end_hour - start_hour, unit='hour')
+    window = pd.Timedelta(end_hour - start_hour, unit="hour")
     # The halfway point is the firts half of the trials.
     n_halfway = window / self._step_size / 2.0
     # We'd like to return the probability of event happening in a single time-
@@ -154,11 +170,11 @@ class RandomizedArrivalDepartureOccupancy(BaseOccupancy):
       latest_expected_departure_hour: int,
       time_step_sec: int,
       seed: Optional[int] = 17321,
-      time_zone: str = 'UTC',
+      time_zone: str = "UTC",
   ):
     self._zone_assignment = zone_assignment
     self._zone_occupants = {}
-    self._step_size = pd.Timedelta(time_step_sec, unit='second')
+    self._step_size = pd.Timedelta(time_step_sec, unit="second")
     self._earliest_expected_arrival_hour = earliest_expected_arrival_hour
     self._latest_expected_arrival_hour = latest_expected_arrival_hour
     self._earliest_expected_departure_hour = earliest_expected_departure_hour

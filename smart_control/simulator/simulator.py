@@ -181,7 +181,12 @@ class Simulator:
     neighbor_temps = [temperature_estimates[nx][ny] for nx, ny in neighbors]
 
     # Ensure corner CV.
-    assert len(neighbors) == 2
+    if len(neighbors) != 2:
+      raise ValueError(
+          f'Expected 2 neighbors for a corner CV, but found {len(neighbors)} '
+          f'at coordinates {cv_coordinates}. '
+          'This indicates an invalid building structure.'
+      )
 
     t0 = density * delta_x**2 * heat_capacity / delta_t / 2.0
     retained_heat = t0 * last_temp
@@ -358,7 +363,12 @@ class Simulator:
     neighbor_temps = [temperature_estimates[nx][ny] for nx, ny in neighbors]
 
     # Ensure edge CV.
-    assert len(neighbors) == 3
+    if len(neighbors) != 3:
+      raise ValueError(
+          f'Expected 3 neighbors for an edge CV, but found {len(neighbors)} '
+          f'at coordinates {cv_coordinates}. '
+          'This indicates an invalid building structure.'
+      )
 
     t0 = density * delta_x**2 / 2 * heat_capacity / delta_t
     retained_heat = t0 * last_temp
@@ -599,7 +609,12 @@ class Simulator:
     neighbors = self.building.neighbors[x][y]
     neighbor_temps = [temperature_estimates[nx][ny] for nx, ny in neighbors]
     # Ensure interior CV.
-    assert len(neighbors) == 4
+    if len(neighbors) != 4:
+      raise ValueError(
+          'Expected 4 neighbors for an interior CV, but found'
+          f' {len(neighbors)} at coordinates {cv_coordinates}. This indicates'
+          ' an invalid building structure.'
+      )
 
     alpha = conductivity / density / heat_capacity
 
