@@ -5,9 +5,10 @@ from typing import Optional
 import uuid
 
 import gin
-from smart_buildings.smart_control.proto import smart_control_building_pb2
-from smart_buildings.smart_control.simulator import smart_device
-from smart_buildings.smart_control.utils import constants
+
+from smart_control.proto import smart_control_building_pb2
+from smart_control.simulator import smart_device
+from smart_control.utils import constants
 
 
 RunStatus = enum.Enum('RunStatus', [('On', 1), ('Off', 2)])
