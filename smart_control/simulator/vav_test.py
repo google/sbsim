@@ -1,28 +1,14 @@
-"""Tests for vav.
-
-Copyright 2023 Google LLC
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    https://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-"""
+"""Tests for vav."""
 
 from absl.testing import absltest
 from absl.testing import parameterized
 import pandas as pd
-from smart_buildings.smart_control.simulator import boiler
-from smart_buildings.smart_control.simulator import setpoint_schedule
-from smart_buildings.smart_control.simulator import thermostat
-from smart_buildings.smart_control.simulator import vav
-from smart_buildings.smart_control.utils import constants
+
+from smart_control.simulator import boiler
+from smart_control.simulator import setpoint_schedule
+from smart_control.simulator import thermostat
+from smart_control.simulator import vav
+from smart_control.utils import constants
 
 
 def _get_default_thermostat():
@@ -145,6 +131,23 @@ class VavTest(parameterized.TestCase):
     with self.assertRaises(ValueError):
       v.damper_setting = -0.1
 
+  @parameterized.parameters(0.0, -0.5)
+  def test_max_air_flow_rate_setter_raises_value_error(self, invalid_value):
+    """ValueError when max_air_flow_rate is set to 0 or negative."""
+    t = _get_default_thermostat()
+    b = _get_default_boiler()
+    v = vav.Vav(
+        max_air_flow_rate=0.6,
+        reheat_max_water_flow_rate=0.4,
+        therm=t,
+        boiler=b,
+    )
+
+    with self.assertRaisesRegex(
+        ValueError, 'Maximum air flow rate must be greater than 0'
+    ):
+      v.max_air_flow_rate = invalid_value
+
   @parameterized.parameters(
       (pd.Timestamp('2021-05-09 14:00'), 293, 0.1, 0.0),
       (pd.Timestamp('2021-05-10 09:00'), 296, 1.0, 0.0),
@@ -239,7 +242,7 @@ class VavTest(parameterized.TestCase):
         v.compute_zone_supply_temp(supply_air_temp, input_water_temp), expected
     )
 
-  def test_compute_zone_supply_temp_asserts_error(self):
+  def test_compute_zone_supply_temp_raises_value_error(self):
     reheat_valve_setting = 0.5
     max_air_flow_rate = 0.3
     reheat_max_water_flow_rate = 0.4
@@ -251,12 +254,12 @@ class VavTest(parameterized.TestCase):
     v.reheat_valve_setting = reheat_valve_setting
     v.damper_setting = 0
 
-    with self.assertRaises(AssertionError):
+    with self.assertRaises(ValueError):
       v.compute_zone_supply_temp(supply_air_temp, input_water_temp)
 
     v.damper_setting = 0.5
     v._max_air_flow_rate = 0
-    with self.assertRaises(AssertionError):
+    with self.assertRaises(ValueError):
       v.compute_zone_supply_temp(supply_air_temp, input_water_temp)
 
   @parameterized.parameters(

@@ -1,28 +1,15 @@
-"""Tests for building.
-
-Copyright 2023 Google LLC
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    https://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-"""
+"""Tests for building."""
 
 import random
+
 from absl.testing import absltest
 from absl.testing import parameterized
 import numpy as np
-from smart_buildings.smart_control.simulator import building
-from smart_buildings.smart_control.simulator import building_utils
-from smart_buildings.smart_control.simulator import constants
-from smart_buildings.smart_control.simulator import stochastic_convection_simulator
+
+from smart_control.simulator import building
+from smart_control.simulator import building_utils
+from smart_control.simulator import constants
+from smart_control.simulator import stochastic_convection_simulator
 
 
 def _create_dummy_floor_plan():
@@ -99,11 +86,9 @@ def _create_dummy_post_refactor_building_matching_deprecation():
   inside_air_properties = building.MaterialProperties(
       conductivity=50.0, heat_capacity=700.0, density=1.0
   )
-  inside_wall_properties = building.MaterialProperties(
-      conductivity=2.0, heat_capacity=1000.0, density=1800.0
-  )
-  building_exterior_properties = building.MaterialProperties(
-      conductivity=0.05, heat_capacity=1000.0, density=3000.0
+  inside_wall_properties = building.DefaultInsideWallMaterialProperties()
+  building_exterior_properties = (
+      building.DefaultExteriorWallMaterialProperties()
   )
 
   floor_plan = _create_dummy_floor_plan_matching_deprecation()
@@ -190,11 +175,9 @@ def _create_dummy_building_post_refactor():
   inside_air_properties = building.MaterialProperties(
       conductivity=50.0, heat_capacity=700.0, density=1.0
   )
-  inside_wall_properties = building.MaterialProperties(
-      conductivity=2.0, heat_capacity=1000.0, density=1800.0
-  )
-  building_exterior_properties = building.MaterialProperties(
-      conductivity=0.05, heat_capacity=1000.0, density=3000.0
+  inside_wall_properties = building.DefaultInsideWallMaterialProperties()
+  building_exterior_properties = (
+      building.DefaultExteriorWallMaterialProperties()
   )
 
   floor_plan = _create_dummy_floor_plan()
@@ -242,11 +225,9 @@ def _create_dummy_building_weird_shape():
   inside_air_properties = building.MaterialProperties(
       conductivity=50.0, heat_capacity=700.0, density=1.0
   )
-  inside_wall_properties = building.MaterialProperties(
-      conductivity=2.0, heat_capacity=1000.0, density=1800.0
-  )
-  building_exterior_properties = building.MaterialProperties(
-      conductivity=0.05, heat_capacity=1000.0, density=3000.0
+  inside_wall_properties = building.DefaultInsideWallMaterialProperties()
+  building_exterior_properties = (
+      building.DefaultExteriorWallMaterialProperties()
   )
 
   floor_plan = _create_dummy_floor_plan_weird_shape()
@@ -382,11 +363,9 @@ class BuildingTest(parameterized.TestCase):
     inside_air_properties = building.MaterialProperties(
         conductivity=50.0, heat_capacity=700.0, density=1.0
     )
-    inside_wall_properties = building.MaterialProperties(
-        conductivity=2.0, heat_capacity=1000.0, density=1800.0
-    )
-    building_exterior_properties = building.MaterialProperties(
-        conductivity=0.05, heat_capacity=1000.0, density=3000.0
+    inside_wall_properties = building.DefaultInsideWallMaterialProperties()
+    building_exterior_properties = (
+        building.DefaultExteriorWallMaterialProperties()
     )
 
     i = constants.INTERIOR_WALL_VALUE_IN_FUNCTION
@@ -519,7 +498,7 @@ class BuildingTest(parameterized.TestCase):
     )
 
     with self.subTest("floor_plans"):
-      np.testing.assert_array_equal(b._floor_plan, floor_plan)
+      np.testing.assert_array_equal(b.floor_plan, floor_plan)
     with self.subTest("exterior_wall"):
       np.testing.assert_array_equal(b._exterior_walls, expected_exterior_walls)
     with self.subTest("interior_wall"):
@@ -1726,6 +1705,70 @@ class BuildingTest(parameterized.TestCase):
     self.assertEqual(b.temp[2][3], vals[1])
     self.assertEqual(b.temp[3][2], vals[2])
     self.assertEqual(b.temp[3][3], vals[3])
+
+  def test_interior_mass_initialization(self):
+    """Test that interior mass is correctly initialized."""
+    cv_size_cm = 20.0
+    floor_height_cm = 300.0
+    initial_temp = 292.0
+    inside_air_properties = building.MaterialProperties(
+        conductivity=50.0, heat_capacity=700.0, density=1.0
+    )
+    inside_wall_properties = building.DefaultInsideWallMaterialProperties()
+    building_exterior_properties = (
+        building.DefaultExteriorWallMaterialProperties()
+    )
+    interior_mass_properties = building.MaterialProperties(
+        conductivity=0.5, heat_capacity=1000.0, density=2000.0
+    )
+
+    floor_plan = _create_dummy_floor_plan()
+    zone_map = _create_dummy_floor_plan()
+
+    b = building.FloorPlanBasedBuilding(
+        cv_size_cm=cv_size_cm,
+        floor_height_cm=floor_height_cm,
+        initial_temp=initial_temp,
+        inside_air_properties=inside_air_properties,
+        inside_wall_properties=inside_wall_properties,
+        building_exterior_properties=building_exterior_properties,
+        floor_plan=floor_plan,
+        zone_map=zone_map,
+        buffer_from_walls=0,
+        interior_mass_properties=interior_mass_properties,
+        include_interior_mass=True,
+    )
+
+    # Check that interior mass is enabled
+    with self.subTest("Check that interior mass is enabled"):
+      self.assertTrue(b.include_interior_mass)
+
+    # Check that interior mass mask exists and has correct shape
+    with self.subTest("Check that interior mass mask exists"):
+      self.assertIsNotNone(b.interior_mass_mask)
+    with self.subTest("Check that interior mass mask has correct shape"):
+      self.assertEqual(b.interior_mass_mask.shape, floor_plan.shape)
+    with self.subTest("All interior space values should be 0 (air nodes)"):
+      self.assertEqual(np.sum(b.floor_plan[b.interior_mass_mask]), 0)
+    # Check that interior mass temperature array exists
+    with self.subTest("Check that interior mass temperature array exists"):
+      self.assertIsNotNone(b.interior_mass_temp)
+    with self.subTest(
+        "Check that interior mass temperature array has correct shape"
+    ):
+      self.assertEqual(b.interior_mass_temp.shape, floor_plan.shape)
+
+    # Check that interior mass properties are assigned
+    with self.subTest("Check that interior mass conductivity is assigned"):
+      self.assertIsNotNone(b.interior_mass_conductivity)
+    with self.subTest("Check that interior mass heat capacity is assigned"):
+      self.assertIsNotNone(b.interior_mass_heat_capacity)
+    with self.subTest("Check that interior mass density is assigned"):
+      self.assertIsNotNone(b.interior_mass_density)
+
+    # Check that interior mass is only assigned to air nodes
+    with self.subTest("Check that interior mass is only assigned to air nodes"):
+      self.assertEqual(np.sum(b.interior_mass_mask), np.sum(b.floor_plan == 0))
 
 
 if __name__ == "__main__":

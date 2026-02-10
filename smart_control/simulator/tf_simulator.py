@@ -1,41 +1,29 @@
 """Tensorflow-enabled Finite Difference calculator.
 
-Copyright 2024 Google LLC
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    https://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-
 Iterative methods that loop through each control volume sequentially
 are very slow with geometries that have many control volumes (CV). The
-TFSimulator, instead, processe the finite differences as a set of
+TFSimulator, instead, processes the finite differences as a set of
 tensor operations.
 """
 
 import enum
 import functools
 from typing import Mapping, Optional, Sequence
+
 from absl import logging
 import gin
 import numpy as np
 import pandas as pd
-from smart_buildings.smart_control.simulator import building as building_py
-from smart_buildings.smart_control.simulator import hvac_floorplan_based as hvac_py
-from smart_buildings.smart_control.simulator import simulator_flexible_floor_plan as simulator
-from smart_buildings.smart_control.simulator import weather_controller as weather_controller_py
 import tensorflow as tf
+
+from smart_control.simulator import building as building_py
+from smart_control.simulator import hvac_floorplan_based as hvac_py
+from smart_control.simulator import simulator_flexible_floor_plan as simulator
+from smart_control.simulator import weather_controller as weather_controller_py
 
 # List of neighbors for a specific CV.
 NeighborCoordinates = Sequence[simulator.CVCoordinates]
-# Neighors, indexable by a specific i,j coord.
+# Neighbors, indexable by a specific i,j coord.
 Neighbors = Sequence[Sequence[NeighborCoordinates]]
 
 
@@ -217,7 +205,7 @@ def classify_cv(
           corner=CVCornerOrientationType.BOTTOM_RIGHT
       )
     raise ValueError(
-        f"wasn't able to determine which corner the CV {(i,j)} is."
+        f"Wasn't able to determine which corner the CV {(i, j)} is."
     )
 
   def _cv_type_edge_factory(
@@ -240,7 +228,7 @@ def classify_cv(
       return edge(CVEdgeOrientationType.LEFT)
     if set([(i - 1, j), (i, j - 1), (i + 1, j)]) == set(cv_neighbors):
       return edge(CVEdgeOrientationType.RIGHT)
-    raise ValueError(f"wasn't able to determine which edge the CV {(i,j)} is.")
+    raise ValueError(f"Wasn't able to determine which edge the CV {(i, j)} is.")
 
   i, j = coords
 
@@ -258,7 +246,7 @@ def classify_cv(
       return CVType(position=CVPositionType.INTERIOR)
     case _:
       raise ValueError(
-          f"wasn't able to determine which CV type the CV {(i,j)} is."
+          f"Wasn't able to determine which CV type the CV {(i, j)} is."
       )
 
 
@@ -283,7 +271,7 @@ def get_cv_mapping(
 def get_cv_dimension_tensors(
     control_volume_cm: float,
     boundary_cv_mapping: BoundaryCVMapping,
-    shape=tuple[int, int],
+    shape: tuple[int, int],
 ) -> tuple[tf.Tensor, tf.Tensor]:
   """Returns horizontal and vertical CV dimension tensors.
 
@@ -539,14 +527,14 @@ class TFSimulator(simulator.SimulatorFlexibleGeometries):
     n_exterior_elements = tf.math.count_nonzero(self._t_exerior_temps_mask)
     logging.info('Number of exterior CVs: %d', n_exterior_elements)
 
-    n_elements = self._building.temp.shape[0] * self._building.temp.shape[1]
+    n_elements = self.building.temp.shape[0] * self.building.temp.shape[1]
     n_interior_elements = n_elements - n_boundary_elements - n_exterior_elements
     logging.info('Number of interior CVs: %d', n_interior_elements)
 
     self._t_u, self._t_v = get_cv_dimension_tensors(
-        self._building.cv_size_cm / 100.0,
+        self.building.cv_size_cm / 100.0,
         self._boundary_cv_mapping,
-        self._building.temp.shape,
+        self.building.temp.shape,
     )
 
     (
@@ -555,8 +543,18 @@ class TFSimulator(simulator.SimulatorFlexibleGeometries):
         self._t_conductivity_top_edge,
         self._t_conductivity_bottom_edge,
     ) = get_oriented_conductivity_tensors(
-        self._building.conductivity, self._boundary_cv_mapping
+        self.building.conductivity, self._boundary_cv_mapping
     )
+    # radiative heat transfer addition
+    self.include_radiative_heat_transfer = (
+        building.include_radiative_heat_transfer
+    )
+    # self.interior_wall_mask = building.interior_wall_mask
+
+    # interior mass addition
+    self.include_interior_mass = building.include_interior_mass
+    if self.include_interior_mass:
+      self._initialize_interior_mass_tensors(building)
 
   def _get_tensor_exterior_mask(
       self, building: building_py.Building
@@ -570,19 +568,196 @@ class TFSimulator(simulator.SimulatorFlexibleGeometries):
       exterior_mask[i][j] = True
     return tf.convert_to_tensor(exterior_mask)
 
+  def _initialize_interior_mass_tensors(
+      self, building: building_py.FloorPlanBasedBuilding
+  ) -> None:
+    """Initializes tensors for interior mass calculations."""
+    # Convert interior mass properties to tensors
+    self._t_interior_mass_mask = tf.convert_to_tensor(
+        building.interior_mass_mask, dtype=tf.bool
+    )
+    self._t_interior_mass_conductivity = tf.convert_to_tensor(
+        building.interior_mass_conductivity, dtype=tf.float32
+    )
+    self._t_interior_mass_heat_capacity = tf.convert_to_tensor(
+        building.interior_mass_heat_capacity, dtype=tf.float32
+    )
+    self._t_interior_mass_density = tf.convert_to_tensor(
+        building.interior_mass_density, dtype=tf.float32
+    )
+
+    # Calculate t_0_mass = (rho_mass * C_mass * z^2) / (k_mass * delta_t)
+    # z is the floor height in meters (characteristic length for heat exchange)
+    z = building.floor_height_cm / 100.0
+
+    # Compute t_0_mass for each CV (will be 0 where there's no interior mass)
+    self._t_0_mass = tf.where(
+        self._t_interior_mass_mask,
+        (
+            self._t_interior_mass_density
+            * self._t_interior_mass_heat_capacity
+            * z
+            * z
+        )
+        / (self._t_interior_mass_conductivity * self._time_step_sec),
+        tf.constant(0.0, dtype=tf.float32),
+    )
+
+  def update_interior_mass_temperatures(
+      self, air_temperature_estimates: np.ndarray
+  ) -> tuple[np.ndarray, float]:
+    r"""Tensorized version of interior mass temperature update.
+
+    Overrides the parent class's iterative implementation with a tensor-based
+    approach for efficiency. The heat exchange occurs through the vertical
+    direction (height z) of the control volume.
+
+    Equations:
+    --------------------
+    After the air CV temperatures converge, update the interior mass
+    temperatures using element-wise tensor operations:
+
+    $$T_{\text{mass}} =
+      \frac{T+t_{0,\text{mass}}\odot T_{\text{mass}}^{(-)}}{1+t_{0,\text{mass}}}
+    $$
+
+    where $\odot$ represents element-wise multiplication and the division is
+    element-wise (broadcasting the scalar denominator).
+
+    The temporal parameter tensor is defined as:
+
+    $$t_{0,\text{mass},i,j} = \begin{cases}
+    \frac{\rho_{\text{mass}}c_{\text{mass}}z^2}{k_{\text{mass}}\Delta t}
+    & \text{if CV has interior mass} \\
+    0 & \text{otherwise}
+    \end{cases}$$
+
+    This formulation is consistent with the air CV energy balance where the
+    interior mass coupling term is $\frac{k_{\text{mass}} u v}{z}
+    (T_{\text{mass},i,j} - T_{i,j})$.
+
+    Nomenclature and Units:
+    -----------------------
+    - $T$: Converged air temperature tensor at new time step [K]
+    - $T_{\text{mass}}$: Interior mass temperature tensor at new time step [K]
+    - $T_{\text{mass}}^{(-)}$: Interior mass temperature tensor at previous
+      time step [K]
+    - $t_{0,\text{mass}}$: Temporal parameter tensor for interior mass
+      [dimensionless]
+    - $k_{\text{mass}}$: Thermal conductivity of interior mass
+      [$\mathrm{W/(m \cdot K)}$]
+    - $\rho_{\text{mass}}$: Density of interior mass [$\mathrm{kg/m^3}$]
+    - $c_{\text{mass}}$: Specific heat capacity of interior mass
+      [$\mathrm{J/(kg \cdot K)}$]
+    - $z$: CV height (floor height), characteristic length for heat exchange
+      [$\mathrm{m}$]
+    - $\Delta t$: Time step [$\mathrm{s}$]
+
+    Args:
+      air_temperature_estimates: Current air temperature estimates for each CV.
+
+    Returns:
+      Tuple of (updated interior mass temperatures, maximum temperature change)
+    """
+    if not self.include_interior_mass:
+      return self.building.interior_mass_temp.copy(), 0.0
+
+    # Convert air temperatures to tensor
+    t_air_temp = tf.convert_to_tensor(
+        air_temperature_estimates, dtype=tf.float32
+    )
+
+    # Convert previous interior mass temperature to tensor
+    t_temp_mass_prev = tf.convert_to_tensor(
+        self.building.interior_mass_temp, dtype=tf.float32
+    )
+
+    # Calculate numerator: T + t_0_mass * T_mass^(-)
+    numerator = tf.math.add(
+        t_air_temp, tf.math.multiply(self._t_0_mass, t_temp_mass_prev)
+    )
+
+    # Calculate denominator: 1 + t_0_mass
+    denominator = tf.math.add(
+        tf.constant(1.0, dtype=tf.float32), self._t_0_mass
+    )
+
+    # Update interior mass temperature
+    t_temp_mass_new = tf.math.divide(numerator, denominator)
+
+    # Apply mask to only update where interior mass exists
+    t_temp_mass_new = tf.where(
+        self._t_interior_mass_mask, t_temp_mass_new, t_temp_mass_prev
+    )
+
+    # Calculate maximum change for convergence checking
+    t_delta = tf.math.subtract(t_temp_mass_new, t_temp_mass_prev)
+    max_delta = np.max(tf.math.abs(t_delta))
+
+    # Return as numpy arrays
+    return t_temp_mass_new.numpy(), max_delta
+
   def update_temperature_estimates(
       self,
       temperature_estimates: np.ndarray,
       ambient_temperature: float,
       convection_coefficient: float,
   ) -> tuple[np.ndarray, float]:
-    """Iterates across all CVs and updates the temperature estimate.
+    r"""Iterates across all CVs and updates the temperature estimate.
 
     Corner and edge CVs are exposed to thermal exchange with the ambient air
-    through convection.
+    through convection. This tensorized implementation overrides the parent
+    class's iterative approach for computational efficiency.
 
-    This method implements Equation 22, derived in
-    go/smart-buildings-simulator-design.
+    Equations:
+    --------------------
+    The tensorized heat balance equation for air CV with interior mass
+    coupling is:
+
+    $$\begin{multline}
+      T = \left[Q_x + Vz\left[K_1U^{-1}T_1 + H_1T_\infty + K_3U^{-1}T_3 +
+        H_3T_\infty\right] \right. \\
+      \left. + Uz\left[K_2V^{-1}T_2 + H_2T_\infty + K_4V^{-1}T_4 +
+        H_4T_\infty\right] \right. \\
+      \left. + K_{\text{mass}}UVz^{-1}T_{\text{mass}} + Q_{\text{lwx}} +
+        \frac{C\rho UVz}{\Delta t}T^{(-)}\right] \\
+      \cdot \left[Vz\left[K_1U^{-1} + H_1 + K_3U^{-1} + H_3\right] +
+        Uz\left[K_2V^{-1} + H_2 + K_4V^{-1} + H_4\right] \right. \\
+      \left. + K_{\text{mass}}UVz^{-1} +
+        \frac{C\rho UVz}{\Delta t}\right]^{-1}
+      \end{multline}$$
+
+    where the shifted temperature tensors represent neighboring CVs:
+    - $T_1 = \text{shift}(T, \text{LEFT})$
+    - $T_2 = \text{shift}(T, \text{DOWN})$
+    - $T_3 = \text{shift}(T, \text{RIGHT})$
+    - $T_4 = \text{shift}(T, \text{UP})$
+
+    Nomenclature and Units:
+    -----------------------
+    - $T$: Air temperature tensor at new time step [K]
+    - $T^{(-)}$: Air temperature tensor at previous time step [K]
+    - $T_1, T_2, T_3, T_4$: Temperature tensors of neighboring CVs
+      (left, down, right, up) [K]
+    - $T_{\text{mass}}$: Interior mass temperature tensor [K]
+    - $T_\infty$: Ambient temperature (scalar) [K]
+    - $Q_x$: External heat source tensor [$\mathrm{W}$]
+    - $Q_{\text{lwx}}$: Longwave radiative exchange tensor [$\mathrm{W}$]
+    - $K_1, K_2, K_3, K_4$: Thermal conductivity tensors for left, down,
+      right, up faces [$\mathrm{W/(m \cdot K)}$]
+    - $K_{\text{mass}}$: Interior mass conductivity tensor
+      [$\mathrm{W/(m \cdot K)}$]
+    - $H_1, H_2, H_3, H_4$: Convection coefficient tensors for boundary CVs
+      [$\mathrm{W/(m^2 \cdot K)}$]
+    - $U, V$: CV dimensions in x and y directions [$\mathrm{m}$]
+    - $z$: CV height (floor height) [$\mathrm{m}$]
+    - $C$: Specific heat capacity tensor [$\mathrm{J/(kg \cdot K)}$]
+    - $\rho$: Density tensor [$\mathrm{kg/m^3}$]
+    - $\Delta t$: Time step [$\mathrm{s}$]
+
+    References:
+    -----------
+    - Equation 22 derived in go/smart-buildings-simulator-design
 
     Args:
       temperature_estimates: Current temperature estimate for each CV, will be
@@ -605,6 +780,9 @@ class TFSimulator(simulator.SimulatorFlexibleGeometries):
         tf.Tensor,
         tf.Tensor,
         tf.Tensor,
+        tf.Tensor,
+        tf.Tensor,
+        tf.Tensor,
     ]:
       """Returns the input matrices as tensors."""
       # Convert a bunch of numpy arrays into TF tensors.
@@ -617,6 +795,46 @@ class TFSimulator(simulator.SimulatorFlexibleGeometries):
           building.heat_capacity, dtype=tf.float32
       )
       t_z = tf.constant(building.floor_height_cm / 100.0, dtype=tf.float32)
+      if self.include_radiative_heat_transfer:
+        t_ifa_inv = tf.convert_to_tensor(building.ifa_inv, dtype=tf.float32)
+        # For radiative heat transfer, we need to combine interior wall and
+        # interior mass temperatures if interior mass is enabled
+        if self.include_interior_mass:
+          interior_mask_all = (
+              building.interior_wall_mask | building.interior_mass_mask
+          )
+          temperature_estimates_temp = np.zeros_like(temperature_estimates)
+          temperature_estimates_temp[building.interior_mass_mask] = (
+              building.interior_mass_temp[building.interior_mass_mask]
+          )
+          temperature_estimates_temp[building.interior_wall_mask] = (
+              temperature_estimates[building.interior_wall_mask]
+          )
+          t_temp_interior_wall = tf.convert_to_tensor(
+              temperature_estimates_temp[interior_mask_all], dtype=tf.float32
+          )
+        else:
+          t_temp_interior_wall = tf.convert_to_tensor(
+              temperature_estimates[building.interior_wall_mask],
+              dtype=tf.float32,
+          )
+        # Ensure t_temp_interior_wall is a column vector for matrix
+        # multiplication
+        t_temp_interior_wall = tf.reshape(t_temp_interior_wall, [-1, 1])
+      else:
+        # Create minimal zero tensors with appropriate shapes
+        # These won't be used when radiative heat transfer is disabled
+        t_ifa_inv = tf.zeros((1, 1), dtype=tf.float32)  # Minimal shape
+        t_temp_interior_wall = tf.zeros((1,), dtype=tf.float32)  # Minimal shape
+
+      # Interior mass temperature tensor
+      if self.include_interior_mass:
+        t_temp_mass = tf.convert_to_tensor(
+            building.interior_mass_temp, dtype=tf.float32
+        )
+      else:
+        t_temp_mass = tf.zeros((1, 1), dtype=tf.float32)  # Minimal shape
+
       return (
           t_temp,
           t_temp_old,
@@ -625,6 +843,9 @@ class TFSimulator(simulator.SimulatorFlexibleGeometries):
           t_density,
           t_heat_capacity,
           t_z,
+          t_ifa_inv,
+          t_temp_interior_wall,
+          t_temp_mass,
       )
 
     def _get_neighbor_temps(
@@ -685,9 +906,17 @@ class TFSimulator(simulator.SimulatorFlexibleGeometries):
       dt3 = tf.math.multiply(dt3, t_heat_capacity)
       dt3 = tf.math.divide(dt3, t_delta_t)
 
-      # Sum up u-z, u-v surface transfer and absorption terms.
+      # Add interior mass coupling term: K_mass * U * V / Z
+      dt4 = tf.zeros_like(dt3)
+      if self.include_interior_mass:
+        dt4 = tf.math.multiply(self._t_interior_mass_conductivity, self._t_u)
+        dt4 = tf.math.multiply(dt4, self._t_v)
+        dt4 = tf.math.divide(dt4, t_z)
+
+      # Sum up u-z, u-v surface transfer, absorption, and interior mass terms.
       t_denom = tf.math.add(dt1, dt2)
       t_denom = tf.math.add(t_denom, dt3)
+      t_denom = tf.math.add(t_denom, dt4)
       return t_denom
 
     def _get_numerator(
@@ -712,6 +941,9 @@ class TFSimulator(simulator.SimulatorFlexibleGeometries):
         t_temp_inf: tf.Tensor,
         t_input_q: tf.Tensor,
         t_temp_minus: tf.Tensor,
+        t_ifa_inv: tf.Tensor,
+        t_temp_interior_wall: tf.Tensor,
+        t_temp_mass: tf.Tensor,
     ) -> tf.Tensor:
       """Returns the numerator matrix from Eqn 22 as a tensor."""
 
@@ -748,10 +980,42 @@ class TFSimulator(simulator.SimulatorFlexibleGeometries):
       nt3 = tf.math.multiply(nt3, t_temp_minus)
       nt3 = tf.math.divide(nt3, t_delta_t)
 
-      # Add the u-z, u-v surface transfer, absorption and external source terms.
+      # add ratdative heat transfer sigma*ifa_inv@(T-)^4
+      nt4 = tf.zeros_like(t_temp_minus)
+      if self.include_radiative_heat_transfer:
+        sigma = tf.constant(5.67e-8, dtype=tf.float32)
+        t_temp_interior_wall_4 = tf.math.pow(t_temp_interior_wall, 4)
+        # Ensure both tensors have the same dtype for matrix multiplication
+        nt4_temp = tf.linalg.matmul(t_ifa_inv, t_temp_interior_wall_4)
+        nt4_temp = tf.math.multiply(nt4_temp, sigma)
+
+        # Use tensor_scatter_nd_update to update specific indices
+        indices = tf.where(self.building.lwx_index >= 0)
+        # Extract the specific elements from nt4_temp and flatten to match nt4
+        # shape
+        updates = tf.gather(
+            tf.squeeze(
+                nt4_temp
+            ),  # Remove the extra dimension from [26,1] to [26]
+            self.building.lwx_index[self.building.lwx_index >= 0],
+        )
+        nt4 = tf.tensor_scatter_nd_update(nt4, indices, updates)
+
+      # Add interior mass coupling term: K_mass * U * V / Z * T_mass
+      nt5 = tf.zeros_like(t_temp_minus)
+      if self.include_interior_mass:
+        nt5 = tf.math.multiply(self._t_interior_mass_conductivity, self._t_u)
+        nt5 = tf.math.multiply(nt5, self._t_v)
+        nt5 = tf.math.multiply(nt5, t_temp_mass)
+        nt5 = tf.math.divide(nt5, t_z)
+
+      # Add the u-z, u-v surface transfer, absorption, external source,
+      #  and interior mass terms.
       t_numer = tf.math.add(nt1, nt2)
       t_numer = tf.math.add(t_numer, nt3)
       t_numer = tf.math.add(t_numer, t_input_q)
+      t_numer = tf.math.add(t_numer, nt4)
+      t_numer = tf.math.add(t_numer, nt5)
       return t_numer
 
     # Get the inputs to the equation as Tensors from the building.
@@ -763,7 +1027,10 @@ class TFSimulator(simulator.SimulatorFlexibleGeometries):
         t_density,
         t_heat_capacity,
         t_z,
-    ) = _get_input_tensors(self._building)
+        t_ifa_inv,
+        t_temp_interior_wall,
+        t_temp_mass,
+    ) = _get_input_tensors(self.building)
 
     (
         t_convection_left_edge,
@@ -772,7 +1039,7 @@ class TFSimulator(simulator.SimulatorFlexibleGeometries):
         t_convection_bottom_edge,
     ) = get_oriented_convection_coefficient_tensors(
         convection_coefficient,
-        self._building.temp.shape,
+        self.building.temp.shape,
         self._boundary_cv_mapping,
     )
 
@@ -837,6 +1104,9 @@ class TFSimulator(simulator.SimulatorFlexibleGeometries):
         t_temp_inf,
         t_input_q,
         t_temp_minus,
+        t_ifa_inv,
+        t_temp_interior_wall,
+        t_temp_mass,
     )
 
     # Finally, perform an elementwise division - not a matrix inversion.
@@ -849,5 +1119,9 @@ class TFSimulator(simulator.SimulatorFlexibleGeometries):
     )
 
     t_delta = tf.math.subtract(t_temperature_estimates, t_temp_old)
+
+    # Note: Interior mass temperatures are updated by the parent class's
+    # finite_differences_timestep() method after this function returns.
+    # Do NOT update them here to avoid double-updating.
 
     return t_temperature_estimates.numpy(), np.max(tf.math.abs(t_delta))

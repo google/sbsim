@@ -1,0 +1,18 @@
+/* Custom Google Color Scheme */
+
+/* You can also define custom CSS classes to apply these colors to other elements */
+.google-blue-text {
+  color: #4285F4;
+}
+
+.google-red-text {
+  color: #EA4335;
+}
+
+.google-yellow-text {
+  color: #FBBC05;
+}
+
+.google-green-text {
+  color: #34A853;
+}

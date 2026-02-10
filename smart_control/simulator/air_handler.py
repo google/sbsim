@@ -1,28 +1,14 @@
-"""Models an air handler in an HVAC system.
-
-Copyright 2023 Google LLC
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    https://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-"""
+"""Models an air handler in an HVAC system."""
 
 from typing import Optional
 import uuid
 
 import gin
-from smart_buildings.smart_control.proto import smart_control_building_pb2
-from smart_buildings.smart_control.simulator import smart_device
-from smart_buildings.smart_control.simulator import weather_controller
-from smart_buildings.smart_control.utils import constants
+
+from smart_control.proto import smart_control_building_pb2
+from smart_control.simulator import smart_device
+from smart_control.simulator import weather_controller
+from smart_control.utils import constants
 
 
 @gin.configurable
@@ -218,7 +204,9 @@ class AirHandler(smart_device.SmartDevice):
   def get_supply_air_temp(
       self, recirculation_temp: float, ambient_temp: float
   ) -> float:
-    """Returns temperature in K of air output from air handler after A/C or heat.
+    """Returns temperature of air output from air handler after A/C or heat.
+
+    Temperatures are measured in Kelvin.
 
     Args:
       recirculation_temp: Temperature in K of recirculated air.

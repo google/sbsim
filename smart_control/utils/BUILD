@@ -80,7 +80,6 @@ py_strict_test(
 py_strict_test(
     name = "histogram_reducer_test",
     srcs = ["histogram_reducer_test.py"],
-    python_version = "PY3",
     deps = [
         ":histogram_reducer",
         ":reader_lib",
@@ -110,7 +109,6 @@ py_strict_test(
 py_strict_test(
     name = "reducer_test",
     srcs = ["reducer_test.py"],
-    python_version = "PY3",
     deps = [
         ":reducer",
         "//third_party/py/absl/testing:absltest",
@@ -123,7 +121,6 @@ py_strict_test(
 py_strict_test(
     name = "regression_building_utils_test",
     srcs = ["regression_building_utils_test.py"],
-    python_version = "PY3",
     deps = [
         ":conversion_utils",
         ":regression_building_utils",
@@ -281,7 +278,6 @@ pytype_strict_library(
 pytype_strict_library(
     name = "histogram_reducer",
     srcs = ["histogram_reducer.py"],
-    srcs_version = "PY3",
     deps = [
         ":reader_lib",
         ":reducer",
@@ -342,7 +338,6 @@ pytype_strict_library(
 pytype_strict_library(
     name = "reducer",
     srcs = ["reducer.py"],
-    srcs_version = "PY3",
     deps = [
         "//third_party/py/gin",
         "//third_party/py/numpy",
@@ -353,7 +348,6 @@ pytype_strict_library(
 pytype_strict_library(
     name = "regression_building_utils",
     srcs = ["regression_building_utils.py"],
-    srcs_version = "PY3",
     deps = [
         ":conversion_utils",
         "//third_party/py/absl/logging",
@@ -385,7 +379,6 @@ pytype_strict_library(
 pytype_strict_library(
     name = "test_utils",
     srcs = ["test_utils.py"],
-    srcs_version = "PY3",
     deps = [
         ":bounded_action_normalizer",
         ":conversion_utils",

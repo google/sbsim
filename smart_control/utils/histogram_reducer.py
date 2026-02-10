@@ -1,20 +1,5 @@
 """Histogram Reducer for RegressionBuilding.
 
-Copyright 2023 Google LLC
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    https://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-
-
 The objective of the histogram reducer is to compress a very wide
 multivariate timeseries with minimal data loss. The current control agents
 don't really benefit from knowing the temperature (etc.) of each zone, but
@@ -22,7 +7,7 @@ simply need to know that some zones are below of above setpoints. As such,
 representing each zone as a separate timeseries is rather inefficient.
 
 Reduce function converts a feature from individual timeseries into a histogram.
-For exammple, devices d1, d2 have a zone_air_temperature timeseries,
+For example, devices d1, d2 have a zone_air_temperature timeseries,
 the histogram reducer converts the timeseries into a counts on temperature
 bins, like 70, 71, 72, etc. and assigns a count to the bin. This reduces
 the dimensionality into a more compressed format if the number of the devices
@@ -48,10 +33,11 @@ from absl import logging
 import gin
 import numpy as np
 import pandas as pd
-from smart_buildings.smart_control.proto import smart_control_building_pb2
-from smart_buildings.smart_control.utils import reader_lib
-from smart_buildings.smart_control.utils.reducer import BaseReducedSequence
-from smart_buildings.smart_control.utils.reducer import BaseReducer
+
+from smart_control.proto import smart_control_building_pb2
+from smart_control.utils import reader_lib
+from smart_control.utils.reducer import BaseReducedSequence
+from smart_control.utils.reducer import BaseReducer
 
 Feature = str  # Measurement name
 Device = str  # Device Identity
@@ -122,7 +108,7 @@ def approximate_values_from_histogram_assignment(
     bins: the values associated with each bin.
 
   Returns:
-    A mapping of (device_id, measurement_name): bin-assigned value
+    A mapping of {(device_id, measurement_name): bin-assigned value}
   """
   assigned_values = {}
 
@@ -347,6 +333,7 @@ class HistogramReducer(BaseReducer):
               next_histogram_assignment
           )
 
+          # pylint: disable-next=consider-using-dict-items # TODO: loop through the items (perhaps after this existing functionality has been tested)
           for measurement in next_assigned_measurements:
             updates[measurement].append(next_assigned_measurements[measurement])
 
@@ -419,7 +406,7 @@ class HistogramReducer(BaseReducer):
       reduced_feature_columns = feature_mapping[reduced_feature]
       # Now compute the histogram
       if reduced_feature_columns:
-        columns_indexes = [(reduced_feature, "h_%.2f" % v) for v in bins]
+        columns_indexes = [(reduced_feature, f"h_{v:.2f}") for v in bins]
         df = pd.DataFrame(columns=columns_indexes)
         for idx, row in observation_sequence.iterrows():
           # Convert all the measurements of the same feature into an array.

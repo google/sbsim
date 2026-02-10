@@ -1,0 +1,42 @@
+
+
+.DS_Store
+
+# environment variables:
+.env
+
+# virtual environment:
+.venv/
+
+# vscode user settings:
+.vscode/launch.json
+
+# cache files:
+__pycache__/
+.pytest_cache
+
+# data downloads:
+sb1.zip
+sb1/
+
+data/*
+!data/.gitkeep
+data/sb1.zip
+data/sb1/
+
+# results files:
+*/**/output_data/
+*/**/metrics/
+**/videos/
+**/train/
+**/eval/
+smart_control/learning/
+smart_control/simulator/videos
+smart_control/refactor/data/
+smart_control/refactor/experiment_results/
+
+# jupyter notebook checkpoints:
+smart_control/notebooks/.ipynb_checkpoints/
+
+# documentation site:
+docs_site

@@ -1,19 +1,5 @@
 """Reward Function for Smart Buildings.
 
-Copyright 2024 Google LLC
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    https://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-
 The reward function provides a feedback signal to the reinforcement learning
 agent that indicates the benefit of the action taken. During training, the
 agent learns an action policy to maximize the cumulative, or long-term reward.
@@ -35,10 +21,10 @@ The three factors can be scaled and combined into a single reward function:
         r = s(setpoint) - u x f(cost) - w x g(carbon)
 where:
   r is the incremental reward at this step
-  s(setpoint) is the reward for maintining setpoint
+  s(setpoint) is the reward for maintaining setpoint
   f(cost) is the cost of consuming electrical and natural gas energy
   g(carbon) is the cost of emitting carbon,
-  and u, w are weighing factors for cost and carbon dependingon the policy.
+  and u, w are weighing factors for cost and carbon depending on the policy.
 
 The fundamental metric unit of energy is the Joule (J), and the unit of energy
 applied over a fixed time interval (energy rate) is power measured in J/sec or
@@ -74,10 +60,11 @@ deadband. Productivity decays smoothly on a logistic curve outside the deadband.
 """
 
 import gin
-from smart_buildings.smart_control.models.base_energy_cost import BaseEnergyCost
-from smart_buildings.smart_control.proto import smart_control_reward_pb2
-from smart_buildings.smart_control.reward.base_setpoint_energy_carbon_reward import BaseSetpointEnergyCarbonRewardFunction
-from smart_buildings.smart_control.utils import conversion_utils
+
+from smart_control.models.base_energy_cost import BaseEnergyCost
+from smart_control.proto import smart_control_reward_pb2
+from smart_control.reward.base_setpoint_energy_carbon_reward import BaseSetpointEnergyCarbonRewardFunction
+from smart_control.utils import conversion_utils
 
 
 @gin.configurable()
@@ -113,9 +100,11 @@ class SetpointEnergyCarbonRewardFunction(
       reward_normalizer_shift: float = 0.0,
       reward_normalizer_scale: float = 1.0,
   ):
-    self._max_productivity_personhour_usd = max_productivity_personhour_usd
-    self._productivity_midpoint_delta = productivity_midpoint_delta
-    self._productivity_decay_stiffness = productivity_decay_stiffness
+    super().__init__(
+        max_productivity_personhour_usd=max_productivity_personhour_usd,
+        productivity_midpoint_delta=productivity_midpoint_delta,
+        productivity_decay_stiffness=productivity_decay_stiffness,
+    )
     self._electricity_energy_cost = electricity_energy_cost
     self._natural_gas_energy_cost = natural_gas_energy_cost
     self._energy_cost_weight = energy_cost_weight
@@ -125,22 +114,20 @@ class SetpointEnergyCarbonRewardFunction(
     self._reward_normalizer_scale = reward_normalizer_scale
 
   def compute_reward(
-      self, energy_reward_info: smart_control_reward_pb2.RewardInfo
+      self, reward_info: smart_control_reward_pb2.RewardInfo
   ) -> smart_control_reward_pb2.RewardResponse:
     """Returns the real-valued reward for the current state of the building."""
 
     start_time = conversion_utils.proto_to_pandas_timestamp(
-        energy_reward_info.start_timestamp
+        reward_info.start_timestamp
     )
     end_time = conversion_utils.proto_to_pandas_timestamp(
-        energy_reward_info.end_timestamp
+        reward_info.end_timestamp
     )
 
-    productivity_reward, _ = self._sum_zone_productivities(energy_reward_info)
+    productivity_reward, _ = self._sum_zone_productivities(reward_info)
 
-    electricity_energy_rate = self._sum_electricity_energy_rate(
-        energy_reward_info
-    )
+    electricity_energy_rate = self._sum_electricity_energy_rate(reward_info)
     electricity_energy_cost = self._electricity_energy_cost.cost(
         start_time=start_time,
         end_time=end_time,
@@ -152,9 +139,7 @@ class SetpointEnergyCarbonRewardFunction(
         energy_rate=electricity_energy_rate,
     )
 
-    natural_gas_energy_rate = self._sum_natural_gas_energy_rate(
-        energy_reward_info
-    )
+    natural_gas_energy_rate = self._sum_natural_gas_energy_rate(reward_info)
     natural_gas_energy_cost = self._natural_gas_energy_cost.cost(
         start_time=start_time,
         end_time=end_time,

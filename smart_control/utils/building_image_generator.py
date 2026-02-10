@@ -1,19 +1,4 @@
-"""Utilities to visualize temperatures in a building.
-
-Copyright 2024 Google LLC
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    https://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-"""
+"""Utilities to visualize temperatures in a building."""
 
 import base64
 from collections.abc import Sequence
@@ -28,14 +13,15 @@ from absl import logging
 import gin
 import numpy as np
 from PIL import Image
-from smart_buildings.smart_control.proto import smart_control_building_pb2
-from smart_buildings.smart_control.utils import building_renderer
-from smart_buildings.smart_control.utils import real_building_temperature_array_generator as temp_array_gen
+
+from smart_control.proto import smart_control_building_pb2
+from smart_control.utils import building_renderer
+from smart_control.utils import real_building_temperature_array_generator as temp_array_gen
 
 if sys.version_info >= (3, 11):
-  from importlib.resources.abc import Traversable  # pylint: disable=g-import-not-at-top
+  from importlib.resources.abc import Traversable  # pylint: disable=g-import-not-at-top, g-importing-member
 else:
-  from importlib_resources.abc import Traversable  # pylint: disable=g-import-not-at-top
+  from importlib_resources.abc import Traversable  # pylint: disable=g-import-not-at-top, g-importing-member
 
 PathLocation: TypeAlias = Traversable | os.PathLike[str] | str
 
@@ -82,7 +68,7 @@ class BuildingImageGenerator:
     for device_info in self._device_infos:
       device_map[device_info.device_id] = device_info.code
 
-    with self._device_layout_path.open("rt") as f:  # pytype: disable=wrong-arg-types
+    with self._device_layout_path.open("rt", encoding="utf-8") as f:  # pytype: disable=wrong-arg-types
       room_dict_real = json.load(f)
 
     with self._floor_plan_path.open("rb") as fp:

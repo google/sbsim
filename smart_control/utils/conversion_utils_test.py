@@ -1,26 +1,12 @@
-"""Tests for conversion_utils.
-
-Copyright 2022 Google LLC
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    https://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-"""
+"""Tests for conversion_utils."""
 
 from absl.testing import absltest
 from absl.testing import parameterized
 import numpy as np
 import pandas as pd
-from smart_buildings.smart_control.proto import smart_control_reward_pb2
-from smart_buildings.smart_control.utils import conversion_utils
+
+from smart_control.proto import smart_control_reward_pb2
+from smart_control.utils import conversion_utils
 
 
 class ConversionUtilsTest(parameterized.TestCase):
@@ -60,9 +46,25 @@ class ConversionUtilsTest(parameterized.TestCase):
     self.assertEqual(conversion_utils.normalize_hod(0), -1.0)
     self.assertEqual(conversion_utils.normalize_hod(23), 1.0)
 
+  @parameterized.parameters(24, -1)
+  def test_normalize_hod_invalid_raises_error(self, invalid_hod):
+    """ValueError when hour of day is outside [0, 23]."""
+    with self.assertRaisesRegex(
+        ValueError, r'Hour of day \(hod\) must be within the range \[0, 23\]'
+    ):
+      conversion_utils.normalize_hod(invalid_hod)
+
   def test_normalize_dow(self):
     self.assertEqual(conversion_utils.normalize_dow(0), -1.0)
     self.assertEqual(conversion_utils.normalize_dow(6), 1.0)
+
+  @parameterized.parameters(7, -1)
+  def test_normalize_dow_invalid_raises_error(self, invalid_dow):
+    """ValueError when day of week is outside [0, 6]."""
+    with self.assertRaisesRegex(
+        ValueError, r'Day of week \(dow\) must be within the range \[0, 6\]'
+    ):
+      conversion_utils.normalize_dow(invalid_dow)
 
   @parameterized.parameters(
       (pd.Timestamp('2021-09-27 10:00:00-08:00'), 0),
@@ -161,10 +163,8 @@ class ConversionUtilsTest(parameterized.TestCase):
         'boiler_pump_electrical_energy': 130 * to_kwh,
     }
 
-    for field in expected_energy_use:
-      self.assertAlmostEqual(
-          expected_energy_use[field], energy_use[field], places=5
-      )
+    for field, value in expected_energy_use.items():
+      self.assertAlmostEqual(value, energy_use[field], places=5)
 
 
 if __name__ == '__main__':

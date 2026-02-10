@@ -1,19 +1,4 @@
-"""Utilities to read smart control protos from endpoint.
-
-Copyright 2022 Google LLC
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    https://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-"""
+"""Utilities to read smart control protos from endpoint."""
 
 import abc
 from typing import Final, Mapping, NewType, Sequence, TypeVar
@@ -21,9 +6,10 @@ from typing import Final, Mapping, NewType, Sequence, TypeVar
 from absl import logging
 import gin
 import pandas as pd
-from smart_buildings.smart_control.proto import smart_control_building_pb2
-from smart_buildings.smart_control.proto import smart_control_normalization_pb2
-from smart_buildings.smart_control.proto import smart_control_reward_pb2
+
+from smart_control.proto import smart_control_building_pb2
+from smart_control.proto import smart_control_normalization_pb2
+from smart_control.proto import smart_control_reward_pb2
 
 VariableId = NewType('VariableId', str)
 
@@ -86,4 +72,3 @@ class Readers:
   @property
   def readers(self) -> Sequence[BaseReader]:
     return self._readers
-

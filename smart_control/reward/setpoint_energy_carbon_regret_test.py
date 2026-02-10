@@ -1,28 +1,13 @@
-"""Tests for setpoint_energy_carbon_reward.
-
-Copyright 2024 Google LLC
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    https://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-
-"""
+"""Tests for setpoint_energy_carbon_reward."""
 
 from absl.testing import absltest
 from absl.testing import parameterized
 import pandas as pd
-from smart_buildings.smart_control.models.base_energy_cost import BaseEnergyCost
-from smart_buildings.smart_control.proto import smart_control_reward_pb2
-from smart_buildings.smart_control.reward import setpoint_energy_carbon_regret
-from smart_buildings.smart_control.utils import conversion_utils
+
+from smart_control.models.base_energy_cost import BaseEnergyCost
+from smart_control.proto import smart_control_reward_pb2
+from smart_control.reward import setpoint_energy_carbon_regret
+from smart_control.utils import conversion_utils
 
 
 class SetpointEnergyCarbonRegretTest(parameterized.TestCase):
@@ -295,13 +280,44 @@ class SetpointEnergyCarbonRegretTest(parameterized.TestCase):
 
     return info
 
+  def test_invalid_productivity_bounds(self):
+    """ValueError if max_productivity <= min_productivity."""
+    electricity_cost = TestEnergyCost(usd_per_kwh=0.05, kg_per_kwh=0.01)
+    natural_gas_cost = TestEnergyCost(usd_per_kwh=0.05, kg_per_kwh=0.01)
+
+    with self.assertRaisesRegex(
+        ValueError,
+        'Maximum productivity per person-hour must be greater than minimum',
+    ):
+      setpoint_energy_carbon_regret.SetpointEnergyCarbonRegretFunction(
+          max_productivity_personhour_usd=100.0,
+          min_productivity_personhour_usd=200.0,  # min > max: invalid
+          max_electricity_rate=10000.0,
+          max_natural_gas_rate=10000.0,
+          productivity_midpoint_delta=1.5,
+          productivity_decay_stiffness=4.3,
+          electricity_energy_cost=electricity_cost,
+          natural_gas_energy_cost=natural_gas_cost,
+          productivity_weight=1.0,
+          energy_cost_weight=1.0,
+          carbon_emission_weight=1.0,
+      )
+
 
 class TestEnergyCost(BaseEnergyCost):
+  """Calculates energy cost and carbon emissions based on fixed rates.
+
+  Used for testing purposes.
+
+  TODO: https://github.com/google/sbsim/issues/49 - refactor identical classes:
+    smart_control/reward/base_setpoint_energy_carbon_reward_test.py
+    smart_control/reward/setpoint_energy_carbon_reward_test.py
+  """
 
   def __init__(self, usd_per_kwh: float, kg_per_kwh: float):
     # Energy price in USD/Watt second (fixed schedule)
     # To convert denominator units hours to seconds, divide by 3600.0, and to
-    # convert kW to W, divide by 1000. This leaves us with an enegy price
+    # convert kW to W, divide by 1000. This leaves us with an energy price
     # in USD /W /s and carbon rate of kg /W /s.
     self._energy_price = usd_per_kwh / 3600.0 / 1000.0
     self._carbon_rate = kg_per_kwh / 3600.0 / 1000.0

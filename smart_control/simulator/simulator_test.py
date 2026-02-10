@@ -1,35 +1,21 @@
-"""Tests for simulator.
-
-Copyright 2023 Google LLC
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    https://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-"""
+"""Tests for simulator."""
 
 from unittest import mock
 
 from absl.testing import absltest
 from absl.testing import parameterized
 import pandas as pd
-from smart_buildings.smart_control.proto import smart_control_reward_pb2
-from smart_buildings.smart_control.simulator import air_handler as air_handler_py
-from smart_buildings.smart_control.simulator import boiler as boiler_py
-from smart_buildings.smart_control.simulator import building as building_py
-from smart_buildings.smart_control.simulator import hvac as hvac_py
-from smart_buildings.smart_control.simulator import setpoint_schedule
-from smart_buildings.smart_control.simulator import simulator as simulator_py
-from smart_buildings.smart_control.simulator import step_function_occupancy
-from smart_buildings.smart_control.simulator import weather_controller as weather_controller_py
-from smart_buildings.smart_control.utils import conversion_utils
+
+from smart_control.proto import smart_control_reward_pb2
+from smart_control.simulator import air_handler as air_handler_py
+from smart_control.simulator import boiler as boiler_py
+from smart_control.simulator import building as building_py
+from smart_control.simulator import hvac as hvac_py
+from smart_control.simulator import setpoint_schedule
+from smart_control.simulator import simulator as simulator_py
+from smart_control.simulator import step_function_occupancy
+from smart_control.simulator import weather_controller as weather_controller_py
+from smart_control.utils import conversion_utils
 
 
 class SimulatorTest(parameterized.TestCase):
@@ -236,7 +222,7 @@ class SimulatorTest(parameterized.TestCase):
         start_timestamp,
     )
 
-    self.assertEqual(simulator._building, building)
+    self.assertEqual(simulator.building, building)
     self.assertEqual(simulator._weather_controller, weather_controller)
     self.assertEqual(simulator._time_step_sec, time_step_sec)
     self.assertEqual(simulator.time_step_sec, time_step_sec)
@@ -269,10 +255,10 @@ class SimulatorTest(parameterized.TestCase):
         start_timestamp,
     )
 
-    simulator._building.temp[2][2] += 10.0
-    simulator._building.temp[0][3] += 10.0
-    simulator._building.input_q[2][2] = 1000.0
-    simulator._building.input_q[0][3] = 1000.0
+    simulator.building.temp[2][2] += 10.0
+    simulator.building.temp[0][3] += 10.0
+    simulator.building.input_q[2][2] = 1000.0
+    simulator.building.input_q[0][3] = 1000.0
 
     simulator.hvac.boiler._return_water_temperature_sensor += 10.0
     simulator.hvac.boiler._water_pump_differential_head += 100.0
@@ -290,7 +276,7 @@ class SimulatorTest(parameterized.TestCase):
 
     simulator._current_timestamp += pd.Timedelta(360.0, unit='seconds')
     simulator.reset()
-    self.assertEqual(simulator._building, building)
+    self.assertEqual(simulator.building, building)
     expected_hvac = self._create_small_hvac()
     expected_air_handler = expected_hvac.air_handler
     self.assertEqual(
@@ -330,10 +316,10 @@ class SimulatorTest(parameterized.TestCase):
     self.assertEqual(simulator._hvac.boiler._total_flow_rate, 0)
 
     self.assertEqual(simulator._current_timestamp, start_timestamp)
-    self.assertEqual(simulator._building.temp[2][2], initial_temp)
-    self.assertEqual(simulator._building.temp[0][3], initial_temp)
-    self.assertEqual(simulator._building.input_q[2][2], 0)
-    self.assertEqual(simulator._building.input_q[0][3], 0)
+    self.assertEqual(simulator.building.temp[2][2], initial_temp)
+    self.assertEqual(simulator.building.temp[0][3], initial_temp)
+    self.assertEqual(simulator.building.input_q[2][2], 0)
+    self.assertEqual(simulator.building.input_q[0][3], 0)
 
   def test_get_cv_temp_estimate_cell_no_change(self):
     """This tests that temperatures don't change in stable conditions.
@@ -1052,7 +1038,7 @@ class SimulatorTest(parameterized.TestCase):
           .thermostat.get_setpoint_schedule()
           .get_temperature_window(sim._current_timestamp)
       )
-      zone_temperature = sim._building.get_zone_average_temps()[coords]
+      zone_temperature = sim.building.get_zone_average_temps()[coords]
 
       expected_zone_info = smart_control_reward_pb2.RewardInfo.ZoneRewardInfo(
           heating_setpoint_temperature=heating_setpoint,
@@ -1080,7 +1066,7 @@ class SimulatorTest(parameterized.TestCase):
         air_handler_reward_info.blower_electrical_energy_rate,
     )
 
-    recirculation_temp = sim._building.temp.mean()
+    recirculation_temp = sim.building.temp.mean()
     ambient_temp = sim._weather_controller.get_current_temp(
         sim._current_timestamp
     )

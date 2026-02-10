@@ -5,21 +5,6 @@ hour and depart between the earliest and latest departure hour. The probability
 of departure is specified so that the expected arrival and departure times
 occur halfway in the interval. For a standard Bernoulli RV, E[X] = n*p, so
 p = E[X] / n / 2, where E[X] is the expected number of arrivals, which equals 1.
-
-
-Copyright 2023 Google LLC
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    https://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
 """
 
 import datetime
@@ -29,8 +14,9 @@ from typing import Optional, Union
 import gin
 import numpy as np
 import pandas as pd
-from smart_buildings.smart_control.models.base_occupancy import BaseOccupancy
-from smart_buildings.smart_control.utils import conversion_utils
+
+from smart_control.models.base_occupancy import BaseOccupancy
+from smart_control.utils import conversion_utils
 
 
 class OccupancyStateEnum(enum.Enum):
@@ -57,14 +43,24 @@ class ZoneOccupant:
       latest_expected_departure_hour: int,
       step_size: pd.Timedelta,
       random_state: np.random.RandomState,
-      time_zone: Union[datetime.tzinfo, str] = 'UTC',
+      time_zone: Union[datetime.tzinfo, str] = "UTC",
   ):
-    assert (
+
+    if not (
         earliest_expected_arrival_hour
         < latest_expected_arrival_hour
         < earliest_expected_departure_hour
         < latest_expected_departure_hour
-    )
+    ):
+      raise ValueError(
+          "Arrival and departure hours must be strictly increasing: "
+          "earliest_arrival < latest_arrival < earliest_departure < "
+          "latest_departure. "
+          f"Got: {earliest_expected_arrival_hour}, "
+          f"{latest_expected_arrival_hour}, "
+          f"{earliest_expected_departure_hour}, "
+          f"{latest_expected_departure_hour}."
+      )
 
     self._earliest_expected_arrival_hour = earliest_expected_arrival_hour
     self._latest_expected_arrival_hour = latest_expected_arrival_hour
@@ -90,9 +86,15 @@ class ZoneOccupant:
 
   def _get_event_probability(self, start_hour, end_hour):
     """Returns the probability of an event based on the number of time steps."""
-    assert start_hour < end_hour
+
+    if start_hour >= end_hour:
+      raise ValueError(
+          "Start hour must be less than end hour to calculate event "
+          f"probability: start_hour={start_hour}, end_hour={end_hour}"
+      )
+
     # The window is the number of Bernoulli trials (i.e. tests for arrival).
-    window = pd.Timedelta(end_hour - start_hour, unit='hour')
+    window = pd.Timedelta(end_hour - start_hour, unit="hour")
     # The halfway point is the firts half of the trials.
     n_halfway = window / self._step_size / 2.0
     # We'd like to return the probability of event happening in a single time-
@@ -168,11 +170,11 @@ class RandomizedArrivalDepartureOccupancy(BaseOccupancy):
       latest_expected_departure_hour: int,
       time_step_sec: int,
       seed: Optional[int] = 17321,
-      time_zone: str = 'UTC',
+      time_zone: str = "UTC",
   ):
     self._zone_assignment = zone_assignment
     self._zone_occupants = {}
-    self._step_size = pd.Timedelta(time_step_sec, unit='second')
+    self._step_size = pd.Timedelta(time_step_sec, unit="second")
     self._earliest_expected_arrival_hour = earliest_expected_arrival_hour
     self._latest_expected_arrival_hour = latest_expected_arrival_hour
     self._earliest_expected_departure_hour = earliest_expected_departure_hour
@@ -211,8 +213,15 @@ class RandomizedArrivalDepartureOccupancy(BaseOccupancy):
             )
         )
 
-    num_occupants = 0.0
-    for occupant in self._zone_occupants[zone_id]:
-      if occupant.peek(start_time) == OccupancyStateEnum.WORK:
-        num_occupants += 1.0
-    return num_occupants
+    current_time = start_time
+    total_occupants = 0.0
+    steps = 0
+    while current_time < end_time:
+      num_occupants = 0.0
+      for occupant in self._zone_occupants[zone_id]:
+        if occupant.peek(current_time) == OccupancyStateEnum.WORK:
+          num_occupants += 1.0
+      total_occupants += num_occupants
+      steps += 1
+      current_time += self._step_size
+    return total_occupants / steps if steps > 0 else 0.0

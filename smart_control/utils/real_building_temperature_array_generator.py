@@ -1,27 +1,12 @@
-"""Utility to go from list of VAV temperatues, to a teperature array.
-
-Copyright 2023 Google LLC
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    https://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-
-"""
+"""Utility to go from list of VAV temperatues, to a teperature array."""
 
 from typing import Mapping, Sequence
 
 import numpy as np
 import pandas as pd
-from smart_buildings.smart_control.proto import smart_control_building_pb2
-from smart_buildings.smart_control.utils import conversion_utils as utils
+
+from smart_control.proto import smart_control_building_pb2
+from smart_control.utils import conversion_utils as utils
 
 Room = Sequence[tuple[int, int]]
 
@@ -41,7 +26,9 @@ class RealBuildingTemperatureArrayGenerator:
       device_layout_map: Mapping[str, Room],
       device_map: Mapping[str, str],
   ):
-    """Constructs temperature array generator based on specifics of the building.
+    """Constructs a temperature array generator.
+
+    Uses the specifics of the building.
 
     Args:
       building_layout: 2d array of where walls are
@@ -55,7 +42,9 @@ class RealBuildingTemperatureArrayGenerator:
   def get_temperature_array(
       self, response: smart_control_building_pb2.ObservationResponse
   ) -> tuple[np.ndarray, pd.Timestamp]:
-    """Returns a tuple of temperature array, in Kelvin, and a corresponding timestamp.
+    """Returns a tuple of the temperature array and a corresponding timestamp.
+
+    Temperatures are measured in Kelvin.
 
     Args:
       response: an observation response

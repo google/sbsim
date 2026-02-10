@@ -1,19 +1,4 @@
-"""Utilities to visualize temperature changes in a building.
-
-Copyright 2023 Google LLC
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    https://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-"""
+"""Utilities to visualize temperature changes in a building."""
 
 import copy
 import functools
@@ -27,8 +12,9 @@ import pandas as pd
 import PIL
 from PIL import ImageDraw
 import seaborn as sn
-from smart_buildings.smart_control.simulator import building_utils
-from smart_buildings.smart_control.simulator import constants
+
+from smart_control.simulator import building_utils
+from smart_control.simulator import constants
 
 
 class BuildingRenderer:
@@ -233,9 +219,7 @@ class BuildingRenderer:
         diff[0][1] = max_bar
         diff = np.clip(diff, min_bar, max_bar)
         plt.figure(figsize=(16, 12))
-        sn.heatmap(
-            data=diff, cmap=cmap, xticklabels=False, yticklabels=False
-        )
+        sn.heatmap(data=diff, cmap=cmap, xticklabels=False, yticklabels=False)
         plt.savefig('colorbar.png')
         plt.close()
         bar = PIL.Image.open('colorbar.png')
