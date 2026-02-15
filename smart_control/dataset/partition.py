@@ -84,7 +84,7 @@ class BuildingDatasetPartition:
 
   @cached_property
   def metadata(self) -> dict:
-    """Metadata describing the partition [`data`](./#smart_control.dataset.partition.BuildingDatasetPartition.data).
+    """Metadata describing the partition [`data`](#smart_control.dataset.partition.BuildingDatasetPartition.data).
 
     Returns:
       A dictionary containing the following keys:
@@ -146,9 +146,9 @@ class BuildingDatasetPartition:
     """A mapping of unique action identifiers.
 
     Returns:
-      A dictionary where the keys are the [`action_ids`](./#smart_control.dataset.partition.BuildingDatasetPartition.action_ids)
+      A dictionary where the keys are the [`action_ids`](#smart_control.dataset.partition.BuildingDatasetPartition.action_ids)
         and the values are unique integers referencing column indices in the
-        [`action_value_matrix`](./#smart_control.dataset.partition.BuildingDatasetPartition.action_value_matrix)
+        [`action_value_matrix`](#smart_control.dataset.partition.BuildingDatasetPartition.action_value_matrix)
 
         For example:
 
@@ -167,9 +167,9 @@ class BuildingDatasetPartition:
     """A mapping of unique observation identifiers.
 
     Returns:
-      A dictionary where the keys are the [`observation_ids`](./#smart_control.dataset.partition.BuildingDatasetPartition.observation_ids)
+      A dictionary where the keys are the [`observation_ids`](#smart_control.dataset.partition.BuildingDatasetPartition.observation_ids)
         and the values are unique integers referencing column indices in the
-        [`observation_value_matrix`](./#smart_control.dataset.partition.BuildingDatasetPartition.observation_value_matrix).
+        [`observation_value_matrix`](#smart_control.dataset.partition.BuildingDatasetPartition.observation_value_matrix).
 
         For example:
 
@@ -190,8 +190,8 @@ class BuildingDatasetPartition:
     See: `RewardInfo` in "smart_control/proto/smart_control_reward.proto".
 
     Returns:
-      A dictionary where the keys are the [`reward_info_ids`](./#smart_control.dataset.partition.BuildingDatasetPartition.reward_info_ids)
-        and the values are unique integers referencing column indices in the [`reward_info_value_matrix`](./#smart_control.dataset.partition.BuildingDatasetPartition.reward_info_value_matrix).
+      A dictionary where the keys are the [`reward_info_ids`](#smart_control.dataset.partition.BuildingDatasetPartition.reward_info_ids)
+        and the values are unique integers referencing column indices in the [`reward_info_value_matrix`](#smart_control.dataset.partition.BuildingDatasetPartition.reward_info_value_matrix).
 
         For example:
 
@@ -212,8 +212,8 @@ class BuildingDatasetPartition:
     See: `RewardResponse` in "smart_control/proto/smart_control_reward.proto".
 
     Returns:
-      A dictionary where the keys are the [`reward_ids`](./#smart_control.dataset.partition.BuildingDatasetPartition.reward_ids)
-        and the values are unique integers referencing column indices in the [`reward_value_matrix`](./#smart_control.dataset.partition.BuildingDatasetPartition.reward_value_matrix).
+      A dictionary where the keys are the [`reward_ids`](#smart_control.dataset.partition.BuildingDatasetPartition.reward_ids)
+        and the values are unique integers referencing column indices in the [`reward_value_matrix`](#smart_control.dataset.partition.BuildingDatasetPartition.reward_value_matrix).
     """
     return {
         "agent_reward_value": 0,
@@ -344,9 +344,9 @@ class BuildingDatasetPartition:
     """A time-series dataframe of numeric action values, constructed from the
     following components:
 
-      + Columns are the [`action_ids`](./#smart_control.dataset.partition.BuildingDatasetPartition.action_ids)
-      + Row indices are the [`action_timestamps`](./#smart_control.dataset.partition.BuildingDatasetPartition.action_timestamps)
-      + Cell values are from the [`action_value_matrix`](./#smart_control.dataset.partition.BuildingDatasetPartition.action_value_matrix)
+      + Columns are the [`action_ids`](#smart_control.dataset.partition.BuildingDatasetPartition.action_ids)
+      + Row indices are the [`action_timestamps`](#smart_control.dataset.partition.BuildingDatasetPartition.action_timestamps)
+      + Cell values are from the [`action_value_matrix`](#smart_control.dataset.partition.BuildingDatasetPartition.action_value_matrix)
 
     Returns:
       A `pandas.DataFrame`. Here is an example of the structure:
@@ -373,9 +373,9 @@ class BuildingDatasetPartition:
     """A time-series dataframe of numeric observation values, constructed from the
     following components:
 
-      + Columns are the [`observation_ids`](./#smart_control.dataset.partition.BuildingDatasetPartition.observation_ids)
-      + Row indices are the [`observation_timestamps`](./#smart_control.dataset.partition.BuildingDatasetPartition.observation_timestamps)
-      + Cell values are from the [`observation_value_matrix`](./#smart_control.dataset.partition.BuildingDatasetPartition.observation_value_matrix)
+      + Columns are the [`observation_ids`](#smart_control.dataset.partition.BuildingDatasetPartition.observation_ids)
+      + Row indices are the [`observation_timestamps`](#smart_control.dataset.partition.BuildingDatasetPartition.observation_timestamps)
+      + Cell values are from the [`observation_value_matrix`](#smart_control.dataset.partition.BuildingDatasetPartition.observation_value_matrix)
 
     Returns:
       A `pandas.DataFrame`. Here is an example of the structure:
@@ -402,9 +402,9 @@ class BuildingDatasetPartition:
     """A time-series dataframe of numeric reward values, constructed from the
     following components:
 
-      + Columns are the [`reward_ids`](./#smart_control.dataset.partition.BuildingDatasetPartition.reward_ids)
-      + Row indices are the [`reward_timestamps`](./#smart_control.dataset.partition.BuildingDatasetPartition.reward_timestamps)
-      + Cell values are from the [`reward_value_matrix`](./#smart_control.dataset.partition.BuildingDatasetPartition.reward_value_matrix)
+      + Columns are the [`reward_ids`](#smart_control.dataset.partition.BuildingDatasetPartition.reward_ids)
+      + Row indices are the [`reward_timestamps`](#smart_control.dataset.partition.BuildingDatasetPartition.reward_timestamps)
+      + Cell values are from the [`reward_value_matrix`](#smart_control.dataset.partition.BuildingDatasetPartition.reward_value_matrix)
 
     Returns:
       A `pandas.DataFrame`. Here is an example of the structure:
@@ -430,9 +430,9 @@ class BuildingDatasetPartition:
     """A time-series dataframe of numeric reward info values, constructed from
     the following components:
 
-      + Columns are the [`reward_info_ids`](./#smart_control.dataset.partition.BuildingDatasetPartition.reward_info_ids)
-      + Row indices are the [`reward_info_timestamps`](./#smart_control.dataset.partition.BuildingDatasetPartition.reward_info_timestamps)
-      + Cell values are from the [`reward_info_value_matrix`](./#smart_control.dataset.partition.BuildingDatasetPartition.reward_info_value_matrix)
+      + Columns are the [`reward_info_ids`](#smart_control.dataset.partition.BuildingDatasetPartition.reward_info_ids)
+      + Row indices are the [`reward_info_timestamps`](#smart_control.dataset.partition.BuildingDatasetPartition.reward_info_timestamps)
+      + Cell values are from the [`reward_info_value_matrix`](#smart_control.dataset.partition.BuildingDatasetPartition.reward_info_value_matrix)
 
     Returns:
       A `pandas.DataFrame`. Here is an example of the structure:

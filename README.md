@@ -25,11 +25,6 @@ from cloud storage.
 View the official [Documentation Site](https://google.github.io/sbsim/) for a
 complete auto-generated API reference.
 
-There is also a legacy unofficial
-[Community-run Documentation Site](https://gitwyd.github.io/sbsim_documentation/)
-containing more information about the project and the codebase. We plan to merge
-all this content into the official documentation site soon.
-
 ## Getting Started
 
 A great place to start is by reviewing the
