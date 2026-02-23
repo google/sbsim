@@ -1866,12 +1866,18 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
     """
 
     data_path = os.path.join(
-        os.path.dirname(__file__), "local_weather_test_data.csv"
+        os.path.dirname(__file__),
+        "..",
+        "configs",
+        "resources",
+        "sb1",
+        "weather_data",
+        "local_weather_test_data.csv",
     )
     weather_controller = weather_controller_py.ReplayWeatherController(
         local_weather_path=data_path,
         convection_coefficient=10.0,
-        tz="US/Pacific",
+        timezone="US/Pacific",
         latitude=37.4,
         longitude=-122.1,
         irradiance_method="campbell_norman",

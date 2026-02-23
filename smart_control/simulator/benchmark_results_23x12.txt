@@ -11,16 +11,16 @@ Configuration:
 
 ------------------------------------------------------------
 Iterative (SimulatorFlexibleGeometries):
-  Total time:       12.7040 seconds
-  Average time:     1.2704 seconds/step
-  Per-step times:   ['1.7503', '1.1455', '1.2557', '1.3243', '1.1481', '1.2126', '1.0076', '1.2936', '1.2021', '1.3642']
+  Total time:       10.1357 seconds
+  Average time:     1.0136 seconds/step
+  Per-step times:   ['1.4483', '0.9421', '0.9256', '0.9588', '0.9623', '0.9541', '0.9875', '0.9556', '0.9989', '1.0025']
 
 ------------------------------------------------------------
 Tensorized (TFSimulator):
-  Total time:       3.0304 seconds
-  Average time:     0.3030 seconds/step
-  Per-step times:   ['0.6018', '0.1637', '0.1831', '0.2934', '0.2906', '0.3044', '0.2448', '0.3163', '0.1486', '0.4836']
+  Total time:       2.7237 seconds
+  Average time:     0.2724 seconds/step
+  Per-step times:   ['0.4794', '0.1416', '0.1738', '0.2651', '0.2625', '0.2811', '0.2357', '0.3039', '0.1335', '0.4471']
 
 ------------------------------------------------------------
-SPEEDUP: 4.19x faster with TFSimulator
+SPEEDUP: 3.72x faster with TFSimulator
 ============================================================

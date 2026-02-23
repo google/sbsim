@@ -1,7 +1,9 @@
 """Controls ambient temperature in simulator."""
 
 import abc
+import json
 import math
+import os
 from typing import Final, Mapping, Optional, Sequence, Tuple
 
 import gin
@@ -9,6 +11,7 @@ import numpy as np
 import pandas as pd
 from pvlib import irradiance
 from pvlib import location
+import pytz
 
 from smart_control.proto import smart_control_building_pb2
 from smart_control.utils import conversion_utils as utils
@@ -21,6 +24,56 @@ _MIN_RADIANS: Final[float] = -math.pi / 2.0
 _MAX_RADIANS: Final[float] = 3.0 * math.pi / 2.0
 _EPOCH: Final[pd.Timestamp] = pd.Timestamp('1970-01-01', tz='UTC')
 
+WEATHER_CSV_FILEPATH: Final[str] = os.path.join(
+    os.path.dirname(__file__),
+    '..',
+    'configs',
+    'resources',
+    'sb1',
+    'local_weather_moffett_field_20230701_20231122.csv',
+)
+
+
+def _parse_dms(dms_str: str) -> float:
+  """Converts a DMS (degrees minutes seconds) string to decimal degrees.
+
+  Args:
+    dms_str: DMS string in the format "DD MM SS.SSS" (e.g. "37 24 35.000").
+      Negative values are represented with a leading minus on the degrees part.
+
+  Returns:
+    Decimal degrees as a float.
+  """
+  parts = dms_str.strip().split()
+  degrees = float(parts[0])
+  minutes = float(parts[1]) if len(parts) > 1 else 0.0
+  seconds = float(parts[2]) if len(parts) > 2 else 0.0
+  sign = -1 if degrees < 0 else 1
+  return degrees + sign * (minutes / 60.0 + seconds / 3600.0)
+
+
+def load_station_info(station_json_path: str) -> tuple[float, float, str]:
+  """Loads station location and timezone from a station JSON file.
+
+  The JSON file is expected to have the following keys:
+    - ``lat``: latitude in DMS format (e.g. "37 24 35.000")
+    - ``lng``: longitude in DMS format (e.g. "-122 02 56.000")
+    - ``timezone``: IANA timezone string (e.g. "America/Los_Angeles")
+
+  Args:
+    station_json_path: Path to the station JSON file.
+
+  Returns:
+    Tuple of (latitude, longitude, timezone) where lat/lon are decimal degrees
+    and timezone is an IANA timezone string.
+  """
+  with open(station_json_path, encoding='utf-8') as f:
+    station = json.load(f)
+  latitude = _parse_dms(station['lat'])
+  longitude = _parse_dms(station['lng'])
+  timezone = station.get('timezone', 'UTC')
+  return latitude, longitude, timezone
+
 
 @gin.configurable
 class BaseWeatherController(metaclass=abc.ABCMeta):
@@ -29,6 +82,8 @@ class BaseWeatherController(metaclass=abc.ABCMeta):
   @abc.abstractmethod
   def get_current_temp(self, timestamp: pd.Timestamp) -> float:
     """Gets outside temp at specified timestamp."""
+
+  # SHOULD THIS BASE CLASS IMPLEMENT get_air_convection_coefficient AS WELL?
 
 
 @gin.configurable
@@ -42,7 +97,7 @@ class WeatherController(BaseWeatherController):
     default_high_temp: Default high temperature in K at noon.
     special_days: Map of day of year (1-365) to 2-tuple (low_temp, high_temp).
     convection_coefficient: Air convection coefficient (W/m2/K).
-    tz: Time zone for the weather data.
+    timezone: Time zone for the weather data.
     latitude: Latitude for the weather data.
     longitude: Longitude for the weather data.
     dewpoint_depression: Difference between dry bulb and dew point temperatures
@@ -61,7 +116,7 @@ class WeatherController(BaseWeatherController):
       default_high_temp: float,
       special_days: Optional[Mapping[int, TemperatureBounds]] = None,
       convection_coefficient: float = 12.0,
-      tz: str = 'UTC',
+      timezone: str = 'UTC',
       latitude: float | None = None,
       longitude: float | None = None,
       dewpoint_depression: float = 5.0,
@@ -74,7 +129,7 @@ class WeatherController(BaseWeatherController):
     self.default_high_temp = default_high_temp
     self.special_days = special_days if special_days else {}
     self.convection_coefficient = convection_coefficient
-    self.tz = tz
+    self.timezone = timezone
     self.latitude = latitude
     self.longitude = longitude
     self.dewpoint_depression = dewpoint_depression  # Dry bulb - dew point (K)
@@ -115,7 +170,7 @@ class WeatherController(BaseWeatherController):
     # Create location object if lat/lon are provided
     if self.latitude is not None and self.longitude is not None:
       self._location = location.Location(
-          self.latitude, self.longitude, tz=self.tz
+          self.latitude, self.longitude, tz=self.timezone
       )
     else:
       self._location = None
@@ -144,10 +199,10 @@ class WeatherController(BaseWeatherController):
     """
     if timestamp.tzinfo is None:
       # Naive timestamp - localize to controller's timezone
-      return timestamp.tz_localize(self.tz)
+      return timestamp.tz_localize(self.timezone)
     else:
       # Already timezone-aware - convert to controller's timezone
-      return timestamp.tz_convert(self.tz)
+      return timestamp.tz_convert(self.timezone)
 
   def seconds_to_rads(self, seconds_in_day: int) -> float:
     """Returns radians corresponding to number of second in the day.
@@ -521,13 +576,19 @@ def get_replay_irradiance(
 
 
 @gin.configurable
-class ReplayWeatherController:
+class ReplayWeatherController(BaseWeatherController):
   """Weather controller that interplolates real weather from past observations.
 
   Attributes:
-    local_weather_path: Path to local weather file.
+    local_weather_path: Path to local weather CSV file.
+    station_json_path: Optional path to station JSON file. When provided,
+      latitude, longitude, and timezone are loaded from it. Explicit
+      latitude, longitude, and timezone arguments take precedence.
+    weather_df: Pandas dataframe of historical weather data.
     convection_coefficient: Air convection coefficient (W/m2/K).
-    tz: Time zone for the weather data.
+    humidity_column: Column name of the humidity in the weather CSV file.
+    timezone: IANA time zone string for the weather data. Loaded from
+      station JSON when station_json_path is provided; defaults to 'UTC'.
     latitude: Latitude for the weather data.
     longitude: Longitude for the weather data.
     irradiance_method: Method for converting cloud cover to irradiance
@@ -538,27 +599,37 @@ class ReplayWeatherController:
       self,
       local_weather_path: str,
       convection_coefficient: float = 12.0,
-      tz: str = 'UTC',
+      station_json_path: str | None = None,
+      timezone: str | None = None,
       latitude: float | None = None,
       longitude: float | None = None,
       irradiance_method: str = 'campbell_norman',
+      humidity_column: str = 'Humidity',
   ):
-    self._weather_data = pd.read_csv(local_weather_path)
-    self._weather_data['Time'] = [
-        pd.Timestamp(t, tz=tz) for t in self._weather_data['Time']
-    ]
-    self._weather_data.index = [
-        (t - _EPOCH).total_seconds() for t in self._weather_data['Time']
-    ]
+    self.local_weather_path = local_weather_path
     self.convection_coefficient = convection_coefficient
-    self.tz = tz
-    self.latitude = latitude
-    self.longitude = longitude
+    self.humidity_column = humidity_column
+
+    # Load lat/lon/timezone from station JSON if provided; explicit args
+    # override the values loaded from JSON.
+    if station_json_path is not None:
+      station_lat, station_lon, station_tz = load_station_info(
+          station_json_path
+      )
+      self.latitude = latitude if latitude is not None else station_lat
+      self.longitude = longitude if longitude is not None else station_lon
+      self.timezone = timezone if timezone is not None else station_tz
+    else:
+      self.latitude = latitude
+      self.longitude = longitude
+      self.timezone = timezone or 'UTC'
+
+    self._weather_data = self.read_weather_csv(self.local_weather_path)
 
     # Create location object if lat/lon are provided
     if self.latitude is not None and self.longitude is not None:
       self._location = location.Location(
-          self.latitude, self.longitude, tz=self.tz
+          self.latitude, self.longitude, tz=self.timezone
       )
     else:
       self._location = None
@@ -567,7 +638,7 @@ class ReplayWeatherController:
     if self._location is not None:
       self._calculate_irradiance_columns(irradiance_method)
 
-    # Pre-calculate sky temperature (doesn't require location, only temp/dewpoint) # pylint: disable=line-too-long
+    # Pre-calculate sky temperature
     self._calculate_sky_temperature_column()
 
   def _ensure_timestamp_tz(self, timestamp: pd.Timestamp) -> pd.Timestamp:
@@ -577,15 +648,16 @@ class ReplayWeatherController:
       timestamp: Pandas timestamp, may be naive or timezone-aware.
 
     Returns:
-      Timezone-aware timestamp. If input was naive, localizes to self.tz.
-      If input was already timezone-aware, converts to self.tz.
+      Timezone-aware timestamp. If input was naive, localizes to
+      self.timezone. If input was already timezone-aware, converts to
+      self.timezone.
     """
     if timestamp.tzinfo is None:
       # Naive timestamp - localize to controller's timezone
-      return timestamp.tz_localize(self.tz)
+      return timestamp.tz_localize(self.timezone)
     else:
       # Already timezone-aware - convert to controller's timezone
-      return timestamp.tz_convert(self.tz)
+      return timestamp.tz_convert(self.timezone)
 
   def _calculate_sky_temperature_column(self):
     """Pre-calculate sky temperature for all timestamps in weather data.
@@ -738,40 +810,126 @@ class ReplayWeatherController:
     self._weather_data['dni'] = np.maximum(0, dni)
     self._weather_data['dhi'] = np.maximum(0, dhi)
 
-  def get_current_temp(self, timestamp: pd.Timestamp) -> float:
-    """Returns current temperature in K.
+  @property
+  def csv_filepath(self) -> str:
+    """Alias for the local weather CSV file path."""
+    return self.local_weather_path
+
+  def read_weather_csv(self, csv_filepath: str) -> pd.DataFrame:
+    """Loads time series weather data from the specified CSV file.
+
+    The CSV file is expected to have at least the following columns:
+
+      + `Time`: the time, as a string, in the format: `%Y%m%d-%H%M`
+            (e.g. `20230701-0000`). Always interpreted as UTC regardless
+            of the station timezone.
+      + `TempF`: the temperature in Fahrenheit at the specified time.
+      + `Humidity`: the relative humidity in percent at the specified time
+            (0 to 100).
+
+    Coerces the times to the station timezone (defaults to UTC). Falls
+    back to UTC if the timezone causes DST ambiguity or non-existence
+    errors (e.g. during clock changes). Updates the index to be seconds
+    since epoch.
+
+    Args:
+      csv_filepath: Path to local weather CSV file.
+
+    Returns:
+      Pandas dataframe of weather data.
+    """
+    tz = self.timezone or 'UTC'
+    df = pd.read_csv(csv_filepath)
+    df = df.drop(columns=['Unnamed: 0'], errors='ignore')
+    try:
+      df['Time'] = [pd.Timestamp(t, tz=tz) for t in df['Time']]
+    except (
+        pytz.exceptions.AmbiguousTimeError,
+        pytz.exceptions.NonExistentTimeError,
+    ):
+      df['Time'] = pd.to_datetime(df['Time'], utc=True)
+    df.index = (df['Time'] - _EPOCH).dt.total_seconds()
+    df.index.name = 'SecondsSinceEpoch'
+    return df
+
+  @property
+  def min_time(self) -> pd.Timestamp:
+    """Earliest timestamp in the weather data."""
+    return min(self._weather_data['Time'])
+
+  @property
+  def max_time(self) -> pd.Timestamp:
+    """Latest timestamp in the weather data."""
+    return max(self._weather_data['Time'])
+
+  @property
+  def times_in_seconds(self) -> pd.Index:
+    """Returns the timestamps of the weather data, as seconds since epoch."""
+    return self._weather_data.index
+
+  @property
+  def temps_f(self) -> pd.Series:
+    """Returns the temperatures in Fahrenheit of the weather data."""
+    return self._weather_data['TempF']
+
+  @property
+  def humidities(self) -> pd.Series:
+    """Returns the humidities of the weather data."""
+    return self._weather_data[self.humidity_column]
+
+  def _get_interpolated_value(
+      self, timestamp: pd.Timestamp, values: pd.Series
+  ) -> float:
+    """Helper to get interpolated value from a given series.
+
+    The timestamp need not exactly appear in the weather data, but should be
+    within the range of the data.
+    If there is no exact match, linear interpolation is used to estimate the
+    temperature between the nearest timestamps.
 
     Args:
       timestamp: Pandas timestamp to get temperature for interpolation. If naive
-        (no timezone), will be localized to the controller's timezone.
+        (no timezone), will be localized to the controller's timezone. If the
+        timestamp is timezone aware, it will be converted to UTC. If the
+        timestamp is timezone naive, it will be localized to UTC. This allows
+        for accurate comparisons against the min and max timestamps, as well as
+        the epoch, which are always timezone aware (in UTC).
+      values: Pandas series to interpolate from.
+
+    Returns:
+      The interpolated value from the series at the given timestamp.
     """
-    timestamp = self._ensure_timestamp_tz(timestamp)
-    min_time = min(self._weather_data['Time'])
-    if timestamp < min_time:
-
-      raise ValueError(
-          f'Attempting to get weather data at {timestamp}, before the latest'
-          f' timestamp {min_time}.'
-      )
-    max_time = max(self._weather_data['Time'])
-    if timestamp > max_time:
-
-      raise ValueError(
-          f'Attempting to get weather data at {timestamp}, after the latest'
-          f' timestamp {max_time}.'
-      )
-
-    times = np.array(self._weather_data.index)
-    target_timestamp = (timestamp - _EPOCH).total_seconds()
-
-    if 'TempC' in self._weather_data:
-      temps = self._weather_data['TempC']
-      temp_c = np.interp(target_timestamp, times, temps)
-      return utils.celsius_to_kelvin(temp_c)
+    # convert timestamp to UTC to enable proper comparisons:
+    if timestamp.tzname() is not None:
+      # timestamp is timezone aware, unable to localize, so convert to UTC:
+      timestamp = self._ensure_timestamp_tz(timestamp)
     else:
-      temps = self._weather_data['TempF']
-      temp_f = np.interp(target_timestamp, times, temps)
-      return utils.fahrenheit_to_kelvin(temp_f)
+      # timestamp is timezone naive, unable to convert, so localize to UTC:
+      timestamp = timestamp.tz_localize('UTC')
+
+    if timestamp < self.min_time:
+      raise ValueError(
+          f'Timestamp not in range. Timestamp {timestamp} is before the'
+          f' earliest timestamp {self.min_time}.'
+      )
+    if timestamp > self.max_time:
+      raise ValueError(
+          f'Timestamp not in range. Timestamp {timestamp} is after the'
+          f' latest timestamp {self.max_time}.'
+      )
+
+    time_in_seconds = (timestamp - _EPOCH).total_seconds()
+    return np.interp(time_in_seconds, self.times_in_seconds, values)
+
+  def get_current_temp(self, timestamp: pd.Timestamp) -> float:
+    """For a given timestamp, returns the current temperature in Kelvin."""
+    return utils.fahrenheit_to_kelvin(
+        self._get_interpolated_value(timestamp, self.temps_f)
+    )
+
+  def get_current_humidity(self, timestamp: pd.Timestamp) -> float:
+    """For a given timestamp, returns the current humidity level in percent."""
+    return self._get_interpolated_value(timestamp, self.humidities)
 
   # pylint: disable=unused-argument
   def get_air_convection_coefficient(self, timestamp: pd.Timestamp) -> float:

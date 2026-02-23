@@ -14,6 +14,28 @@ from smart_control.simulator import building_radiation_utils
 from smart_control.simulator import weather_controller
 from smart_control.utils import conversion_utils as utils
 
+# Paths to shared weather data and station configuration files.
+_WEATHER_DATA_DIR = os.path.join(
+    os.path.dirname(__file__),
+    '..',
+    'configs',
+    'resources',
+    'sb1',
+    'weather_data',
+)
+_LOCAL_WEATHER_TEST_DATA_PATH = os.path.join(
+    _WEATHER_DATA_DIR, 'local_weather_test_data.csv'
+)
+_STATION_JSON_PATH = os.path.join(_WEATHER_DATA_DIR, 'station.json')
+_MOFFETT_WEATHER_CSV_PATH = os.path.join(
+    os.path.dirname(__file__),
+    '..',
+    'configs',
+    'resources',
+    'sb1',
+    'local_weather_moffett_field_20230701_20231122.csv',
+)
+
 
 # pylint: disable=g-long-lambda, unnecessary-lambda-assignment # TODO: consider using named functions instead
 class WeatherControllerTest(parameterized.TestCase):
@@ -126,41 +148,32 @@ class WeatherControllerTest(parameterized.TestCase):
 
     self.assertEqual(convection_coefficient, expected_convection_coefficient)
 
-  def test_replay_weather_controller(self):
 
-    data_path = os.path.join(
-        os.path.dirname(__file__), 'local_weather_test_data.csv'
+class ReplayWeatherControllerTest(parameterized.TestCase):
+
+  def setUp(self):
+    super().setUp()
+    self.controller = weather_controller.ReplayWeatherController(
+        local_weather_path=_LOCAL_WEATHER_TEST_DATA_PATH,
+        convection_coefficient=10.0,
     )
-    controller = weather_controller.ReplayWeatherController(data_path, 10.0)
 
-    temp = controller.get_current_temp(
+  def test_replay_weather_controller(self):
+    temp = self.controller.get_current_temp(
         pd.Timestamp('2023-07-01 03:00:01+00:00')
     )
-
     self.assertAlmostEqual(temp, 298.1500, places=5)
 
   def test_replay_weather_controller_raises_error_before_range(self):
-    data_path = os.path.join(
-        os.path.dirname(__file__), 'local_weather_test_data.csv'
-    )
-    controller = weather_controller.ReplayWeatherController(data_path, 10.0)
-
-    weather_fn = lambda: controller.get_current_temp(
+    weather_fn = lambda: self.controller.get_current_temp(
         pd.Timestamp('2023-05-01 03:00:01+00:00')
     )
-
     self.assertRaises(ValueError, weather_fn)
 
   def test_replay_weather_controller_raises_error_after_range(self):
-    data_path = os.path.join(
-        os.path.dirname(__file__), 'local_weather_test_data.csv'
-    )
-    controller = weather_controller.ReplayWeatherController(data_path, 10.0)
-
-    weather_fn = lambda: controller.get_current_temp(
+    weather_fn = lambda: self.controller.get_current_temp(
         pd.Timestamp('2023-12-01 03:00:01+00:00')
     )
-
     self.assertRaises(ValueError, weather_fn)
 
   def test_get_current_irradiance_weather_controller(self):
@@ -176,7 +189,7 @@ class WeatherControllerTest(parameterized.TestCase):
         high_temp,
         latitude=latitude,
         longitude=longitude,
-        tz='America/Los_Angeles',
+        timezone='America/Los_Angeles',
     )
 
     # Test at noon on a summer day
@@ -248,7 +261,7 @@ class WeatherControllerTest(parameterized.TestCase):
         high_temp,
         latitude=latitude,
         longitude=longitude,
-        tz='US/Pacific',
+        timezone='US/Pacific',
     )
 
     timestamp = pd.Timestamp('2023-07-01 12:00:00', tz='US/Pacific')
@@ -310,7 +323,7 @@ class WeatherControllerTest(parameterized.TestCase):
         high_temp,
         latitude=latitude,
         longitude=longitude,
-        tz='US/Pacific',
+        timezone='US/Pacific',
     )
     timestamp = pd.Timestamp('2023-07-01 12:00:00', tz='US/Pacific')
     self.assertEqual(weather_no_cloud.get_current_cloud_cover(timestamp), 0.0)
@@ -321,7 +334,7 @@ class WeatherControllerTest(parameterized.TestCase):
         high_temp,
         latitude=latitude,
         longitude=longitude,
-        tz='US/Pacific',
+        timezone='US/Pacific',
         cloud_cover=50.0,
     )
     self.assertEqual(
@@ -341,7 +354,7 @@ class WeatherControllerTest(parameterized.TestCase):
         high_temp,
         latitude=latitude,
         longitude=longitude,
-        tz='US/Pacific',
+        timezone='US/Pacific',
         cloud_cover=cloud_cover,
         irradiance_method='campbell_norman',
     )
@@ -365,7 +378,7 @@ class WeatherControllerTest(parameterized.TestCase):
         high_temp,
         latitude=latitude,
         longitude=longitude,
-        tz='US/Pacific',
+        timezone='US/Pacific',
     )
     clearsky_irrad = weather_clearsky.get_current_irradiance(timestamp)
     self.assertLess(irrad['ghi'], clearsky_irrad['ghi'])
@@ -409,7 +422,7 @@ class WeatherControllerTest(parameterized.TestCase):
         high_temp,
         latitude=latitude,
         longitude=longitude,
-        tz='US/Pacific',
+        timezone='US/Pacific',
         cloud_cover=cloud_cover,
         irradiance_method='linear',
     )
@@ -562,7 +575,7 @@ class WeatherControllerTest(parameterized.TestCase):
         high_temp,
         latitude=latitude,
         longitude=longitude,
-        tz='US/Pacific',
+        timezone='US/Pacific',
         cloud_cover_low=0.0,
         cloud_cover_high=80.0,
         irradiance_method='campbell_norman',
@@ -574,7 +587,7 @@ class WeatherControllerTest(parameterized.TestCase):
         high_temp,
         latitude=latitude,
         longitude=longitude,
-        tz='US/Pacific',
+        timezone='US/Pacific',
     )
 
     # At noon when dynamic cloud cover is at maximum (80%)
@@ -597,13 +610,14 @@ class WeatherControllerTest(parameterized.TestCase):
 
   def test_get_current_cloud_cover_replay_controller(self):
     """Test cloud cover interpolation from weather data."""
-    data_path = os.path.join(
-        os.path.dirname(__file__), 'local_weather_test_data.csv'
-    )
     latitude = 37.4
     longitude = -122.1
     controller = weather_controller.ReplayWeatherController(
-        data_path, 10.0, latitude=latitude, longitude=longitude, tz='UTC'
+        _LOCAL_WEATHER_TEST_DATA_PATH,
+        10.0,
+        latitude=latitude,
+        longitude=longitude,
+        timezone='UTC',
     )
 
     # Test at a time with known cloud cover (0% at midnight)
@@ -620,17 +634,14 @@ class WeatherControllerTest(parameterized.TestCase):
     ReplayWeatherController.
 
     """
-    data_path = os.path.join(
-        os.path.dirname(__file__), 'local_weather_test_data.csv'
-    )
     latitude = 37.4
     longitude = -122.1
     controller = weather_controller.ReplayWeatherController(
-        data_path,
+        _LOCAL_WEATHER_TEST_DATA_PATH,
         10.0,
         latitude=latitude,
         longitude=longitude,
-        tz='US/Pacific',
+        timezone='US/Pacific',
         irradiance_method='campbell_norman',
     )
 
@@ -694,13 +705,14 @@ class WeatherControllerTest(parameterized.TestCase):
 
   def test_get_irradiance_with_solar_position_replay_controller(self):
     """Test irradiance with solar position for ReplayWeatherController."""
-    data_path = os.path.join(
-        os.path.dirname(__file__), 'local_weather_test_data.csv'
-    )
     latitude = 37.4
     longitude = -122.1
     controller = weather_controller.ReplayWeatherController(
-        data_path, 10.0, latitude=latitude, longitude=longitude, tz='UTC'
+        _LOCAL_WEATHER_TEST_DATA_PATH,
+        10.0,
+        latitude=latitude,
+        longitude=longitude,
+        timezone='UTC',
     )
 
     timestamp = pd.Timestamp('2023-07-01 12:00:00+00:00')
@@ -779,11 +791,8 @@ class WeatherControllerTest(parameterized.TestCase):
 
   def test_get_sky_temperature_replay_controller(self):
     """Test sky temperature calculation for ReplayWeatherController."""
-    data_path = os.path.join(
-        os.path.dirname(__file__), 'local_weather_test_data.csv'
-    )
     controller = weather_controller.ReplayWeatherController(
-        data_path, 10.0, tz='UTC'
+        _LOCAL_WEATHER_TEST_DATA_PATH, 10.0, timezone='UTC'
     )
 
     timestamp = pd.Timestamp('2023-07-01 12:00:00+00:00')
@@ -822,9 +831,7 @@ class ReplayWeatherControllerPvlibValidationTest(parameterized.TestCase):
 
   def setUp(self):
     """Set up test fixtures."""
-    self.data_path = os.path.join(
-        os.path.dirname(__file__), 'local_weather_test_data.csv'
-    )
+    self.data_path = _LOCAL_WEATHER_TEST_DATA_PATH
     # Mountain View, CA coordinates (from test data)
     self.latitude = 37.4
     self.longitude = -122.1
@@ -841,7 +848,7 @@ class ReplayWeatherControllerPvlibValidationTest(parameterized.TestCase):
         10.0,
         latitude=self.latitude,
         longitude=self.longitude,
-        tz='UTC',
+        timezone='UTC',
         irradiance_method='campbell_norman',
     )
 
@@ -909,7 +916,7 @@ class ReplayWeatherControllerPvlibValidationTest(parameterized.TestCase):
         10.0,
         latitude=self.latitude,
         longitude=self.longitude,
-        tz='UTC',
+        timezone='UTC',
         irradiance_method='campbell_norman',
     )
 
@@ -935,7 +942,7 @@ class ReplayWeatherControllerPvlibValidationTest(parameterized.TestCase):
         10.0,
         latitude=self.latitude,
         longitude=self.longitude,
-        tz='UTC',
+        timezone='UTC',
         irradiance_method='campbell_norman',
     )
 
@@ -981,7 +988,7 @@ class ReplayWeatherControllerPvlibValidationTest(parameterized.TestCase):
         10.0,
         latitude=self.latitude,
         longitude=self.longitude,
-        tz='UTC',
+        timezone='UTC',
         irradiance_method='campbell_norman',
     )
 
@@ -996,7 +1003,7 @@ class ReplayWeatherControllerPvlibValidationTest(parameterized.TestCase):
         default_high_temp=298.15,
         latitude=self.latitude,
         longitude=self.longitude,
-        tz='UTC',
+        timezone='UTC',
         cloud_cover=cloud_cover,
         irradiance_method='campbell_norman',
     )
@@ -1042,7 +1049,7 @@ class ReplayWeatherControllerPvlibValidationTest(parameterized.TestCase):
         10.0,
         latitude=self.latitude,
         longitude=self.longitude,
-        tz='UTC',
+        timezone='UTC',
         irradiance_method='campbell_norman',
     )
 
@@ -1081,7 +1088,7 @@ class ReplayWeatherControllerPvlibValidationTest(parameterized.TestCase):
         10.0,
         latitude=self.latitude,
         longitude=self.longitude,
-        tz='UTC',
+        timezone='UTC',
         irradiance_method='linear',
     )
 
@@ -1133,7 +1140,7 @@ class ReplayWeatherControllerPvlibValidationTest(parameterized.TestCase):
         10.0,
         latitude=self.latitude,
         longitude=self.longitude,
-        tz='UTC',
+        timezone='UTC',
         irradiance_method='campbell_norman',
     )
 
@@ -1345,7 +1352,7 @@ class IrradianceDecompositionPvlibValidationTest(parameterized.TestCase):
         default_high_temp=298.15,
         latitude=latitude,
         longitude=longitude,
-        tz='US/Eastern',
+        timezone='US/Eastern',
         cloud_cover=30.0,
         irradiance_method='linear',
     )
@@ -1394,7 +1401,7 @@ class IrradianceDecompositionPvlibValidationTest(parameterized.TestCase):
         default_high_temp=298.15,
         latitude=latitude,
         longitude=longitude,
-        tz='US/Eastern',
+        timezone='US/Eastern',
         cloud_cover=50.0,
         irradiance_method='campbell_norman',
     )
@@ -1432,7 +1439,7 @@ class IrradianceDecompositionPvlibValidationTest(parameterized.TestCase):
         default_high_temp=298.15,
         latitude=latitude,
         longitude=longitude,
-        tz='US/Eastern',
+        timezone='US/Eastern',
     )
 
     timestamp = pd.Timestamp('1990-07-04 12:00:00', tz='US/Eastern')
@@ -1472,6 +1479,87 @@ class IrradianceDecompositionPvlibValidationTest(parameterized.TestCase):
         delta=50.0,
         msg=f'TMY3 closure equation failed at {time_str}',
     )
+
+
+class MoffettReplayWeatherControllerTest(parameterized.TestCase):
+  """Tests for ReplayWeatherController using real weather data."""
+
+  def setUp(self):
+    super().setUp()
+    self.controller = weather_controller.ReplayWeatherController(
+        local_weather_path=_MOFFETT_WEATHER_CSV_PATH,
+        station_json_path=_STATION_JSON_PATH,
+    )
+
+  def test_weather_df(self):
+    self.assertIsInstance(self.controller._weather_data, pd.DataFrame)
+    self.assertEqual(self.controller._weather_data.shape, (3462, 19))
+
+    expected_columns = [
+        'Time',
+        'StationName',
+        'StationId',
+        'Location',
+        'TempC',
+        'DewPointC',
+        'BarometerMbar',
+        'Rain',
+        'RainTotal',
+        'WindspeedKmph',
+        'WindDirection',
+        'SkyCoverage',
+        'VisibilityKm',
+        'Humidity',
+        'TempF',
+        'ghi',
+        'dni',
+        'dhi',
+        'TempSkyC',
+    ]
+    self.assertCountEqual(
+        self.controller._weather_data.columns.tolist(),
+        expected_columns,
+    )
+
+  def test_time_range(self):
+    min_time = pd.Timestamp('2023-06-30 17:00:00+00:00')
+    max_time = pd.Timestamp('2023-11-22 16:00:00+00:00')
+
+    self.assertEqual(self.controller.min_time, min_time)
+    self.assertEqual(self.controller.max_time, max_time)
+
+  def test_times_in_seconds(self):
+    self.assertIsInstance(self.controller.times_in_seconds, pd.Index)
+    self.assertEqual(self.controller.times_in_seconds.shape, (3462,))
+
+    self.assertEqual(min(self.controller.times_in_seconds), 1688144400.0)
+    self.assertEqual(max(self.controller.times_in_seconds), 1700668800.0)
+
+  def test_get_temp_timezones(self):
+    with self.subTest('when timestamp is timezone aware'):
+      timestamp = pd.Timestamp('2023-07-01 10:00:00+00:00')
+      self.assertEqual(timestamp.tzname(), 'UTC')
+
+      temp = self.controller.get_current_temp(timestamp)
+      self.assertEqual(temp, 289.15)
+
+    with self.subTest('when timestamp is timezone naive'):
+      timestamp = pd.Timestamp('2023-07-01 10:00:00')
+      self.assertIsNone(timestamp.tzname())
+
+      temp = self.controller.get_current_temp(timestamp)
+      self.assertEqual(temp, 289.15)
+
+  def test_interpolation(self):
+    timestamp = pd.Timestamp('2023-07-01 03:00:01+00:00')
+
+    with self.subTest('current_temp'):
+      temp_k = self.controller.get_current_temp(timestamp)
+      self.assertAlmostEqual(temp_k, 294.1497, places=4)
+
+    with self.subTest('current_humidity'):
+      humidity = self.controller.get_current_humidity(timestamp)
+      self.assertAlmostEqual(humidity, 65.0, places=5)
 
 
 if __name__ == '__main__':
