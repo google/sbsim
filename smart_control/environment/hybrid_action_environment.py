@@ -6,6 +6,8 @@ continuous and discrete action spaces.
 
 import collections
 from collections.abc import Sequence
+import dataclasses
+import functools
 from typing import Final
 
 from absl import logging
@@ -18,11 +20,44 @@ from tf_agents.typing import types
 
 from smart_buildings.smart_control.environment import environment
 
+ActionRecord = environment.ActionRecord
+
+HybridAction = dict[str, list[float]]
+
 _DISCRETE_ACTION: Final[str] = "discrete_action"
 _CONTINUOUS_ACTION: Final[str] = "continuous_action"
 _DISCRETE_ACTION_COMMAND: Final[str] = "supervisor_run_command"
 
-HybridAction = dict[str, list[float]]
+
+def is_discrete_action(setpoint_name: str) -> bool:
+  """Checks if a setpoint name corresponds to a discrete action."""
+  return _DISCRETE_ACTION_COMMAND in setpoint_name
+
+
+def map_discrete_off_value(action_value: float) -> float:
+  """Maps the 'OFF' value for discrete actions to 0.0.
+
+  The hybrid action environment uses 0 for OFF, while the base environment
+  uses -1.0 or less. We check for action_value <= 0 to be robust to float
+  imprecision.
+
+  Args:
+    action_value: The current action value.
+
+  Returns:
+    0.0 if the action value is considered 'OFF', otherwise the original value.
+  """
+  return 0.0 if action_value <= 0 else action_value
+
+
+def update_action_record(record: ActionRecord) -> ActionRecord:
+  """Updates the action record to be aware of discrete actions."""
+  if is_discrete_action(record.setpoint_name):
+    action_value = map_discrete_off_value(record.action_value)
+    return dataclasses.replace(
+        record, setpoint_type="DISCRETE", action_value=action_value
+    )
+  return record
 
 
 @gin.configurable
@@ -67,7 +102,7 @@ class HybridActionEnvironment(environment.Environment):
 
       field_id = self._retrieve_field(device_id, setpoint_name)
 
-      if _DISCRETE_ACTION_COMMAND in setpoint_name:
+      if is_discrete_action(setpoint_name):
         logging.info(
             "Device %s has a discrete action %s", device_id, setpoint_name
         )
@@ -107,7 +142,7 @@ class HybridActionEnvironment(environment.Environment):
 
   def _format_action(
       self, action: types.NestedArray, action_names: Sequence[str]
-  ) -> types.NestedArray:  # to do: consider returning HybridAction type
+  ) -> types.NestedArray:
     """Converts from hybrid to all real-valued actions."""
     if (
         not isinstance(action, dict)
@@ -141,7 +176,7 @@ class HybridActionEnvironment(environment.Environment):
     # Only discrete actions with _DISCRETE_ACTION_COMMMAND in the name
     # are recognized as discrete.
     for action_name in action_names:
-      if _DISCRETE_ACTION_COMMAND in action_name:
+      if is_discrete_action(action_name):
         discrete_action_value = discrete_dequeue.popleft()
 
         # The convention for the agent is 1 on and 0 off, but in the
@@ -169,15 +204,55 @@ class HybridActionEnvironment(environment.Environment):
 
     return merged_actions
 
-  @property
+  @functools.cached_property
   def action_fields_df(self) -> pd.DataFrame:
-    df = super().action_fields_df
-    # override action_type column, with awareness of discrete actions:
-    df["action_type"] = df["setpoint_name"].apply(
-        lambda name: (
-            "DISCRETE"
-            if _DISCRETE_ACTION_COMMAND in name
-            else "CONTINUOUS"
-        )
-    )
+    """Action fields DataFrame with awareness of discrete actions."""
+    df = super().action_fields_df.copy()
+    is_discrete = df["setpoint_name"].apply(is_discrete_action)
+    df["setpoint_type"] = np.where(is_discrete, "DISCRETE", "CONTINUOUS")
     return df
+
+  def convert_to_hybrid(
+      self, action_values: environment.NormalizedActionValues
+  ) -> HybridAction:
+    """Converts a list of normalized action values to a hybrid action.
+
+    Args:
+      action_values: A list of action values, in the same order as the action
+        names.
+
+    Returns:
+      A HybridAction dictionary with discrete and continuous actions.
+    """
+    hybrid_action: HybridAction = {_CONTINUOUS_ACTION: [], _DISCRETE_ACTION: []}
+
+    for action_value, action_name in zip(action_values, self.action_names):
+      if is_discrete_action(action_name):
+        hybrid_action[_DISCRETE_ACTION].append(
+            map_discrete_off_value(action_value)
+        )
+      else:
+        hybrid_action[_CONTINUOUS_ACTION].append(action_value)
+    return hybrid_action
+
+  @property
+  def default_hybrid_action(self) -> HybridAction:
+    """The default action used to step the hybrid action environment."""
+    return self.convert_to_hybrid(self.default_action_values)
+
+  def get_action_records_from_normalized_values(
+      self,
+      normalized_values: environment.NormalizedActionValues,
+  ) -> Sequence[ActionRecord]:
+    """Converts normalized hybrid action values into action records."""
+    records = super().get_action_records_from_normalized_values(
+        normalized_values
+    )
+    return [update_action_record(record) for record in records]
+
+  def get_action_records_from_native_values(
+      self, native_values: environment.NativeActionValues
+  ) -> Sequence[ActionRecord]:
+    """Converts native hybrid action values into action records."""
+    records = super().get_action_records_from_native_values(native_values)
+    return [update_action_record(record) for record in records]

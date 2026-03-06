@@ -49,6 +49,18 @@ def _get_histogram_reducer():
   )
 
 
+class ValidateSetpointTypeTest(parameterized.TestCase):
+
+  @parameterized.parameters("CONTINUOUS", "DISCRETE")
+  def test_validate_setpoint_type_valid(self, setpoint_type):
+    environment.validate_setpoint_type(setpoint_type)
+
+  @parameterized.parameters("continuous", "discrete", "OTHER")
+  def test_validate_setpoint_type_invalid(self, setpoint_type):
+    with self.assertRaises(ValueError):
+      environment.validate_setpoint_type(setpoint_type)
+
+
 class EnvironmentTest(parameterized.TestCase, tf.test.TestCase):
 
   @parameterized.parameters(
@@ -66,13 +78,13 @@ class EnvironmentTest(parameterized.TestCase, tf.test.TestCase):
           2.236067,
       ),
   )
-  def test_comput_actions_regularization_cost_valid(
+  def test_compute_actions_regularization_cost_valid(
       self, action_history, expected
   ):
     cost = environment.compute_action_regularization_cost(action_history)
     self.assertAlmostEqual(expected, cost, places=3)
 
-  def test_comput_actions_regularization_cost_invalid(self):
+  def test_compute_actions_regularization_cost_invalid(self):
     action_history = [np.array([1, 0]), np.array([1, 0, 1])]
     with self.assertRaises(ValueError):
       _ = environment.compute_action_regularization_cost(action_history)

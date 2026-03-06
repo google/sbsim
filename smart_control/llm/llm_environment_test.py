@@ -1,5 +1,7 @@
 """More tests for the environment, to ensure the LLM agent can use it."""
 
+import dataclasses
+
 from absl.testing import absltest
 from absl.testing import parameterized
 import mock
@@ -17,12 +19,14 @@ from smart_buildings.smart_control.utils import observation_normalizer
 HybridActionEnvironment = hybrid_action_environment.HybridActionEnvironment
 
 
-class LLMEnvironmentTest(absltest.TestCase):
+class LLMEnvironmentTest(parameterized.TestCase):
   """Ensures the environment has what it needs for an LLM agent use case."""
 
   def setUp(self):
     super().setUp()
-    self.env = conftest.create_environment()
+    self.env = conftest.create_environment(
+        default_actions=conftest.DEFAULT_ACTIONS
+    )
 
   def test_initialization(self):
     self.assertIsInstance(self.env, environment.Environment)
@@ -45,7 +49,9 @@ class LLMEnvironmentTest(absltest.TestCase):
       self.assertIsInstance(self.env.action_config, environment.ActionConfig)
 
     with self.subTest(name="default_actions"):
-      self.assertEmpty(self.env.default_policy_values)
+      self.assertEqual(
+          self.env.default_action_values, conftest.DEFAULT_ACTION_VALUES
+      )
 
   def test_properties(self):
     with self.subTest(name="step_count"):
@@ -175,39 +181,39 @@ class LLMEnvironmentTest(absltest.TestCase):
     records = self.env.action_fields_df.to_dict("records")
     expected_records = [
         {
-            "field_id": "air_handler_1_supply_air_heating_temperature_setpoint",
+            "action_name": "air_handler_1_supply_air_heating_temperature_setpoint",  # pylint: disable=line-too-long
             "device_id": "air_handler_1",
             "device_type": "AHU",
             "zone_id": "zone_1",
             "setpoint_name": "supply_air_heating_temperature_setpoint",
             "value_type": "VALUE_CONTINUOUS",
-            "action_type": "CONTINUOUS",
+            "setpoint_type": "CONTINUOUS",
             "max_native_value": 295.0,
             "max_normalized_value": 1.0,
             "min_native_value": 285.0,
             "min_normalized_value": -1.0,
         },
         {
-            "field_id": "boiler_1_supply_water_setpoint",
+            "action_name": "boiler_1_supply_water_setpoint",
             "device_id": "boiler_1",
             "device_type": "BLR",
             "zone_id": "zone_1",
             "setpoint_name": "supply_water_setpoint",
             "value_type": "VALUE_CONTINUOUS",
-            "action_type": "CONTINUOUS",
+            "setpoint_type": "CONTINUOUS",
             "max_native_value": 350.0,
             "max_normalized_value": 1.0,
             "min_native_value": 310.0,
             "min_normalized_value": -1.0,
         },
         {
-            "field_id": "air_handler_2_supply_air_heating_temperature_setpoint",
+            "action_name": "air_handler_2_supply_air_heating_temperature_setpoint",  # pylint: disable=line-too-long
             "device_id": "air_handler_2",
             "device_type": "AHU",
             "zone_id": "zone_2",
             "setpoint_name": "supply_air_heating_temperature_setpoint",
             "value_type": "VALUE_CONTINUOUS",
-            "action_type": "CONTINUOUS",
+            "setpoint_type": "CONTINUOUS",
             "max_native_value": 295.0,
             "max_normalized_value": 1.0,
             "min_native_value": 285.0,
@@ -216,12 +222,55 @@ class LLMEnvironmentTest(absltest.TestCase):
     ]
     self.assertCountEqual(records, expected_records)
 
+  @parameterized.named_parameters(
+      dict(
+          testcase_name="records_from_normalized_values",
+          method_name="get_action_records_from_normalized_values",
+          values=conftest.NORMALIZED_ACTION_VALUES,
+          expect_df=False,
+      ),
+      dict(
+          testcase_name="df_from_normalized_values",
+          method_name="get_action_df_from_normalized_values",
+          values=conftest.NORMALIZED_ACTION_VALUES,
+          expect_df=True,
+      ),
+      dict(
+          testcase_name="records_from_native_values",
+          method_name="get_action_records_from_native_values",
+          values=conftest.NATIVE_ACTION_VALUES,
+          expect_df=False,
+      ),
+      dict(
+          testcase_name="df_from_native_values",
+          method_name="get_action_df_from_native_values",
+          values=conftest.NATIVE_ACTION_VALUES,
+          expect_df=True,
+      ),
+  )
+  def test_get_action_records(self, method_name, values, expect_df):
+    result = getattr(self.env, method_name)(values)
+    if expect_df:
+      self.assertCountEqual(
+          result.to_dict("records"), conftest.ACTION_RECORDS
+      )
+    else:
+      self.assertCountEqual(
+          [dataclasses.asdict(r) for r in result],
+          conftest.ACTION_RECORDS,
+      )
+
   def test_step(self):
     self.env.reset()
-    with self.subTest(name="wants normalized action values"):
-      self.assertEqual(self.env.step_count, 0)
-      self.env.step([0, 0, 0])  # normalized action values
-      self.assertEqual(self.env.step_count, 1)
+    self.assertEqual(self.env.step_count, 0)
+    self.env.step([0, 0, 0])  # normalized action values
+    self.assertEqual(self.env.step_count, 1)
+
+  def test_step_with_defaults(self):
+    self.env.reset()
+    self.assertEqual(self.env.step_count, 0)
+    self.env.step(self.env.default_action_values)
+    self.assertEqual(self.env.step_count, 1)
 
   def test_observations(self):
     n_device_measurements = 4  # see all "_measurement" in conftest.LAYOUT
@@ -246,13 +295,14 @@ class LLMEnvironmentTest(absltest.TestCase):
     )
 
 
-class LLMHybridActionEnvironmentTest(absltest.TestCase):
+class LLMHybridActionEnvironmentTest(parameterized.TestCase):
   """Ensures the environment has what it needs for an LLM agent use case."""
 
   def setUp(self):
     super().setUp()
     self.env = conftest.create_hybrid_action_environment(
-        layout=conftest.DEMO_LAYOUT
+        layout=conftest.DEMO_LAYOUT,
+        default_actions=conftest.DEFAULT_HYBRID_ACTIONS
     )
 
   def test_initialization(self):
@@ -273,6 +323,14 @@ class LLMHybridActionEnvironmentTest(absltest.TestCase):
 
     with self.subTest(name="action_config"):
       self.assertIsInstance(self.env.action_config, environment.ActionConfig)
+
+    with self.subTest(name="default_actions"):
+      self.assertEqual(
+          self.env.default_action_values, conftest.DEFAULT_HYBRID_ACTION_VALUES
+      )
+      self.assertEqual(
+          self.env.default_hybrid_action, conftest.DEFAULT_HYBRID_ACTION_DICT
+      )
 
   def test_building_devices(self):
     df = self.env.building.devices_df
@@ -388,81 +446,80 @@ class LLMHybridActionEnvironmentTest(absltest.TestCase):
   def test_action_fields_df(self):
     df = self.env.action_fields_df
     self.assertIsInstance(df, pd.DataFrame)
-
     expected_records = [
         {
-            "field_id": "air_handler_1_supervisor_run_command",
+            "action_name": "air_handler_1_supervisor_run_command",
             "device_id": "air_handler_1",
             "device_type": "AHU",
             "zone_id": "zone_1",
             "setpoint_name": "supervisor_run_command",
             "value_type": "VALUE_CONTINUOUS",
-            "action_type": "DISCRETE",
+            "setpoint_type": "DISCRETE",
             "max_native_value": 1.0,
             "max_normalized_value": 1.0,
             "min_native_value": 0.0,
             "min_normalized_value": -1.0,
         },
         {
-            "field_id": "air_handler_1_supply_air_heating_temperature_setpoint",
+            "action_name": "air_handler_1_supply_air_heating_temperature_setpoint",  # pylint: disable=line-too-long
             "device_id": "air_handler_1",
             "device_type": "AHU",
             "zone_id": "zone_1",
             "setpoint_name": "supply_air_heating_temperature_setpoint",
             "value_type": "VALUE_CONTINUOUS",
-            "action_type": "CONTINUOUS",
+            "setpoint_type": "CONTINUOUS",
             "max_native_value": 295.0,
             "max_normalized_value": 1.0,
             "min_native_value": 285.0,
             "min_normalized_value": -1.0,
         },
         {
-            "field_id": "boiler_1_supervisor_run_command",
+            "action_name": "boiler_1_supervisor_run_command",
             "device_id": "boiler_1",
             "device_type": "BLR",
             "zone_id": "zone_1",
             "setpoint_name": "supervisor_run_command",
             "value_type": "VALUE_CONTINUOUS",
-            "action_type": "DISCRETE",
+            "setpoint_type": "DISCRETE",
             "max_native_value": 1.0,
             "max_normalized_value": 1.0,
             "min_native_value": 0.0,
             "min_normalized_value": -1.0,
         },
         {
-            "field_id": "boiler_1_supply_water_setpoint",
+            "action_name": "boiler_1_supply_water_setpoint",
             "device_id": "boiler_1",
             "device_type": "BLR",
             "zone_id": "zone_1",
             "setpoint_name": "supply_water_setpoint",
             "value_type": "VALUE_CONTINUOUS",
-            "action_type": "CONTINUOUS",
+            "setpoint_type": "CONTINUOUS",
             "max_native_value": 350.0,
             "max_normalized_value": 1.0,
             "min_native_value": 310.0,
             "min_normalized_value": -1.0,
         },
         {
-            "field_id": "air_handler_2_supervisor_run_command",
+            "action_name": "air_handler_2_supervisor_run_command",
             "device_id": "air_handler_2",
             "device_type": "AHU",
             "zone_id": "zone_2",
             "setpoint_name": "supervisor_run_command",
             "value_type": "VALUE_CONTINUOUS",
-            "action_type": "DISCRETE",
+            "setpoint_type": "DISCRETE",
             "max_native_value": 1.0,
             "max_normalized_value": 1.0,
             "min_native_value": 0.0,
             "min_normalized_value": -1.0,
         },
         {
-            "field_id": "air_handler_2_supply_air_heating_temperature_setpoint",
+            "action_name": "air_handler_2_supply_air_heating_temperature_setpoint",  # pylint: disable=line-too-long
             "device_id": "air_handler_2",
             "device_type": "AHU",
             "zone_id": "zone_2",
             "setpoint_name": "supply_air_heating_temperature_setpoint",
             "value_type": "VALUE_CONTINUOUS",
-            "action_type": "CONTINUOUS",
+            "setpoint_type": "CONTINUOUS",
             "max_native_value": 295.0,
             "max_normalized_value": 1.0,
             "min_native_value": 285.0,
@@ -471,15 +528,67 @@ class LLMHybridActionEnvironmentTest(absltest.TestCase):
     ]
     self.assertCountEqual(df.to_dict("records"), expected_records)
 
+  @parameterized.named_parameters(
+      dict(
+          testcase_name="records_from_normalized_values",
+          method_name="get_action_records_from_normalized_values",
+          values=conftest.NORMALIZED_HYBRID_ACTION_VALUES,
+          expect_df=False,
+      ),
+      dict(
+          testcase_name="df_from_normalized_values",
+          method_name="get_action_df_from_normalized_values",
+          values=conftest.NORMALIZED_HYBRID_ACTION_VALUES,
+          expect_df=True,
+      ),
+      dict(
+          testcase_name="records_from_native_values",
+          method_name="get_action_records_from_native_values",
+          values=conftest.NATIVE_HYBRID_ACTION_VALUES,
+          expect_df=False,
+      ),
+      dict(
+          testcase_name="df_from_native_values",
+          method_name="get_action_df_from_native_values",
+          values=conftest.NATIVE_HYBRID_ACTION_VALUES,
+          expect_df=True,
+      ),
+  )
+  def test_get_action_records(self, method_name, values, expect_df):
+    result = getattr(self.env, method_name)(values)
+    if expect_df:
+      self.assertCountEqual(
+          result.to_dict("records"), conftest.HYBRID_ACTION_RECORDS
+      )
+    else:
+      self.assertCountEqual(
+          [dataclasses.asdict(r) for r in result],
+          conftest.HYBRID_ACTION_RECORDS,
+      )
+
   def test_step(self):
     self.env.reset()
-    with self.subTest(name="wants normalized action values"):
-      self.assertEqual(self.env.step_count, 0)
-      self.env.step({
-          "discrete_action": [0, 0, 0],
-          "continuous_action": [-1.0, 0.0, 1.0],
-      })  # normalized action values
-      self.assertEqual(self.env.step_count, 1)
+    self.assertEqual(self.env.step_count, 0)
+    self.env.step({
+        "discrete_action": [0, 0, 0],
+        "continuous_action": [-1.0, 0.0, 1.0],
+    })
+    self.assertEqual(self.env.step_count, 1)
+
+  def test_step_with_defaults(self):
+    self.env.reset()
+    self.assertEqual(self.env.step_count, 0)
+    self.env.step(self.env.default_hybrid_action)
+    self.assertEqual(self.env.step_count, 1)
+
+  def test_convert_to_hybrid(self):
+    action_values = [-1.0, -1.0, 0.0, 1.0, 1.0, 1.0]
+    expected_hybrid_action = {
+        "discrete_action": [0.0, 1.0, 1.0],
+        "continuous_action": [-1.0, 0.0, 1.0],
+    }
+    hybrid_action = self.env.convert_to_hybrid(action_values)
+    self.assertEqual(hybrid_action, expected_hybrid_action)
 
   def test_observations(self):
     n_device_measurements = 1  # see all "_measurement" in conftest.DEMO_LAYOUT
@@ -575,7 +684,7 @@ class EnvironmentMetricsWriterTest(parameterized.TestCase):
     with self.subTest(name="writes observation_response"):
       self.env._metrics_writer.write_observation_response.assert_called_once()
 
-    with self.subTest("writes building image if generator is set"):
+    with self.subTest(name="writes building image if generator is set"):
       self.env._metrics_writer.write_building_image.assert_called_once()
 
   def test_step_writes_metrics(self):

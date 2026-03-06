@@ -6,10 +6,11 @@ setpoints with the goal of making the HVAC system more efficient.
 
 import collections
 import copy
+import dataclasses
 import functools
 import os
 import time
-from typing import Any, Final, Mapping, NewType, Optional, Tuple
+from typing import Any, Final, Literal, Mapping, NewType, Optional, Tuple, get_args
 
 from absl import logging
 import bidict
@@ -37,17 +38,12 @@ from smart_buildings.smart_control.utils import regression_building_utils
 from smart_buildings.smart_control.utils import run_command_predictor
 from smart_buildings.smart_control.utils import writer_lib
 
-
-ACTION_REJECTION_REWARD: Final[float] = -np.inf
-
 Sequence = collections.abc.Sequence
-
-DeviceInfo = smart_control_building_pb2.DeviceInfo
-DeviceType = smart_control_building_pb2.DeviceInfo.DeviceType
-ValueType = smart_control_building_pb2.DeviceInfo.ValueType
 
 ActionRequest = smart_control_building_pb2.ActionRequest
 ActionResponse = smart_control_building_pb2.ActionResponse
+DeviceInfo = smart_control_building_pb2.DeviceInfo
+DeviceType = smart_control_building_pb2.DeviceInfo.DeviceType
 ObservationRequest = smart_control_building_pb2.ObservationRequest
 ObservationResponse = smart_control_building_pb2.ObservationResponse
 RewardInfo = smart_control_reward_pb2.RewardInfo
@@ -55,30 +51,33 @@ RewardResponse = smart_control_reward_pb2.RewardResponse
 SingleActionRequest = smart_control_building_pb2.SingleActionRequest
 SingleActionResponse = smart_control_building_pb2.SingleActionResponse
 SingleObservationResponse = smart_control_building_pb2.SingleObservationResponse
+ValueType = smart_control_building_pb2.DeviceInfo.ValueType
 
-DeviceFieldId = NewType("DeviceFieldId", str)
+
 DeviceId = NewType("DeviceId", str)
+DeviceFieldId = NewType("DeviceFieldId", str)
 FieldName = NewType("FieldName", str)
+DeviceCode = str
+MeasurementName = str
+Setpoint = str
 
+ActionNormalizerMap = Mapping[
+    DeviceFieldId, base_normalizer.BaseActionNormalizer
+]
+DefaultActions = Mapping[DeviceFieldId, float]
+DeviceActionTuple = Tuple[DeviceCode, Setpoint]
+DeviceMeasurementTuple = Tuple[DeviceCode, MeasurementName]
+NativeActionValues = Sequence[float]
+NormalizedActionValues = Sequence[float]
+
+SetpointType = Literal["CONTINUOUS", "DISCRETE"]
+
+ACTION_REJECTION_REWARD: Final[float] = -np.inf
 COMFORT_MODE_NOW: Final[str] = "comfort_mode_now"
 COMFORT_MODE_SOON: Final[str] = "comfort_mode_soon"
 NUM_OCCUPANTS: Final[str] = "num_occupants"
 DOW_LABEL: Final[str] = "dow"
 HOD_LABEL: Final[str] = "hod"
-
-DeviceFieldId = NewType("DeviceFieldId", str)
-FieldName = NewType("FieldName", str)
-ActionNormalizerMap = Mapping[
-    DeviceFieldId, base_normalizer.BaseActionNormalizer
-]
-
-DefaultActions = Mapping[DeviceFieldId, float]
-
-DeviceCode = str
-Setpoint = str
-MeasurementName = str
-DeviceActionTuple = Tuple[DeviceCode, Setpoint]
-DeviceMeasurementTuple = Tuple[DeviceCode, MeasurementName]
 
 
 def all_actions_accepted(action_response: ActionResponse) -> bool:
@@ -295,6 +294,53 @@ class ActionConfig:
       setpoint_name: Name of setpoint to get action normalizer for.
     """
     return self.action_normalizers.get(DeviceFieldId(setpoint_name))
+
+
+def validate_setpoint_type(setpoint_type: SetpointType) -> None:
+  """Checks if the setpoint_type is valid.
+
+  Args:
+    setpoint_type: The setpoint type to validate.
+
+  Raises:
+    ValueError: If setpoint_type is not 'CONTINUOUS' or 'DISCRETE'.
+  """
+  if setpoint_type not in get_args(SetpointType):
+    raise ValueError(
+        f"Invalid setpoint_type: {setpoint_type}. "
+        f"Setpoint type must be one of {get_args(SetpointType)}."
+    )
+
+
+@dataclasses.dataclass(frozen=True, kw_only=True)
+class ActionRecord:
+  """An action for a specific setpoint.
+
+  Provides a mapping between normalized and native values.
+
+  Attributes:
+    idx: Index of the action, corresponding with the order of the action names.
+    action_name: Unique identifier for the action. Includes the device id and
+      setpoint name.
+    device_id: Unique identifier for the device.
+    setpoint_name: Name of the setpoint.
+    setpoint_type: Type of the setpoint (either 'CONTINUOUS' or 'DISCRETE').
+    normalized_value: The value expressed in the normalized setpoint range.
+    native_value: The value expressed in the native setpoint units.
+    action_value: The value used to step the environment.
+  """
+
+  idx: int
+  action_name: str
+  device_id: DeviceId
+  setpoint_name: FieldName
+  setpoint_type: SetpointType
+  normalized_value: float
+  native_value: float
+  action_value: float
+
+  def __post_init__(self) -> None:
+    validate_setpoint_type(self.setpoint_type)
 
 
 def generate_field_id(
@@ -585,7 +631,7 @@ class Environment(py_environment.PyEnvironment):
         "time_step_mins": self.time_step_mins,
         "metrics_output_dir": self.metrics_output_dir,
         "action_names": self.action_names,
-        "default_action_values": self.default_policy_values.numpy().tolist(),
+        "default_action_values": self.default_action_values,
         "reward_function": self.reward_function.json_metadata,
     }
 
@@ -606,7 +652,9 @@ class Environment(py_environment.PyEnvironment):
             }
 
           mapping[device.device_id]["setpoints"].append({
-              "field_id": self._id_map.get((device.device_id, setpoint_name)),
+              "action_name": self._id_map.get(
+                  (device.device_id, setpoint_name)
+              ),
               "setpoint_name": setpoint_name,
               "value_type": ValueType.Name(value_type),
               "min_native_value": normalizer.setpoint_min,
@@ -626,7 +674,7 @@ class Environment(py_environment.PyEnvironment):
             "device_id": device_id,
             "device_type": device_info["device_type"],
             "zone_id": device_info["zone_id"],
-            "action_type": "CONTINUOUS",  # overridden in hybrid env
+            "setpoint_type": "CONTINUOUS",  # overridden in hybrid env
         }
         record.update(setpoint_info)
         records.append(record)
@@ -635,6 +683,114 @@ class Environment(py_environment.PyEnvironment):
   @functools.cached_property
   def action_fields_df(self) -> pd.DataFrame:
     return pd.DataFrame(self.action_fields_flattened)
+
+  @property
+  def default_action_values(self) -> NormalizedActionValues:
+    """The default action used to step the environment."""
+    return self.default_policy_values.numpy().tolist()
+
+  def get_action_records_from_normalized_values(
+      self, normalized_values: NormalizedActionValues,
+  ) -> Sequence[ActionRecord]:
+    """Converts normalized action values into action records.
+
+    Args:
+      normalized_values: A list of normalized action values, assumed to be in
+        the same order as the action_names.
+
+    Returns:
+      A list of action records.
+    """
+    if len(normalized_values) != len(self.action_names):
+      raise ValueError(
+          f"Number of normalized values ({len(normalized_values)}) does not"
+          f" match number of action names ({len(self.action_names)})."
+      )
+
+    records = []
+    for i, (action_name, normalized_value) in enumerate(
+        zip(self.action_names, normalized_values)
+    ):
+      device_id, setpoint_name = self.id_map.inv[action_name]
+      normalizer = self.action_normalizers.get(action_name)
+      if normalizer is None:
+        raise ValueError(f"No normalizer found for setpoint: {setpoint_name}")
+
+      native_value = normalizer.setpoint_value(np.array(normalized_value))
+
+      records.append(
+          ActionRecord(
+              idx=i,
+              action_name=action_name,
+              device_id=device_id,
+              setpoint_name=setpoint_name,
+              setpoint_type="CONTINUOUS",
+              normalized_value=normalized_value,
+              native_value=native_value,
+              action_value=normalized_value,
+          )
+      )
+    return records
+
+  def get_action_df_from_normalized_values(
+      self, normalized_values: NormalizedActionValues
+  ) -> pd.DataFrame:
+    """Returns a DataFrame of action records from normalized values."""
+    return pd.DataFrame(
+        self.get_action_records_from_normalized_values(normalized_values)
+    )
+
+  def get_action_records_from_native_values(
+      self, native_values: NativeActionValues
+  ) -> Sequence[ActionRecord]:
+    """Converts native action values into action records.
+
+    Args:
+      native_values: A list of native action values, assumed to be in the same
+        order as the action_names.
+
+    Returns:
+      A list of action records.
+    """
+    if len(native_values) != len(self.action_names):
+      raise ValueError(
+          f"Number of native values ({len(native_values)}) does not"
+          f" match number of action names ({len(self.action_names)})."
+      )
+
+    records = []
+    for i, (action_name, native_value) in enumerate(
+        zip(self.action_names, native_values)
+    ):
+      device_id, setpoint_name = self.id_map.inv[action_name]
+
+      normalizer = self.action_normalizers.get(action_name)
+      if normalizer is None:
+        raise ValueError(f"No normalizer found for setpoint: {setpoint_name}")
+
+      normalized_value = normalizer.agent_value(native_value)
+
+      records.append(
+          ActionRecord(
+              idx=i,
+              action_name=action_name,
+              device_id=device_id,
+              setpoint_name=setpoint_name,
+              setpoint_type="CONTINUOUS",
+              normalized_value=normalized_value,
+              native_value=native_value,
+              action_value=normalized_value,
+          )
+      )
+    return records
+
+  def get_action_df_from_native_values(
+      self, native_values: NativeActionValues
+  ) -> pd.DataFrame:
+    """Returns a DataFrame of action records from native values."""
+    return pd.DataFrame(
+        self.get_action_records_from_native_values(native_values)
+    )
 
   def _get_observation_request(
       self, devices: Sequence[DeviceInfo]

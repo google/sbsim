@@ -15,6 +15,9 @@ ContinuousVariableInfo = smart_control_normalization_pb2.ContinuousVariableInfo
 BoundedActionNormalizer = bounded_action_normalizer.BoundedActionNormalizer
 StandardScoreObservationNormalizer = observation_normalizer.StandardScoreObservationNormalizer  # pylint: disable=line-too-long
 
+#
+# BUILDING LAYOUTS
+#
 
 LAYOUT = {
     "zone_1": {
@@ -43,7 +46,6 @@ LAYOUT = {
     },
 }
 
-
 DEMO_LAYOUT = {
     "zone_1": {
         "air_handler_1": [
@@ -63,7 +65,6 @@ DEMO_LAYOUT = {
         "outside_air_sensor": ["outside_air_temperature_sensor"],
     },
 }
-
 
 SIM_NEW_HVAC_LAYOUT = {
     "zone_1": {
@@ -90,6 +91,9 @@ SIM_NEW_HVAC_LAYOUT = {
     },
 }
 
+#
+# FIXTURES
+#
 
 OBSERVATION_NORMALIZERS = {
     "temperature": {"sample_mean": 310.0, "sample_variance": 50 * 50},
@@ -135,7 +139,6 @@ ACTION_NORMALIZERS = {
         "max_native_value": 350.0,  # changed from 355 to make the math easier
     },
 }
-
 HYBRID_ACTION_NORMALIZERS = {
     **ACTION_NORMALIZERS,
     **{
@@ -151,7 +154,6 @@ DEVICE_ACTION_TUPLES = [
     ("boiler_1", "supply_water_setpoint"),
     ("air_handler_2", "supply_air_heating_temperature_setpoint"),
 ]
-
 HYBRID_DEVICE_ACTION_TUPLES = [
     ("air_handler_1", "supply_air_heating_temperature_setpoint"),  # continuous
     ("air_handler_1", "supervisor_run_command"),  # discrete
@@ -161,12 +163,15 @@ HYBRID_DEVICE_ACTION_TUPLES = [
     ("air_handler_2", "supervisor_run_command"),  # discrete
 ]
 
+#
+# DEFAULT ACTIONS
+#
+
 DEFAULT_ACTIONS = {
     "air_handler_1_supply_air_heating_temperature_setpoint": 290.0,
     "boiler_1_supply_water_setpoint": 310.0,
     "air_handler_2_supply_air_heating_temperature_setpoint": 290.0,
 }
-
 DEFAULT_HYBRID_ACTIONS = {
     "air_handler_1_supply_air_heating_temperature_setpoint": 290.0,
     "air_handler_1_supervisor_run_command": 0,
@@ -175,6 +180,123 @@ DEFAULT_HYBRID_ACTIONS = {
     "air_handler_2_supply_air_heating_temperature_setpoint": 290.0,
     "air_handler_2_supervisor_run_command": 0,
 }
+
+
+DEFAULT_ACTION_VALUES = [0.0, -1.0, 0.0]
+DEFAULT_HYBRID_ACTION_VALUES = [0.0, -1.0, -1.0, -1.0, 0.0, -1.0]
+DEFAULT_HYBRID_ACTION_DICT = {
+    "discrete_action": [0, 0, 0],
+    "continuous_action": [0.0, -1.0, 0.0],
+}
+
+#
+# EXAMPLE ACTIONS
+#
+
+NORMALIZED_ACTION_VALUES = [-1.0, 0.0, 1.0]
+NATIVE_ACTION_VALUES = [285.0, 330.0, 295.0]
+ACTION_RECORDS = [
+    {
+        "idx": 0,
+        "action_name": "air_handler_1_supply_air_heating_temperature_setpoint",  # pylint: disable=line-too-long
+        "device_id": "air_handler_1",
+        "setpoint_name": "supply_air_heating_temperature_setpoint",
+        "setpoint_type": "CONTINUOUS",
+        "normalized_value": -1.0,
+        "native_value": 285.0,
+        "action_value": -1.0,
+    },
+    {
+        "idx": 1,
+        "action_name": "boiler_1_supply_water_setpoint",
+        "device_id": "boiler_1",
+        "setpoint_name": "supply_water_setpoint",
+        "setpoint_type": "CONTINUOUS",
+        "normalized_value": 0.0,
+        "native_value": 330.0,
+        "action_value": 0.0,
+    },
+    {
+        "idx": 2,
+        "action_name": "air_handler_2_supply_air_heating_temperature_setpoint",  # pylint: disable=line-too-long
+        "device_id": "air_handler_2",
+        "setpoint_name": "supply_air_heating_temperature_setpoint",
+        "setpoint_type": "CONTINUOUS",
+        "normalized_value": 1.0,
+        "native_value": 295.0,
+        "action_value": 1.0,
+    },
+]
+
+NORMALIZED_HYBRID_ACTION_VALUES = [-1.0, -1.0, 0.0, 1.0, 1.0, 1.0]
+NATIVE_HYBRID_ACTION_VALUES = [285.0, 0.0, 330.0, 1.0, 295.0, 1.0]
+HYBRID_ACTION_RECORDS = [
+    {
+        "idx": 0,
+        "action_name": "air_handler_1_supply_air_heating_temperature_setpoint",  # pylint: disable=line-too-long
+        "device_id": "air_handler_1",
+        "setpoint_name": "supply_air_heating_temperature_setpoint",
+        "setpoint_type": "CONTINUOUS",
+        "normalized_value": -1.0,
+        "native_value": 285.0,
+        "action_value": -1.0,
+    },
+    {
+        "idx": 1,
+        "action_name": "air_handler_1_supervisor_run_command",
+        "device_id": "air_handler_1",
+        "setpoint_name": "supervisor_run_command",
+        "setpoint_type": "DISCRETE",
+        "normalized_value": -1.0,
+        "native_value": 0.0,
+        "action_value": 0.0,
+    },
+    {
+        "idx": 2,
+        "action_name": "boiler_1_supply_water_setpoint",
+        "device_id": "boiler_1",
+        "setpoint_name": "supply_water_setpoint",
+        "setpoint_type": "CONTINUOUS",
+        "normalized_value": 0.0,
+        "native_value": 330.0,
+        "action_value": 0.0,
+    },
+    {
+        "idx": 3,
+        "action_name": "boiler_1_supervisor_run_command",
+        "device_id": "boiler_1",
+        "setpoint_name": "supervisor_run_command",
+        "setpoint_type": "DISCRETE",
+        "normalized_value": 1.0,
+        "native_value": 1.0,
+        "action_value": 1.0,
+    },
+    {
+        "idx": 4,
+        "action_name": "air_handler_2_supply_air_heating_temperature_setpoint",  # pylint: disable=line-too-long
+        "device_id": "air_handler_2",
+        "setpoint_name": "supply_air_heating_temperature_setpoint",
+        "setpoint_type": "CONTINUOUS",
+        "normalized_value": 1.0,
+        "native_value": 295.0,
+        "action_value": 1.0,
+    },
+    {
+        "idx": 5,
+        "action_name": "air_handler_2_supervisor_run_command",
+        "device_id": "air_handler_2",
+        "setpoint_name": "supervisor_run_command",
+        "setpoint_type": "DISCRETE",
+        "normalized_value": 1.0,
+        "native_value": 1.0,
+        "action_value": 1.0,
+    },
+]
+
+
+#
+# FACTORIES
+#
 
 
 def create_building(layout=None, initial_values=None, start_timestamp=None):
