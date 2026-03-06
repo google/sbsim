@@ -49,16 +49,19 @@ def _get_histogram_reducer():
   )
 
 
-class ValidateSetpointTypeTest(parameterized.TestCase):
+class ValidateActionTypeLabels(parameterized.TestCase):
 
-  @parameterized.parameters("CONTINUOUS", "DISCRETE")
-  def test_validate_setpoint_type_valid(self, setpoint_type):
-    environment.validate_setpoint_type(setpoint_type)
+  @parameterized.parameters(
+      environment.CONTINUOUS_ACTION,
+      environment.DISCRETE_ACTION,
+  )
+  def test_action_type_labels_valid(self, setpoint_type):
+    environment.action_type_label(setpoint_type)
 
   @parameterized.parameters("continuous", "discrete", "OTHER")
-  def test_validate_setpoint_type_invalid(self, setpoint_type):
+  def test_action_type_labels_invalid(self, setpoint_type):
     with self.assertRaises(ValueError):
-      environment.validate_setpoint_type(setpoint_type)
+      environment.action_type_label(setpoint_type)
 
 
 class EnvironmentTest(parameterized.TestCase, tf.test.TestCase):

@@ -24,14 +24,16 @@ ActionRecord = environment.ActionRecord
 
 HybridAction = dict[str, list[float]]
 
-_DISCRETE_ACTION: Final[str] = "discrete_action"
-_CONTINUOUS_ACTION: Final[str] = "continuous_action"
-_DISCRETE_ACTION_COMMAND: Final[str] = "supervisor_run_command"
+# Aliases kept here for backward compatibility:
+DISCRETE_ACTION = environment.DISCRETE_ACTION
+CONTINUOUS_ACTION = environment.CONTINUOUS_ACTION
+
+DISCRETE_ACTION_COMMAND: Final[str] = "supervisor_run_command"
 
 
 def is_discrete_action(setpoint_name: str) -> bool:
   """Checks if a setpoint name corresponds to a discrete action."""
-  return _DISCRETE_ACTION_COMMAND in setpoint_name
+  return DISCRETE_ACTION_COMMAND in setpoint_name
 
 
 def map_discrete_off_value(action_value: float) -> float:
@@ -118,19 +120,19 @@ class HybridActionEnvironment(environment.Environment):
       action_normalizers[field_id] = action_normalizer
 
     action_spec = {
-        _CONTINUOUS_ACTION: array_spec.BoundedArraySpec(
+        CONTINUOUS_ACTION: array_spec.BoundedArraySpec(
             shape=(len(continuous_action_names),),
             dtype=np.float32,
             minimum=-1.0,
             maximum=1.0,
-            name=_CONTINUOUS_ACTION,
+            name=CONTINUOUS_ACTION,
         ),
-        _DISCRETE_ACTION: array_spec.BoundedArraySpec(
+        DISCRETE_ACTION: array_spec.BoundedArraySpec(
             shape=(len(discrete_action_names),),
             dtype=np.int32,
             minimum=0,
             maximum=1,
-            name=_DISCRETE_ACTION,
+            name=DISCRETE_ACTION,
         ),
     }
     logging.info(
@@ -146,8 +148,8 @@ class HybridActionEnvironment(environment.Environment):
     """Converts from hybrid to all real-valued actions."""
     if (
         not isinstance(action, dict)
-        or _CONTINUOUS_ACTION not in action.keys()
-        or _DISCRETE_ACTION not in action.keys()
+        or CONTINUOUS_ACTION not in action.keys()
+        or DISCRETE_ACTION not in action.keys()
     ):
       raise ValueError(
           "Hybrid Action Environment requires an action dict with continuous"
@@ -155,10 +157,10 @@ class HybridActionEnvironment(environment.Environment):
       )
 
     discrete_action = tf.reshape(
-        action[_DISCRETE_ACTION], self._action_spec[_DISCRETE_ACTION].shape
+        action[DISCRETE_ACTION], self._action_spec[DISCRETE_ACTION].shape
     )
     discrete_dequeue = collections.deque(discrete_action)
-    continuous_dequeue = collections.deque(action[_CONTINUOUS_ACTION])
+    continuous_dequeue = collections.deque(action[CONTINUOUS_ACTION])
 
     if len(discrete_dequeue) + len(continuous_dequeue) != len(action_names):
       raise ValueError(
@@ -173,7 +175,7 @@ class HybridActionEnvironment(environment.Environment):
     # the order provided by action names.
     # The discrete and continuous actions are already ordered, but
     # they need to be merged into a single float list.
-    # Only discrete actions with _DISCRETE_ACTION_COMMMAND in the name
+    # Only discrete actions with DISCRETE_ACTION_COMMAND in the name
     # are recognized as discrete.
     for action_name in action_names:
       if is_discrete_action(action_name):
@@ -209,7 +211,11 @@ class HybridActionEnvironment(environment.Environment):
     """Action fields DataFrame with awareness of discrete actions."""
     df = super().action_fields_df.copy()
     is_discrete = df["setpoint_name"].apply(is_discrete_action)
-    df["setpoint_type"] = np.where(is_discrete, "DISCRETE", "CONTINUOUS")
+    df["setpoint_type"] = np.where(
+        is_discrete,
+        environment.action_type_label(DISCRETE_ACTION),
+        environment.action_type_label(CONTINUOUS_ACTION),
+    )
     return df
 
   def convert_to_hybrid(
@@ -224,15 +230,15 @@ class HybridActionEnvironment(environment.Environment):
     Returns:
       A HybridAction dictionary with discrete and continuous actions.
     """
-    hybrid_action: HybridAction = {_CONTINUOUS_ACTION: [], _DISCRETE_ACTION: []}
+    hybrid_action: HybridAction = {CONTINUOUS_ACTION: [], DISCRETE_ACTION: []}
 
     for action_value, action_name in zip(action_values, self.action_names):
       if is_discrete_action(action_name):
-        hybrid_action[_DISCRETE_ACTION].append(
+        hybrid_action[DISCRETE_ACTION].append(
             map_discrete_off_value(action_value)
         )
       else:
-        hybrid_action[_CONTINUOUS_ACTION].append(action_value)
+        hybrid_action[CONTINUOUS_ACTION].append(action_value)
     return hybrid_action
 
   @property

@@ -10,7 +10,7 @@ import dataclasses
 import functools
 import os
 import time
-from typing import Any, Final, Literal, Mapping, NewType, Optional, Tuple, get_args
+from typing import Any, Final, Mapping, NewType, Optional, Tuple
 
 from absl import logging
 import bidict
@@ -70,14 +70,25 @@ DeviceMeasurementTuple = Tuple[DeviceCode, MeasurementName]
 NativeActionValues = Sequence[float]
 NormalizedActionValues = Sequence[float]
 
-SetpointType = Literal["CONTINUOUS", "DISCRETE"]
-
 ACTION_REJECTION_REWARD: Final[float] = -np.inf
 COMFORT_MODE_NOW: Final[str] = "comfort_mode_now"
 COMFORT_MODE_SOON: Final[str] = "comfort_mode_soon"
 NUM_OCCUPANTS: Final[str] = "num_occupants"
 DOW_LABEL: Final[str] = "dow"
 HOD_LABEL: Final[str] = "hod"
+
+DISCRETE_ACTION: Final[str] = "discrete_action"
+CONTINUOUS_ACTION: Final[str] = "continuous_action"
+
+
+def action_type_label(action_type: str) -> str:
+  """Returns a label for the given action type, used for display purposes."""
+  if action_type not in (DISCRETE_ACTION, CONTINUOUS_ACTION):
+    raise ValueError(
+        f"Invalid action_type: {action_type}. Action type must be one of"
+        f" {DISCRETE_ACTION, CONTINUOUS_ACTION}."
+    )
+  return action_type.replace("_action", "").upper()
 
 
 def all_actions_accepted(action_response: ActionResponse) -> bool:
@@ -296,22 +307,6 @@ class ActionConfig:
     return self.action_normalizers.get(DeviceFieldId(setpoint_name))
 
 
-def validate_setpoint_type(setpoint_type: SetpointType) -> None:
-  """Checks if the setpoint_type is valid.
-
-  Args:
-    setpoint_type: The setpoint type to validate.
-
-  Raises:
-    ValueError: If setpoint_type is not 'CONTINUOUS' or 'DISCRETE'.
-  """
-  if setpoint_type not in get_args(SetpointType):
-    raise ValueError(
-        f"Invalid setpoint_type: {setpoint_type}. "
-        f"Setpoint type must be one of {get_args(SetpointType)}."
-    )
-
-
 @dataclasses.dataclass(frozen=True, kw_only=True)
 class ActionRecord:
   """An action for a specific setpoint.
@@ -334,13 +329,21 @@ class ActionRecord:
   action_name: str
   device_id: DeviceId
   setpoint_name: FieldName
-  setpoint_type: SetpointType
+  setpoint_type: str
   normalized_value: float
   native_value: float
   action_value: float
 
   def __post_init__(self) -> None:
-    validate_setpoint_type(self.setpoint_type)
+    labels = [
+        action_type_label(action_type)
+        for action_type in (CONTINUOUS_ACTION, DISCRETE_ACTION)
+    ]
+    if self.setpoint_type not in labels:
+      raise ValueError(
+          f"Invalid setpoint_type: {self.setpoint_type}. "
+          f"Setpoint type must be one of {labels}."
+      )
 
 
 def generate_field_id(
@@ -674,7 +677,7 @@ class Environment(py_environment.PyEnvironment):
             "device_id": device_id,
             "device_type": device_info["device_type"],
             "zone_id": device_info["zone_id"],
-            "setpoint_type": "CONTINUOUS",  # overridden in hybrid env
+            "setpoint_type": action_type_label(CONTINUOUS_ACTION),
         }
         record.update(setpoint_info)
         records.append(record)
@@ -724,7 +727,7 @@ class Environment(py_environment.PyEnvironment):
               action_name=action_name,
               device_id=device_id,
               setpoint_name=setpoint_name,
-              setpoint_type="CONTINUOUS",
+              setpoint_type=action_type_label(CONTINUOUS_ACTION),
               normalized_value=normalized_value,
               native_value=native_value,
               action_value=normalized_value,
@@ -776,7 +779,7 @@ class Environment(py_environment.PyEnvironment):
               action_name=action_name,
               device_id=device_id,
               setpoint_name=setpoint_name,
-              setpoint_type="CONTINUOUS",
+              setpoint_type=action_type_label(CONTINUOUS_ACTION),
               normalized_value=normalized_value,
               native_value=native_value,
               action_value=normalized_value,
