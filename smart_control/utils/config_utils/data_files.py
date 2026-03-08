@@ -9,23 +9,9 @@ import os
 import numpy as np
 import pandas as pd
 
-# access data files in a way that works both internally and externally
-# look for environment variable used by blaze / bazel internally:
-# see: https://bazel.build/concepts/dependencies#data-dependencies
-TEST_SRCDIR = os.environ.get("TEST_SRCDIR")
-if TEST_SRCDIR:
-  REPO_DIRPATH = os.path.join(
-      TEST_SRCDIR,
-      "google3",
-      "third_party",
-      "py",
-      "smart_buildings",
-      "smart_control",
-  )
-else:
-  REPO_DIRPATH = os.path.join(os.path.dirname(__file__), "..", "..")
+from smart_buildings.smart_control.utils import constants
 
-DIRPATH = os.path.join(REPO_DIRPATH, "configs", "resources", "sb1")
+DIRPATH = os.path.join(constants.REPO_DIRPATH, "configs", "resources", "sb1")
 
 ZONE_TEMPS_FILEPATH = os.path.join(DIRPATH, "reset_temps.npy")
 FLOOR_PLAN_FILEPATH = os.path.join(DIRPATH, "double_resolution_zone_1_2.npy")

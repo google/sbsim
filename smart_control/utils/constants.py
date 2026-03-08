@@ -1,5 +1,6 @@
 """Constants related to the simulation and RL environment."""
 
+import os
 from typing import Final
 
 # --------- Thermal Constants ---------------
@@ -45,3 +46,22 @@ REWARD_INFO_PREFIX = 'reward_info'
 REWARD_RESPONSE_PREFIX = 'reward_response'
 DEVICE_INFO_PREFIX = 'device_info'
 ZONE_INFO_PREFIX = 'zone_info'
+
+
+# ------------ File Paths -----------------
+
+# Reference file paths in a way that works both internally and externally.
+# Look for environment variable used by blaze / bazel internally.
+# See: https://bazel.build/concepts/dependencies#data-dependencies
+TEST_SRCDIR = os.environ.get('TEST_SRCDIR')
+if TEST_SRCDIR:
+  REPO_DIRPATH = os.path.join(
+      TEST_SRCDIR,
+      'google3',
+      'third_party',
+      'py',
+      'smart_buildings',
+      'smart_control',
+  )
+else:
+  REPO_DIRPATH = os.path.join(os.path.dirname(__file__), '..')
