@@ -5,70 +5,107 @@ Translates protos into data structures that are useful or easier to work with.
 
 import collections
 from functools import cached_property  # pylint: disable=g-importing-member
-from typing import Mapping, Tuple, Optional
+from typing import Any, Mapping, Sequence, Tuple
 
 import numpy as np
 import pandas as pd
 
 from smart_buildings.smart_control.proto import smart_control_reward_pb2
 from smart_buildings.smart_control.utils import conversion_utils
-
+from smart_buildings.smart_control.utils import temperature_conversion
 
 RewardInfo = smart_control_reward_pb2.RewardInfo
 
+assign_temp_conversion = temperature_conversion.assign_temp_display_and_conversion  # pylint: disable=line-too-long
 proto_to_pandas_timestamp = conversion_utils.proto_to_pandas_timestamp
 
-_TEMP_UNIT = 'K'
-_TEMP_BINS = [290, 291, 292, 293, 294, 295, 296, 297, 298, 299, 300]
+WATT_SECONDS_KWH = conversion_utils._WATT_SECONDS_KWH  # pylint: disable=protected-access
 
-_WATT_SECONDS_KWH = 1.0 / 3600.0 / 1000.0
+TEMP_UNIT = 'K'
+TEMP_BINS = (290, 291, 292, 293, 294, 295, 296, 297, 298, 299, 300)
 
 
-def get_comfort_diffs(row: pd.Series) -> Tuple[Optional[str], Optional[float]]:
-  """Determines whether or not the zone is in comfort range.
-
-  Differential is calculated according to the following logic:
-  If the `zone_air_temp` is between heating and cooling setpoints, then 0,
-  else if `zone_air_temp` is below heating setpoint, then negative differential,
-  else if `zone_air_temp` is above cooling setpoint, then positive differential.
+def get_comfort_diffs(
+    row: pd.Series,
+    use_magnitude_labels: bool = False,
+    label_max_degrees: int | None = 5,
+) -> Tuple[float, str]:
+  """Calculates a comfort label and differential for each zone.
 
   Args:
-    row: A pandas series containing the following attribute names:
+    row: A `pandas.Series` containing the following attribute / column names:
       + 'zone_air_temp'
       + 'heating_setpoint_temp'
       + 'cooling_setpoint_temp'
+    use_magnitude_labels: If True, the label will include the magnitude of the
+      temperature differential.
+    label_max_degrees: If provided and use_magnitude_labels is True, specifies
+      the maximum number of degrees outside comfort range to be used when
+      compiling the label. Must be a positive int.
 
   Returns:
-    A tuple containing the comfort label and the comfort differential.
-    The comfort label is one of 'IN_RANGE', 'TOO_COLD', or 'TOO_HOT'.
+    A tuple containing the comfort differential and corresponding label.
+
     The comfort differential is the difference between the zone air temperature
     and the desired temperature range, where zero means the temp is in range,
     positive numbers are too hot, and negative numbers are too cold.
+
+    The comfort label is one of: 'IN_RANGE', 'TOO_COLD', or 'TOO_HOT'. If
+    use_magnitude_labels is True, the label is appended with '_X', where X is
+    the number of degrees outside of comfort range, represented as a rounded
+    absolute integer value (potentially capped by label_max_degrees).
   """
-  label = None
-  diff = None
+  zone_air_temp = float(row['zone_air_temp'])
+  comfort_min = float(row['heating_setpoint_temp'])
+  comfort_max = float(row['cooling_setpoint_temp'])
+  if comfort_min >= comfort_max:
+    raise ValueError('Invalid setpoint range. Expecting heating < cooling.')
 
-  if (row['zone_air_temp'] >= row['heating_setpoint_temp'] and
-      row['zone_air_temp'] <= row['cooling_setpoint_temp']):
+  if comfort_min <= zone_air_temp <= comfort_max:
     label = 'IN_RANGE'
-    diff = 0
-
-  elif row['zone_air_temp'] < row['heating_setpoint_temp']:
+    diff = 0.0
+  elif zone_air_temp < comfort_min:
     label = 'TOO_COLD'
-    diff = row['zone_air_temp'] - row['heating_setpoint_temp']
-
-  elif row['zone_air_temp'] > row['cooling_setpoint_temp']:
+    diff = zone_air_temp - comfort_min
+  elif zone_air_temp > comfort_max:
     label = 'TOO_HOT'
-    diff = row['zone_air_temp'] - row['cooling_setpoint_temp']
+    diff = zone_air_temp - comfort_max
+  else:
+    raise ValueError('Invalid temperature values.')
 
-  return label, diff
+  if use_magnitude_labels and label != 'IN_RANGE':
+    degrees_outside_range = round(abs(diff))
+    if label_max_degrees is not None:
+      degrees_outside_range = min(degrees_outside_range, label_max_degrees)
+    label = f'{label}_{degrees_outside_range}'
+
+  return diff, label
 
 
 class RewardInfoParser:
   """Parses a RewardInfo proto into a more usable format."""
 
-  def __init__(self, reward_info: RewardInfo):
+  def __init__(
+      self,
+      reward_info: RewardInfo,
+      temp_unit: str = TEMP_UNIT,
+      zone_temp_bins: Sequence[int] = TEMP_BINS,
+      comfort_diff_params: Mapping[str, Any] | None = None,
+  ):
+    """Initializes the RewardInfoParser.
+
+    Args:
+      reward_info: The RewardInfo proto to parse.
+      temp_unit: The unit of temperature to use (default is 'K').
+      zone_temp_bins: The temperature bins to use for the histogram (default is
+        [290, 291, 292, 293, 294, 295, 296, 297, 298, 299, 300]).
+      comfort_diff_params: A dictionary of parameters to pass to the
+        get_comfort_diffs function (default is None).
+    """
     self.reward_info = reward_info
+    self.temp_unit = temp_unit
+    self.zone_temp_bins = zone_temp_bins
+    self.comfort_diff_params = comfort_diff_params or {}
 
   # PROPERTIES AND ALIASES
 
@@ -101,12 +138,35 @@ class RewardInfoParser:
   # ZONE INFO
   #
 
-  def get_zone_conditions_histogram(self, temp_unit: str = _TEMP_UNIT,
-                                    temp_bins: list[float] | None = None,
-                                    ):
-    """Summarizes the number of zones and occupants in each temperature bin."""
-    if temp_bins is None:
-      temp_bins = _TEMP_BINS
+  def get_zone_conditions_histogram(
+      self,
+      temp_unit: str | None = None,
+      temp_bins: Sequence[float] | None = None,
+  ):
+    """Summarizes the number of zones and occupants in each temperature bin.
+
+    Zone temperatures are assigned to the bin with the closest numerical value.
+
+    Args:
+      temp_unit: The unit of temperature to use (default is 'K').
+      temp_bins: The temperature bins to use for the histogram (default is
+        [290, 291, 292, 293, 294, 295, 296, 297, 298, 299, 300]).
+
+    Returns:
+      A pandas dataframe containing the number of zones and occupants in each
+      temperature bin. The dataframe is indexed by temperature and contains the
+      following columns:
+        + 'count of zones': The number of zones in each temperature bin.
+        + 'count of occupants': The number of occupants in each temperature bin.
+        + 'temperature setpoint range': A string indicating the temperature
+          setpoint range ('+' indicates in range, '-' indicates out of range).
+        + 'count of occupants exposed': The number of occupants exposed to
+          uncomfortable temperatures.
+      The dataframe is transposed so that the index is the metrics and the
+      columns are the temperature bins.
+    """
+    temp_unit = temp_unit or self.temp_unit
+    temp_bins = temp_bins or self.zone_temp_bins
 
     temperature_bins = np.array(temp_bins)
     temperature_count = np.zeros(len(temperature_bins))
@@ -118,11 +178,18 @@ class RewardInfoParser:
 
     for _, zone_reward_info in self.zone_reward_infos.items():
       zone_temp = zone_reward_info.zone_air_temperature
+      heating_setpoint_temp = zone_reward_info.heating_setpoint_temperature
+      cooling_setpoint_temp = zone_reward_info.cooling_setpoint_temperature
+
+      _, temp_convert = assign_temp_conversion(temp_unit)
+      if temp_convert is not None:
+        zone_temp = temp_convert(zone_temp)
+        heating_setpoint_temp = temp_convert(heating_setpoint_temp)
+        cooling_setpoint_temp = temp_convert(cooling_setpoint_temp)
+
       bin_id = np.argmin(np.abs(temperature_bins - zone_temp))
       temperature_count[bin_id] += 1
       occupancy_count[bin_id] += zone_reward_info.average_occupancy
-
-      heating_setpoint_temp = zone_reward_info.heating_setpoint_temperature
 
       bin_id = np.argmin(np.abs(temperature_bins - heating_setpoint_temp))
       if bin_id < min_setpoint_ix:
@@ -130,7 +197,6 @@ class RewardInfoParser:
 
       setpoint_count[bin_id] += 1
 
-      cooling_setpoint_temp = zone_reward_info.cooling_setpoint_temperature
       bin_id = np.argmin(np.abs(temperature_bins - cooling_setpoint_temp))
       if bin_id > max_setpoint_ix:
         max_setpoint_ix = bin_id
@@ -158,6 +224,10 @@ class RewardInfoParser:
         },
         index=[f'{temp}°{temp_unit}' for temp in temperature_bins],
     ).T
+
+  @cached_property
+  def zone_conditions_histogram(self) -> pd.DataFrame:
+    return self.get_zone_conditions_histogram()
 
   @cached_property
   def zone_occupancies_df(self) -> pd.DataFrame:
@@ -189,17 +259,10 @@ class RewardInfoParser:
     df.set_index('zone_id', inplace=True)
     df.sort_index(inplace=True)
     df['zone_air_temp'] = df['zone_air_temp'].round(1)
-    df[['comfort_label', 'comfort_diff']] = df.apply(get_comfort_diffs, axis=1,
-                                                     result_type='expand')
-
-    # make the label categorical, so a pivot table made from this dataframe will
-    # retain a row for each of the label values, even if they are not present:
-    # the order corresponds to the row sort order in the pivot table...
-    categories_in_sort_order = ['TOO_HOT', 'IN_RANGE', 'TOO_COLD']
-    df['comfort_label'] = pd.Categorical(
-        df['comfort_label'], categories=categories_in_sort_order
+    df[['comfort_diff', 'comfort_label']] = df.apply(
+        get_comfort_diffs, axis=1, result_type='expand',
+        **self.comfort_diff_params
     )
-
     return df
 
   @cached_property
@@ -250,28 +313,26 @@ class RewardInfoParser:
               air_handler_id
           ].blower_electrical_energy_rate
           * self.dt
-          * _WATT_SECONDS_KWH
+          * WATT_SECONDS_KWH
       )
       energy_use['air_handler_air_conditioning'] += (
           self.air_handler_reward_infos[
               air_handler_id
           ].air_conditioning_electrical_energy_rate
           * self.dt
-          * _WATT_SECONDS_KWH
+          * WATT_SECONDS_KWH
       )
 
     for boiler_id in self.boiler_reward_infos:
       energy_use['boiler_natural_gas_heating_energy'] += (
-          self.boiler_reward_infos[
-              boiler_id
-          ].natural_gas_heating_energy_rate
+          self.boiler_reward_infos[boiler_id].natural_gas_heating_energy_rate
           * self.dt
-          * _WATT_SECONDS_KWH
+          * WATT_SECONDS_KWH
       )
       energy_use['boiler_pump_electrical_energy'] += (
           self.boiler_reward_infos[boiler_id].pump_electrical_energy_rate
           * self.dt
-          * _WATT_SECONDS_KWH
+          * WATT_SECONDS_KWH
       )
 
     return energy_use
@@ -361,5 +422,5 @@ class RewardInfoParser:
     df = df.rename(columns={'value': 'rate_watts'})
     df = df.drop(columns=['unit'], errors='ignore')
     # calculate the energy consumption in kWh:
-    df['consumption_kwh'] = df['rate_watts'] * self.dt * _WATT_SECONDS_KWH
+    df['consumption_kwh'] = df['rate_watts'] * self.dt * WATT_SECONDS_KWH
     return df

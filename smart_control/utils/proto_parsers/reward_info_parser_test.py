@@ -1,6 +1,7 @@
 """Tests for the RewardInfoParser class."""
 
 from absl.testing import absltest
+from absl.testing import parameterized
 import pandas as pd
 
 from smart_buildings.smart_control.proto import smart_control_reward_pb2
@@ -8,21 +9,149 @@ from smart_buildings.smart_control.utils import conversion_utils
 from smart_buildings.smart_control.utils import test_utils
 from smart_buildings.smart_control.utils.proto_parsers import reward_info_parser
 
+get_comfort_diffs = reward_info_parser.get_comfort_diffs
+
 
 TIME_ZONE = 'US/Pacific'
 START_TIMESTAMP = pd.Timestamp('2022-03-13 00:00:00', tz=TIME_ZONE)
 END_TIMESTAMP = pd.Timestamp('2022-03-13 00:05:00', tz=TIME_ZONE)
+
+HISTOGRAM_INDEX_NAMES = [
+    'count of zones',
+    'count of occupants',
+    'temperature setpoint range',
+    'count of occupants exposed',
+]
+
+
+COMFORT_DIFFS_TEST_PARAMS = [
+    # zone_air_temp, expected_diff, expected_label (with magnitude)
+    (287.0, -6.0, 'TOO_COLD_5'),  # label uses capped diff value of 5
+    (288.0, -5.0, 'TOO_COLD_5'),
+    (289.0, -4.0, 'TOO_COLD_4'),
+    (290.0, -3.0, 'TOO_COLD_3'),
+    (291.0, -2.0, 'TOO_COLD_2'),
+    (292.0, -1.0, 'TOO_COLD_1'),
+    (292.4, -0.6, 'TOO_COLD_1'),  # label uses rounded diff value of -1
+    (292.6, -0.4, 'TOO_COLD_0'),  # label uses rounded diff value of 0
+    (293.0, 0.0, 'IN_RANGE'),
+    (294.0, 0.0, 'IN_RANGE'),
+    (295.0, 0.0, 'IN_RANGE'),
+    (296.0, 0.0, 'IN_RANGE'),
+    (297.0, 0.0, 'IN_RANGE'),
+    (297.4, 0.4, 'TOO_HOT_0'),  # label uses rounded diff value of 0
+    (297.6, 0.6, 'TOO_HOT_1'),  # label uses rounded diff value of 1
+    (298.0, 1.0, 'TOO_HOT_1'),
+    (299.0, 2.0, 'TOO_HOT_2'),
+    (300.0, 3.0, 'TOO_HOT_3'),
+    (301.0, 4.0, 'TOO_HOT_4'),
+    (302.0, 5.0, 'TOO_HOT_5'),
+    (303.0, 6.0, 'TOO_HOT_5'),  # label uses capped diff value of 5
+]
+
+
+class ComfortDiffsTest(parameterized.TestCase):
+  """Tests for comfort differential functions."""
+
+  @parameterized.parameters(COMFORT_DIFFS_TEST_PARAMS)
+  def test_comfort_diffs_without_magnitude_labels(
+      self, zone_air_temp, expected_diff, expected_label
+  ):
+    row = pd.Series({
+        'zone_air_temp': zone_air_temp,
+        'heating_setpoint_temp': 293.0,  # comfort range min
+        'cooling_setpoint_temp': 297.0,  # comfort range max
+    })
+
+    label_no_magnitude = expected_label
+    if label_no_magnitude != 'IN_RANGE':
+      label_no_magnitude = label_no_magnitude.rsplit('_', 1)[0]
+
+    diff, label = get_comfort_diffs(row, use_magnitude_labels=False)
+    self.assertAlmostEqual(diff, expected_diff, places=4)
+    self.assertEqual(label, label_no_magnitude)
+
+  @parameterized.parameters(COMFORT_DIFFS_TEST_PARAMS)
+  def test_comfort_diffs_with_magnitude_labels(
+      self, zone_air_temp, expected_diff, expected_label
+  ):
+    row = pd.Series({
+        'zone_air_temp': zone_air_temp,
+        'heating_setpoint_temp': 293.0,  # comfort range min
+        'cooling_setpoint_temp': 297.0,  # comfort range max
+    })
+
+    diff, label = get_comfort_diffs(row, use_magnitude_labels=True)
+    self.assertAlmostEqual(diff, expected_diff, places=4)
+    self.assertEqual(label, expected_label)
+
+  @parameterized.parameters(
+      # without a cap, the label can exceed the default of 5:
+      (287.0, None, -6.0, 'TOO_COLD_6'),
+      (303.0, None, 6.0, 'TOO_HOT_6'),
+      # with a custom cap, the label is capped to the custom value:
+      (289.0, 3, -4.0, 'TOO_COLD_3'),  # capped to 3
+      (290.0, 3, -3.0, 'TOO_COLD_3'),
+      (291.0, 3, -2.0, 'TOO_COLD_2'),
+      (301.0, 3, 4.0, 'TOO_HOT_3'),  # capped to 3
+      (300.0, 3, 3.0, 'TOO_HOT_3'),
+      (299.0, 3, 2.0, 'TOO_HOT_2'),
+  )
+  def test_magnitude_labels_max_degrees(
+      self, zone_air_temp, max_degrees, expected_diff, expected_label
+  ):
+    row = pd.Series({
+        'zone_air_temp': zone_air_temp,
+        'heating_setpoint_temp': 293.0,  # comfort range min
+        'cooling_setpoint_temp': 297.0,  # comfort range max
+    })
+    diff, label = get_comfort_diffs(
+        row, use_magnitude_labels=True, label_max_degrees=max_degrees
+    )
+    self.assertAlmostEqual(diff, expected_diff, places=4)
+    self.assertEqual(label, expected_label)
+
+  def test_comfort_diffs_invalid_setpoint_range(self):
+    invalid_row = pd.Series({
+        'zone_air_temp': 295.0,
+        'heating_setpoint_temp': 298.0,  # comfort range min
+        'cooling_setpoint_temp': 296.0,  # comfort range max
+    })  # min >= max is invalid
+
+    error_message = 'Invalid setpoint range. Expecting heating < cooling.'
+
+    with self.assertRaisesRegex(ValueError, error_message):
+      get_comfort_diffs(invalid_row)
+
+    with self.assertRaisesRegex(ValueError, error_message):
+      get_comfort_diffs(invalid_row, use_magnitude_labels=True)
+
+  def test_comfort_diffs_invalid_temperature_values(self):
+    invalid_row = pd.Series({
+        'zone_air_temp': None,   # invalid value
+        'heating_setpoint_temp': 293.0,
+        'cooling_setpoint_temp': 297.0,
+    })
+
+    with self.subTest(name='without magnitude labels'):
+      with self.assertRaisesRegex(ValueError, 'Invalid temperature values.'):
+        get_comfort_diffs(invalid_row)
+
+    with self.subTest(name='with magnitude labels'):
+      with self.assertRaisesRegex(ValueError, 'Invalid temperature values.'):
+        get_comfort_diffs(invalid_row, use_magnitude_labels=True)
 
 
 class RewardInfoParserTest(absltest.TestCase):
   def setUp(self):
     super().setUp()
 
+    # FYI the usual comfort range is between 293 and 297 K
     zone_temp_occupancies = [
         # zone_id, zone_air_temp, zone_occupancy
-        ('zone_0', 295.0, 8.0),  # IN RANGE
-        ('zone_1', 292.0, 4.0),  # TOO COLD
-        ('zone_2', 299.0, 2.0),  # TOO HOT
+        ('zone_0', 295.0, 8.0),  # IN_RANGE  (71.33°F)
+        ('zone_1', 292.0, 4.0),  # TOO_COLD_1  (65.93°F)
+        ('zone_2', 299.0, 2.0),  # TOO_HOT_2  (78.53°F)
     ]
     air_handler_energies = [
         # ahu_id, blower_electrical_energy_rate, ac_electrical_energy_rate
@@ -42,7 +171,9 @@ class RewardInfoParserTest(absltest.TestCase):
         end_timestamp=END_TIMESTAMP,
     )
 
-    self.parser = reward_info_parser.RewardInfoParser(self.reward_info)
+    self.parser = reward_info_parser.RewardInfoParser(
+        self.reward_info, comfort_diff_params={'use_magnitude_labels': True}
+    )
 
   # PROPERTIES AND ALIASES
 
@@ -76,17 +207,22 @@ class RewardInfoParserTest(absltest.TestCase):
   # ZONE INFO
 
   def test_zone_conditions_histogram(self):
+    # It calls and returns the result of get_zone_conditions_histogram() method:
+    pd.testing.assert_frame_equal(
+        self.parser.get_zone_conditions_histogram(),
+        self.parser.zone_conditions_histogram,
+    )
+    # See test_get_zone_conditions_histogram() below for more details.
+
+  def test_get_zone_conditions_histogram(self):
     histogram = self.parser.get_zone_conditions_histogram()
     self.assertIsInstance(histogram, pd.DataFrame)
 
     with self.subTest(name='index'):
-      self.assertEqual(histogram.index.tolist(), [
-          'count of zones', 'count of occupants', 'temperature setpoint range',
-          'count of occupants exposed'
-      ])
+      self.assertEqual(histogram.index.tolist(), HISTOGRAM_INDEX_NAMES)
 
     with self.subTest(name='columns'):
-      expected_columns = [f'{temp}°K' for temp in reward_info_parser._TEMP_BINS]
+      expected_columns = [f'{temp}°K' for temp in reward_info_parser.TEMP_BINS]
       self.assertEqual(histogram.columns.tolist(), expected_columns)
 
     with self.subTest(name='zone counts'):
@@ -121,6 +257,26 @@ class RewardInfoParserTest(absltest.TestCase):
                   '300°K': 0}
       self.assertEqual(occupant_exposure, expected)
 
+  def test_get_zone_conditions_histogram_with_custom_params(self):
+    histogram = self.parser.get_zone_conditions_histogram(
+        temp_unit='F', temp_bins=[60, 65, 70]
+    )
+    self.assertIsInstance(histogram, pd.DataFrame)
+
+    with self.subTest(name='index'):
+      self.assertEqual(histogram.index.tolist(), HISTOGRAM_INDEX_NAMES)
+
+    with self.subTest(name='columns'):
+      self.assertEqual(histogram.columns.tolist(), ['60°F', '65°F', '70°F'])
+
+    with self.subTest(name='zone counts'):
+      # Zone temps in F are: [65.93, 71.33, 78.53]
+      # This row shows the number of zones in each temperature bin:
+      self.assertEqual(
+          histogram.loc['count of zones'].to_dict(),
+          {'60°F': 0, '65°F': 1, '70°F': 2},
+      )
+
   def test_zone_occupancies_df(self):
     df = self.parser.zone_occupancies_df
     self.assertIsInstance(df, pd.DataFrame)
@@ -132,8 +288,8 @@ class RewardInfoParserTest(absltest.TestCase):
     with self.subTest(name='columns'):
       self.assertEqual(df.columns.tolist(), [
           'average_occupancy', 'heating_setpoint_temp',
-          'cooling_setpoint_temp', 'zone_air_temp', 'comfort_label',
-          'comfort_diff'
+          'cooling_setpoint_temp', 'zone_air_temp', 'comfort_diff',
+          'comfort_label'
       ])
 
     with self.subTest(name='occupancy'):
@@ -163,14 +319,7 @@ class RewardInfoParserTest(absltest.TestCase):
           'zone_2': 299.0,
       })
 
-    with self.subTest(name='comfort'):
-      # category label for each zone:
-      self.assertEqual(df['comfort_label'].to_dict(), {
-          'zone_0': 'IN_RANGE',
-          'zone_1': 'TOO_COLD',
-          'zone_2': 'TOO_HOT',
-      })
-
+    with self.subTest(name='comfort diffs'):
       # how far each zone's temp is from being in range (0 if in range):
       self.assertEqual(df['comfort_diff'].to_dict(), {
           'zone_0': 0.0,
@@ -178,28 +327,63 @@ class RewardInfoParserTest(absltest.TestCase):
           'zone_2': 2.0,
       })
 
+    with self.subTest(name='comfort labels'):
+      # category label for each zone:
+      self.assertEqual(df['comfort_label'].to_dict(), {
+          'zone_0': 'IN_RANGE',
+          'zone_1': 'TOO_COLD_1',
+          'zone_2': 'TOO_HOT_2',
+      })
+
+  def test_zone_occupancies_df_with_default_comfort_diff_params(self):
+    parser = reward_info_parser.RewardInfoParser(self.reward_info)
+    self.assertEqual(
+        parser.zone_occupancies_df['comfort_label'].to_dict(),
+        {
+            'zone_0': 'IN_RANGE',
+            'zone_1': 'TOO_COLD',
+            'zone_2': 'TOO_HOT',
+        },
+    )
+
+  def test_zone_occupancies_df_with_custom_comfort_diff_params(self):
+    custom_params = {'use_magnitude_labels': True, 'label_max_degrees': 1}
+    parser = reward_info_parser.RewardInfoParser(
+        self.reward_info, comfort_diff_params=custom_params,
+    )
+    self.assertEqual(
+        parser.zone_occupancies_df['comfort_label'].to_dict(),
+        {
+            'zone_0': 'IN_RANGE',
+            'zone_1': 'TOO_COLD_1',
+            'zone_2': 'TOO_HOT_1',  # 2.0 diff is capped at 1 for label
+        },
+    )
+
   def test_num_zones(self):
     self.assertEqual(self.parser.num_zones, 3)
 
   def test_total_occupancy(self):
     self.assertEqual(self.parser.total_occupancy, 14)
 
-  def test_occupant_confort_counts(self):
+  def test_occupant_comfort_counts(self):
     self.assertEqual(self.parser.num_occupants_comfortable, 8)
-
     self.assertEqual(self.parser.num_occupants_uncomfortable, 6)
 
     self.assertEqual(self.parser.occupant_comfort_histogram, {
-        'TOO_HOT': 2,
         'IN_RANGE': 8,
-        'TOO_COLD': 4,
+        'TOO_COLD_1': 4,
+        'TOO_HOT_2': 2,
     })
 
   # ENERGY CONSUMPTION
 
-  def _assert_device_energy_consumption(self, df: pd.DataFrame, device_id: str,
-                                        expected_values: list[dict[str, float]]
-                                        ):
+  def _assert_device_energy_consumption(
+      self,
+      df: pd.DataFrame,
+      device_id: str,
+      expected_values: list[dict[str, float]],
+  ):
     rows = df[df['device_id'] == device_id]
     metrics = rows[['metric', 'rate_watts', 'consumption_kwh']]
 

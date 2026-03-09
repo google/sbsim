@@ -48,6 +48,39 @@ def kelvin_to_fahrenheit(temp_k: float) -> float:
   return temp_c * 9.0 / 5.0 + 32.0
 
 
+def assign_temp_display_and_conversion(display_unit: str):
+  """Assigns a temperature display unit and corresponding conversion function.
+
+  Assumes temperature inputs are in Kelvin.
+
+  Args:
+    display_unit: The temperature display unit to use (e.g. "Kelvin", "Celsius",
+      or "Fahrenheit"). Alternatively, you can use just the first letter (e.g.
+      "K", "C", or "F"). This provides a more convenient developer experience,
+      because "Fahrenheit" is easily misspelled.
+
+  Returns:
+    A tuple of the temperature display unit and corresponding temperature
+    conversion function (or None, if no conversion is needed).
+  """
+  display_unit = display_unit.title()
+  if display_unit.startswith('F'):
+    display_unit = 'Fahrenheit'
+    conversion_function = kelvin_to_fahrenheit
+  elif display_unit.startswith('C'):
+    display_unit = 'Celsius'
+    conversion_function = kelvin_to_celsius
+  elif display_unit.startswith('K'):
+    display_unit = 'Kelvin'
+    conversion_function = None
+  else:
+    raise ValueError(
+        f'Invalid display temperature unit: {display_unit}.'
+        f' Expecting one of: {DISPLAY_UNITS}'
+    )
+  return display_unit, conversion_function
+
+
 #
 # FROM FAHRENHEIT
 #

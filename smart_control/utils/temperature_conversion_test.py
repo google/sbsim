@@ -10,6 +10,8 @@ k_to_f = temperature_conversion.kelvin_to_fahrenheit
 f_to_c = temperature_conversion.fahrenheit_to_celsius
 f_to_k = temperature_conversion.fahrenheit_to_kelvin
 
+assign = temperature_conversion.assign_temp_display_and_conversion
+
 
 class TemperatureConversionsTest(parameterized.TestCase):
 
@@ -60,6 +62,43 @@ class TemperatureConversionsTest(parameterized.TestCase):
   def test_f_to_c_invalid(self, temp_f):
     with self.assertRaises(ValueError):
       _ = f_to_c(temp_f)
+
+
+class TemperatureConversionFunctionAssignmentTest(parameterized.TestCase):
+
+  @parameterized.parameters('Kelvin', 'K')
+  def test_conversion_function_assignment_kelvin(self, input_unit):
+    """Tests temperature conversion for Kelvin."""
+    display_unit, conversion_function = assign(display_unit=input_unit)
+    self.assertEqual(display_unit, 'Kelvin')
+    self.assertIsNone(conversion_function)
+
+  @parameterized.parameters(
+      ('Celsius', 'Celsius', k_to_c, 26.85),
+      ('C', 'Celsius', k_to_c, 26.85),
+      ('Fahrenheit', 'Fahrenheit', k_to_f, 80.33),
+      ('F', 'Fahrenheit', k_to_f, 80.33),
+  )
+  def test_conversion_function_assignment_non_kelvin(
+      self,
+      input_unit,
+      expected_display_unit,
+      expected_conversion_function,
+      expected_display_temp,
+  ):
+    """Tests temperature conversion for non-Kelvin units."""
+    display_unit, conversion_function = assign(display_unit=input_unit)
+    self.assertEqual(conversion_function, expected_conversion_function)
+    self.assertEqual(display_unit, expected_display_unit)
+    self.assertIsNotNone(conversion_function)
+    self.assertAlmostEqual(
+        conversion_function(300), expected_display_temp, places=2
+    )
+
+  def test_invalid_temp_unit_raises_error(self):
+    """Tests that an invalid temp unit raises a ValueError."""
+    with self.assertRaises(ValueError):
+      assign(display_unit='OOPS')
 
 if __name__ == '__main__':
   absltest.main()
