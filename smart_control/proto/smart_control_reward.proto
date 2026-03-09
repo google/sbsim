@@ -89,6 +89,14 @@ message RewardInfo {
     float pump_electrical_energy_rate = 2;
   }
 
+  // Information about a heat pump that provides heated water for VAVs.
+  message HeatPumpRewardInfo {
+    // Energy rate consumed in W by electricity for heating water.
+    float electricity_heating_energy_rate = 1;
+    // Cumulative electrical power in W for water recirculation pumps.
+    float pump_electrical_energy_rate = 2;
+  }
+
   // Start and end timestamps bound the timestep of the reward information.
   google.protobuf.Timestamp start_timestamp = 1;
   google.protobuf.Timestamp end_timestamp = 2;
@@ -115,6 +123,10 @@ message RewardInfo {
   // Information about the boilers' energy consumption required to compute the
   // reward.
   map<string, BoilerRewardInfo> boiler_reward_infos = 7;
+
+  // Information about the heat pumps' energy consumption required to compute
+  // the reward.
+  map<string, HeatPumpRewardInfo> heat_pump_reward_infos = 8;
 }
 
 // The return reward signal from the reward function. While the principal
