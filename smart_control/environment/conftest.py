@@ -357,6 +357,7 @@ def create_environment(
     writer_factory=None,
     default_actions=None,
     building=None,
+    num_days_in_episode=3,
 ):
   """Creates an environment to use for testing purposes."""
 
@@ -374,6 +375,7 @@ def create_environment(
       metrics_path=metrics_path,
       writer_factory=writer_factory,
       default_actions=default_actions,
+      num_days_in_episode=num_days_in_episode,
   )
   env.reset()
   return env
@@ -388,6 +390,7 @@ def create_hybrid_action_environment(
     writer_factory=None,
     default_actions=None,
     building=None,
+    num_days_in_episode=3,
 ):
   """Creates an environment to use for testing purposes."""
 
@@ -405,6 +408,7 @@ def create_hybrid_action_environment(
       metrics_path=metrics_path,
       writer_factory=writer_factory,
       default_actions=default_actions,
+      num_days_in_episode=num_days_in_episode,
   )
   env.reset()
   return env

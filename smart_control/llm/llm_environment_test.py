@@ -57,6 +57,9 @@ class LLMEnvironmentTest(parameterized.TestCase):
     with self.subTest(name="step_count"):
       self.assertEqual(self.env.step_count, 0)
 
+    with self.subTest(name="time_step_sec"):
+      self.assertEqual(self.env.time_step_sec, 300)
+
     with self.subTest(name="time_step_mins"):
       self.assertEqual(self.env.time_step_mins, 5)
 
@@ -71,6 +74,41 @@ class LLMEnvironmentTest(parameterized.TestCase):
     with self.subTest(name="current_local_timestamp"):
       ts = self.env.current_local_timestamp
       self.assertEqual(ts, pd.Timestamp("2021-06-07 12:00:01", tz="US/Pacific"))
+
+    with self.subTest(name="json_metadata"):
+      expected_metadata = {
+          "type": "Environment",
+          "time_step_sec": 300.0,
+          "start_timestamp": "2021-06-07 12:00:01",
+          "end_timestamp": "2021-06-10 12:00:01",
+          "metrics_output_dir": None,
+          "action_names": [
+              "air_handler_1_supply_air_heating_temperature_setpoint",
+              "boiler_1_supply_water_setpoint",
+              "air_handler_2_supply_air_heating_temperature_setpoint",
+          ],
+          "default_action_values": [0.0, -1.0, 0.0],
+          "reward_function": {"type": "SimpleRewardFunction"},
+          "building": {
+              "n_devices": 4,
+              "n_zones": 2,
+              "device_ids": [
+                  "air_handler_1",
+                  "boiler_1",
+                  "air_handler_2",
+                  "vav_1",
+              ],
+              "zone_ids": ["zone_1", "zone_2"],
+          },
+          "occupancy": None,
+      }
+      self.assertEqual(self.env.json_metadata, expected_metadata)
+
+  def test_json_metadata_with_occupancy(self):
+    self.env.building.occupancy = mock.MagicMock()
+    occupancy_metadata = {"type": "MockOccupancyModel"}
+    self.env.building.occupancy.json_metadata = occupancy_metadata
+    self.assertEqual(self.env.json_metadata["occupancy"], occupancy_metadata)
 
   def test_building_devices(self):
     df = self.env.building.devices_df
@@ -442,6 +480,38 @@ class LLMHybridActionEnvironmentTest(parameterized.TestCase):
 
     with self.subTest(name="step_count"):
       self.assertEqual(self.env.step_count, 0)
+
+    with self.subTest(name="json_metadata"):
+      expected_metadata = {
+          "type": "HybridActionEnvironment",
+          "time_step_sec": 300.0,
+          "start_timestamp": "2021-06-07 12:00:01",
+          "end_timestamp": "2021-06-10 12:00:01",
+          "metrics_output_dir": None,
+          "action_names": [
+              "air_handler_1_supply_air_heating_temperature_setpoint",
+              "air_handler_1_supervisor_run_command",
+              "boiler_1_supply_water_setpoint",
+              "boiler_1_supervisor_run_command",
+              "air_handler_2_supply_air_heating_temperature_setpoint",
+              "air_handler_2_supervisor_run_command",
+          ],
+          "default_action_values": [0.0, -1.0, -1.0, -1.0, 0.0, -1.0],
+          "reward_function": {"type": "SimpleRewardFunction"},
+          "building": {
+              "n_devices": 4,
+              "n_zones": 2,
+              "device_ids": [
+                  "air_handler_1",
+                  "boiler_1",
+                  "air_handler_2",
+                  "outside_air_sensor",
+              ],
+              "zone_ids": ["zone_1", "zone_2"],
+          },
+          "occupancy": None,
+      }
+      self.assertEqual(self.env.json_metadata, expected_metadata)
 
   def test_action_fields_df(self):
     df = self.env.action_fields_df

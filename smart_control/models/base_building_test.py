@@ -120,6 +120,21 @@ class BaseBuildingTest(absltest.TestCase):
 
     pd.testing.assert_frame_equal(building.zones_df, expected_df)
 
+  def test_json_metadata(self):
+    devices = [smart_control_building_pb2.DeviceInfo(device_id='device_1')]
+    zones = [
+        smart_control_building_pb2.ZoneInfo(zone_id='zone_1'),
+        smart_control_building_pb2.ZoneInfo(zone_id='zone_2'),
+    ]
+    building = _MockBuilding(devices=devices, zones=zones)
+    expected_metadata = {
+        'n_devices': 1,
+        'n_zones': 2,
+        'device_ids': ['device_1'],
+        'zone_ids': ['zone_1', 'zone_2'],
+    }
+    self.assertEqual(building.json_metadata, expected_metadata)
+
 
 if __name__ == '__main__':
   absltest.main()

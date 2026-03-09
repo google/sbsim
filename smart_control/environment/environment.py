@@ -586,13 +586,14 @@ class Environment(py_environment.PyEnvironment):
     ).total_seconds() // self.building.time_step_sec
 
   @property
+  def time_step_sec(self) -> float:
+    """Returns the time step interval in seconds."""
+    return self.building.time_step_sec
+
+  @property
   def time_step_mins(self) -> int:
-    """Returns the time step in minutes (floored). Use when applicable."""
-    if self.building.time_step_sec % 60 != 0:
-      raise ValueError(
-          "Building's time_step_sec must be an integer multiple of 60."
-      )
-    return int(self.building.time_step_sec / 60)
+    """Returns the time step interval in minutes (floored)."""
+    return int(self.time_step_sec // 60)  # floor division
 
   @property
   def start_timestamp(self) -> pd.Timestamp:
@@ -629,13 +630,23 @@ class Environment(py_environment.PyEnvironment):
   @property
   def json_metadata(self) -> dict[str, Any]:
     """Info to write into a JSON file. Needs to be serializable."""
+    # Occupancy is only relevant in simulation (not for the real building):
+    if hasattr(self.building, "occupancy"):
+      occupancy_metadata = self.building.occupancy.json_metadata
+    else:
+      occupancy_metadata = None
+
     return {
         "type": self.__class__.__name__,
-        "time_step_mins": self.time_step_mins,
+        "time_step_sec": self.time_step_sec,
+        "start_timestamp": str(self.start_timestamp),
+        "end_timestamp": str(self.end_timestamp),
         "metrics_output_dir": self.metrics_output_dir,
         "action_names": self.action_names,
         "default_action_values": self.default_action_values,
         "reward_function": self.reward_function.json_metadata,
+        "building": self.building.json_metadata,
+        "occupancy": occupancy_metadata,
     }
 
   @functools.cached_property

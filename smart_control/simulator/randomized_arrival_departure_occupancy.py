@@ -9,14 +9,16 @@ p = E[X] / n / 2, where E[X] is the expected number of arrivals, which equals 1.
 
 import datetime
 import enum
-from typing import Optional, Union
+from typing import Any, Optional, Union
 
 import gin
 import numpy as np
 import pandas as pd
 
-from smart_buildings.smart_control.models.base_occupancy import BaseOccupancy
+from smart_buildings.smart_control.models import base_occupancy
 from smart_buildings.smart_control.utils import conversion_utils
+
+SerializableData = dict[str, Any]
 
 
 class OccupancyStateEnum(enum.Enum):
@@ -133,7 +135,7 @@ class ZoneOccupant:
 
 
 @gin.configurable
-class RandomizedArrivalDepartureOccupancy(BaseOccupancy):
+class RandomizedArrivalDepartureOccupancy(base_occupancy.BaseOccupancy):
   """Provides the RL agent information about how many people are in a zone.
 
   Attributes:
@@ -165,6 +167,21 @@ class RandomizedArrivalDepartureOccupancy(BaseOccupancy):
     self._latest_expected_departure_hour = latest_expected_departure_hour
     self._random_state = np.random.RandomState(seed)
     self._time_zone = time_zone
+
+  @property
+  def json_metadata(self) -> SerializableData:
+    """Returns JSON-serializable data about the occupancy."""
+    metadata = super().json_metadata
+    metadata.update({
+        'zone_assignment': self._zone_assignment,
+        'earliest_arrival': self.earliest_expected_arrival_hour,
+        'latest_arrival': self.latest_expected_arrival_hour,
+        'earliest_departure': self.earliest_expected_departure_hour,
+        'latest_departure': self.latest_expected_departure_hour,
+        'time_step_sec': self.step_size.total_seconds(),
+        'time_zone': self.time_zone,
+    })
+    return metadata
 
   @property
   def zone_assignment(self) -> int:

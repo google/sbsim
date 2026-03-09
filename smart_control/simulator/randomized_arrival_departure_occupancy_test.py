@@ -100,6 +100,29 @@ def create_zone_occupant(
   )
 
 
+def create_occupancy(
+    zone_assignment=1,
+    earliest_arrival=6,
+    latest_arrival=11,
+    earliest_departure=15,
+    latest_departure=20,
+    time_step_sec=300,
+    time_zone='US/Pacific',
+    seed=99,
+):
+  """Creates an occupancy object, using default parameters, for use in tests."""
+  return RandomizedArrivalDepartureOccupancy(
+      zone_assignment=zone_assignment,
+      earliest_expected_arrival_hour=earliest_arrival,
+      latest_expected_arrival_hour=latest_arrival,
+      earliest_expected_departure_hour=earliest_departure,
+      latest_expected_departure_hour=latest_departure,
+      time_step_sec=time_step_sec,
+      time_zone=time_zone,
+      seed=seed,
+  )
+
+
 class RandomizedArrivalDepartureOccupancyTest(parameterized.TestCase):
 
   @parameterized.parameters(
@@ -186,6 +209,20 @@ class RandomizedArrivalDepartureOccupancyTest(parameterized.TestCase):
 
     self.assertEqual(str(local_time.tz), 'US/Pacific')
     self.assertEqual(str(local_time), expected_timestamp)
+
+  def test_json_metadata(self):
+    occupancy = create_occupancy()
+    expected_metadata = {
+        'type': 'RandomizedArrivalDepartureOccupancy',
+        'zone_assignment': 1,
+        'earliest_arrival': 6,
+        'latest_arrival': 11,
+        'earliest_departure': 15,
+        'latest_departure': 20,
+        'time_step_sec': 300.0,
+        'time_zone': 'US/Pacific',
+    }
+    self.assertDictEqual(expected_metadata, occupancy.json_metadata)
 
 
 if __name__ == '__main__':

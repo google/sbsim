@@ -49,14 +49,15 @@ def _get_histogram_reducer():
   )
 
 
-class ValidateActionTypeLabels(parameterized.TestCase):
+class ActionTypeLabelsTest(parameterized.TestCase):
 
   @parameterized.parameters(
-      environment.CONTINUOUS_ACTION,
-      environment.DISCRETE_ACTION,
+      (environment.CONTINUOUS_ACTION, "CONTINUOUS"),
+      (environment.DISCRETE_ACTION, "DISCRETE"),
   )
-  def test_action_type_labels_valid(self, setpoint_type):
-    environment.action_type_label(setpoint_type)
+  def test_action_type_labels_valid(self, setpoint_type, expected_label):
+    label = environment.action_type_label(setpoint_type)
+    self.assertEqual(label, expected_label)
 
   @parameterized.parameters("continuous", "discrete", "OTHER")
   def test_action_type_labels_invalid(self, setpoint_type):

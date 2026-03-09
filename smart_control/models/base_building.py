@@ -4,7 +4,7 @@ The base class should be extended by the simulation and actual buildings.
 """
 
 import abc
-from typing import Sequence
+from typing import Any, Sequence
 
 import pandas as pd
 
@@ -13,6 +13,8 @@ from smart_buildings.smart_control.proto import smart_control_reward_pb2
 
 DeviceInfo = smart_control_building_pb2.DeviceInfo
 ZoneInfo = smart_control_building_pb2.ZoneInfo
+
+SerializableData = dict[str, Any]
 
 
 class BaseBuilding(metaclass=abc.ABCMeta):
@@ -124,3 +126,13 @@ class BaseBuilding(metaclass=abc.ABCMeta):
   @abc.abstractmethod
   def time_step_sec(self) -> float:
     """Returns the amount of time between time steps."""
+
+  @property
+  def json_metadata(self) -> SerializableData:
+    """Returns a JSON-serializable dictionary of metadata about the building."""
+    return {
+        'n_devices': len(self.devices),
+        'n_zones': len(self.zones),
+        'device_ids': self.devices_df['device_id'].tolist(),
+        'zone_ids': self.zones_df['zone_id'].tolist(),
+    }
