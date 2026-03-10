@@ -1,5 +1,6 @@
 from absl.testing import absltest
 from absl.testing import parameterized
+import numpy as np
 
 from smart_buildings.smart_control.utils import energy_utils
 
@@ -246,6 +247,60 @@ class EnergyUtilsTest(parameterized.TestCase):
           num_active_secondary_pumps=2,
           avg_secondary_pump_speed_percentage=35,
       )
+
+
+class ASHPSystemTest(parameterized.TestCase):
+
+  def setUp(self):
+    super().setUp()
+    self.estimator = energy_utils.ASHPSystemEstimator(hp_cop=3.4)
+    self.p_bhp = 5.0
+    self.p_gpm = 100.0
+
+  @parameterized.parameters(
+      (100.0, 3728.5),  # 100% speed -> Full BHP in Watts
+      (50.0, 466.06),  # 50% speed -> 1/8th power (Affinity Law)
+      (0.0, 0.0),  # 0% speed -> 0 Watts
+      (-10.0, 0.0),  # Negative input safety
+  )
+  def test_pump_power_scaling(self, speed, expected_watts):
+    calc = energy_utils.calculate_pump_power(self.p_bhp, speed)
+    self.assertAlmostEqual(calc, expected_watts, places=1)
+
+  @parameterized.named_parameters([
+      ('normal_heating', 130.0, 120.0, 100.0, 43098.7),
+      ('stagnant_water', 130.0, 130.0, 100.0, 0.0),
+      ('pumps_off', 130.0, 120.0, 0.0, 0.0),
+  ])
+  def test_hp_consumption_logic(self, hws, hwr, speed, expected_hp_w):
+    # Testing HP electrical draw based on deltaT and Flow
+    result = self.estimator.estimate_interval_power(
+        hws, hwr, speed, 0, self.p_bhp, self.p_bhp, self.p_gpm, self.p_gpm
+    )
+    self.assertAlmostEqual(result.hp_watts, expected_hp_w, places=1)
+
+  def test_numpy_array_support(self):
+    """Verify the library handles time-series arrays correctly."""
+    hws_series = np.array([130.0, 130.0, 130.0])
+    hwr_series = np.array([120.0, 125.0, 130.0])  # Decreasing deltaT
+    speeds = np.array([100.0, 100.0, 100.0])
+
+    results = self.estimator.estimate_interval_power(
+        hws_series,
+        hwr_series,
+        speeds,
+        0,
+        self.p_bhp,
+        self.p_bhp,
+        self.p_gpm,
+        self.p_gpm,
+    )
+
+    # Check that the output is also a numpy array of the same length
+    self.assertIsInstance(results.total_watts, np.ndarray)
+    self.assertLen(results.total_watts, 3)
+    # Verify the third interval (deltaT=0) is just pump power (~3728W)
+    self.assertAlmostEqual(results.total_watts[2], 3728.5, places=1)
 
 
 if __name__ == '__main__':
