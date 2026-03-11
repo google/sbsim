@@ -63,6 +63,7 @@ sim/FloorPlanBasedBuilding:
   building_exterior_properties = @building_exterior_properties/MaterialProperties()
   floor_plan_filepath = %floor_plan_filepath
   zone_map_filepath = %zone_map_filepath
+  convection_simulator = @StochasticConvectionSimulator()
   #save_debugging_images = False
 
 
@@ -191,10 +192,10 @@ time_step_sec =  300  # should not be changed b/c apparently it affects the sim
 
 work_occupancy = 1 # number of workers per zone
 
-earliest_expected_arrival_hour = 3
+earliest_expected_arrival_hour = 7
 latest_expected_arrival_hour = 12
 earliest_expected_departure_hour = 13
-latest_expected_departure_hour = 23
+latest_expected_departure_hour = 19
 
 randomized_occupancy/RandomizedArrivalDepartureOccupancy:
   zone_assignment = %work_occupancy
@@ -209,6 +210,14 @@ randomized_occupancy/RandomizedArrivalDepartureOccupancy:
 ##########################
 ### SIMULATOR
 ##########################
+
+# shuffle parameters
+#p: likelihood of any air volume being shuffled per time step
+StochasticConvectionSimulator.p = 0.5
+# max jump distance in grid units squared, -1 means mixing across any distance
+# 25 means jump of 5 grid units = 50 cm with 10cm grid
+StochasticConvectionSimulator.distance = 25
+StochasticConvectionSimulator.seed = 5
 
 # Finite difference settings.
 convergence_threshold = 0.1
@@ -247,9 +256,9 @@ productivity_decay_stiffness =  4.3
 max_electricity_rate=160000  # watts
 max_natural_gas_rate=400000  # watts
 
-productivity_weight=0.2
-energy_cost_weight=0.4
-carbon_emission_weight=0.4
+productivity_weight=0.6
+energy_cost_weight=0.2
+carbon_emission_weight=0.2
 
 SetpointEnergyCarbonRegretFunction.max_productivity_personhour_usd = %max_productivity_personhour_usd
 SetpointEnergyCarbonRegretFunction.min_productivity_personhour_usd = %min_productivity_personhour_usd
@@ -268,93 +277,6 @@ SetpointEnergyCarbonRegretFunction.carbon_emission_weight = %carbon_emission_wei
 ### ACTIONS
 ##########################
 
-
-### HVAC
-
-water_pump_differential_head =  6.0
-water_pump_efficiency = 0.98
-reheat_water_setpoint = 360.0
-boiler_heating_rate = 0.5 # K / min
-boiler_cooling_rate = 0.1 # K / min
-
-fan_static_pressure = 10000.0
-fan_efficiency = 0.9
-
-air_handler_heating_setpoint = 285.0
-air_handler_cooling_setpoint = 298.0
-air_handler_recirculation_ratio = 0.3
-
-vav_max_air_flowrate = 2.0
-vav_reheat_water_flowrate =  0.03
-
-floor_1_rooms = [
-  'zone_id_1', 'zone_id_2', 'zone_id_3', 'zone_id_4', 'zone_id_5', 'zone_id_6', 'zone_id_7', 'zone_id_8', 'zone_id_9', 'zone_id_10',
-  'zone_id_11', 'zone_id_12', 'zone_id_13', 'zone_id_14', 'zone_id_15', 'zone_id_16', 'zone_id_17', 'zone_id_18', 'zone_id_19', 'zone_id_20',
-  'zone_id_21', 'zone_id_22', 'zone_id_23', 'zone_id_24', 'zone_id_25', 'zone_id_26', 'zone_id_27', 'zone_id_28', 'zone_id_29', 'zone_id_30',
-  'zone_id_31', 'zone_id_32', 'zone_id_33', 'zone_id_34', 'zone_id_35', 'zone_id_36', 'zone_id_37', 'zone_id_38', 'zone_id_39', 'zone_id_40',
-  'zone_id_41', 'zone_id_42', 'zone_id_43', 'zone_id_44', 'zone_id_45', 'zone_id_46', 'zone_id_47', 'zone_id_48', 'zone_id_49', 'zone_id_50',
-  'zone_id_51', 'zone_id_52', 'zone_id_53'
-]
-
-floor_2_rooms = [
-  'zone_id_54', 'zone_id_55', 'zone_id_56', 'zone_id_57', 'zone_id_58', 'zone_id_59', 'zone_id_60', 'zone_id_61', 'zone_id_62', 'zone_id_63',
-  'zone_id_64', 'zone_id_65', 'zone_id_66', 'zone_id_67', 'zone_id_68', 'zone_id_69', 'zone_id_70', 'zone_id_71', 'zone_id_72', 'zone_id_73',
-  'zone_id_74', 'zone_id_75', 'zone_id_76', 'zone_id_77', 'zone_id_78', 'zone_id_79', 'zone_id_80', 'zone_id_81', 'zone_id_82', 'zone_id_83',
-  'zone_id_84', 'zone_id_85', 'zone_id_86', 'zone_id_87', 'zone_id_88', 'zone_id_89', 'zone_id_90', 'zone_id_91', 'zone_id_92', 'zone_id_93',
-  'zone_id_94', 'zone_id_95', 'zone_id_96', 'zone_id_97', 'zone_id_98', 'zone_id_99', 'zone_id_100', 'zone_id_101', 'zone_id_102', 'zone_id_103',
-  'zone_id_104', 'zone_id_105', 'zone_id_106', 'zone_id_107', 'zone_id_108', 'zone_id_109', 'zone_id_110', 'zone_id_111', 'zone_id_112', 'zone_id_113',
-  'zone_id_114', 'zone_id_115', 'zone_id_116', 'zone_id_117', 'zone_id_118', 'zone_id_119', 'zone_id_120', 'zone_id_121', 'zone_id_122', 'zone_id_123',
-  'zone_id_124', 'zone_id_125', 'zone_id_126'
-]
-
-ahu_1/AirHandler:
-  recirculation = %air_handler_recirculation_ratio
-  heating_air_temp_setpoint = %air_handler_heating_setpoint
-  cooling_air_temp_setpoint = %air_handler_cooling_setpoint
-  fan_static_pressure = %fan_static_pressure
-  fan_efficiency = %fan_efficiency
-  max_air_flow_rate = 8.67
-  sim_weather_controller = %weather_controller
-  device_id = 'ahu_1'
-
-ahu_2/AirHandler:
-  recirculation = %air_handler_recirculation_ratio
-  heating_air_temp_setpoint = %air_handler_heating_setpoint
-  cooling_air_temp_setpoint = %air_handler_cooling_setpoint
-  fan_static_pressure = %fan_static_pressure
-  fan_efficiency = %fan_efficiency
-  max_air_flow_rate = 8.67
-  sim_weather_controller = %weather_controller
-  device_id = 'ahu_2'
-
-hvac/AirHandlerSystem:
-  ahus =  {
-    @ahu_1/AirHandler(): %floor_1_rooms,
-    @ahu_2/AirHandler(): %floor_2_rooms,
-  }
-  device_id = 'ahs'
-
-hvac/WaterPump:
-  water_pump_differential_head = %water_pump_differential_head
-  water_pump_efficiency = %water_pump_efficiency
-
-hvac/Boiler:
-  reheat_water_setpoint = %reheat_water_setpoint
-  heating_rate = %boiler_heating_rate
-  cooling_rate = %boiler_cooling_rate
-
-hvac/HotWaterSystem:
-  pump = @hvac/WaterPump()
-  boiler = @hvac/Boiler()
-  device_id = 'hws'
-
-
-sim/FloorPlanBasedHvac:
-  air_handler = @hvac/AirHandlerSystem()
-  hot_water_system = @hvac/HotWaterSystem()
-  schedule = @hvac/SetpointSchedule()
-  vav_max_air_flow_rate = %vav_max_air_flowrate
-  vav_reheat_max_water_flow_factor = %vav_reheat_water_flowrate
 
 ### ACTIONS (NEW!)
 

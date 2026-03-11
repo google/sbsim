@@ -17,6 +17,7 @@ from smart_buildings.smart_control.simulator import randomized_arrival_departure
 from smart_buildings.smart_control.simulator import setpoint_schedule
 from smart_buildings.smart_control.simulator import simulator_building
 from smart_buildings.smart_control.simulator import tf_simulator
+from smart_buildings.smart_control.simulator import stochastic_convection_simulator
 from smart_buildings.smart_control.simulator import weather_controller
 from smart_buildings.smart_control.utils import observation_normalizer
 from smart_buildings.smart_control.utils.config_utils import conftest
@@ -108,9 +109,9 @@ class EnvironmentConfigTest(parameterized.TestCase):
   def test_reward_function(self):
     reward_function = self.env.reward_function
     self.assertIsInstance(reward_function, SetpointEnergyCarbonRegretFunction)
-    self.assertEqual(reward_function.energy_cost_weight, 0.4)
-    self.assertEqual(reward_function.carbon_emission_weight, 0.4)
-    self.assertEqual(reward_function.productivity_weight, 0.2)
+    self.assertEqual(reward_function.energy_cost_weight, 0.2)
+    self.assertEqual(reward_function.carbon_emission_weight, 0.2)
+    self.assertEqual(reward_function.productivity_weight, 0.6)
 
   def test_building(self):
     bldg = self.building
@@ -146,6 +147,14 @@ class EnvironmentConfigTest(parameterized.TestCase):
               density=1.0,
           ),
       )
+
+  def test_convection_simulator(self):
+    simulator = self.building.convection_simulator
+    self.assertIsInstance(
+        simulator, stochastic_convection_simulator.StochasticConvectionSimulator
+    )
+    self.assertEqual(simulator.p, 0.5)
+    self.assertEqual(simulator.distance, 25)
 
   def test_building_zones(self):
     df = self.sim_building.zones_df
@@ -212,10 +221,10 @@ class EnvironmentConfigTest(parameterized.TestCase):
     self.assertIsInstance(self.occupancy, RandomizedOccupancy)
 
     self.assertEqual(self.occupancy.zone_assignment, 1)
-    self.assertEqual(self.occupancy.earliest_expected_arrival_hour, 6)
-    self.assertEqual(self.occupancy.latest_expected_arrival_hour, 13)
-    self.assertEqual(self.occupancy.earliest_expected_departure_hour, 18)
-    self.assertEqual(self.occupancy.latest_expected_departure_hour, 23)
+    self.assertEqual(self.occupancy.earliest_expected_arrival_hour, 7)
+    self.assertEqual(self.occupancy.latest_expected_arrival_hour, 12)
+    self.assertEqual(self.occupancy.earliest_expected_departure_hour, 13)
+    self.assertEqual(self.occupancy.latest_expected_departure_hour, 19)
     self.assertEqual(self.occupancy.step_size, pd.Timedelta(300, unit="second"))
     self.assertEqual(self.occupancy.time_zone, "US/Pacific")
 

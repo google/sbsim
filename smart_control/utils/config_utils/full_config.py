@@ -21,6 +21,7 @@ from smart_buildings.smart_control.simulator import hvac_floorplan_based
 from smart_buildings.smart_control.simulator import randomized_arrival_departure_occupancy as occupancy
 from smart_buildings.smart_control.simulator import setpoint_schedule
 from smart_buildings.smart_control.simulator import simulator_building
+from smart_buildings.smart_control.simulator import stochastic_convection_simulator
 from smart_buildings.smart_control.simulator import tf_simulator
 from smart_buildings.smart_control.simulator import weather_controller
 from smart_buildings.smart_control.utils import environment_utils
@@ -48,14 +49,14 @@ def set_gin_config(
     start_timestamp: str = START_TIMESTAMP,
     n_days: int = N_DAYS,
     # reward function settings:
-    productivity_weight: float = 0.2,
-    energy_cost_weight: float = 0.4,
-    carbon_emission_weight: float = 0.4,
+    productivity_weight: float = 0.6,
+    energy_cost_weight: float = 0.2,
+    carbon_emission_weight: float = 0.2,
     # occupancy settings (centered around building operational hours):
-    earliest_expected_arrival_hour: int = 6,
-    latest_expected_arrival_hour: int = 13,
-    earliest_expected_departure_hour: int = 18,
-    latest_expected_departure_hour: int = 23,
+    earliest_expected_arrival_hour: int = 7,
+    latest_expected_arrival_hour: int = 12,
+    earliest_expected_departure_hour: int = 13,
+    latest_expected_departure_hour: int = 19,
     # building settings:
     floor_plan_filepath: str = data_files.FLOOR_PLAN_FILEPATH,
     # weather settings:

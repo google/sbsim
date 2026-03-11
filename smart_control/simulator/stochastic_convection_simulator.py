@@ -46,6 +46,16 @@ class StochasticConvectionSimulator(
     if seed is not None:
       random.seed(seed)
 
+  @property
+  def p(self) -> float:
+    """The shuffling probability."""
+    return self._p
+
+  @property
+  def distance(self) -> int:
+    """The max distance a CV can move."""
+    return self._distance
+
   def apply_convection(
       self,
       room_dict: dict[str, MutableSequence[tuple[int, int]]],

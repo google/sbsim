@@ -809,6 +809,13 @@ class FloorPlanBasedBuilding(BaseSimulatorBuilding):
     """Returns the initial temperature for the building."""
     return self._initial_temp
 
+  @property
+  def convection_simulator(
+      self,
+  ) -> base_convection_simulator.BaseConvectionSimulator | None:
+    """The convection simulator for the building."""
+    return self._convection_simulator
+
   def reset(self):
     self.temp = np.full(
         shape=self._exterior_walls.shape, fill_value=self._initial_temp
