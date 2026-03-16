@@ -782,7 +782,7 @@ class FloorPlanBasedBuilding(BaseSimulatorBuilding):
     interior_wall_index: matrix representing the index of the interior
       walls of the building. Used only for calculating interior radiative
       heat transfer.
-    interior_wall_VF: matrix representing the view factors of the
+    interior_wall_vf: matrix representing the view factors of the
       interior walls of the building, which is denoted as F in the equation.
       Used only for calculating interior radiative heat transfer.
     epsilon: matrix representing the emissivity of the nodes of

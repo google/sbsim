@@ -46,6 +46,8 @@ class SimulatorFlexibleGeometries(simulator.Simulator):
       iteration_limit: int,
       iteration_warning: int,
       start_timestamp: pd.Timestamp,
+      relative_convergence_threshold: float | None = 1e-6,
+      relative_convergence_streak: int = 20,
   ):
     """Simulator init.
 
@@ -61,6 +63,10 @@ class SimulatorFlexibleGeometries(simulator.Simulator):
       iteration_warning: Number of iterations for FDM after which a warning will
         be logged.
       start_timestamp: Pandas timestamp representing start time for simulation.
+      relative_convergence_threshold: If not None, also converge when the change
+        in max_delta is <= this for relative_convergence_streak consecutive
+        iterations. Change is |max_delta(n) - max_delta(n-1)|.
+      relative_convergence_streak: Consecutive iterations for early stopping.
     """
     self.building = building
     self._hvac = hvac
@@ -80,6 +86,8 @@ class SimulatorFlexibleGeometries(simulator.Simulator):
         iteration_limit,
         iteration_warning,
         start_timestamp,
+        relative_convergence_threshold=relative_convergence_threshold,
+        relative_convergence_streak=relative_convergence_streak,
     )
 
     logging.info("Constructing the floorplan based simulation.")

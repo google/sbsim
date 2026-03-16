@@ -500,6 +500,8 @@ class TFSimulator(simulator.SimulatorFlexibleGeometries):
       iteration_limit: int,
       iteration_warning: int,
       start_timestamp: pd.Timestamp,
+      relative_convergence_threshold: float | None = 1e-6,
+      relative_convergence_streak: int = 20,
   ):
 
     super().__init__(
@@ -511,6 +513,8 @@ class TFSimulator(simulator.SimulatorFlexibleGeometries):
         iteration_limit,
         iteration_warning,
         start_timestamp,
+        relative_convergence_threshold=relative_convergence_threshold,
+        relative_convergence_streak=relative_convergence_streak,
     )
 
     # Get a mapping of all the boundary CVs that interface between interior

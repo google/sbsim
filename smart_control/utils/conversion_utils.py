@@ -127,6 +127,37 @@ def get_radian_time(
   return 2.0 * np.pi * interval_frac
 
 
+def kelvin_to_celsius(kelvin: float) -> float:
+  """Converts Kelvin to Celsius.
+  Args:
+    kelvin: Temperature in Kelvin.
+
+  Returns:
+    The temperature in Celsius.
+  Raises:
+    A ValueError if the input value is negative.
+  """
+  if kelvin <= 0.0:
+    raise ValueError('Temperature must be greater than absolute zero.')
+  return kelvin - 273.15
+
+
+def celsius_to_kelvin(celsius: float) -> float:
+  """Converts Celsius to Kelvin.
+  Args:
+    celsius: Temperature in Celsius.
+
+  Returns:
+    The temperature in Kelvin.
+
+  Raises:
+    A ValueError if the input value is less than absolute zero, -273.15°C.
+  """
+  if celsius <= -273.15:
+    raise ValueError('Temperature must be greater than absolute zero.')
+  return celsius + 273.15
+
+
 def kelvin_to_fahrenheit(kelvin: float) -> float:
   """Converts Kelvin to °F.
 

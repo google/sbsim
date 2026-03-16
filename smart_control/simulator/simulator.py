@@ -40,6 +40,8 @@ class Simulator:
       iteration_limit: int,
       iteration_warning: int,
       start_timestamp: pd.Timestamp,
+      relative_convergence_threshold: float | None = 1e-6,
+      relative_convergence_streak: int = 20,
   ):
     """Simulator init.
 
@@ -54,6 +56,13 @@ class Simulator:
       iteration_warning: Number of iterations for FDM after which a warning will
         be logged.
       start_timestamp: Pandas timestamp representing start time for simulation.
+      relative_convergence_threshold: If not None, also converge when the
+        change in max_delta is <= this value for
+        relative_convergence_streak consecutive iterations. Change is
+        |max_delta(n) - max_delta(n-1)|. Default 1e-6.
+        Set to None to disable early stopping.
+      relative_convergence_streak: Consecutive iterations required for early
+        stopping when relative_convergence_threshold is set. Default 20.
     """
     self.building = building
     self._hvac = hvac
@@ -63,6 +72,8 @@ class Simulator:
     self._iteration_limit = iteration_limit
     self._iteration_warning = iteration_warning
     self._start_timestamp = start_timestamp
+    self._relative_convergence_threshold = relative_convergence_threshold
+    self._relative_convergence_streak = relative_convergence_streak
     self.reset()
 
   def reset(self):
