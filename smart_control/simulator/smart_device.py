@@ -10,11 +10,19 @@ constructor.
 """
 
 import abc
-from typing import Any, Mapping, NamedTuple, Optional, Sequence, Type
+from typing import Any, Final, Mapping, NamedTuple, Optional, Sequence, Type
 
 import pandas as pd
-
 from smart_buildings.smart_control.proto import smart_control_building_pb2
+
+SUPPLY_WATER_SETPOINT: Final[str] = 'supply_water_setpoint'
+SUPPLY_WATER_TEMPERATURE_SENSOR: Final[str] = 'supply_water_temperature_sensor'
+HEATING_REQUEST_COUNT: Final[str] = 'heating_request_count'
+SUPERVISOR_RUN_COMMAND: Final[str] = 'supervisor_run_command'
+RUN_STATUS: Final[str] = 'run_status'
+RUN_COMMAND: Final[str] = 'run_command'
+DIFFERENTIAL_PRESSURE: Final[str] = 'differential_pressure'
+REHEAT_WATER_SETPOINT: Final[str] = 'reheat_water_setpoint'
 
 
 class AttributeInfo(NamedTuple):

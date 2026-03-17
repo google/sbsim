@@ -167,7 +167,7 @@ hvac/Boiler:
 
 hvac/HotWaterSystem:
   pump = @hvac/WaterPump()
-  boiler = @hvac/Boiler()
+  heat_source = @hvac/Boiler()
   device_id = 'hws'
 
 

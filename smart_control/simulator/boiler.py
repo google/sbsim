@@ -7,12 +7,13 @@ import gin
 import numpy as np
 import pandas as pd
 from smart_buildings.smart_control.proto import smart_control_building_pb2
+from smart_buildings.smart_control.simulator import hot_water_heat_source
 from smart_buildings.smart_control.simulator import smart_device
 from smart_buildings.smart_control.utils import constants
 
 
 @gin.configurable
-class Boiler(smart_device.SmartDevice):
+class Boiler(hot_water_heat_source.HotWaterHeatSource):
   """Models a boiler that is part of a hot water system.
 
   Attributes:
@@ -98,6 +99,7 @@ class Boiler(smart_device.SmartDevice):
     self._current_temperature = self._init_reheat_water_setpoint
     self._step_tank_temperature_change = 0.0
     self._last_step_duration = pd.Timedelta(0, unit='second')
+    self._run_command = hot_water_heat_source.RunStatus.Off
 
   @property
   def return_water_temperature_sensor(self) -> float:
@@ -123,6 +125,14 @@ class Boiler(smart_device.SmartDevice):
   @property
   def supply_water_setpoint(self) -> float:
     return self._reheat_water_setpoint
+
+  @property
+  def run_command(self) -> hot_water_heat_source.RunStatus:
+    return self._run_command
+
+  @run_command.setter
+  def run_command(self, value: hot_water_heat_source.RunStatus) -> None:
+    self._run_command = value
 
   def _set_current_temperature(self):
     """Adjusts the temperature based on time elapsed after setpoint change."""

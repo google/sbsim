@@ -141,10 +141,10 @@ class SimulatorTest(parameterized.TestCase):
     water_pump_differential_head = 3
     water_pump_efficiency = 0.6
     hot_water_system = hot_water_system_py.construct_hot_water_system(
-        reheat_water_setpoint,
-        water_pump_differential_head,
-        water_pump_efficiency,
-        'hws_id',
+        reheat_water_setpoint=reheat_water_setpoint,
+        water_pump_differential_head=water_pump_differential_head,
+        water_pump_efficiency=water_pump_efficiency,
+        device_id='hws_id',
     )
 
     recirculation = 0.6

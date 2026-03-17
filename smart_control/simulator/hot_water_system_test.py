@@ -1,9 +1,10 @@
 import math
+from unittest import mock
 from absl.testing import absltest
 from absl.testing import parameterized
 import pandas as pd
-
 from smart_buildings.smart_control.proto import smart_control_building_pb2
+from smart_buildings.smart_control.simulator import air_source_heat_pump as ashp
 from smart_buildings.smart_control.simulator import boiler
 from smart_buildings.smart_control.simulator import hot_water_system
 from smart_buildings.smart_control.simulator import pump
@@ -15,6 +16,14 @@ def get_single_boiler_hot_water_system(
     p: pump.WaterPump,
 ) -> hot_water_system.HotWaterSystem:
   return hot_water_system.HotWaterSystem(b, p, device_id='hws_id')
+
+
+def get_ashp_hot_water_system(
+    a: ashp.AirSourceHeatPump,
+    p: pump.WaterPump,
+) -> hot_water_system.HotWaterSystem:
+  """Factory for an ASHP-driven hot water system."""
+  return hot_water_system.HotWaterSystem(a, p, device_id='hws_ashp_id')
 
 
 differential_head_val = 10.204081632653061
@@ -135,8 +144,42 @@ class HotWaterSystemTest(parameterized.TestCase):
   def test_add_demand_raises_value_error(self):
     b = self.get_default_boiler()
 
-    with self.assertRaises(ValueError):
+    with self.assertRaisesRegex(
+        ValueError, 'Flow factor cannot be less than 0.'
+    ):
       b.add_demand(-0.01)
+
+  def test_ashp_system_integration(self):
+    """Verifies that the HotWaterSystem works properly with an ASHP."""
+    reheat_water_setpoint = 313.15  # 40C
+    water_pump_differential_head = differential_head_val
+    water_pump_efficiency = 0.6
+
+    sys = get_ashp_hot_water_system(
+        ashp.AirSourceHeatPump(
+            reheat_water_setpoint,
+            device_id='ashp_id',
+            max_heating_capacity_w=180000.0,
+            nominal_cop=3.2,
+        ),
+        pump.WaterPump(
+            water_pump_differential_head,
+            water_pump_efficiency,
+            device_id='pump_id',
+        ),
+    )
+
+    self.assertEqual(sys.device_id(), 'hws_ashp_id')
+    self.assertEqual(sys.reheat_water_setpoint, reheat_water_setpoint)
+
+    # Mock observation to simulate standard conditions
+    sys._heat_source.get_observation = mock.MagicMock(return_value=313.15)
+    sys.add_demand(0.002)  # Trigger flow
+
+    power = sys.compute_thermal_energy_rate(
+        return_water_temp=308.15, outside_temp=280.15
+    )
+    self.assertGreater(power, 0.0)  # Ensure delegating calculation works
 
   def test_compute_thermal_energy_rate_heating(self):
     b = self.get_default_boiler()
@@ -145,7 +188,7 @@ class HotWaterSystemTest(parameterized.TestCase):
     outside_temp = 280
     q0 = b.compute_thermal_energy_rate(return_water_temp, outside_temp)
     b.reheat_water_setpoint = setpoint_temperature
-    _ = b._boiler._adjust_temperature(
+    _ = b._heat_source._adjust_temperature(
         setpoint_temperature, outside_temp, pd.Timedelta(5, unit='minute')
     )
     b._last_step_duration = pd.Timedelta(5, unit='minute')
@@ -248,7 +291,7 @@ class HotWaterSystemTest(parameterized.TestCase):
 
     self.assertAlmostEqual(
         expected_temperature,
-        b._boiler._adjust_temperature(
+        b._heat_source._adjust_temperature(
             setpoint_temperature, actual_temperature, time_difference
         ),
     )
@@ -348,7 +391,7 @@ class HotWaterSystemTest(parameterized.TestCase):
     observed_value = b.get_observation(
         'supply_water_temperature_sensor', pd.Timestamp('2021-09-01 10:01')
     )
-    self.assertEqual(b._boiler._has_tank, True)
+    self.assertEqual(b._heat_source._has_tank, True)
 
     self.assertAlmostEqual(observed_value, 362.0)
 
@@ -522,12 +565,69 @@ class HotWaterSystemTest(parameterized.TestCase):
         device_type, smart_control_building_pb2.DeviceInfo.DeviceType.HWS
     )
 
+  def test_run_status(self):
+    b = self.get_default_boiler()
+
+    self.assertEqual(b.run_status, hot_water_system.RunStatus.On)
+
+    b.run_command = hot_water_system.RunStatus.Off
+    self.assertEqual(b.run_status, hot_water_system.RunStatus.Off)
+
+    b.run_command = hot_water_system.RunStatus.On
+    self.assertEqual(b.run_status, hot_water_system.RunStatus.On)
+
   def test_device_id(self):
     b = self.get_default_boiler()
 
     device_id = b.device_id()
 
     self.assertEqual(device_id, 'hws_id')
+
+  def test_construct_hot_water_system_boiler(self):
+    system = hot_water_system.construct_hot_water_system(
+        heat_source_type=hot_water_system.HeatSourceType.BOILER,
+        reheat_water_setpoint=313.0,
+        water_pump_differential_head=15.0,
+        water_pump_efficiency=0.85,
+        heating_rate=0.0,
+        cooling_rate=0.0,
+        convection_coefficient=5.6,
+        tank_length=2.0,
+        tank_radius=0.5,
+        water_capacity=1.5,
+        insulation_conductivity=0.067,
+        insulation_thickness=0.06,
+    )
+    self.assertIsInstance(system, hot_water_system.HotWaterSystem)
+    self.assertIsInstance(system._heat_source, boiler.Boiler)
+    self.assertEqual(system.reheat_water_setpoint, 313.0)
+    self.assertEqual(system.water_pump_differential_head, 15.0)
+    self.assertEqual(system._pump._water_pump_efficiency, 0.85)
+    self.assertEqual(system._heat_source._heating_rate, 0.0)
+    self.assertEqual(system._heat_source._cooling_rate, 0.0)
+    self.assertEqual(system._heat_source._convection_coefficient, 5.6)
+    self.assertEqual(system._heat_source._tank_length, 2.0)
+    self.assertEqual(system._heat_source._tank_radius, 0.5)
+    self.assertEqual(system._heat_source._water_capacity, 1.5)
+    self.assertEqual(system._heat_source._insulation_conductivity, 0.067)
+    self.assertEqual(system._heat_source._insulation_thickness, 0.06)
+
+  def test_construct_hot_water_system_ashp(self):
+    system = hot_water_system.construct_hot_water_system(
+        heat_source_type=hot_water_system.HeatSourceType.ASHP,
+        reheat_water_setpoint=313.0,
+        water_pump_differential_head=15.0,
+        water_pump_efficiency=0.85,
+        ashp_max_capacity_w=250000.0,
+        ashp_nominal_cop=3.5,
+    )
+    self.assertIsInstance(system, hot_water_system.HotWaterSystem)
+    self.assertIsInstance(system._heat_source, ashp.AirSourceHeatPump)
+    self.assertEqual(system.reheat_water_setpoint, 313.0)
+    self.assertEqual(system.water_pump_differential_head, 15.0)
+    self.assertEqual(system._pump._water_pump_efficiency, 0.85)
+    self.assertEqual(system._heat_source._max_capacity_w, 250000.0)
+    self.assertEqual(system._heat_source._nominal_cop, 3.5)
 
 
 if __name__ == '__main__':
