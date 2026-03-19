@@ -150,6 +150,18 @@ class BaseSetpointEnergyCarbonRewardFunction(BaseRewardFunction):
       electrical_energy_rate += energy_reward_info.boiler_reward_infos[
           bid
       ].pump_electrical_energy_rate
+
+    # Sum up the power in Watts for the total power. Take the abs of the heat
+    # pump to ensure both heating (positive), and cooling (negative) are
+    # assessed as energy consumed.
+    for heat_pump_info in energy_reward_info.heat_pump_reward_infos.values():
+      electrical_energy_rate += np.abs(
+          heat_pump_info.pump_electrical_energy_rate
+      )
+      electrical_energy_rate += np.abs(
+          heat_pump_info.electricity_heating_energy_rate
+      )
+
     return electrical_energy_rate
 
   def _sum_natural_gas_energy_rate(

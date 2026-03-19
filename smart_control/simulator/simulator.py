@@ -6,8 +6,8 @@ from absl import logging
 import gin
 import numpy as np
 import pandas as pd
-
 from smart_buildings.smart_control.models.base_occupancy import BaseOccupancy
+from smart_buildings.smart_control.proto import smart_control_building_pb2
 from smart_buildings.smart_control.proto import smart_control_reward_pb2
 from smart_buildings.smart_control.simulator import building as building_py
 from smart_buildings.smart_control.simulator import hvac as hvac_py
@@ -546,7 +546,10 @@ class Simulator:
 
   def _get_hws_reward_infos(
       self,
-  ) -> Mapping[str, RewardInfo.BoilerRewardInfo]:
+  ) -> tuple[
+      Mapping[str, RewardInfo.BoilerRewardInfo | RewardInfo.HeatPumpRewardInfo],
+      smart_control_building_pb2.DeviceInfo.DeviceType,
+  ]:
     """Returns a map of messages with hot water system data.
 
     This data is used to compute the instantaneous reward.
@@ -556,7 +559,7 @@ class Simulator:
     return_water_temp = (
         self._hvac.hot_water_system.return_water_temperature_sensor
     )
-    natural_gas_heating_energy_rate = (
+    heating_energy_rate = (
         self._hvac.hot_water_system.compute_thermal_energy_rate(
             return_water_temp,
             self._weather_controller.get_current_temp(self._current_timestamp),
@@ -565,12 +568,30 @@ class Simulator:
     pump_electrical_energy_rate = (
         self._hvac.hot_water_system.compute_pump_power()
     )
-    hws_reward_info = RewardInfo.BoilerRewardInfo(
-        natural_gas_heating_energy_rate=natural_gas_heating_energy_rate,
-        pump_electrical_energy_rate=pump_electrical_energy_rate,
-    )
+
+    if (
+        self._hvac.hot_water_system.heat_source_device_type
+        == smart_control_building_pb2.DeviceInfo.DeviceType.BLR
+    ):
+      hws_reward_info = RewardInfo.BoilerRewardInfo(
+          natural_gas_heating_energy_rate=heating_energy_rate,
+          pump_electrical_energy_rate=pump_electrical_energy_rate,
+      )
+    elif (
+        self._hvac.hot_water_system.heat_source_device_type
+        == smart_control_building_pb2.DeviceInfo.DeviceType.ASHP
+    ):
+      hws_reward_info = RewardInfo.HeatPumpRewardInfo(
+          electricity_heating_energy_rate=heating_energy_rate,
+          pump_electrical_energy_rate=pump_electrical_energy_rate,
+      )
+    else:
+      raise ValueError(
+          'Unsupported heat source device type:'
+          f' {self._hvac.hot_water_system.heat_source_device_type}'
+      )
     hws_reward_infos[hws_id] = hws_reward_info
-    return hws_reward_infos
+    return hws_reward_infos, self._hvac.hot_water_system.heat_source_device_type
 
   def reward_info(self, occupancy_function: BaseOccupancy) -> RewardInfo:
     """Returns a message with data to compute the instantaneous reward."""
@@ -586,19 +607,45 @@ class Simulator:
     air_handler_reward_infos = self._get_air_handler_reward_infos()
 
     # get hws info
-    hws_reward_infos = self._get_hws_reward_infos()
+    hws_reward_infos, hws_device_type = self._get_hws_reward_infos()
 
-    return RewardInfo(
-        start_timestamp=conversion_utils.pandas_to_proto_timestamp(
-            start_time_stamp
-        ),
-        end_timestamp=conversion_utils.pandas_to_proto_timestamp(
-            end_time_stamp
-        ),
-        zone_reward_infos=zone_reward_infos,
-        air_handler_reward_infos=air_handler_reward_infos,
-        boiler_reward_infos=hws_reward_infos,
-    )
+    if (
+        hws_device_type
+        == smart_control_building_pb2.DeviceInfo.DeviceType.BLR
+    ):
+
+      return RewardInfo(
+          start_timestamp=conversion_utils.pandas_to_proto_timestamp(
+              start_time_stamp
+          ),
+          end_timestamp=conversion_utils.pandas_to_proto_timestamp(
+              end_time_stamp
+          ),
+          zone_reward_infos=zone_reward_infos,
+          air_handler_reward_infos=air_handler_reward_infos,
+          boiler_reward_infos=hws_reward_infos,
+      )
+
+    elif (
+        hws_device_type
+        == smart_control_building_pb2.DeviceInfo.DeviceType.ASHP
+    ):
+      return RewardInfo(
+          start_timestamp=conversion_utils.pandas_to_proto_timestamp(
+              start_time_stamp
+          ),
+          end_timestamp=conversion_utils.pandas_to_proto_timestamp(
+              end_time_stamp
+          ),
+          zone_reward_infos=zone_reward_infos,
+          air_handler_reward_infos=air_handler_reward_infos,
+          heat_pump_reward_infos=hws_reward_infos,
+      )
+    else:
+      raise ValueError(
+          'Unsupported heat source device type:'
+          f' {self._hvac.hot_water_system.heat_source_device_type}'
+      )
 
   def step_sim(self) -> None:
     """Steps the simulation by a small amount of time.

@@ -156,6 +156,12 @@ class HotWaterSystem(smart_device.SmartDevice):
     self._flow_factor_sum = 0.0
 
   @property
+  def heat_source_device_type(
+      self,
+  ) -> smart_control_building_pb2.DeviceInfo.DeviceType:
+    return self._heat_source.device_type()
+
+  @property
   def return_water_temperature_sensor(self) -> float:
     return self._heat_source.return_water_temperature_sensor
 

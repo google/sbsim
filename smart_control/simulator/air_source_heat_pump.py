@@ -120,6 +120,11 @@ class AirSourceHeatPump(hot_water_heat_source.HotWaterHeatSource):
     self._run_command = hot_water_heat_source.RunStatus.On
 
   @property
+  def supply_water_temperature_sensor(self) -> float:
+    # ASHP does not have a tank, so supply water temperature is the setpoint.
+    return self._supply_water_setpoint
+
+  @property
   def reheat_water_setpoint(self) -> float:
     return self._supply_water_setpoint
 
