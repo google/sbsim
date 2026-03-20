@@ -16,7 +16,7 @@ from smart_buildings.smart_control.utils import temperature_conversion
 
 RewardInfo = smart_control_reward_pb2.RewardInfo
 
-assign_temp_conversion = temperature_conversion.assign_temp_display_and_conversion  # pylint: disable=line-too-long
+assign_kelvin_conversion_function = temperature_conversion.assign_kelvin_conversion_function  # pylint: disable=line-too-long
 proto_to_pandas_timestamp = conversion_utils.proto_to_pandas_timestamp
 
 WATT_SECONDS_KWH = conversion_utils._WATT_SECONDS_KWH  # pylint: disable=protected-access
@@ -176,12 +176,11 @@ class RewardInfoParser:
     min_setpoint_ix = len(temperature_bins)
     max_setpoint_ix = -1
 
+    temp_convert = assign_kelvin_conversion_function(temp_unit)
     for _, zone_reward_info in self.zone_reward_infos.items():
       zone_temp = zone_reward_info.zone_air_temperature
       heating_setpoint_temp = zone_reward_info.heating_setpoint_temperature
       cooling_setpoint_temp = zone_reward_info.cooling_setpoint_temperature
-
-      _, temp_convert = assign_temp_conversion(temp_unit)
       if temp_convert is not None:
         zone_temp = temp_convert(zone_temp)
         heating_setpoint_temp = temp_convert(heating_setpoint_temp)
