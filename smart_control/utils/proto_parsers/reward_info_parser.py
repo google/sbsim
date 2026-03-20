@@ -221,7 +221,7 @@ class RewardInfoParser:
             'temperature setpoint range': setpoint_range,
             'count of occupants exposed': occupants_exposed,
         },
-        index=[f'{temp}°{temp_unit}' for temp in temperature_bins],
+        index=[f'{temp}°{temp_unit.title()[0]}' for temp in temperature_bins],
     ).T
 
   @cached_property

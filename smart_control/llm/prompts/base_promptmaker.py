@@ -21,6 +21,8 @@ PydanticOutputParser = langchain.output_parsers.PydanticOutputParser
 
 SerializableData = dict[str, Any]
 
+DedentFunction = Callable[[str], str]
+
 
 def full_dedent(txt: str) -> str:
   """Removes all leading whitespace from each line in a string.
@@ -69,7 +71,7 @@ class BasePromptmaker(abc.ABC):
   def __init__(
       self,
       output_schema_class: type[pydantic.BaseModel],
-      dedent: Callable[[str], str] = textwrap.dedent,
+      dedent: DedentFunction = textwrap.dedent,
   ):
     """Initializes the instance.
 
@@ -102,10 +104,10 @@ class BasePromptmaker(abc.ABC):
   def formatting_instructions_section(self) -> str:
     """The section of the prompt containing formatting instructions."""
     return '\n'.join([
-        '**Formatting Instructions**:\n',
+        '## Formatting Instructions\n',
         (
             'The output MUST be a single, valid JSON object conforming to the'
-            ' schema below. '
+            ' schema below.'
         ),
         (
             'Do NOT include any other text, explanations, pleasantries, or any '

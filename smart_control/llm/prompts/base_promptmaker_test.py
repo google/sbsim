@@ -119,9 +119,9 @@ class BasePromptmakerTest(absltest.TestCase):
     self.assertEqual(
         self.promptmaker.formatting_instructions_section,
         (
-            "**Formatting Instructions**:\n\n"
+            "## Formatting Instructions\n\n"
             "The output MUST be a single, valid JSON object conforming to "
-            "the schema below. \n"
+            "the schema below.\n"
             "Do NOT include any other text, explanations, pleasantries, or "
             "any other content before or after the JSON object.\n"
             f"{self.promptmaker.formatting_instructions}"

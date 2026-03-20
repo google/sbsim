@@ -277,6 +277,14 @@ class RewardInfoParserTest(absltest.TestCase):
           {'60°F': 0, '65°F': 1, '70°F': 2},
       )
 
+  def test_get_zone_conditions_histogram_with_long_form_temp_unit(self):
+    histogram = self.parser.get_zone_conditions_histogram(
+        temp_unit='Kelvin',
+    )
+    self.assertIsInstance(histogram, pd.DataFrame)
+    expected_columns = [f'{temp}°K' for temp in reward_info_parser.TEMP_BINS]
+    self.assertEqual(histogram.columns.tolist(), expected_columns)
+
   def test_zone_occupancies_df(self):
     df = self.parser.zone_occupancies_df
     self.assertIsInstance(df, pd.DataFrame)
