@@ -83,6 +83,7 @@ class ActionTest(absltest.TestCase):
   def test_initialization(self):
     self.assertIsInstance(self.action, SetpointsAction)
 
+  def test_attributes(self):
     with self.subTest("timestamp"):
       self.assertEqual(self.action.timestamp, EXAMPLE_TIMESTAMP)
 
