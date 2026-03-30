@@ -10,8 +10,21 @@ from typing import Final, Mapping, Optional, Sequence, Tuple
 import gin
 import numpy as np
 import pandas as pd
-from pvlib import irradiance
-from pvlib import location
+# pvlib is an optional dependency (install with: poetry install --with solar).
+# It is imported lazily inside functions rather than at the top of this module
+# for two reasons:
+#
+# 1. Optional dependency: placing the import here would cause an ImportError for
+#    any user who has not installed the "solar" extras group, even if they never
+#    use the irradiance / solar-position features.
+#
+# 2. Circular-import risk: building_radiation_utils imports weather_controller
+#    (guarded by TYPE_CHECKING) to type-hint IrradianceComponents.  If pvlib
+#    were imported at module load time here, and pvlib itself (or a future
+#    transitive dependency) ever imported anything from smart_control, that
+#    chain could create a circular import that is hard to diagnose.  Keeping
+#    pvlib imports local to the functions that need them avoids that risk
+#    entirely.
 import pytz
 
 from smart_control.proto import smart_control_building_pb2
@@ -204,6 +217,8 @@ class WeatherController(BaseWeatherController):
 
     # Create location object if lat/lon are provided
     if self.latitude is not None and self.longitude is not None:
+      from pvlib import location  # pylint: disable=import-outside-toplevel
+
       self._location = location.Location(
           self.latitude, self.longitude, tz=self.timezone
       )
@@ -394,6 +409,8 @@ class WeatherController(BaseWeatherController):
       )
 
       # Estimate DNI using DISC model
+      from pvlib import irradiance  # pylint: disable=import-outside-toplevel
+
       dni_result = irradiance.disc(
           pd.Series([ghi], index=pd.DatetimeIndex([timestamp])),
           solar_position['zenith'],
@@ -407,6 +424,8 @@ class WeatherController(BaseWeatherController):
       dhi = max(0, dhi)  # Ensure non-negative
 
     elif self.irradiance_method == 'campbell_norman':
+      from pvlib import irradiance  # pylint: disable=import-outside-toplevel
+
       dni_extra = irradiance.get_extra_radiation(pd.DatetimeIndex([timestamp]))
       transmittance = 0.7 - 0.5 * (current_cloud_cover / 100.0)
 
@@ -659,6 +678,8 @@ class ReplayWeatherController(BaseWeatherController):
 
     # Create location object if lat/lon are provided
     if self.latitude is not None and self.longitude is not None:
+      from pvlib import location  # pylint: disable=import-outside-toplevel
+
       self._location = location.Location(
           self.latitude, self.longitude, tz=self.timezone
       )

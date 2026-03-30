@@ -39,7 +39,6 @@ typing-extensions = "^4.12.2"
 ipython = "^8.27.0"
 importlib-resources = { version = "*", python = "<3.11" }
 python-dotenv = "^1.1.0"
-pvlib = "0.13.1"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.3.5"
@@ -59,6 +58,14 @@ mkdocs-autorefs = "^1.4.2"
 
 [tool.poetry.group.notebooks.dependencies]
 jupyter = "^1.1.1"
+
+# pvlib is kept as an optional dependency because it is only needed for solar
+# irradiance calculations (SyntheticWeatherController and
+#ReplayWeatherController with lat/lon).
+# Installing it unconditionally would add a heavy dependency for
+# users who do not use those features. Install with: poetry install --with solar
+[tool.poetry.group.solar.dependencies]
+pvlib = "0.13.1"
 
 [tool.pyink]
 line-length = 80
