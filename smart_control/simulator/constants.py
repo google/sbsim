@@ -171,3 +171,9 @@ FENESTRATION_SOLAR_ABSORPTANCE = 0.1  # typical for single pane clear glass
 # Solar transmittance: fraction of solar radiation transmitted through the glass
 FENESTRATION_SOLAR_TRANSMITTANCE = 0.8  # typical for single pane clear glass
 # Note: reflectance = 1 - absorptance - transmittance = 0.1
+
+
+#################### PHYSICS CONSTANTS ################################
+# Stefan-Boltzmann constant for radiative heat transfer calculations.
+# Units: W/(m^2*K^4)
+STEFAN_BOLTZMANN_CONSTANT = 5.67e-8

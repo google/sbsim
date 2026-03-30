@@ -5,11 +5,14 @@ For computing the physical and thermal characteristics of buildings.
 
 from collections import deque
 import math
-from typing import Optional, Tuple
+from typing import Optional, Tuple, TYPE_CHECKING
 
 import numpy as np
 
 from smart_control.simulator import constants
+
+if TYPE_CHECKING:
+  from smart_control.simulator import weather_controller
 
 TEMPORARY_MARKED_VALUE = -33
 TEMPORARY_BLOCKED_VALUE = -34
@@ -155,7 +158,9 @@ def net_radiative_heatflux_function_of_t(
       q : Net radiative heat flux [W/m^2]
 
   """
-  sigma = 5.67 * 1e-8  # [W/m^2K^4] Stefan-Boltzmann constant
+  sigma = (
+      constants.STEFAN_BOLTZMANN_CONSTANT
+  )  # [W/m^2K^4] Stefan-Boltzmann constant
 
   q = sigma * ifa_inv @ np.power(T, 4)
   return q
@@ -970,7 +975,7 @@ def mark_directly_seeing_nodes(
 
 
 def calculate_poa_irradiance(
-    irradiance_components: dict[str, float],
+    irradiance_components: 'weather_controller.IrradianceComponents',
     surface_tilt: float,
     surface_azimuth: float,
     solar_zenith: float,
@@ -981,7 +986,7 @@ def calculate_poa_irradiance(
   incident on a tilted surface. Uses the pvlib library's get_total_irradiance
   function.
   Args:
-    irradiance_components: Dictionary with 'ghi', 'dni', and 'dhi' keys,
+    irradiance_components: IrradianceComponents with ghi, dni, and dhi fields
       containing Global Horizontal Irradiance, Direct Normal Irradiance,
       and Diffuse Horizontal Irradiance in W/m2.
     surface_tilt: Surface tilt angle from horizontal in degrees (0 = horizontal,
@@ -993,7 +998,10 @@ def calculate_poa_irradiance(
   Returns:
     POA global irradiance in W/m2.
   Example:
-    >>> irrad = {'ghi': 800.0, 'dni': 700.0, 'dhi': 100.0}
+    >>> from smart_control.simulator import weather_controller
+    >>> irrad = weather_controller.IrradianceComponents(
+    ...     ghi=800.0, dni=700.0, dhi=100.0, solar_zenith=30.0,
+    ...     solar_azimuth=180.0)
     >>> poa = calculate_poa_irradiance(irrad, surface_tilt=30.0,
     ...     surface_azimuth=180.0, solar_zenith=30.0, solar_azimuth=180.0)
   """
@@ -1003,9 +1011,9 @@ def calculate_poa_irradiance(
   poa_irrad = pvlib_irradiance.get_total_irradiance(
       surface_tilt=surface_tilt,
       surface_azimuth=surface_azimuth,
-      dni=irradiance_components['dni'],
-      ghi=irradiance_components['ghi'],
-      dhi=irradiance_components['dhi'],
+      dni=irradiance_components.dni,
+      ghi=irradiance_components.ghi,
+      dhi=irradiance_components.dhi,
       solar_zenith=solar_zenith,
       solar_azimuth=solar_azimuth,
   )

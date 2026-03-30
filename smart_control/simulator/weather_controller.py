@@ -1,6 +1,7 @@
 """Controls ambient temperature in simulator."""
 
 import abc
+import dataclasses
 import json
 import math
 import os
@@ -14,6 +15,7 @@ from pvlib import location
 import pytz
 
 from smart_control.proto import smart_control_building_pb2
+from smart_control.simulator import constants
 from smart_control.utils import conversion_utils as utils
 
 TemperatureBounds = Tuple[float, float]
@@ -23,6 +25,39 @@ _DAYS_IN_A_YEAR: Final[int] = 365
 _MIN_RADIANS: Final[float] = -math.pi / 2.0
 _MAX_RADIANS: Final[float] = 3.0 * math.pi / 2.0
 _EPOCH: Final[pd.Timestamp] = pd.Timestamp('1970-01-01', tz='UTC')
+
+# Sensor measurement names used when reading observation responses.
+_OUTSIDE_AIR_TEMP_SENSOR: Final[str] = 'outside_air_temperature_sensor'
+_DEW_POINT_TEMP_SENSOR: Final[str] = 'dew_point_temperature_sensor'
+_CLOUD_COVER_SENSOR: Final[str] = 'cloud_cover_sensor'
+_GHI_SENSOR: Final[str] = 'ghi_sensor'
+_DNI_SENSOR: Final[str] = 'dni_sensor'
+_DHI_SENSOR: Final[str] = 'dhi_sensor'
+
+
+@dataclasses.dataclass
+class IrradianceComponents:
+  """Irradiance components and solar position at a given timestamp.
+
+  Args:
+    ghi: Global Horizontal Irradiance in W/m^2. Total solar radiation
+      received on a horizontal surface.
+    dni: Direct Normal Irradiance in W/m^2. Solar radiation received
+      perpendicular to the sun's rays.
+    dhi: Diffuse Horizontal Irradiance in W/m^2. Solar radiation received
+      on a horizontal surface from the sky (excluding direct beam).
+    solar_zenith: Solar zenith angle in degrees (angle from vertical).
+      0 = sun directly overhead, 90 = sun at horizon.
+    solar_azimuth: Solar azimuth angle in degrees (compass direction of sun).
+      0/360 = North, 90 = East, 180 = South, 270 = West.
+  """
+
+  ghi: float
+  dni: float
+  dhi: float
+  solar_zenith: float
+  solar_azimuth: float
+
 
 WEATHER_CSV_FILEPATH: Final[str] = os.path.join(
     os.path.dirname(__file__),
@@ -296,7 +331,7 @@ class WeatherController(BaseWeatherController):
 
   def get_current_irradiance(
       self, timestamp: pd.Timestamp
-  ) -> Mapping[str, float]:
+  ) -> 'IrradianceComponents':
     """Returns current irradiance (GHI, DNI, DHI) in W/m2.
 
     Uses clearsky model by default, or adjusts for cloud cover if specified.
@@ -308,8 +343,8 @@ class WeatherController(BaseWeatherController):
         will be localized to the controller's timezone.
 
     Returns:
-      Dictionary with 'ghi', 'dni', 'dhi', 'solar_zenith', and 'solar_azimuth'
-      keys. Irradiance values in W/m2, angles in degrees.
+      IrradianceComponents with ghi, dni, dhi (W/m2), solar_zenith and
+      solar_azimuth (degrees).
 
     Raises:
       ValueError: If latitude/longitude not provided during initialization.
@@ -339,13 +374,13 @@ class WeatherController(BaseWeatherController):
     # If no cloud cover configured or clearsky method, return clearsky irradiance # pylint: disable=line-too-long
     if not has_cloud_cover or self.irradiance_method == 'clearsky':
       clearsky = self._location.get_clearsky(pd.DatetimeIndex([timestamp]))
-      return {
-          'ghi': float(clearsky['ghi'].iloc[0]),
-          'dni': float(clearsky['dni'].iloc[0]),
-          'dhi': float(clearsky['dhi'].iloc[0]),
-          'solar_zenith': solar_zenith,
-          'solar_azimuth': solar_azimuth,
-      }
+      return IrradianceComponents(
+          ghi=float(clearsky['ghi'].iloc[0]),
+          dni=float(clearsky['dni'].iloc[0]),
+          dhi=float(clearsky['dhi'].iloc[0]),
+          solar_zenith=solar_zenith,
+          solar_azimuth=solar_azimuth,
+      )
 
     if self.irradiance_method == 'linear':
       # Get clear sky irradiance
@@ -387,13 +422,13 @@ class WeatherController(BaseWeatherController):
     else:
       raise ValueError(f'Invalid irradiance_method: {self.irradiance_method}')
 
-    return {
-        'ghi': max(0, ghi),
-        'dni': max(0, dni),
-        'dhi': max(0, dhi),
-        'solar_zenith': solar_zenith,
-        'solar_azimuth': solar_azimuth,
-    }
+    return IrradianceComponents(
+        ghi=max(0, ghi),
+        dni=max(0, dni),
+        dhi=max(0, dhi),
+        solar_zenith=solar_zenith,
+        solar_azimuth=solar_azimuth,
+    )
 
   def get_current_sky_temperature(self, timestamp: pd.Timestamp) -> float:
     """Returns sky temperature in K using Clark & Allen formula.
@@ -407,8 +442,7 @@ class WeatherController(BaseWeatherController):
     """
     timestamp = self._ensure_timestamp_tz(timestamp)
 
-    # Stefan-Boltzmann constant
-    sigma = 5.6697e-8  # W/(m^2*K^4)
+    sigma = constants.STEFAN_BOLTZMANN_CONSTANT
 
     # Get dry bulb temperature (timestamp already localized)
     temp_k = self.get_current_temp(timestamp)
@@ -428,6 +462,32 @@ class WeatherController(BaseWeatherController):
     return temp_sky_k
 
 
+def _get_observation_value(
+    observation_response: smart_control_building_pb2.ObservationResponse,
+    measurement_name: str,
+    default=None,
+):
+  """Returns the continuous value for a named measurement in an observation.
+
+  Searches the single_observation_responses of the given observation_response
+  for an entry whose measurement_name matches the requested name.
+
+  Args:
+    observation_response: A single ObservationResponse proto.
+    measurement_name: The sensor/measurement name to look up.
+    default: Value to return when the measurement is not found. Defaults to
+      None.
+
+  Returns:
+    The continuous_value of the matching observation, or ``default`` if no
+    matching measurement is found.
+  """
+  for r in observation_response.single_observation_responses:
+    if r.single_observation_request.measurement_name == measurement_name:
+      return r.continuous_value
+  return default
+
+
 def get_replay_temperatures(
     observation_responses: Sequence[
         smart_control_building_pb2.ObservationResponse
@@ -440,19 +500,9 @@ def get_replay_temperatures(
 
   Returns: map from timestamp to temp
   """
-
-  def get_outside_air_temp(observation_response):
-    for r in observation_response.single_observation_responses:
-      if (
-          r.single_observation_request.measurement_name
-          == 'outside_air_temperature_sensor'
-      ):
-        return r.continuous_value
-    return -1.0
-
   temps = {}
   for r in observation_responses:
-    temp = get_outside_air_temp(r)
+    temp = _get_observation_value(r, _OUTSIDE_AIR_TEMP_SENSOR, default=-1.0)
     time = utils.proto_to_pandas_timestamp(r.timestamp)
     temps[str(time)] = temp
   return temps
@@ -470,16 +520,11 @@ def get_replay_cloud_cover(
 
   Returns: map from timestamp to cloud cover (percent, 0-100)
   """
-
-  def get_cloud_cover(observation_response):
-    for r in observation_response.single_observation_responses:
-      if r.single_observation_request.measurement_name == 'cloud_cover_sensor':
-        return r.continuous_value
-    return 0.0  # Default to clear sky
-
   cloud_covers = {}
   for r in observation_responses:
-    cloud_cover = get_cloud_cover(r)
+    cloud_cover = _get_observation_value(
+        r, _CLOUD_COVER_SENSOR, default=0.0  # Default to clear sky
+    )
     time = utils.proto_to_pandas_timestamp(r.timestamp)
     cloud_covers[str(time)] = cloud_cover
   return cloud_covers
@@ -504,24 +549,17 @@ def get_replay_sky_temperature(
 
   Returns: map from timestamp to sky temperature (K)
   """
-  # Stefan-Boltzmann constant
-  sigma = 5.6697e-8  # W/(m^2*K^4)
-
-  def get_value(observation_response, measurement_name):
-    for r in observation_response.single_observation_responses:
-      if r.single_observation_request.measurement_name == measurement_name:
-        return r.continuous_value
-    return None
+  sigma = constants.STEFAN_BOLTZMANN_CONSTANT
 
   sky_temps = {}
   for r in observation_responses:
     # Get dry bulb temperature
-    temp_k = get_value(r, 'outside_air_temperature_sensor')
+    temp_k = _get_observation_value(r, _OUTSIDE_AIR_TEMP_SENSOR)
     if temp_k is None:
       continue
 
     # Try to get dew point temperature, otherwise estimate from depression
-    dp_k = get_value(r, 'dew_point_temperature_sensor')
+    dp_k = _get_observation_value(r, _DEW_POINT_TEMP_SENSOR)
     if dp_k is None:
       dp_k = temp_k - dewpoint_depression
 
@@ -552,18 +590,11 @@ def get_replay_irradiance(
 
   Returns: map from timestamp to dict with 'ghi', 'dni', 'dhi' keys (W/m2)
   """
-
-  def get_value(observation_response, measurement_name):
-    for r in observation_response.single_observation_responses:
-      if r.single_observation_request.measurement_name == measurement_name:
-        return r.continuous_value
-    return 0.0
-
   irradiances = {}
   for r in observation_responses:
-    ghi = get_value(r, 'ghi_sensor')
-    dni = get_value(r, 'dni_sensor')
-    dhi = get_value(r, 'dhi_sensor')
+    ghi = _get_observation_value(r, _GHI_SENSOR, default=0.0)
+    dni = _get_observation_value(r, _DNI_SENSOR, default=0.0)
+    dhi = _get_observation_value(r, _DHI_SENSOR, default=0.0)
 
     time = utils.proto_to_pandas_timestamp(r.timestamp)
     irradiances[str(time)] = {
@@ -663,25 +694,36 @@ class ReplayWeatherController(BaseWeatherController):
     """Pre-calculate sky temperature for all timestamps in weather data.
 
     Uses Clark & Allen formula with dry bulb and dew point temperatures.
-    """
-    # Stefan-Boltzmann constant
-    sigma = 5.6697e-8  # W/(m^2*K^4)
 
-    # Get dry bulb temperature in Kelvin (use numpy operations for arrays)
+    Source:
+      EnergyPlus Engineering Reference - Climate Calculations - Sky Radiation Modeling # pylint: disable=line-too-long
+      https://bigladdersoftware.com/epx/docs/25-2/engineering-reference/climate-calculations.html#sky-radiation-modeling # pylint: disable=line-too-long
+    """
+    sigma = constants.STEFAN_BOLTZMANN_CONSTANT
+
+    # Get dry bulb temperature in Kelvin (vectorized over the full column)
     if 'TempC' in self._weather_data:
-      temp_k = self._weather_data['TempC'].values + 273.15
+      temp_k = np.vectorize(utils.celsius_to_kelvin)(
+          self._weather_data['TempC'].values
+      )
     elif 'TempF' in self._weather_data:
-      temp_k = (self._weather_data['TempF'].values - 32) * 5.0 / 9.0 + 273.15
+      temp_k = np.vectorize(utils.fahrenheit_to_kelvin)(
+          self._weather_data['TempF'].values
+      )
     else:
       raise ValueError(
           'Temperature column (TempC or TempF) not found in weather data.'
       )
 
-    # Get dew point temperature in Kelvin (use numpy operations for arrays)
+    # Get dew point temperature in Kelvin (vectorized over the full column)
     if 'DewPointC' in self._weather_data:
-      dp_k = self._weather_data['DewPointC'].values + 273.15
+      dp_k = np.vectorize(utils.celsius_to_kelvin)(
+          self._weather_data['DewPointC'].values
+      )
     elif 'DewPointF' in self._weather_data:
-      dp_k = (self._weather_data['DewPointF'].values - 32) * 5.0 / 9.0 + 273.15
+      dp_k = np.vectorize(utils.fahrenheit_to_kelvin)(
+          self._weather_data['DewPointF'].values
+      )
     else:
       raise ValueError(
           'Dew point temperature column (DewPointC or DewPointF) not found in'
@@ -697,8 +739,10 @@ class ReplayWeatherController(BaseWeatherController):
     # Calculate sky temperature
     temp_sky_k = (ir_h / sigma) ** 0.25
 
-    # Store in dataframe
-    self._weather_data['TempSkyC'] = temp_sky_k - 273.15  # Convert to Celsius
+    # Store in dataframe (convert K → °C for storage)
+    self._weather_data['TempSkyC'] = np.vectorize(utils.kelvin_to_celsius)(
+        temp_sky_k
+    )
 
   def _calculate_irradiance_columns(self, method: str = 'campbell_norman'):
     """Pre-calculate irradiance (GHI, DNI, DHI) for all timestamps in weather
@@ -980,7 +1024,7 @@ class ReplayWeatherController(BaseWeatherController):
 
   def get_current_irradiance(
       self, timestamp: pd.Timestamp
-  ) -> Mapping[str, float]:
+  ) -> 'IrradianceComponents':
     # pylint: disable=line-too-long
     """Returns current irradiance (GHI, DNI, DHI) and solar position by
        interpolating pre-calculated values.
@@ -990,8 +1034,8 @@ class ReplayWeatherController(BaseWeatherController):
         will be localized to the controller's timezone.
 
     Returns:
-      Dictionary with 'ghi', 'dni', 'dhi', 'solar_zenith', and 'solar_azimuth'
-      keys. Irradiance values in W/m2, angles in degrees.
+      IrradianceComponents with ghi, dni, dhi (W/m2), solar_zenith and
+      solar_azimuth (degrees).
 
     Raises:
       ValueError: If latitude/longitude not provided or timestamp out of range
@@ -1044,13 +1088,13 @@ class ReplayWeatherController(BaseWeatherController):
         pd.DatetimeIndex([timestamp])
     )
 
-    return {
-        'ghi': float(ghi),
-        'dni': float(dni),
-        'dhi': float(dhi),
-        'solar_zenith': float(solar_position['apparent_zenith'].iloc[0]),
-        'solar_azimuth': float(solar_position['azimuth'].iloc[0]),
-    }
+    return IrradianceComponents(
+        ghi=float(ghi),
+        dni=float(dni),
+        dhi=float(dhi),
+        solar_zenith=float(solar_position['apparent_zenith'].iloc[0]),
+        solar_azimuth=float(solar_position['azimuth'].iloc[0]),
+    )
 
   def get_current_sky_temperature(self, timestamp: pd.Timestamp) -> float:
     """Returns sky temperature in K by interpolating pre-calculated values.
