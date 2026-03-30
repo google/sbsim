@@ -350,6 +350,7 @@ def create_hybrid_action_config(mapping=None):
 
 def create_environment(
     layout=None,
+    start_timestamp=None,
     device_action_tuples=None,
     observation_normalizers=None,
     action_normalizers=None,
@@ -361,7 +362,9 @@ def create_environment(
 ):
   """Creates an environment to use for testing purposes."""
 
-  building = building or create_building(layout=layout)
+  building = building or create_building(
+      layout=layout, start_timestamp=start_timestamp
+  )
   reward_function = environment_test_utils.SimpleRewardFunction()
   obs_normalizer = create_observation_normalizer(observation_normalizers)
   action_config = create_action_config(action_normalizers)
@@ -383,6 +386,7 @@ def create_environment(
 
 def create_hybrid_action_environment(
     layout=None,
+    start_timestamp=None,
     device_action_tuples=None,
     observation_normalizers=None,
     action_normalizers=None,
@@ -394,7 +398,9 @@ def create_hybrid_action_environment(
 ):
   """Creates an environment to use for testing purposes."""
 
-  building = building or create_building(layout=layout)
+  building = building or create_building(
+      layout=layout, start_timestamp=start_timestamp
+  )
   reward_function = environment_test_utils.SimpleRewardFunction()
   obs_normalizer = create_observation_normalizer(observation_normalizers)
   action_config = create_hybrid_action_config(action_normalizers)

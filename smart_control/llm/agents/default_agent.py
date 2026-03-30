@@ -11,6 +11,7 @@ agent control loop.
 from typing import Any, Final
 
 from smart_buildings.smart_control.environment import environment
+from smart_buildings.smart_control.environment import hybrid_action_environment
 from smart_buildings.smart_control.llm.agents import base_agent
 from smart_buildings.smart_control.llm.schema import action_context
 from smart_buildings.smart_control.llm.schema import output_schema
@@ -74,6 +75,13 @@ class DefaultPolicyAgent(base_agent.BaseControlAgent):
         }
     }
 
+  @property
+  def action_context_class(self) -> type[action_context.ActionContext]:
+    """The action context class to be used by this agent."""
+    if isinstance(self.env, hybrid_action_environment.HybridActionEnvironment):
+      return action_context.HybridActionContext
+    return action_context.ActionContext
+
   def get_default_action_context(self) -> action_context.ActionContext:
     """Compiles an action context using the environment's default values."""
 
@@ -96,7 +104,7 @@ class DefaultPolicyAgent(base_agent.BaseControlAgent):
           )
       )
 
-    return action_context.ActionContext(
+    return self.action_context_class(
         env=self.env,
         clip=self._clip,
         timestamp=str(self.env.current_local_timestamp),
