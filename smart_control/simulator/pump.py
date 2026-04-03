@@ -1,6 +1,5 @@
 """Models a pump for the simulation."""
 
-import enum
 from typing import Optional
 import uuid
 
@@ -8,10 +7,6 @@ import gin
 from smart_buildings.smart_control.proto import smart_control_building_pb2
 from smart_buildings.smart_control.simulator import smart_device
 from smart_buildings.smart_control.utils import constants
-
-IntEnum = enum.IntEnum
-
-RunStatus = IntEnum('RunStatus', [('On', 1), ('Off', 0)])
 
 
 @gin.configurable
@@ -36,9 +31,11 @@ class WaterPump(smart_device.SmartDevice):
             'differential_pressure', float
         ),
         'supervisor_run_command': smart_device.AttributeInfo(
-            'run_command', RunStatus
+            'run_command', smart_device.RunStatus
         ),
-        'run_status': smart_device.AttributeInfo('run_command', RunStatus),
+        'run_status': smart_device.AttributeInfo(
+            'run_status', smart_device.RunStatus
+        ),
     }
 
     action_fields = {
@@ -46,9 +43,11 @@ class WaterPump(smart_device.SmartDevice):
             'differential_pressure', float
         ),
         'supervisor_run_command': smart_device.AttributeInfo(
-            'run_command', RunStatus
+            'run_command', smart_device.RunStatus
         ),
-        'run_status': smart_device.AttributeInfo('run_status', RunStatus),
+        'run_status': smart_device.AttributeInfo(
+            'run_status', smart_device.RunStatus
+        ),
     }
 
     if device_id is None:
@@ -63,7 +62,7 @@ class WaterPump(smart_device.SmartDevice):
 
     self._init_water_pump_differential_head = water_pump_differential_head
     self._init_water_pump_efficiency = water_pump_efficiency
-    self._init_run_command = RunStatus.On
+    self._init_run_command = smart_device.RunStatus.ON
     self.reset()
 
   def reset(self):
@@ -134,7 +133,7 @@ class WaterPump(smart_device.SmartDevice):
 
   @property
   def differential_pressure(self) -> float:
-    if self._run_command == RunStatus.Off:
+    if self._run_command == smart_device.RunStatus.OFF:
       return 0.0
     return self._convert_differential_head_to_pressure(
         self._water_pump_differential_head
@@ -148,7 +147,7 @@ class WaterPump(smart_device.SmartDevice):
 
   @property
   def water_pump_differential_head(self) -> float:
-    if self._run_command == RunStatus.Off:
+    if self._run_command == smart_device.RunStatus.OFF:
       return 0.0
     return self._water_pump_differential_head
 
@@ -157,13 +156,13 @@ class WaterPump(smart_device.SmartDevice):
     self._water_pump_differential_head = value
 
   @property
-  def run_command(self) -> RunStatus:
+  def run_command(self) -> smart_device.RunStatus:
     return self._run_command
 
   @run_command.setter
-  def run_command(self, value: RunStatus) -> None:
+  def run_command(self, value: smart_device.RunStatus) -> None:
     self._run_command = value
 
   @property
-  def run_status(self) -> RunStatus:
+  def run_status(self) -> smart_device.RunStatus:
     return self._run_command  # in simulation, these are equivalent

@@ -3,7 +3,7 @@ from unittest import mock
 from absl.testing import absltest
 from absl.testing import parameterized
 from smart_buildings.smart_control.simulator import air_source_heat_pump
-from smart_buildings.smart_control.simulator import hot_water_heat_source
+from smart_buildings.smart_control.simulator import smart_device
 from smart_buildings.smart_control.utils import constants
 
 
@@ -38,19 +38,19 @@ class AirSourceHeatPumpTest(parameterized.TestCase):
 
   def test_initialization(self):
     self.assertEqual(self.ashp.device_id(), "test_ashp_01")
-    self.assertEqual(self.ashp.run_command, hot_water_heat_source.RunStatus.On)
+    self.assertEqual(self.ashp.run_command, smart_device.RunStatus.ON)
     self.assertEqual(self.ashp.return_water_temperature_sensor, 295.15)
     self.assertEqual(self.ashp._max_capacity_w, self.max_capacity_w)
 
   def test_reset(self):
     """Verifies reset restores the initial return temperature and run state."""
     self.ashp.return_water_temperature_sensor = 300.0
-    self.ashp.run_command = hot_water_heat_source.RunStatus.Off
+    self.ashp.run_command = smart_device.RunStatus.OFF
 
     self.ashp.reset()
 
     self.assertEqual(self.ashp.return_water_temperature_sensor, 295.15)
-    self.assertEqual(self.ashp.run_command, hot_water_heat_source.RunStatus.On)
+    self.assertEqual(self.ashp.run_command, smart_device.RunStatus.ON)
 
   def test_reheat_water_setpoint_setter(self):
     """Tests we can change the reheat setpoint."""
@@ -73,21 +73,21 @@ class AirSourceHeatPumpTest(parameterized.TestCase):
   @parameterized.parameters(
       # Status, Flow, Return Temp, Outside Temp, Expected Electrical Watts
       (
-          hot_water_heat_source.RunStatus.Off,
+          smart_device.RunStatus.OFF,
           0.05,
           295.15,
           280.15,
           0.0,
       ),  # Off -> 0W
       (
-          hot_water_heat_source.RunStatus.On,
+          smart_device.RunStatus.ON,
           0.0,
           295.15,
           280.15,
           0.0,
       ),  # No flow -> 0W
       (
-          hot_water_heat_source.RunStatus.On,
+          smart_device.RunStatus.ON,
           0.05,
           315.00,
           280.15,

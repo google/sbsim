@@ -8,6 +8,7 @@ from smart_buildings.smart_control.simulator import air_source_heat_pump as ashp
 from smart_buildings.smart_control.simulator import boiler
 from smart_buildings.smart_control.simulator import hot_water_system
 from smart_buildings.smart_control.simulator import pump
+from smart_buildings.smart_control.simulator import smart_device
 from smart_buildings.smart_control.utils import constants
 
 
@@ -568,13 +569,13 @@ class HotWaterSystemTest(parameterized.TestCase):
   def test_run_status(self):
     b = self.get_default_boiler()
 
-    self.assertEqual(b.run_status, hot_water_system.RunStatus.On)
+    self.assertEqual(b.run_status, smart_device.RunStatus.ON)
 
-    b.run_command = hot_water_system.RunStatus.Off
-    self.assertEqual(b.run_status, hot_water_system.RunStatus.Off)
+    b.run_command = smart_device.RunStatus.OFF
+    self.assertEqual(b.run_status, smart_device.RunStatus.OFF)
 
-    b.run_command = hot_water_system.RunStatus.On
-    self.assertEqual(b.run_status, hot_water_system.RunStatus.On)
+    b.run_command = smart_device.RunStatus.ON
+    self.assertEqual(b.run_status, smart_device.RunStatus.ON)
 
   def test_device_id(self):
     b = self.get_default_boiler()

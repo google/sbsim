@@ -3,7 +3,7 @@ from absl.testing import parameterized
 import pandas as pd
 from smart_buildings.smart_control.proto import smart_control_building_pb2
 from smart_buildings.smart_control.simulator import boiler
-from smart_buildings.smart_control.simulator import hot_water_heat_source
+from smart_buildings.smart_control.simulator import smart_device
 
 
 class BoilerTest(parameterized.TestCase):
@@ -41,12 +41,12 @@ class BoilerTest(parameterized.TestCase):
 
     b._reheat_water_setpoint += 1.0
     b._return_water_temperature_sensor = 310.0
-    b.run_command = hot_water_heat_source.RunStatus.On
+    b.run_command = smart_device.RunStatus.ON
 
     b.reset()
 
     self.assertEqual(b.reheat_water_setpoint, reheat_water_setpoint)
-    self.assertEqual(b.run_command, hot_water_heat_source.RunStatus.Off)
+    self.assertEqual(b.run_command, smart_device.RunStatus.OFF)
 
   def test_init_default_id(self):
     reheat_water_setpoint = 260
@@ -380,15 +380,15 @@ class BoilerTest(parameterized.TestCase):
   def test_run_command_setter(self):
     b = self.get_default_boiler()
     # Check initial status
-    self.assertEqual(b.run_command, hot_water_heat_source.RunStatus.Off)
+    self.assertEqual(b.run_command, smart_device.RunStatus.OFF)
 
     # Set to On and verify
-    b.run_command = hot_water_heat_source.RunStatus.On
-    self.assertEqual(b.run_command, hot_water_heat_source.RunStatus.On)
+    b.run_command = smart_device.RunStatus.ON
+    self.assertEqual(b.run_command, smart_device.RunStatus.ON)
 
     # Set back to Off and verify
-    b.run_command = hot_water_heat_source.RunStatus.Off
-    self.assertEqual(b.run_command, hot_water_heat_source.RunStatus.Off)
+    b.run_command = smart_device.RunStatus.OFF
+    self.assertEqual(b.run_command, smart_device.RunStatus.OFF)
 
 
 if __name__ == '__main__':

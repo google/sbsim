@@ -99,7 +99,7 @@ class Boiler(hot_water_heat_source.HotWaterHeatSource):
     self._current_temperature = self._init_reheat_water_setpoint
     self._step_tank_temperature_change = 0.0
     self._last_step_duration = pd.Timedelta(0, unit='second')
-    self._run_command = hot_water_heat_source.RunStatus.Off
+    self._run_command = smart_device.RunStatus.OFF
 
   @property
   def return_water_temperature_sensor(self) -> float:
@@ -127,11 +127,11 @@ class Boiler(hot_water_heat_source.HotWaterHeatSource):
     return self._reheat_water_setpoint
 
   @property
-  def run_command(self) -> hot_water_heat_source.RunStatus:
+  def run_command(self) -> smart_device.RunStatus:
     return self._run_command
 
   @run_command.setter
-  def run_command(self, value: hot_water_heat_source.RunStatus) -> None:
+  def run_command(self, value: smart_device.RunStatus) -> None:
     self._run_command = value
 
   def _set_current_temperature(self):

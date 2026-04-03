@@ -51,15 +51,11 @@ from smart_buildings.smart_control.simulator import hot_water_heat_source
 from smart_buildings.smart_control.simulator import pump as pump_py
 from smart_buildings.smart_control.simulator import smart_device
 
-IntEnum = enum.IntEnum
 ZoneID = str
 
 # Default ASHP parameters.
 DEFAULT_ASHP_MAX_CAPACITY_W: float = 180000.0
 DEFAULT_ASHP_NOMINAL_COP: float = 3.2
-
-
-RunStatus = IntEnum("RunStatus", [("On", 1), ("Off", 0)])
 
 
 @gin.constants_from_enum
@@ -107,10 +103,10 @@ class HotWaterSystem(smart_device.SmartDevice):
             smart_device.HEATING_REQUEST_COUNT, int
         ),
         smart_device.SUPERVISOR_RUN_COMMAND: smart_device.AttributeInfo(
-            smart_device.RUN_COMMAND, RunStatus
+            smart_device.RUN_COMMAND, smart_device.RunStatus
         ),
         smart_device.RUN_STATUS: smart_device.AttributeInfo(
-            smart_device.RUN_STATUS, RunStatus
+            smart_device.RUN_STATUS, smart_device.RunStatus
         ),
         smart_device.DIFFERENTIAL_PRESSURE: smart_device.AttributeInfo(
             smart_device.DIFFERENTIAL_PRESSURE, float
@@ -122,7 +118,7 @@ class HotWaterSystem(smart_device.SmartDevice):
             smart_device.REHEAT_WATER_SETPOINT, float
         ),
         smart_device.SUPERVISOR_RUN_COMMAND: smart_device.AttributeInfo(
-            smart_device.RUN_COMMAND, RunStatus
+            smart_device.RUN_COMMAND, smart_device.RunStatus
         ),
         smart_device.DIFFERENTIAL_PRESSURE: smart_device.AttributeInfo(
             smart_device.DIFFERENTIAL_PRESSURE, float
@@ -148,7 +144,7 @@ class HotWaterSystem(smart_device.SmartDevice):
     self.reset_demand()
     self._heat_source.reset()
     self._pump.reset()
-    self._run_command = RunStatus.On
+    self._run_command = smart_device.RunStatus.ON
 
   def reset_demand(self) -> None:
     self.flow_rate = 0.0
@@ -199,15 +195,15 @@ class HotWaterSystem(smart_device.SmartDevice):
     )
 
   @property
-  def run_status(self) -> RunStatus:
+  def run_status(self) -> smart_device.RunStatus:
     return self._run_command
 
   @property
-  def run_command(self) -> RunStatus:
+  def run_command(self) -> smart_device.RunStatus:
     return self._run_command
 
   @run_command.setter
-  def run_command(self, value: RunStatus) -> None:
+  def run_command(self, value: smart_device.RunStatus) -> None:
     self._run_command = value
     self._heat_source.run_command = value
     self._pump.run_command = value
@@ -308,9 +304,9 @@ class HotWaterSystem(smart_device.SmartDevice):
   def set_action(self, action_field_name, value, action_timestamp):
     if "supervisor_run_command" in action_field_name:
       if value == 1:
-        value = hot_water_heat_source.RunStatus.On
+        value = smart_device.RunStatus.ON
       else:
-        value = hot_water_heat_source.RunStatus.Off
+        value = smart_device.RunStatus.OFF
       self._pump.run_command = value
     super().set_action(action_field_name, value, action_timestamp)
 

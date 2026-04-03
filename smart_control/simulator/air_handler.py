@@ -1,6 +1,5 @@
 """A model of an air handler in an HVAC system."""
 
-import enum
 from typing import Optional
 import uuid
 
@@ -9,8 +8,6 @@ from smart_buildings.smart_control.proto import smart_control_building_pb2
 from smart_buildings.smart_control.simulator import smart_device
 from smart_buildings.smart_control.simulator import weather_controller
 from smart_buildings.smart_control.utils import constants
-
-RunStatus = enum.IntEnum('RunStatus', [('On', 1), ('Off', 0)])
 
 
 @gin.configurable
@@ -49,7 +46,7 @@ class AirHandler(smart_device.SmartDevice):
       sim_weather_controller: Optional[
           weather_controller.WeatherController
       ] = None,
-      run_command=RunStatus.On,
+      run_command=smart_device.RunStatus.ON,
   ):
     if cooling_air_temp_setpoint <= heating_air_temp_setpoint:
       raise ValueError(
@@ -164,11 +161,11 @@ class AirHandler(smart_device.SmartDevice):
     return self._recirculation
 
   @property
-  def run_command(self) -> RunStatus:
+  def run_command(self) -> smart_device.RunStatus:
     return self._run_command
 
   @run_command.setter
-  def run_command(self, value: RunStatus):
+  def run_command(self, value: smart_device.RunStatus):
     self._run_command = value
 
   @recirculation.setter
@@ -177,7 +174,7 @@ class AirHandler(smart_device.SmartDevice):
 
   @property
   def air_flow_rate(self) -> float:
-    if self._run_command == RunStatus.Off:
+    if self._run_command == smart_device.RunStatus.OFF:
       return 0.0
     return self._air_flow_rate
 
@@ -216,7 +213,7 @@ class AirHandler(smart_device.SmartDevice):
 
   @property
   def fan_static_pressure(self) -> float:
-    if self._run_command == RunStatus.Off:
+    if self._run_command == smart_device.RunStatus.OFF:
       return 0.0
     return self._fan_static_pressure
 
@@ -268,7 +265,7 @@ class AirHandler(smart_device.SmartDevice):
     mixed_air_temp = self.get_mixed_air_temp(recirculation_temp, ambient_temp)
     if (
         mixed_air_temp > self.supply_air_temperature_setpoint
-        and self._run_command == RunStatus.On
+        and self._run_command == smart_device.RunStatus.ON
     ):
       return self.supply_air_temperature_setpoint
     else:
@@ -364,9 +361,9 @@ class AirHandler(smart_device.SmartDevice):
   def set_action(self, action_field_name, value, action_timestamp):
     if 'supervisor_run_command' in action_field_name:
       if value == 1:
-        value = RunStatus.On
+        value = smart_device.RunStatus.ON
       else:
-        value = RunStatus.Off
+        value = smart_device.RunStatus.OFF
     super().set_action(action_field_name, value, action_timestamp)
 
 
@@ -437,9 +434,9 @@ class AirHandlerSystem(smart_device.SmartDevice):
     """
     if 'supervisor_run_command' in action_field_name:
       if value == 1:
-        value = RunStatus.On
+        value = smart_device.RunStatus.ON
       else:
-        value = RunStatus.Off
+        value = smart_device.RunStatus.OFF
     target_ahu, target_field = self._get_target(action_field_name)
     target_ahu.set_action(target_field, value, action_timestamp)
 

@@ -41,12 +41,8 @@ Extensibility:
 """
 
 import abc
-import enum
 
 from smart_buildings.smart_control.simulator import smart_device
-
-IntEnum = enum.IntEnum
-RunStatus = IntEnum("RunStatus", [("On", 1), ("Off", 0)])
 
 
 class HotWaterHeatSource(smart_device.SmartDevice, abc.ABC):
@@ -73,12 +69,12 @@ class HotWaterHeatSource(smart_device.SmartDevice, abc.ABC):
 
   @property
   @abc.abstractmethod
-  def run_command(self) -> RunStatus:
+  def run_command(self) -> smart_device.RunStatus:
     """Gets the run command."""
 
   @run_command.setter
   @abc.abstractmethod
-  def run_command(self, value: RunStatus) -> None:
+  def run_command(self, value: smart_device.RunStatus) -> None:
     """Sets the run command."""
 
   @abc.abstractmethod

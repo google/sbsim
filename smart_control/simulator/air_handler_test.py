@@ -3,6 +3,7 @@ from absl.testing import parameterized
 import pandas as pd
 
 from smart_buildings.smart_control.simulator import air_handler
+from smart_buildings.smart_control.simulator import smart_device
 from smart_buildings.smart_control.simulator import weather_controller
 from smart_buildings.smart_control.utils import constants
 
@@ -540,8 +541,8 @@ class AirHandlerTest(parameterized.TestCase):
     self.assertEqual(getattr(handler, attribute_name), new_value)
 
   @parameterized.parameters(
-      (air_handler.RunStatus.Off),
-      (air_handler.RunStatus.On),
+      (smart_device.RunStatus.OFF),
+      (smart_device.RunStatus.ON),
   )
   def test_run_command(self, run_command):
     handler = air_handler.AirHandler(
@@ -554,7 +555,7 @@ class AirHandlerTest(parameterized.TestCase):
     )
     handler.add_demand(5)
     self.assertEqual(handler.run_command, run_command)
-    if run_command == air_handler.RunStatus.Off:
+    if run_command == smart_device.RunStatus.OFF:
       self.assertEqual(handler.air_flow_rate, 0.0)
       self.assertEqual(handler.fan_static_pressure, 0.0)
     else:
@@ -563,19 +564,19 @@ class AirHandlerTest(parameterized.TestCase):
 
     handler.set_action(
         'supervisor_run_command',
-        air_handler.RunStatus.Off,
+        smart_device.RunStatus.OFF,
         pd.Timestamp('2021-09-01 10:10:00'),
     )
-    self.assertEqual(handler.run_command, air_handler.RunStatus.Off)
+    self.assertEqual(handler.run_command, smart_device.RunStatus.OFF)
     self.assertEqual(handler.air_flow_rate, 0.0)
     self.assertEqual(handler.fan_static_pressure, 0.0)
 
     handler.set_action(
         'supervisor_run_command',
-        air_handler.RunStatus.On,
+        smart_device.RunStatus.ON,
         pd.Timestamp('2021-09-01 10:10:00'),
     )
-    self.assertEqual(handler.run_command, air_handler.RunStatus.On)
+    self.assertEqual(handler.run_command, smart_device.RunStatus.ON)
     self.assertEqual(handler.air_flow_rate, 5.0)
     self.assertEqual(handler.fan_static_pressure, self.fan_static_pressure)
 

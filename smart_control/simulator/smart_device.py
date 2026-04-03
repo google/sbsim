@@ -10,6 +10,7 @@ constructor.
 """
 
 import abc
+import enum
 from typing import Any, Final, Mapping, NamedTuple, Optional, Sequence, Type
 
 import pandas as pd
@@ -23,6 +24,12 @@ RUN_STATUS: Final[str] = 'run_status'
 RUN_COMMAND: Final[str] = 'run_command'
 DIFFERENTIAL_PRESSURE: Final[str] = 'differential_pressure'
 REHEAT_WATER_SETPOINT: Final[str] = 'reheat_water_setpoint'
+
+
+class RunStatus(enum.IntEnum):
+  """Run status of a device (ON or OFF)."""
+  ON = 1
+  OFF = 0
 
 
 class AttributeInfo(NamedTuple):

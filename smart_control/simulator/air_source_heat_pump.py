@@ -112,12 +112,12 @@ class AirSourceHeatPump(hot_water_heat_source.HotWaterHeatSource):
     self._nominal_cop = nominal_cop
     self._init_return_water_temp = init_return_water_temperature_sensor
     self._return_water_temp = init_return_water_temperature_sensor
-    self._run_command = hot_water_heat_source.RunStatus.On
+    self._run_command = smart_device.RunStatus.ON
     self._supply_water_setpoint = reheat_water_setpoint
 
   def reset(self) -> None:
     self._return_water_temp = self._init_return_water_temp
-    self._run_command = hot_water_heat_source.RunStatus.On
+    self._run_command = smart_device.RunStatus.ON
 
   @property
   def supply_water_temperature_sensor(self) -> float:
@@ -141,11 +141,11 @@ class AirSourceHeatPump(hot_water_heat_source.HotWaterHeatSource):
     self._return_water_temp = value
 
   @property
-  def run_command(self) -> hot_water_heat_source.RunStatus:
+  def run_command(self) -> smart_device.RunStatus:
     return self._run_command
 
   @run_command.setter
-  def run_command(self, value: hot_water_heat_source.RunStatus) -> None:
+  def run_command(self, value: smart_device.RunStatus) -> None:
     self._run_command = value
 
   def _calculate_dynamic_cop(self, outside_temp_k: float) -> float:
@@ -179,7 +179,7 @@ class AirSourceHeatPump(hot_water_heat_source.HotWaterHeatSource):
       flow_rate: The mass flow rate of water through the ASHP (kg/s).
     """
     if (
-        self._run_command == hot_water_heat_source.RunStatus.Off
+        self._run_command == smart_device.RunStatus.OFF
         or flow_rate <= 0
     ):
       return 0.0

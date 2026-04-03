@@ -2,6 +2,7 @@ from absl.testing import absltest
 from absl.testing import parameterized
 
 from smart_buildings.smart_control.simulator import pump as pump_py
+from smart_buildings.smart_control.simulator import smart_device
 from smart_buildings.smart_control.utils import constants
 
 
@@ -35,9 +36,9 @@ class PumpTest(parameterized.TestCase):
         water_pump_differential_head=3,
         water_pump_efficiency=0.9,
     )
-    self.assertEqual(pump.run_command, pump_py.RunStatus.On)
-    pump.run_command = pump_py.RunStatus.Off
-    self.assertEqual(pump.run_command, pump_py.RunStatus.Off)
+    self.assertEqual(pump.run_command, smart_device.RunStatus.ON)
+    pump.run_command = smart_device.RunStatus.OFF
+    self.assertEqual(pump.run_command, smart_device.RunStatus.OFF)
 
   def test_differential_pressure(self):
     water_pump_differential_head = 3
@@ -82,11 +83,11 @@ class PumpTest(parameterized.TestCase):
         water_pump_differential_head=3,
         water_pump_efficiency=0.9,
     )
-    pump.run_command = pump_py.RunStatus.On
+    pump.run_command = smart_device.RunStatus.ON
     pump._water_pump_differential_head = 4
     pump._water_pump_efficiency = 0.1
     pump.reset()
-    self.assertEqual(pump.run_command, pump_py.RunStatus.On)
+    self.assertEqual(pump.run_command, smart_device.RunStatus.ON)
     self.assertEqual(pump._water_pump_differential_head, 3)
     self.assertEqual(pump._water_pump_efficiency, 0.9)
 
