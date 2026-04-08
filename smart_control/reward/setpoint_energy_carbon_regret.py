@@ -274,17 +274,23 @@ class SetpointEnergyCarbonRegretFunction(
     combined_energy_cost = (
         actual_electricity_energy_cost + actual_natural_gas_energy_cost
     )
-    normalized_energy_cost = combined_energy_cost / (
-        max_electricity_energy_cost + max_natural_gas_energy_cost
-    )
+    if max_electricity_energy_cost + max_natural_gas_energy_cost > 0.0:
+      normalized_energy_cost = combined_energy_cost / (
+          max_electricity_energy_cost + max_natural_gas_energy_cost
+      )
+    else:
+      normalized_energy_cost = 0.0
 
     combined_carbon_emission = (
         actual_electricity_carbon_emission + actual_natural_gas_carbon_emission
     )
 
-    normalized_carbon_emission = combined_carbon_emission / (
-        max_electricity_carbon_emission + max_natural_gas_carbon_emission
-    )
+    if max_electricity_carbon_emission + max_natural_gas_carbon_emission > 0.0:
+      normalized_carbon_emission = combined_carbon_emission / (
+          max_electricity_carbon_emission + max_natural_gas_carbon_emission
+      )
+    else:
+      normalized_carbon_emission = 0.0
 
     response.carbon_emitted = combined_carbon_emission
 
