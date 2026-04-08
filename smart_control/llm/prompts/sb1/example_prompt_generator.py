@@ -22,9 +22,9 @@ import os
 from absl import app
 from absl import flags
 
+from smart_buildings.smart_control.configs.resources.sb1.config_utils import full_config
 from smart_buildings.smart_control.environment import hybrid_action_environment
 from smart_buildings.smart_control.llm.prompts.sb1 import sb1_promptmaker
-from smart_buildings.smart_control.utils.config_utils import full_config
 
 INCLUDE_WEIGHTS = flags.DEFINE_boolean(
     "include_weights", True, "Include weights in the prompt."

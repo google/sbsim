@@ -11,6 +11,7 @@ import os
 import gin
 
 # pylint: disable=unused-import # these imports are needed by the gin config:
+from smart_buildings.smart_control.configs.resources.sb1.config_utils import data_files
 from smart_buildings.smart_control.environment import environment
 from smart_buildings.smart_control.environment import hybrid_action_environment
 from smart_buildings.smart_control.reward import electricity_energy_cost
@@ -26,7 +27,6 @@ from smart_buildings.smart_control.simulator import tf_simulator
 from smart_buildings.smart_control.simulator import weather_controller
 from smart_buildings.smart_control.utils import environment_utils
 from smart_buildings.smart_control.utils import observation_normalizer
-from smart_buildings.smart_control.utils.config_utils import data_files
 # pylint: enable=unused-import
 
 FULL_CONFIG_FILEPATH = os.path.join(

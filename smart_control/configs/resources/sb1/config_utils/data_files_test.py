@@ -4,8 +4,8 @@ from absl.testing import absltest
 import numpy as np
 import pandas as pd
 
-from smart_buildings.smart_control.utils.config_utils import conftest
-from smart_buildings.smart_control.utils.config_utils import data_files
+from smart_buildings.smart_control.configs.resources.sb1.config_utils import conftest
+from smart_buildings.smart_control.configs.resources.sb1.config_utils import data_files
 
 
 class WeatherDataTest(absltest.TestCase):

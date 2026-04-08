@@ -8,6 +8,9 @@ from absl.testing import absltest
 from absl.testing import parameterized
 import pandas as pd
 
+from smart_buildings.smart_control.configs.resources.sb1.config_utils import conftest
+from smart_buildings.smart_control.configs.resources.sb1.config_utils import data_files
+from smart_buildings.smart_control.configs.resources.sb1.config_utils import full_config
 from smart_buildings.smart_control.environment import environment
 from smart_buildings.smart_control.environment import hybrid_action_environment  # pylint: disable=unused-import
 from smart_buildings.smart_control.reward import setpoint_energy_carbon_regret
@@ -16,13 +19,10 @@ from smart_buildings.smart_control.simulator import hvac_floorplan_based
 from smart_buildings.smart_control.simulator import randomized_arrival_departure_occupancy
 from smart_buildings.smart_control.simulator import setpoint_schedule
 from smart_buildings.smart_control.simulator import simulator_building
-from smart_buildings.smart_control.simulator import tf_simulator
 from smart_buildings.smart_control.simulator import stochastic_convection_simulator
+from smart_buildings.smart_control.simulator import tf_simulator
 from smart_buildings.smart_control.simulator import weather_controller
 from smart_buildings.smart_control.utils import observation_normalizer
-from smart_buildings.smart_control.utils.config_utils import conftest
-from smart_buildings.smart_control.utils.config_utils import data_files
-from smart_buildings.smart_control.utils.config_utils import full_config
 
 FloorPlanBasedBuilding = building.FloorPlanBasedBuilding
 FloorPlanBasedHvac = hvac_floorplan_based.FloorPlanBasedHvac
