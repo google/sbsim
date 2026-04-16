@@ -167,11 +167,11 @@ class EnvironmentConfigTest(parameterized.TestCase):
       # using logic like: `floor = 1 if i <= 53 else 2`
       floor = 0
       expected_records.append({
-          "zone_id": f"zone_id_{i}",
+          "zone_id": f"room_{i}",
           "building_id": "US-SIM-001",
           "zone_description": "Simulated zone",
           "area": 0.0,
-          "devices": [f"vav_room_{i}"],
+          "devices": [f"VAV_{i}"],
           "zone_type": "ROOM",
           "floor": floor,
       })
@@ -182,7 +182,7 @@ class EnvironmentConfigTest(parameterized.TestCase):
     self.assertIsInstance(df, pd.DataFrame)
     self.assertLen(df, 128)
 
-    vav_ids = [f"vav_room_{i}" for i in range(1, 127)]
+    vav_ids = [f"VAV_{i}" for i in range(1, 127)]
     expected_device_ids = ["hws", "ahs"] + vav_ids
     self.assertCountEqual(df["device_id"].tolist(), expected_device_ids)
 

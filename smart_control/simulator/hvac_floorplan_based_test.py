@@ -7,7 +7,6 @@ from smart_buildings.smart_control.simulator import air_handler
 from smart_buildings.smart_control.simulator import hot_water_system as hot_water_system_py
 from smart_buildings.smart_control.simulator import hvac_floorplan_based
 from smart_buildings.smart_control.simulator import setpoint_schedule
-from smart_buildings.smart_control.utils import conversion_utils
 
 
 class FloorPlanBasedHvacTest(absltest.TestCase):
@@ -28,6 +27,9 @@ class FloorPlanBasedHvacTest(absltest.TestCase):
     schedule = self._global_setpoint_schedule
     vav_max_air_flow_rate = 0.2
     vav_reheat_max_water_flow_factor = 0.4
+    zone_to_vavs = (
+        {z: [f"vav_{z}"] for z in zone_identifier} if zone_identifier else {}
+    )
     h = hvac_floorplan_based.FloorPlanBasedHvac(
         zone_identifier=zone_identifier,
         air_handler=handler,
@@ -35,6 +37,7 @@ class FloorPlanBasedHvacTest(absltest.TestCase):
         schedule=schedule,
         vav_max_air_flow_rate=vav_max_air_flow_rate,
         vav_reheat_max_water_flow_factor=vav_reheat_max_water_flow_factor,
+        zone_to_vavs=zone_to_vavs,
     )
     return h
 
@@ -90,10 +93,12 @@ class FloorPlanBasedHvacTest(absltest.TestCase):
     self.assertEqual(h.air_handler, self._global_handler)
     self.assertEqual(h.hot_water_system, self._global_hot_water_system)
 
-    self.assertCountEqual(h.vavs.keys(), self._zone_identifier)
+    expected_vav_ids = [f"vav_{z}" for z in self._zone_identifier]
+    self.assertCountEqual(h.vavs.keys(), expected_vav_ids)
 
     for coord in self._zone_identifier:
-      vav = h.vavs[coord]
+      v_id = f"vav_{coord}"
+      vav = h.vavs[v_id]  # vavs are not indexed by zone_id anymore
       self.assertEqual(
           vav.thermostat._setpoint_schedule, self._global_setpoint_schedule
       )
@@ -104,7 +109,7 @@ class FloorPlanBasedHvacTest(absltest.TestCase):
       )
       self.assertEqual(
           vav._zone_id,
-          conversion_utils.floor_plan_based_zone_identifier_to_id(coord),
+          coord,
       )
 
   def test_reset(self):
@@ -116,7 +121,7 @@ class FloorPlanBasedHvacTest(absltest.TestCase):
     self._hvac.air_handler._fan_static_pressure = 0.1
 
     for coord in self._zone_identifier:
-      vav = self._hvac.vavs[coord]
+      vav = self._hvac.vavs[f"vav_{coord}"]
       vav.thermostat._setpoint_schedule.morning_start_hour += 1.0
       vav.thermostat._setpoint_schedule.comfort_temp_window = (280, 310)
 
@@ -164,7 +169,7 @@ class FloorPlanBasedHvacTest(absltest.TestCase):
     vav_reheat_max_water_flow_factor = 0.4
 
     for coord in self._zone_identifier:
-      vav = self._hvac.vavs[coord]
+      vav = self._hvac.vavs[f"vav_{coord}"]
       self.assertEqual(
           vav.thermostat._setpoint_schedule, self._global_setpoint_schedule
       )
@@ -173,10 +178,7 @@ class FloorPlanBasedHvacTest(absltest.TestCase):
       self.assertEqual(
           vav._reheat_max_water_flow_factor, vav_reheat_max_water_flow_factor
       )
-      self.assertEqual(
-          vav._zone_id,
-          conversion_utils.floor_plan_based_zone_identifier_to_id(coord),
-      )
+      self.assertEqual(vav._zone_id, coord)
 
   def test_vav_device_ids(self):
     expected_vav_ids = [
@@ -187,7 +189,7 @@ class FloorPlanBasedHvacTest(absltest.TestCase):
 
     vav_ids = []
     for coord in self._zone_identifier:
-      vav = self._hvac.vavs[coord]
+      vav = self._hvac.vavs[f"vav_{coord}"]
       vav_ids.append(vav._device_id)
 
     self.assertListEqual(vav_ids, expected_vav_ids)
@@ -211,8 +213,9 @@ class FloorPlanBasedHvacTest(absltest.TestCase):
     with self.subTest("check_fill_zone_identifier_flag"):
       self.assertTrue(test_hvac.fill_zone_identifier_exogenously)
 
-    zones = self._hvac.vavs.keys()
-    test_hvac.initialize_zone_identifier(zones)
+    zones = list(self._zone_identifier)
+    zone_to_vavs = {z: [f"vav_{z}"] for z in zones}
+    test_hvac.initialize_zone_identifier(zones, zone_to_vavs)
 
     with self.subTest("check_zone_assignment_is_equal"):
       self.assertEqual(test_hvac._vavs.keys(), self._hvac.vavs.keys())

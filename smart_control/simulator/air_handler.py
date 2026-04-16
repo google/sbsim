@@ -1,18 +1,18 @@
 """A model of an air handler in an HVAC system."""
 
-from typing import Optional
+from typing import Mapping, Optional
 import uuid
 
 import gin
 from smart_buildings.smart_control.proto import smart_control_building_pb2
 from smart_buildings.smart_control.simulator import smart_device
 from smart_buildings.smart_control.simulator import weather_controller
-from smart_buildings.smart_control.utils import constants
+from smart_buildings.smart_control.simulator import constants
 
 
 @gin.configurable
 class AirHandler(smart_device.SmartDevice):
-  """Models an air hander with heating/cooling, input/exhaust and recirculation.
+  """An air handler with heating/cooling, input/exhaust, recirculation.
 
   Attributes:
     recirculation: Proportion of air recirculated.
@@ -31,7 +31,7 @@ class AirHandler(smart_device.SmartDevice):
     fan_efficiency: Electrical efficiency of fan (0 - 1).
     cooling_request_count: count of VAVs that have requested cooling in this
       cycle.
-    max_air_flow_rate: max air flow rate in kg/s
+    max_air_flow_rate: max air flow rate in m^3/s
   """
 
   def __init__(
@@ -319,6 +319,7 @@ class AirHandler(smart_device.SmartDevice):
     supply_air_temp = self.get_supply_air_temp(recirculation_temp, ambient_temp)
     return (
         self._air_flow_rate
+        * constants.AIR_DENSITY
         * constants.AIR_HEAT_CAPACITY
         * (supply_air_temp - mixed_air_temp)
     )
@@ -423,6 +424,11 @@ class AirHandlerSystem(smart_device.SmartDevice):
   def ahus(self) -> list[AirHandler]:
     return self._ahus
 
+  @property
+  def ahu_zones_map(self) -> Mapping[AirHandler, list[str]]:
+    """The mapping of AirHandler units to the zones they serve."""
+    return self._map
+
   def set_action(self, action_field_name, value, action_timestamp):
     """Send an action to the target AHU.
 
@@ -471,11 +477,14 @@ class AirHandlerSystem(smart_device.SmartDevice):
     return sum(ahu.cooling_request_count for ahu in self._ahus)
 
   def compute_thermal_energy_rate(
-      self, recirculation_temp: float, ambient_temp: float
+      self, recirculation_temps: Mapping[str, float], ambient_temp: float
   ) -> float:
     return sum(
-        ahu.compute_thermal_energy_rate(recirculation_temp, ambient_temp)
+        ahu.compute_thermal_energy_rate(
+            recirculation_temps[ahu.device_id()], ambient_temp
+        )
         for ahu in self._ahus
+        if ahu.device_id() in recirculation_temps
     )
 
   def compute_intake_fan_energy_rate(self) -> float:
@@ -484,11 +493,14 @@ class AirHandlerSystem(smart_device.SmartDevice):
   def compute_exhaust_fan_energy_rate(self) -> float:
     return sum(ahu.compute_exhaust_fan_energy_rate() for ahu in self._ahus)
 
-  def get_supply_air_temp(self, recirculation_temp, ambient_temperature):
+  def get_supply_air_temp(
+      self, recirculation_temps, ambient_temperature
+  ) -> dict[str, float]:
     temps = {}
     for ahu in self._ahus:
-      temps[ahu.device_id()] = ahu.get_supply_air_temp(
-          recirculation_temp, ambient_temperature
+      ahu_id = ahu.device_id()
+      temps[ahu_id] = ahu.get_supply_air_temp(
+          recirculation_temps[ahu_id], ambient_temperature
       )
     return temps
 

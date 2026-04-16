@@ -2,11 +2,10 @@
 
 import abc
 import dataclasses
-from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, Union
 
 import gin
 import numpy as np
-
 from smart_buildings.smart_control.simulator import base_convection_simulator
 from smart_buildings.smart_control.simulator import building_utils
 from smart_buildings.smart_control.simulator import constants
@@ -28,7 +27,7 @@ class MaterialProperties:
   density: float
 
 
-def _check_room_sizes(matrix_shape: Shape2D, room_shape: Shape2D):
+def _check_room_sizes(matrix_shape: Shape2D, room_shape: Shape2D) -> None:
   """Raises a ValueError if room_shape is not compatible with matrix_shape.
 
   The matrix for the building includes 2 outer wall layers, then rooms divided
@@ -46,7 +45,7 @@ def _check_room_sizes(matrix_shape: Shape2D, room_shape: Shape2D):
     raise ValueError("Room_shape[1] is not compatible with matrix_shape[1]")
 
 
-def assign_building_exterior_values(array: np.ndarray, value: float):
+def assign_building_exterior_values(array: np.ndarray, value: float) -> None:
   """Assigns value to the building's exterior locations.
 
   The outer 2 layers of the matrix are special CVs which represent the thicker
@@ -62,7 +61,7 @@ def assign_building_exterior_values(array: np.ndarray, value: float):
 
 def assign_interior_wall_values(
     array: np.ndarray, value: float, room_shape: Shape2D
-):
+) -> None:
   """Assigns value to interior wall locations.
 
   These are the walls dividing the rooms. None of these walls are on the
@@ -325,9 +324,8 @@ def _assign_thermal_diffusers(
   """
 
   for key, value in room_dict.items():
-    if not key.startswith(constants.ROOM_STRING_DESIGNATOR):
+    if constants.is_non_physical_space(key):
       continue
-
     inds = thermal_diffuser_utils.diffuser_allocation_switch(
         room_cv_indices=value,
         spacing=diffuser_spacing,
@@ -346,7 +344,7 @@ class BaseSimulatorBuilding(abc.ABC):
   """Base class for building simulators."""
 
   @abc.abstractmethod
-  def reset(self):
+  def reset(self) -> None:
     """Resets the building to its initial parameters."""
 
   @abc.abstractmethod
@@ -515,7 +513,7 @@ class Building(BaseSimulatorBuilding):
   def cv_type(self) -> np.ndarray:
     raise NotImplementedError()
 
-  def reset(self):
+  def reset(self) -> None:
     """Resets the building to its initial parameters."""
     nrows = (self.room_shape[0] + 1) * self.building_shape[0] + 3
     ncols = (self.room_shape[1] + 1) * self.building_shape[1] + 3
@@ -589,7 +587,7 @@ class Building(BaseSimulatorBuilding):
 
   def apply_thermal_power_zone(
       self, zone_coordinates: Coordinates2D, power: float
-  ):
+  ) -> None:
     """Applies thermal power to zones, spread evenly across diffusers.
 
     The thermal power [W] is applied to zones `zone_x` and `zone_y`.
@@ -640,6 +638,53 @@ class FloorPlanBasedBuilding(BaseSimulatorBuilding):
     building_exterior_properties: MaterialProperties for building's exterior.
   """
 
+  def _check_floor_plan_and_zone_inputs(
+      self,
+      floor_plan: np.ndarray | None,
+      floor_plan_filepath: Optional[str],
+      zone_map: np.ndarray | None,
+      zone_map_filepath: Optional[str],
+      custom_room_dict: Optional[Dict[str, List[Tuple[int, int]]]],
+      custom_zone_to_vavs: Optional[Dict[str, List[str]]],
+  ) -> None:
+    """Checks for valid combinations of floor plan and zone inputs."""
+    if floor_plan_filepath is not None and floor_plan is not None:
+      raise ValueError(
+          "You have provided both a floor_plan and a floor_plan_filepath. "
+          "Please provide only one."
+      )
+    if floor_plan is None and floor_plan_filepath is None:
+      raise ValueError(
+          "Both floor_plan and floor_plan_filepath cannot be None."
+      )
+
+    if (
+        zone_map_filepath is None
+        and zone_map is None
+        and custom_room_dict is None
+    ):
+      raise ValueError(
+          "Please provide a zone_map_filepath or a zone_map or a"
+          " custom_room_dict."
+      )
+
+    if zone_map_filepath is not None and zone_map is not None:
+      raise ValueError(
+          "You have provided both zone_map_filepath and a zone_map."
+      )
+    if custom_room_dict is not None and (
+        zone_map is not None or zone_map_filepath is not None
+    ):
+      raise ValueError(
+          "You have provided both custom_room_dict and a zone_map or"
+          " zone_map_filepath."
+      )
+
+    if custom_zone_to_vavs is not None and custom_room_dict is None:
+      raise ValueError(
+          "custom_zone_to_vavs cannot be provided without custom_room_dict."
+      )
+
   def __init__(
       self,
       cv_size_cm: float,
@@ -650,6 +695,8 @@ class FloorPlanBasedBuilding(BaseSimulatorBuilding):
       building_exterior_properties: MaterialProperties,
       zone_map: Optional[np.ndarray] = None,
       zone_map_filepath: Optional[str] = None,
+      custom_room_dict: dict[str, list[tuple[int, int]]] | None = None,
+      custom_zone_to_vavs: Optional[Dict[str, List[str]]] = None,
       floor_plan: Optional[np.ndarray] = None,
       floor_plan_filepath: Optional[str] = None,
       buffer_from_walls: int = 3,
@@ -672,6 +719,13 @@ class FloorPlanBasedBuilding(BaseSimulatorBuilding):
       zone_map_filepath: a string of where to find the zone_map in CNS. Note
         that the user requires only to provide one of either zone_map_filepath
         or zone_map.
+      custom_room_dict: a dictionary that maps custom zone names to their
+        corresponding control volumes. Example: {'zone_1': [(2, 3), (2, 4)],
+          'zone_2': [(10, 11), (10, 12)]}
+      custom_zone_to_vavs: a dictionary that maps custom zone names to their
+        corresponding VAVs. This should only be provided if a custom_room_dict
+        is provided. Example:
+        {'zone_1': ['vav_1'], 'zone_2': ['vav_2', 'vav_3']}
       floor_plan: an np.ndarray to pass into the function if one has this. If
         this is None, then the user must pass in a filepath.
       floor_plan_filepath: a string of where to find the floor_plan in CNS. Both
@@ -697,46 +751,60 @@ class FloorPlanBasedBuilding(BaseSimulatorBuilding):
     self._reset_temp_values = reset_temp_values
     self._min_room_size = min_room_size
 
-    # below is new code, to derive necessary artifacts from the floor plan.
-    # TODO(spangher): neaten code by turning the next twenty lines into a
-    #   private method.
+    self._check_floor_plan_and_zone_inputs(
+        floor_plan=floor_plan,
+        floor_plan_filepath=floor_plan_filepath,
+        zone_map=zone_map,
+        zone_map_filepath=zone_map_filepath,
+        custom_room_dict=custom_room_dict,
+        custom_zone_to_vavs=custom_zone_to_vavs,
+    )
 
-    if floor_plan is None and floor_plan_filepath is None:
+    if floor_plan_filepath is not None:
+      self.floor_plan, _ = building_utils.read_floor_plan_from_filepath(
+          floor_plan_filepath
+      )
+    elif floor_plan is not None:
+      self.floor_plan = np.asarray(floor_plan)
+    else:
+      # This case should be caught by _check_floor_plan_and_zone_inputs,
+      # but included for type consistency.
       raise ValueError(
           "Both floor_plan and floor_plan_filepath cannot be None."
       )
 
-    elif floor_plan is None and floor_plan_filepath:
-      self.floor_plan = building_utils.read_floor_plan_from_filepath(
-          floor_plan_filepath
+    if zone_map is not None:
+      self._zone_map = np.asarray(zone_map)
+      zone_map = self._zone_map
+    elif zone_map_filepath is not None:
+      zone_map, _ = building_utils.read_floor_plan_from_filepath(
+          zone_map_filepath
       )
-
-    elif floor_plan is not None and floor_plan_filepath is None:
-      self.floor_plan = floor_plan
-
+      self._zone_map = zone_map
     else:
-      raise ValueError("floor_plan and floor_plan_filepath ")
+      self._zone_map = None
 
-    if zone_map_filepath is None and zone_map is None:
-      raise ValueError("please provide a zone_map_filepath or a zone_map")
-
-    if zone_map_filepath is not None and zone_map is not None:
-      raise ValueError(
-          "You have provided both zone_map_filepath and a zone_map"
-      )
-
-    if zone_map is not None and zone_map_filepath is None:
-      self._zone_map = zone_map
-
-    if zone_map is None and zone_map_filepath is not None:
-      zone_map = building_utils.read_floor_plan_from_filepath(zone_map_filepath)
-      self._zone_map = zone_map
-
-    (self._room_dict, exterior_walls, interior_walls, self._exterior_space) = (
-        building_utils.construct_building_data_types(
-            floor_plan=self.floor_plan, zone_map=zone_map
-        )
+    effective_zone_map = zone_map if zone_map is not None else self.floor_plan
+    (
+        self._room_dict,
+        exterior_walls,
+        interior_walls,
+        self._exterior_space,
+        offset,
+    ) = building_utils.construct_building_data_types(
+        floor_plan=self.floor_plan, zone_map=effective_zone_map
     )
+    # quick fix is to overwrite, might delete the autodetected roomdict later
+    # we keep this call for backward compatibility with the old approach
+    # where zones were automatically detected.
+    if custom_room_dict is not None:
+      self._room_dict = {
+          k: [(r + offset[0], c + offset[1]) for (r, c) in v]
+          for k, v in custom_room_dict.items()
+      }
+
+    self._custom_room_dict = custom_room_dict
+    self._custom_zone_to_vavs = custom_zone_to_vavs
 
     self._exterior_walls, self._interior_walls = enlarge_exterior_walls(
         exterior_walls=exterior_walls, interior_walls=interior_walls
@@ -805,6 +873,16 @@ class FloorPlanBasedBuilding(BaseSimulatorBuilding):
     return self._cv_type
 
   @property
+  def room_dict(self) -> Mapping[str, List[Tuple[int, int]]]:
+    """The room dictionary mapping room names to CV coordinates."""
+    return self._room_dict
+
+  @property
+  def custom_zone_to_vavs(self) -> Optional[Mapping[str, List[str]]]:
+    """The custom zone to vavs mapping."""
+    return self._custom_zone_to_vavs
+
+  @property
   def initial_temp(self) -> float:
     """Returns the initial temperature for the building."""
     return self._initial_temp
@@ -816,7 +894,7 @@ class FloorPlanBasedBuilding(BaseSimulatorBuilding):
     """The convection simulator for the building."""
     return self._convection_simulator
 
-  def reset(self):
+  def reset(self) -> None:
     self.temp = np.full(
         shape=self._exterior_walls.shape, fill_value=self._initial_temp
     )
@@ -905,9 +983,10 @@ class FloorPlanBasedBuilding(BaseSimulatorBuilding):
     avg_temps = {}
 
     for zone in self._room_dict.keys():
-      if zone.startswith(constants.ROOM_STRING_DESIGNATOR):
-        _, _, avg_temp = self.get_zone_temp_stats(zone)
-        avg_temps[zone] = avg_temp
+      if constants.is_non_physical_space(zone):
+        continue
+      _, _, avg_temp = self.get_zone_temp_stats(zone)
+      avg_temps[zone] = avg_temp
     return avg_temps
 
   def apply_thermal_power_zone(self, zone_name: str, power: float):  # pylint: disable=arguments-renamed

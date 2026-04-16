@@ -110,23 +110,23 @@ vav_max_air_flowrate = 2.0
 vav_reheat_water_flowrate =  0.03
 
 floor_1_rooms = [
-  'zone_id_1', 'zone_id_2', 'zone_id_3', 'zone_id_4', 'zone_id_5', 'zone_id_6', 'zone_id_7', 'zone_id_8', 'zone_id_9', 'zone_id_10',
-  'zone_id_11', 'zone_id_12', 'zone_id_13', 'zone_id_14', 'zone_id_15', 'zone_id_16', 'zone_id_17', 'zone_id_18', 'zone_id_19', 'zone_id_20',
-  'zone_id_21', 'zone_id_22', 'zone_id_23', 'zone_id_24', 'zone_id_25', 'zone_id_26', 'zone_id_27', 'zone_id_28', 'zone_id_29', 'zone_id_30',
-  'zone_id_31', 'zone_id_32', 'zone_id_33', 'zone_id_34', 'zone_id_35', 'zone_id_36', 'zone_id_37', 'zone_id_38', 'zone_id_39', 'zone_id_40',
-  'zone_id_41', 'zone_id_42', 'zone_id_43', 'zone_id_44', 'zone_id_45', 'zone_id_46', 'zone_id_47', 'zone_id_48', 'zone_id_49', 'zone_id_50',
-  'zone_id_51', 'zone_id_52', 'zone_id_53'
+  'room_1', 'room_2', 'room_3', 'room_4', 'room_5', 'room_6', 'room_7', 'room_8', 'room_9', 'room_10',
+  'room_11', 'room_12', 'room_13', 'room_14', 'room_15', 'room_16', 'room_17', 'room_18', 'room_19', 'room_20',
+  'room_21', 'room_22', 'room_23', 'room_24', 'room_25', 'room_26', 'room_27', 'room_28', 'room_29', 'room_30',
+  'room_31', 'room_32', 'room_33', 'room_34', 'room_35', 'room_36', 'room_37', 'room_38', 'room_39', 'room_40',
+  'room_41', 'room_42', 'room_43', 'room_44', 'room_45', 'room_46', 'room_47', 'room_48', 'room_49', 'room_50',
+  'room_51', 'room_52', 'room_53'
 ]
 
 floor_2_rooms = [
-  'zone_id_54', 'zone_id_55', 'zone_id_56', 'zone_id_57', 'zone_id_58', 'zone_id_59', 'zone_id_60', 'zone_id_61', 'zone_id_62', 'zone_id_63',
-  'zone_id_64', 'zone_id_65', 'zone_id_66', 'zone_id_67', 'zone_id_68', 'zone_id_69', 'zone_id_70', 'zone_id_71', 'zone_id_72', 'zone_id_73',
-  'zone_id_74', 'zone_id_75', 'zone_id_76', 'zone_id_77', 'zone_id_78', 'zone_id_79', 'zone_id_80', 'zone_id_81', 'zone_id_82', 'zone_id_83',
-  'zone_id_84', 'zone_id_85', 'zone_id_86', 'zone_id_87', 'zone_id_88', 'zone_id_89', 'zone_id_90', 'zone_id_91', 'zone_id_92', 'zone_id_93',
-  'zone_id_94', 'zone_id_95', 'zone_id_96', 'zone_id_97', 'zone_id_98', 'zone_id_99', 'zone_id_100', 'zone_id_101', 'zone_id_102', 'zone_id_103',
-  'zone_id_104', 'zone_id_105', 'zone_id_106', 'zone_id_107', 'zone_id_108', 'zone_id_109', 'zone_id_110', 'zone_id_111', 'zone_id_112', 'zone_id_113',
-  'zone_id_114', 'zone_id_115', 'zone_id_116', 'zone_id_117', 'zone_id_118', 'zone_id_119', 'zone_id_120', 'zone_id_121', 'zone_id_122', 'zone_id_123',
-  'zone_id_124', 'zone_id_125', 'zone_id_126'
+  'room_54', 'room_55', 'room_56', 'room_57', 'room_58', 'room_59', 'room_60', 'room_61', 'room_62', 'room_63',
+  'room_64', 'room_65', 'room_66', 'room_67', 'room_68', 'room_69', 'room_70', 'room_71', 'room_72', 'room_73',
+  'room_74', 'room_75', 'room_76', 'room_77', 'room_78', 'room_79', 'room_80', 'room_81', 'room_82', 'room_83',
+  'room_84', 'room_85', 'room_86', 'room_87', 'room_88', 'room_89', 'room_90', 'room_91', 'room_92', 'room_93',
+  'room_94', 'room_95', 'room_96', 'room_97', 'room_98', 'room_99', 'room_100', 'room_101', 'room_102', 'room_103',
+  'room_104', 'room_105', 'room_106', 'room_107', 'room_108', 'room_109', 'room_110', 'room_111', 'room_112', 'room_113',
+  'room_114', 'room_115', 'room_116', 'room_117', 'room_118', 'room_119', 'room_120', 'room_121', 'room_122', 'room_123',
+  'room_124', 'room_125', 'room_126'
 ]
 
 ahu_1/AirHandler:

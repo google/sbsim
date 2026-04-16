@@ -5,7 +5,7 @@ import pandas as pd
 from smart_buildings.smart_control.simulator import air_handler
 from smart_buildings.smart_control.simulator import smart_device
 from smart_buildings.smart_control.simulator import weather_controller
-from smart_buildings.smart_control.utils import constants
+from smart_buildings.smart_control.simulator import constants
 
 
 class AirHandlerTest(parameterized.TestCase):
@@ -308,6 +308,7 @@ class AirHandlerTest(parameterized.TestCase):
     )
     expected = (
         handler.air_flow_rate
+        * constants.AIR_DENSITY
         * constants.AIR_HEAT_CAPACITY
         * (supply_air_temp - mixed_air_temp)
     )
@@ -582,6 +583,172 @@ class AirHandlerTest(parameterized.TestCase):
 
     handler.reset()
     self.assertEqual(handler.run_command, run_command)
+
+  def test_air_flow_units(self):
+    # A flow of 1.0 m^3/s through 1.0 Pascal of pressure at 100% efficiency
+    # should equal exactly 1.0 Watt of power.
+    # This verifies that air_flow_rate is in m^3/s and pressure is in Pascals.
+    handler = air_handler.AirHandler(
+        recirculation=0.5,
+        heating_air_temp_setpoint=280,
+        cooling_air_temp_setpoint=300,
+        fan_static_pressure=1.0,  # 1 Pascal
+        fan_efficiency=1.0,       # 100% efficiency
+    )
+    power = handler.compute_fan_power(
+        flow_rate=1.0,
+        fan_static_pressure=1.0,
+        fan_efficiency=1.0,
+    )
+    self.assertAlmostEqual(power, 1.0)
+
+
+class AirHandlerSystemTest(parameterized.TestCase):
+  """System-level tests for AirHandlerSystem and multiple AirHandlers."""
+
+  def setUp(self):
+    super().setUp()
+    self.ahu1 = self._create_air_handler('ahu1')
+    self.ahu2 = self._create_air_handler('ahu2')
+    self.ahu_map = {self.ahu1: ['zone1'], self.ahu2: ['zone2']}
+    self.system = air_handler.AirHandlerSystem(self.ahu_map)
+
+  def _create_air_handler(
+      self,
+      device_id: str,
+      recirculation: float = 0.3,
+      heating_air_temp_setpoint: float = 270,
+      cooling_air_temp_setpoint: float = 288,
+      fan_static_pressure: float = 20000.0,
+      fan_efficiency: float = 0.8,
+      max_air_flow_rate: float = 10,
+  ) -> air_handler.AirHandler:
+    """Helper to create an AirHandler with standard test parameters."""
+    return air_handler.AirHandler(
+        recirculation=recirculation,
+        heating_air_temp_setpoint=heating_air_temp_setpoint,
+        cooling_air_temp_setpoint=cooling_air_temp_setpoint,
+        fan_static_pressure=fan_static_pressure,
+        fan_efficiency=fan_efficiency,
+        max_air_flow_rate=max_air_flow_rate,
+        device_id=device_id,
+    )
+
+  def test_ahu_zones_map(self):
+    """Tests that ahu_zones_map returns the correct mapping."""
+    self.assertEqual(self.system.ahu_zones_map, self.ahu_map)
+
+  @parameterized.named_parameters(
+      dict(
+          testcase_name='both_below_setpoint',
+          recirculation_temps={'ahu1': 280, 'ahu2': 244},
+          ambient_temp=240,
+          # In this case, mixed air temp is below the supply setpoint (279K).
+          # ahu1: 0.3 * 280 + 0.7 * 240 = 252.0. Since 252 < 279,
+          # supply is 252.
+          # ahu2: 0.3 * 244 + 0.7 * 240 = 241.2. Since 241.2 < 279,
+          # supply is 241.2.
+          expected_temps={'ahu1': 252.0, 'ahu2': 241.2},
+      ),
+      dict(
+          testcase_name='both_above_setpoint',
+          recirculation_temps={'ahu1': 300, 'ahu2': 310},
+          ambient_temp=320,
+          # Mixed air temp is above the supply setpoint (279K), so it cools
+          # to 279.
+          # ahu1: 0.3 * 300 + 0.7 * 320 = 314.0. Since 314 > 279, supply is 279.
+          # ahu2: 0.3 * 310 + 0.7 * 320 = 317.0. Since 317 > 279, supply is 279.
+          expected_temps={'ahu1': 279.0, 'ahu2': 279.0},
+      ),
+      dict(
+          testcase_name='one_above_one_below',
+          recirculation_temps={'ahu1': 380, 'ahu2': 244},
+          ambient_temp=240,
+          # ahu1: 0.3 * 380 + 0.7 * 240 = 114 + 168 = 282. Since 282 > 279,
+          # supply is 279.
+          # ahu2: 0.3 * 244 + 0.7 * 240 = 241.2. Since 241.2 < 279,
+          # supply is 241.2.
+          expected_temps={'ahu1': 279.0, 'ahu2': 241.2},
+      ),
+      dict(
+          testcase_name='at_setpoint_threshold',
+          recirculation_temps={'ahu1': 279, 'ahu2': 300},
+          ambient_temp=279,
+          # ahu1: 0.3 * 279 + 0.7 * 279 = 279.0. Supply is 279.
+          # ahu2: 0.3 * 300 + 0.7 * 279 = 90 + 195.3 = 285.3. Supply is 279.
+          expected_temps={'ahu1': 279.0, 'ahu2': 279.0},
+      ),
+  )
+  def test_get_supply_air_temp(
+      self, recirculation_temps, ambient_temp, expected_temps
+  ):
+    """Verifies supply air temperature calculation for a system of AHUs.
+
+    The expected supply temperature is derived from:
+    1. Mixed Air Temp = (recirculation * recirculation_temp) +
+                        ((1 - recirculation) * ambient_temp)
+    2. Supply Air Setpoint = (heating_setpoint + cooling_setpoint) / 2
+    3. If Mixed Air Temp > Setpoint: Supply Temp = Setpoint
+       Else: Supply Temp = Mixed Air Temp
+
+    Args:
+      recirculation_temps: Mapping of AHU device IDs to recirculation temps.
+      ambient_temp: The ambient air temperature.
+      expected_temps: Mapping of AHU device IDs to expected supply temps.
+    """
+    temps = self.system.get_supply_air_temp(recirculation_temps, ambient_temp)
+    self.assertLen(temps, 2)
+    self.assertAlmostEqual(temps['ahu1'], expected_temps['ahu1'], places=4)
+    self.assertAlmostEqual(temps['ahu2'], expected_temps['ahu2'], places=4)
+
+  def test_compute_thermal_energy_rate(self):
+    """Verifies combined thermal energy rate for a system of AHUs.
+
+    Energy Rate (W) = air_flow_rate (m^3/s) * density (kg/m^3) *
+                      heat_capacity (J/kg*K) * (T_supply - T_mixed)
+    """
+    # Set air flow rates for each AHU
+    self.ahu1.air_flow_rate = 1.0
+    self.ahu2.air_flow_rate = 2.0
+
+    recirculation_temps = {'ahu1': 290.0, 'ahu2': 260.0}
+    ambient_temp = 300.0
+
+    # Expected energy rate calculations:
+    # Setpoint = (270 + 288) / 2 = 279
+
+    # AHU1:
+    # T_mixed = 0.3 * 290 + 0.7 * 300 = 87 + 210 = 297
+    # T_supply = 279 (since 297 > 279)
+    # Delta_T = 279 - 297 = -18
+    # density = 1.2
+    # energy_ahu1 = 1.0 * 1.2 * 1005 * -18 = -21708
+    expected_energy_ahu1 = (
+        1.0
+        * constants.AIR_DENSITY
+        * constants.AIR_HEAT_CAPACITY
+        * (279.0 - 297.0)
+    )
+
+    # AHU2:
+    # T_mixed = 0.3 * 260 + 0.7 * 300 = 78 + 210 = 288
+    # T_supply = 279 (since 288 > 279)
+    # Delta_T = 279 - 288 = -9
+    # energy_ahu2 = 2.0 * 1.2 * 1005 * -9 = -21708
+    expected_energy_ahu2 = (
+        2.0
+        * constants.AIR_DENSITY
+        * constants.AIR_HEAT_CAPACITY
+        * (279.0 - 288.0)
+    )
+
+    expected_total_energy = expected_energy_ahu1 + expected_energy_ahu2
+
+    actual_total_energy = self.system.compute_thermal_energy_rate(
+        recirculation_temps, ambient_temp
+    )
+
+    self.assertAlmostEqual(actual_total_energy, expected_total_energy, places=4)
 
 
 if __name__ == '__main__':

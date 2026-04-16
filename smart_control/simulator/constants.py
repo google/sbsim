@@ -101,3 +101,31 @@ VIDEO_PATH_ROOT = "/cns/oz-d/home/smart-buildings-control-team/smart-buildings/g
 
 # The limit above which we do not want thermal diffusers to be dispensing energy
 WATT_LIMIT = 500
+
+# Physical constants for air.
+AIR_DENSITY = 1.2  # kg/m3
+AIR_HEAT_CAPACITY = 1006.0  # J/kg/K, standard atmosphere
+
+WATER_DENSITY = 1000.0  # kg/m3
+WATER_HEAT_CAPACITY = 4180.0  # J/kg/K
+GRAVITY = 9.8  # m/s2
+
+
+def is_non_physical_space(zone_id: str) -> bool:
+  """Checks if a given zone_id represents a non-physical space.
+
+  Non-physical spaces include exterior spaces and interior walls, which are
+  not considered occupiable or thermally controlled zones within the
+  simulation.
+
+  Args:
+    zone_id: The identifier string for the zone.
+
+  Returns:
+    True if the zone_id corresponds to a non-physical space (e.g., exterior
+    space or an interior wall), False otherwise.
+  """
+  return zone_id in [
+      EXTERIOR_SPACE_NAME_IN_ROOM_DICT,
+      INTERIOR_WALL_NAME_IN_ROOM_DICT,
+  ]

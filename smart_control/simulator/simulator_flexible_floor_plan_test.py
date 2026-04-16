@@ -351,9 +351,11 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
     )
 
     zone_identifier = ["room_1", "room_2"]
+    zone_to_vavs = {z: [z.replace("room", "VAV")] for z in zone_identifier}
 
     hvac = floorplan_hvac_py.FloorPlanBasedHvac(
         zone_identifier=zone_identifier,
+        zone_to_vavs=zone_to_vavs,
         air_handler=air_handler,
         hot_water_system=hot_water_system,
         schedule=schedule,
@@ -401,8 +403,11 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
         holidays,
     )
 
+    zone_to_vavs = {z: [z.replace("room", "VAV")] for z in zone_identifier}
+
     hvac = floorplan_hvac_py.FloorPlanBasedHvac(
         zone_identifier=zone_identifier,
+        zone_to_vavs=zone_to_vavs,
         air_handler=air_handler,
         hot_water_system=hot_water_system,
         schedule=schedule,
@@ -454,6 +459,99 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
       building.diffusers = np.pad(old_building.diffusers, 1, mode="constant")
     return building
 
+  def _create_mn_scenario_building(self, initial_temp):
+    """Returns a building with M:N VAV-to-zone mapping.
+
+    One VAV serves two zones, and one zone is fed by two VAVs.
+
+    Args:
+      initial_temp: Initial temperature of all CVs in building.
+    """
+    cv_size_cm = 10.0
+    floor_height_cm = 300.0
+    inside_air_properties = building_py.MaterialProperties(
+        conductivity=50.0, heat_capacity=700.0, density=1.0
+    )
+    inside_wall_properties = building_py.MaterialProperties(
+        conductivity=5.0, heat_capacity=800.0, density=1800.0
+    )
+    building_exterior_properties = building_py.MaterialProperties(
+        conductivity=5.0, heat_capacity=800.0, density=3000.0
+    )
+
+    floor_plan = np.array([[0, 0], [0, 0]])
+
+    custom_room_dict = {
+        "zone_1abc": [(0, 0)],
+        "zone_2def": [(0, 1)],
+        "zone_3ghi": [(1, 0), (1, 1)],
+    }
+
+    custom_zone_to_vavs = {
+        "zone_1abc": ["VAV_1"],
+        "zone_2def": ["VAV_1"],
+        "zone_3ghi": ["VAV_2", "VAV_3"],
+    }
+
+    building = building_py.FloorPlanBasedBuilding(
+        cv_size_cm=cv_size_cm,
+        floor_height_cm=floor_height_cm,
+        initial_temp=initial_temp,
+        inside_air_properties=inside_air_properties,
+        inside_wall_properties=inside_wall_properties,
+        building_exterior_properties=building_exterior_properties,
+        floor_plan=floor_plan,
+        custom_room_dict=custom_room_dict,
+        custom_zone_to_vavs=custom_zone_to_vavs,
+        buffer_from_walls=0,
+        min_room_size=0,
+    )
+    return building
+
+  def _create_mn_scenario_hvac(self, air_handler=None):
+    """Returns hvac with M:N mapping for the M:N scenario building."""
+    hot_water_system = hot_water_system_py.construct_hot_water_system(
+        reheat_water_setpoint=350,
+        water_pump_differential_head=3,
+        water_pump_efficiency=0.6,
+        device_id="hws_id",
+    )
+    if air_handler is None:
+      air_handler = air_handler_py.AirHandler(
+          recirculation=0.6,
+          heating_air_temp_setpoint=291,
+          cooling_air_temp_setpoint=295,
+          fan_static_pressure=20000.0,
+          fan_efficiency=0.8,
+      )
+
+    schedule = setpoint_schedule.SetpointSchedule(
+        morning_start_hour=9,
+        evening_start_hour=18,
+        comfort_temp_window=(292, 295),
+        eco_temp_window=(290, 297),
+        holidays=set([7, 223, 245]),
+    )
+
+    zone_identifier = ["zone_1abc", "zone_2def", "zone_3ghi"]
+
+    zone_to_vavs = {
+        "zone_1abc": ["VAV_1"],
+        "zone_2def": ["VAV_1"],
+        "zone_3ghi": ["VAV_2", "VAV_3"],
+    }
+
+    hvac = floorplan_hvac_py.FloorPlanBasedHvac(
+        air_handler=air_handler,
+        hot_water_system=hot_water_system,
+        schedule=schedule,
+        vav_max_air_flow_rate=0.45,
+        vav_reheat_max_water_flow_factor=0.03688555555,
+        zone_identifier=zone_identifier,
+        zone_to_vavs=zone_to_vavs,
+    )
+    return hvac
+
   def test_init(self):
     building = self._create_small_building(initial_temp=293)
     weather_controller = mock.create_autospec(
@@ -467,14 +565,14 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
     start_timestamp = pd.Timestamp("2012-12-21")
 
     simulator = simulator_py.SimulatorFlexibleGeometries(
-        building,
-        hvac,
-        weather_controller,
-        time_step_sec,
-        convergence_threshold,
-        iteration_limit,
-        iteration_warning,
-        start_timestamp,
+        building=building,
+        hvac=hvac,
+        weather_controller=weather_controller,
+        time_step_sec=time_step_sec,
+        convergence_threshold=convergence_threshold,
+        iteration_limit=iteration_limit,
+        iteration_warning=iteration_warning,
+        start_timestamp=start_timestamp,
     )
 
     self.assertEqual(simulator.building, building)
@@ -500,14 +598,14 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
     start_timestamp = pd.Timestamp("2012-12-21")
 
     simulator = simulator_py.SimulatorFlexibleGeometries(
-        building,
-        hvac,
-        weather_controller,
-        time_step_sec,
-        convergence_threshold,
-        iteration_limit,
-        iteration_warning,
-        start_timestamp,
+        building=building,
+        hvac=hvac,
+        weather_controller=weather_controller,
+        time_step_sec=time_step_sec,
+        convergence_threshold=convergence_threshold,
+        iteration_limit=iteration_limit,
+        iteration_warning=iteration_warning,
+        start_timestamp=start_timestamp,
     )
 
     simulator.building.temp[2][2] += 10.0
@@ -519,11 +617,11 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
     simulator.hvac.hot_water_system.water_pump_differential_head += 100.0
     simulator.hvac.hot_water_system.reheat_water_setpoint += 2.0
 
-    simulator.hvac.air_handler._air_flow_rate += 0.1
-    simulator.hvac.air_handler._fan_static_pressure = 0.1
+    simulator.hvac.air_handler.air_flow_rate += 0.1
+    simulator.hvac.air_handler.fan_static_pressure = 0.1
 
-    for coord in simulator.hvac._zone_identifier:
-      vav = simulator.hvac.vavs[coord]
+    for v_id in simulator.hvac.vavs:
+      vav = simulator.hvac.vavs[v_id]
       vav.thermostat._setpoint_schedule.morning_start_hour += 1.0
       vav.thermostat._setpoint_schedule.comfort_temp_window = (280, 310)
       vav.max_air_flow_rate += 0.1
@@ -604,14 +702,14 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
     expected_temp_estimate = 292.0
 
     simulator = simulator_py.SimulatorFlexibleGeometries(
-        building,
-        hvac,
-        weather_controller,
-        time_step_sec,
-        convergence_threshold,
-        iteration_limit,
-        iteration_warning,
-        start_timestamp,
+        building=building,
+        hvac=hvac,
+        weather_controller=weather_controller,
+        time_step_sec=time_step_sec,
+        convergence_threshold=convergence_threshold,
+        iteration_limit=iteration_limit,
+        iteration_warning=iteration_warning,
+        start_timestamp=start_timestamp,
     )
 
     # Test every cell.
@@ -662,14 +760,14 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
     convection_coefficient = 12.0
 
     simulator = simulator_py.SimulatorFlexibleGeometries(
-        building,
-        hvac,
-        weather_controller,
-        time_step_sec,
-        convergence_threshold,
-        iteration_limit,
-        iteration_warning,
-        start_timestamp,
+        building=building,
+        hvac=hvac,
+        weather_controller=weather_controller,
+        time_step_sec=time_step_sec,
+        convergence_threshold=convergence_threshold,
+        iteration_limit=iteration_limit,
+        iteration_warning=iteration_warning,
+        start_timestamp=start_timestamp,
     )
 
     temp_estimate = simulator._get_cv_temp_estimate(
@@ -710,14 +808,14 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
     convection_coefficient = 12.0
 
     simulator = simulator_py.SimulatorFlexibleGeometries(
-        building,
-        hvac,
-        weather_controller,
-        time_step_sec,
-        convergence_threshold,
-        iteration_limit,
-        iteration_warning,
-        start_timestamp,
+        building=building,
+        hvac=hvac,
+        weather_controller=weather_controller,
+        time_step_sec=time_step_sec,
+        convergence_threshold=convergence_threshold,
+        iteration_limit=iteration_limit,
+        iteration_warning=iteration_warning,
+        start_timestamp=start_timestamp,
     )
 
     temp_estimate = simulator._get_cv_temp_estimate(
@@ -761,14 +859,14 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
     convection_coefficient = 12.0
 
     simulator = simulator_py.SimulatorFlexibleGeometries(
-        building,
-        hvac,
-        weather_controller,
-        time_step_sec,
-        convergence_threshold,
-        iteration_limit,
-        iteration_warning,
-        start_timestamp,
+        building=building,
+        hvac=hvac,
+        weather_controller=weather_controller,
+        time_step_sec=time_step_sec,
+        convergence_threshold=convergence_threshold,
+        iteration_limit=iteration_limit,
+        iteration_warning=iteration_warning,
+        start_timestamp=start_timestamp,
     )
 
     # Get estimates for corner and edge cells.
@@ -836,14 +934,14 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
     convection_coefficient = 12.0
 
     simulator = simulator_py.SimulatorFlexibleGeometries(
-        building,
-        hvac,
-        weather_controller,
-        time_step_sec,
-        convergence_threshold,
-        iteration_limit,
-        iteration_warning,
-        start_timestamp,
+        building=building,
+        hvac=hvac,
+        weather_controller=weather_controller,
+        time_step_sec=time_step_sec,
+        convergence_threshold=convergence_threshold,
+        iteration_limit=iteration_limit,
+        iteration_warning=iteration_warning,
+        start_timestamp=start_timestamp,
     )
 
     # Get estimates for corner and edge cells.
@@ -891,14 +989,14 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
     convection_coefficient = 12.0
 
     simulator = simulator_py.SimulatorFlexibleGeometries(
-        building,
-        hvac,
-        weather_controller,
-        time_step_sec,
-        convergence_threshold,
-        iteration_limit,
-        iteration_warning,
-        start_timestamp,
+        building=building,
+        hvac=hvac,
+        weather_controller=weather_controller,
+        time_step_sec=time_step_sec,
+        convergence_threshold=convergence_threshold,
+        iteration_limit=iteration_limit,
+        iteration_warning=iteration_warning,
+        start_timestamp=start_timestamp,
     )
 
     corner_temp_estimate = simulator._get_cv_temp_estimate(
@@ -943,14 +1041,14 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
     building.temp *= 0.0
 
     simulator = simulator_py.SimulatorFlexibleGeometries(
-        building,
-        hvac,
-        weather_controller,
-        time_step_sec,
-        convergence_threshold,
-        iteration_limit,
-        iteration_warning,
-        start_timestamp,
+        building=building,
+        hvac=hvac,
+        weather_controller=weather_controller,
+        time_step_sec=time_step_sec,
+        convergence_threshold=convergence_threshold,
+        iteration_limit=iteration_limit,
+        iteration_warning=iteration_warning,
+        start_timestamp=start_timestamp,
     )
 
     simulator.update_temperature_estimates(
@@ -980,14 +1078,14 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
     temperature_estimates = building.temp.copy()
 
     simulator = simulator_py.SimulatorFlexibleGeometries(
-        building,
-        hvac,
-        weather_controller,
-        time_step_sec,
-        convergence_threshold,
-        iteration_limit,
-        iteration_warning,
-        start_timestamp,
+        building=building,
+        hvac=hvac,
+        weather_controller=weather_controller,
+        time_step_sec=time_step_sec,
+        convergence_threshold=convergence_threshold,
+        iteration_limit=iteration_limit,
+        iteration_warning=iteration_warning,
+        start_timestamp=start_timestamp,
     )
 
     _, max_delta = simulator.update_temperature_estimates(
@@ -1012,14 +1110,14 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
     building = self._create_small_building(initial_temp=292.0)
 
     sim = simulator_py.SimulatorFlexibleGeometries(
-        building,
-        hvac,
-        weather_controller,
-        time_step_sec,
-        convergence_threshold,
-        iteration_limit,
-        iteration_warning,
-        start_timestamp,
+        building=building,
+        hvac=hvac,
+        weather_controller=weather_controller,
+        time_step_sec=time_step_sec,
+        convergence_threshold=convergence_threshold,
+        iteration_limit=iteration_limit,
+        iteration_warning=iteration_warning,
+        start_timestamp=start_timestamp,
     )
 
     with self.assertLogs() as logs:
@@ -1063,14 +1161,14 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
     )
 
     sim = simulator_py.SimulatorFlexibleGeometries(
-        building,
-        hvac,
-        weather_controller,
-        time_step_sec,
-        convergence_threshold,
-        iteration_limit,
-        iteration_warning,
-        start_timestamp,
+        building=building,
+        hvac=hvac,
+        weather_controller=weather_controller,
+        time_step_sec=time_step_sec,
+        convergence_threshold=convergence_threshold,
+        iteration_limit=iteration_limit,
+        iteration_warning=iteration_warning,
+        start_timestamp=start_timestamp,
     )
 
     for _ in range(5):
@@ -1108,14 +1206,14 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
     )
 
     sim = simulator_py.SimulatorFlexibleGeometries(
-        building,
-        hvac,
-        weather_controller,
-        time_step_sec,
-        convergence_threshold,
-        iteration_limit,
-        iteration_warning,
-        start_timestamp,
+        building=building,
+        hvac=hvac,
+        weather_controller=weather_controller,
+        time_step_sec=time_step_sec,
+        convergence_threshold=convergence_threshold,
+        iteration_limit=iteration_limit,
+        iteration_warning=iteration_warning,
+        start_timestamp=start_timestamp,
     )
 
     for _ in range(5):
@@ -1158,14 +1256,14 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
     )
 
     sim = simulator_py.SimulatorFlexibleGeometries(
-        building,
-        hvac,
-        weather_controller,
-        time_step_sec,
-        convergence_threshold,
-        iteration_limit,
-        iteration_warning,
-        start_timestamp,
+        building=building,
+        hvac=hvac,
+        weather_controller=weather_controller,
+        time_step_sec=time_step_sec,
+        convergence_threshold=convergence_threshold,
+        iteration_limit=iteration_limit,
+        iteration_warning=iteration_warning,
+        start_timestamp=start_timestamp,
     )
 
     for _ in range(5):
@@ -1201,14 +1299,14 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
     )
 
     sim = simulator_py.SimulatorFlexibleGeometries(
-        building,
-        hvac,
-        weather_controller,
-        time_step_sec,
-        convergence_threshold,
-        iteration_limit,
-        iteration_warning,
-        start_timestamp,
+        building=building,
+        hvac=hvac,
+        weather_controller=weather_controller,
+        time_step_sec=time_step_sec,
+        convergence_threshold=convergence_threshold,
+        iteration_limit=iteration_limit,
+        iteration_warning=iteration_warning,
+        start_timestamp=start_timestamp,
     )
 
     for _ in range(5):
@@ -1240,14 +1338,14 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
     )
 
     sim = simulator_py.SimulatorFlexibleGeometries(
-        building,
-        hvac,
-        weather_controller,
-        time_step_sec,
-        convergence_threshold,
-        iteration_limit,
-        iteration_warning,
-        start_timestamp,
+        building=building,
+        hvac=hvac,
+        weather_controller=weather_controller,
+        time_step_sec=time_step_sec,
+        convergence_threshold=convergence_threshold,
+        iteration_limit=iteration_limit,
+        iteration_warning=iteration_warning,
+        start_timestamp=start_timestamp,
     )
 
     for _ in range(5):
@@ -1264,9 +1362,9 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
     start_timestamp = pd.Timestamp("12-21-2012")
 
     initial_temperature = 200.0
-    expected_return_water_temperature = 287.337506
+    expected_return_water_temperature = 287
 
-    # Building is 3x3 zones.
+    #  Building is 3x3 zones.
     building = self._create_scenario_building(
         initial_temp=initial_temperature, match_old_diffusers=True
     )
@@ -1276,23 +1374,22 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
     )
 
     sim = simulator_py.SimulatorFlexibleGeometries(
-        building,
-        hvac,
-        weather_controller,
-        time_step_sec,
-        convergence_threshold,
-        iteration_limit,
-        iteration_warning,
-        start_timestamp,
+        building=building,
+        hvac=hvac,
+        weather_controller=weather_controller,
+        time_step_sec=time_step_sec,
+        convergence_threshold=convergence_threshold,
+        iteration_limit=iteration_limit,
+        iteration_warning=iteration_warning,
+        start_timestamp=start_timestamp,
     )
 
     for _ in range(45):
       sim.step_sim()
 
-    self.assertAlmostEqual(
-        sim._hvac.hot_water_system.return_water_temperature_sensor,
+    self.assertEqual(
+        int(sim._hvac.hot_water_system.return_water_temperature_sensor),
         expected_return_water_temperature,
-        delta=1e-5,
     )
 
   def test_reward_info(self):
@@ -1315,14 +1412,14 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
     )
 
     sim = simulator_py.SimulatorFlexibleGeometries(
-        building,
-        hvac,
-        weather_controller,
-        time_step_sec,
-        convergence_threshold,
-        iteration_limit,
-        iteration_warning,
-        start_timestamp,
+        building=building,
+        hvac=hvac,
+        weather_controller=weather_controller,
+        time_step_sec=time_step_sec,
+        convergence_threshold=convergence_threshold,
+        iteration_limit=iteration_limit,
+        iteration_warning=iteration_warning,
+        start_timestamp=start_timestamp,
     )
 
     occupancy = step_function_occupancy.StepFunctionOccupancy(
@@ -1342,42 +1439,44 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
     )
 
     expected_zone_reward_infos = {}
-    zone_identifier = [
-        "room_1",
-        "room_2",
-        "room_3",
-        "room_4",
-        "room_5",
-        "room_6",
-        "room_7",
-        "room_8",
-        "room_9",
-    ]
-    for coords in zone_identifier:
-      zone_id = conversion_utils.floor_plan_based_zone_identifier_to_id(coords)
+    room_areas = {
+        z: len(coords) for z, coords in sim.building.room_dict.items()
+    }
+    avg_temps = sim.building.get_zone_average_temps()
+
+    for zone_id, avg_temp in avg_temps.items():
       occupancy_value = occupancy.average_zone_occupancy(
           zone_id,
           sim._current_timestamp,
           sim._current_timestamp + pd.Timedelta(sim._time_step_sec, unit="s"),
       )
-      air_flow_rate = sim._hvac.air_handler.air_flow_rate
-      air_flow_rate_setpoint = sim._hvac.vavs[coords].max_air_flow_rate
+      vav_ids = sim._hvac.get_vav_ids_for_zone(zone_id)
+      vavs = [sim._hvac.vavs[v_id] for v_id in vav_ids]
+
+      zone_total_flow_setpoint = 0.0
+      zone_total_flow_actual = 0.0
+      for v in vavs:
+        # Flow is distributed to zones based on area share.
+        assigned_zones = sim._hvac.get_zones_for_vav(v.device_id())
+        total_vav_area = sum(room_areas[z] for z in assigned_zones)
+        area_share = room_areas[zone_id] / total_vav_area
+        zone_total_flow_setpoint += v.max_air_flow_rate * area_share
+        zone_total_flow_actual += v.flow_rate_demand * area_share
+
+      # assume that all vavs serving a zone should have same setpoints
       heating_setpoint, cooling_setpoint = (
-          sim._hvac.vavs[coords]
-          .thermostat.get_setpoint_schedule()
+          vavs[0].thermostat.get_setpoint_schedule()
           .get_temperature_window(sim._current_timestamp)
       )
-      zone_temperature = sim.building.get_zone_average_temps()[coords]
-
-      expected_zone_info = smart_control_reward_pb2.RewardInfo.ZoneRewardInfo(
+      zone_reward_info = smart_control_reward_pb2.RewardInfo.ZoneRewardInfo(
           heating_setpoint_temperature=heating_setpoint,
           cooling_setpoint_temperature=cooling_setpoint,
-          zone_air_temperature=zone_temperature,
-          air_flow_rate_setpoint=air_flow_rate_setpoint,
-          air_flow_rate=air_flow_rate,
+          zone_air_temperature=avg_temp,
+          air_flow_rate_setpoint=zone_total_flow_setpoint,
+          air_flow_rate=zone_total_flow_actual,
           average_occupancy=occupancy_value,
       )
-      expected_zone_reward_infos[zone_id] = expected_zone_info
+      expected_zone_reward_infos[zone_id] = zone_reward_info
 
     self.assertEqual(reward_info.zone_reward_infos, expected_zone_reward_infos)
 
@@ -1431,6 +1530,333 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
         pump_electrical_energy_rate,
         boiler_reward_info.pump_electrical_energy_rate,
     )
+
+  def test_mn_custom_zones(self):
+    """Verifies that m:n thermal distribution works with custom zones."""
+    weather_controller = weather_controller_py.WeatherController(296.0, 296.0)
+    time_step_sec = 300.0
+    convergence_threshold = 0.1
+    iteration_limit = 100
+    iteration_warning = 10
+    start_timestamp = pd.Timestamp("12-21-2012")
+
+    initial_temperature = 296.0
+
+    building = self._create_mn_scenario_building(
+        initial_temp=initial_temperature
+    )
+
+    hvac = self._create_mn_scenario_hvac()
+    sim = simulator_py.SimulatorFlexibleGeometries(
+        building=building,
+        hvac=hvac,
+        weather_controller=weather_controller,
+        time_step_sec=time_step_sec,
+        convergence_threshold=convergence_threshold,
+        iteration_limit=iteration_limit,
+        iteration_warning=iteration_warning,
+        start_timestamp=start_timestamp,
+    )
+
+    _ = step_function_occupancy.StepFunctionOccupancy(
+        pd.Timedelta(9, unit="h"), pd.Timedelta(17, unit="h"), 10, 0.1
+    )
+
+    q_vav1, q_vav2, q_vav3 = 100.0, 200.0, 300.0
+
+    self.enter_context(
+        mock.patch.object(
+            hvac.vavs["VAV_1"],
+            "output",
+            return_value=(q_vav1, 300.0),
+            autospec=True,
+        )
+    )
+    self.enter_context(
+        mock.patch.object(
+            hvac.vavs["VAV_2"],
+            "output",
+            return_value=(q_vav2, 305.0),
+            autospec=True,
+        )
+    )
+    self.enter_context(
+        mock.patch.object(
+            hvac.vavs["VAV_3"],
+            "output",
+            return_value=(q_vav3, 310.0),
+            autospec=True,
+        )
+    )
+    sim.step_sim()
+
+    # zone_1abc (Area 1) gets 1/2 of VAV_1 (Area 2) = 50.0
+    self.assertAlmostEqual(
+        building.get_zone_thermal_energy_rate("zone_1abc"), 50.0
+    )
+    # zone_2def (Area 1) gets 1/2 of VAV_1 (Area 2) = 50.0
+    self.assertAlmostEqual(
+        building.get_zone_thermal_energy_rate("zone_2def"), 50.0
+    )
+    # zone_3ghi (Area 2) gets 1.0*VAV_2 + 1.0*VAV_3 = 200+300=500.0
+    self.assertAlmostEqual(
+        building.get_zone_thermal_energy_rate("zone_3ghi"), 500.0
+    )
+
+  def test_mn_recirculation_temp(self):
+    """Verifies that the recirculating temperature is calculated correctly."""
+    building = self._create_mn_scenario_building(
+        initial_temp=296.0,
+    )
+    ahu1 = air_handler_py.AirHandler(
+        recirculation=0.6,
+        heating_air_temp_setpoint=291,
+        cooling_air_temp_setpoint=295,
+        fan_static_pressure=20000.0,
+        fan_efficiency=0.8,
+        device_id="AHU_1",
+    )
+    ahu2 = air_handler_py.AirHandler(
+        recirculation=0.6,
+        heating_air_temp_setpoint=291,
+        cooling_air_temp_setpoint=295,
+        fan_static_pressure=20000.0,
+        fan_efficiency=0.8,
+        device_id="AHU_2",
+    )
+
+    ahus_map = {ahu1: ["zone_1abc", "zone_2def"], ahu2: ["zone_3ghi"]}
+    air_handler_system = air_handler_py.AirHandlerSystem(ahus=ahus_map)
+
+    hvac = self._create_mn_scenario_hvac(air_handler=air_handler_system)
+
+    sim = simulator_py.SimulatorFlexibleGeometries(
+        building,
+        hvac,
+        weather_controller_py.WeatherController(296.0, 296.0),
+        time_step_sec=300.0,
+        convergence_threshold=0.1,
+        iteration_limit=100,
+        iteration_warning=10,
+        start_timestamp=pd.Timestamp("12-21-2012"),
+    )
+
+    room_dict = building.room_dict
+    # AHU_1 zones: zone_1abc (Temp 300, Area 1), zone_2def (Temp 310, Area 1)
+    for coord in room_dict["zone_1abc"]:
+      building.temp[coord] = 300.0
+    for coord in room_dict["zone_2def"]:
+      building.temp[coord] = 310.0
+    # AHU_2 zones: zone_3ghi (Temp 290, Area 2)
+    for coord in room_dict["zone_3ghi"]:
+      building.temp[coord] = 290.0
+
+    with mock.patch.object(
+        air_handler_py.AirHandlerSystem,
+        "get_supply_air_temp",
+        wraps=sim._hvac.air_handler.get_supply_air_temp,
+    ) as mock_get_supply:
+      sim.step_sim()
+
+      # recirculation_temps is the first argument passed to get_supply_air_temp
+      recirculation_temps = mock_get_supply.call_args[0][0]
+
+      # AHU_1 Recirculation = (Zone1_Temp * Area1 + Zone2_Temp * Area2) /
+      # Total_Area
+      # AHU_1 Recirculation = (300*1 + 310*1) / 2 = 305.0
+      self.assertAlmostEqual(recirculation_temps["AHU_1"], 305.0)
+
+      # AHU_2 Recirculation = (Zone3_Temp * Area2) / Total_Area
+      # AHU_2 Recirculation = (290*2) / 2 = 290.0
+      self.assertAlmostEqual(recirculation_temps["AHU_2"], 290.0)
+
+  def test_recirculation_temp_with_ahu_lacking_vavs(self):
+    """Verifies recirculation temp defaults to building mean for AHUs without VAVs.
+    """
+    building = self._create_mn_scenario_building(
+        initial_temp=296.0,
+    )
+    ahu1 = air_handler_py.AirHandler(
+        recirculation=0.6,
+        heating_air_temp_setpoint=291,
+        cooling_air_temp_setpoint=295,
+        fan_static_pressure=20000.0,
+        fan_efficiency=0.8,
+        device_id="AHU_1",
+    )
+    ahu2 = air_handler_py.AirHandler(
+        recirculation=0.6,
+        heating_air_temp_setpoint=291,
+        cooling_air_temp_setpoint=295,
+        fan_static_pressure=20000.0,
+        fan_efficiency=0.8,
+        device_id="AHU_2",
+    )
+    # AHU_3 is not associated with any zones/VAVs in the ahus_map.
+    ahu3 = air_handler_py.AirHandler(
+        recirculation=0.6,
+        heating_air_temp_setpoint=291,
+        cooling_air_temp_setpoint=295,
+        fan_static_pressure=20000.0,
+        fan_efficiency=0.8,
+        device_id="AHU_3",
+    )
+
+    ahus_map = {ahu1: ["zone_1abc", "zone_2def"], ahu2: ["zone_3ghi"], ahu3: []}
+    air_handler_system = air_handler_py.AirHandlerSystem(ahus=ahus_map)
+
+    hvac = self._create_mn_scenario_hvac(air_handler=air_handler_system)
+
+    sim = simulator_py.SimulatorFlexibleGeometries(
+        building,
+        hvac,
+        weather_controller_py.WeatherController(296.0, 296.0),
+        time_step_sec=300.0,
+        convergence_threshold=0.1,
+        iteration_limit=100,
+        iteration_warning=10,
+        start_timestamp=pd.Timestamp("12-21-2012"),
+    )
+
+    # Set building temperatures to ensure a non-trivial mean.
+    building.temp.fill(290.0)
+    building.temp[0, 0] = 300.0
+    expected_mean_temp = building.temp.mean()
+
+    with mock.patch.object(
+        air_handler_py.AirHandlerSystem,
+        "get_supply_air_temp",
+        wraps=sim._hvac.air_handler.get_supply_air_temp,
+    ) as mock_get_supply:
+      sim.step_sim()
+
+      recirculation_temps = mock_get_supply.call_args[0][0]
+
+      # AHU_3 has no VAVs assigned to it, so its area total will be 0.
+      # The recirculation temperature should default to the building's
+      # mean temp.
+      self.assertAlmostEqual(
+          recirculation_temps["AHU_3"], expected_mean_temp
+      )
+
+  def test_ashp_reward_info(self):
+    weather_controller = weather_controller_py.WeatherController(296.0, 296.0)
+    time_step_sec = 300.0
+    start_timestamp = pd.Timestamp("12-21-2012")
+
+    building = self._create_scenario_building(initial_temp=292.0)
+
+    # Create HVAC with ASHP
+    hws = hot_water_system_py.construct_hot_water_system(
+        heat_source_type=hot_water_system_py.HeatSourceType.ASHP,
+        water_pump_differential_head=3.0,
+        water_pump_efficiency=0.6,
+        reheat_water_setpoint=313.0,
+        device_id="ashp_hws",
+    )
+    hvac = self._create_scenario_hvac(
+        zone_identifier=building._room_dict.keys()
+    )
+    hvac._hot_water_system = hws
+
+    sim = simulator_py.SimulatorFlexibleGeometries(
+        building=building,
+        hvac=hvac,
+        weather_controller=weather_controller,
+        time_step_sec=time_step_sec,
+        convergence_threshold=0.1,
+        iteration_limit=100,
+        iteration_warning=10,
+        start_timestamp=start_timestamp,
+    )
+
+    occupancy = step_function_occupancy.StepFunctionOccupancy(
+        pd.Timedelta(9, unit="h"), pd.Timedelta(17, unit="h"), 10, 0.1
+    )
+    reward_info = sim.reward_info(occupancy)
+
+    self.assertNotEmpty(reward_info.heat_pump_reward_infos)
+    self.assertEmpty(reward_info.boiler_reward_infos)
+    self.assertIn("ashp_hws", reward_info.heat_pump_reward_infos)
+
+  def test_execute_step_sim_vav_with_no_matching_zones(self):
+    """Tests that VAV update is skipped if no assigned zones match avg_temps."""
+    # Initialize SimulatorFlexibleGeometries with mocked building and hvac
+    mock_building = mock.MagicMock(spec=building_py.FloorPlanBasedBuilding)
+    mock_hvac = mock.MagicMock(spec=floorplan_hvac_py.FloorPlanBasedHvac)
+
+    # Mock weather controller
+    mock_weather = mock.create_autospec(weather_controller_py.WeatherController)
+    mock_weather.get_current_temp.return_value = 295.0
+    mock_weather.get_air_convection_coefficient.return_value = 10.0
+
+    # Building setup
+    mock_building.room_dict = {
+        "z1": [(0, 0)],
+        "z2": [(0, 1)],
+        "z3": [(1, 0)],
+        "z4": [(1, 1)],
+    }
+    # Mocking for constructor
+    mock_building.floor_plan = np.zeros((2, 2))
+    mock_building.custom_zone_to_vavs = {}
+
+    simulator = simulator_py.SimulatorFlexibleGeometries(
+        building=mock_building,
+        hvac=mock_hvac,
+        weather_controller=mock_weather,
+        time_step_sec=300.0,
+        convergence_threshold=0.1,
+        iteration_limit=100,
+        iteration_warning=10,
+        start_timestamp=pd.Timestamp("2012-12-21"),
+    )
+
+    # Configure a mock VAV
+    mock_vav = mock.MagicMock()
+    mock_ahu = mock.MagicMock()
+    mock_ahu.device_id.return_value = "ahu_1"
+    mock_vav.air_handler = mock_ahu
+    mock_vav.device_id.return_value = "vav_1"
+
+    mock_hvac.vavs = {"vav_1": mock_vav}
+    mock_hvac.air_handler = mock_ahu
+
+    # Mock hot water system
+    mock_hws = mock.MagicMock()
+    mock_hvac.hot_water_system = mock_hws
+
+    # Configure get_zones_for_vav to return zones 'z1' and 'z2'
+    mock_hvac.get_zones_for_vav.return_value = ["z1", "z2"]
+
+    # Configure get_zone_average_temps to NOT include 'z1' or 'z2'
+    mock_building.get_zone_average_temps.return_value = {
+        "z3": 295.0,
+        "z4": 296.0,
+    }
+
+    # Mock mean temperature for AHU recirculation fallback
+    mock_building.temp = mock.MagicMock()
+    mock_building.temp.mean.return_value = 293.0
+
+    # Mock visual logger to avoid side effects
+    simulator._log_and_plotter = mock.MagicMock()
+
+    # Mock finite_differences_timestep to avoid side effects
+
+    with mock.patch.object(
+        simulator_py.SimulatorFlexibleGeometries, "finite_differences_timestep"
+    ):
+      # Call the method under test
+      simulator.execute_step_sim()
+
+    # Assert that update_settings was NOT called for mock_vav
+    mock_vav.update_settings.assert_not_called()
+
+    # Assert that methods within the second loop body were not called for
+    # mock_vav because 'vav_1' was not in vav_cached_data.
+    mock_vav.output.assert_not_called()
+    mock_ahu.add_demand.assert_not_called()
 
 
 if __name__ == "__main__":

@@ -476,9 +476,16 @@ def update_metrics(
   metrics['air_handler_exhaust_fan_energy_rates'].append(
       hvac.air_handler.compute_exhaust_fan_energy_rate()
   )
+  if hasattr(hvac.air_handler, 'ahus'):
+    recirculation_input = {
+        ahu.device_id(): recirculation_temp for ahu in hvac.air_handler.ahus
+    }
+  else:
+    recirculation_input = recirculation_temp
+
   metrics['air_handler_thermal_energy_rates'].append(
       hvac.air_handler.compute_thermal_energy_rate(
-          current_ambient_temp, recirculation_temp
+          recirculation_input, current_ambient_temp
       )
   )
   return metrics

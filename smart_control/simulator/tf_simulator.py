@@ -670,7 +670,6 @@ class TFSimulator(simulator.SimulatorFlexibleGeometries):
       dt3 = tf.math.multiply(dt3, self._t_v)
       dt3 = tf.math.multiply(dt3, t_heat_capacity)
       dt3 = tf.scalar_mul(t_z, dt3)
-      dt3 = tf.math.multiply(dt3, t_heat_capacity)
       dt3 = tf.math.divide(dt3, t_delta_t)
 
       # Sum up u-z, u-v surface transfer and absorption terms.
@@ -732,7 +731,6 @@ class TFSimulator(simulator.SimulatorFlexibleGeometries):
       nt3 = tf.math.multiply(nt3, self._t_v)
       nt3 = tf.math.multiply(nt3, t_heat_capacity)
       nt3 = tf.scalar_mul(t_z, nt3)
-      nt3 = tf.math.multiply(nt3, t_heat_capacity)
       nt3 = tf.math.multiply(nt3, t_temp_minus)
       nt3 = tf.math.divide(nt3, t_delta_t)
 
