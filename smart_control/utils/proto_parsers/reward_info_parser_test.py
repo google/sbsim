@@ -1,13 +1,19 @@
 """Tests for the RewardInfoParser class."""
 
+from typing import Sequence
+import unittest
+
 from absl.testing import absltest
 from absl.testing import parameterized
 import pandas as pd
-
+import pandas.testing as pdt
+from smart_buildings.smart_control.proto import smart_control_building_pb2
 from smart_buildings.smart_control.proto import smart_control_reward_pb2
 from smart_buildings.smart_control.utils import conversion_utils
 from smart_buildings.smart_control.utils import test_utils
 from smart_buildings.smart_control.utils.proto_parsers import reward_info_parser
+
+from google3.net.proto2.contrib.pyutil import compare
 
 get_comfort_diffs = reward_info_parser.get_comfort_diffs
 
@@ -22,6 +28,15 @@ HISTOGRAM_INDEX_NAMES = [
     'temperature setpoint range',
     'count of occupants exposed',
 ]
+
+
+def _create_zone_info(
+    zone_id: str, floor: int, devices: list[str] | None = None
+):
+  """Helper to create an actual ZoneInfo protobuf with optional devices."""
+  return smart_control_building_pb2.ZoneInfo(
+      zone_id=zone_id, floor=floor, devices=devices or []
+  )
 
 
 COMFORT_DIFFS_TEST_PARAMS = [
@@ -216,45 +231,86 @@ class RewardInfoParserTest(absltest.TestCase):
 
   def test_get_zone_conditions_histogram(self):
     histogram = self.parser.get_zone_conditions_histogram()
+
     self.assertIsInstance(histogram, pd.DataFrame)
 
     with self.subTest(name='index'):
       self.assertEqual(histogram.index.tolist(), HISTOGRAM_INDEX_NAMES)
 
     with self.subTest(name='columns'):
-      expected_columns = [f'{temp}°K' for temp in reward_info_parser.TEMP_BINS]
+      expected_columns = [f'{temp}K' for temp in reward_info_parser.TEMP_BINS]
       self.assertEqual(histogram.columns.tolist(), expected_columns)
 
     with self.subTest(name='zone counts'):
       # number of zones in each temperature bin:
       zone_counts = histogram.loc['count of zones',].to_dict()
-      expected = {'290°K': 0, '291°K': 0, '292°K': 1, '293°K': 0, '294°K': 0,
-                  '295°K': 1, '296°K': 0, '297°K': 0, '298°K': 0, '299°K': 1,
-                  '300°K': 0}
+      expected = {
+          '290.0K': 0,
+          '291.0K': 0,
+          '292.0K': 1,
+          '293.0K': 0,
+          '294.0K': 0,
+          '295.0K': 1,
+          '296.0K': 0,
+          '297.0K': 0,
+          '298.0K': 0,
+          '299.0K': 1,
+          '300.0K': 0,
+      }
       self.assertEqual(zone_counts, expected)
 
     with self.subTest(name='occupant counts'):
       # number of occupants in each temperature bin:
       occupant_counts = histogram.loc['count of occupants',].to_dict()
-      expected = {'290°K': 0, '291°K': 0, '292°K': 4, '293°K': 0, '294°K': 0,
-                  '295°K': 8, '296°K': 0, '297°K': 0, '298°K': 0, '299°K': 2,
-                  '300°K': 0}
+      expected = {
+          '290.0K': 0,
+          '291.0K': 0,
+          '292.0K': 4,
+          '293.0K': 0,
+          '294.0K': 0,
+          '295.0K': 8,
+          '296.0K': 0,
+          '297.0K': 0,
+          '298.0K': 0,
+          '299.0K': 2,
+          '300.0K': 0,
+      }
       self.assertEqual(occupant_counts, expected)
 
     with self.subTest(name='setpoint range'):
       # labels indicating whether each bin is in the comfort range or not:
       comfort_labels = histogram.loc['temperature setpoint range',].to_dict()
-      expected = {'290°K': '-', '291°K': '-', '292°K': '-', '293°K': '+',
-                  '294°K': '+', '295°K': '+', '296°K': '+', '297°K': '+',
-                  '298°K': '-', '299°K': '-', '300°K': '-'}
+      expected = {
+          '290.0K': '-',
+          '291.0K': '-',
+          '292.0K': '-',
+          '293.0K': '+',
+          '294.0K': '+',
+          '295.0K': '+',
+          '296.0K': '+',
+          '297.0K': '+',
+          '298.0K': '-',
+          '299.0K': '-',
+          '300.0K': '-',
+      }
       self.assertEqual(comfort_labels, expected)
 
     with self.subTest(name='occupant exposure'):
       # number of occupants outside of the comfort range (0 if in range):
       occupant_exposure = histogram.loc['count of occupants exposed',].to_dict()
-      expected = {'290°K': 0, '291°K': 0, '292°K': 4, '293°K': 0, '294°K': 0,
-                  '295°K': 0, '296°K': 0, '297°K': 0, '298°K': 0, '299°K': 2,
-                  '300°K': 0}
+      expected = {
+          '290.0K': 0,
+          '291.0K': 0,
+          '292.0K': 4,
+          '293.0K': 0,
+          '294.0K': 0,
+          '295.0K': 0,
+          '296.0K': 0,
+          '297.0K': 0,
+          '298.0K': 0,
+          '299.0K': 2,
+          '300.0K': 0,
+      }
       self.assertEqual(occupant_exposure, expected)
 
   def test_get_zone_conditions_histogram_with_custom_params(self):
@@ -282,7 +338,7 @@ class RewardInfoParserTest(absltest.TestCase):
         temp_unit='Kelvin',
     )
     self.assertIsInstance(histogram, pd.DataFrame)
-    expected_columns = [f'{temp}°K' for temp in reward_info_parser.TEMP_BINS]
+    expected_columns = [f'{temp}K' for temp in reward_info_parser.TEMP_BINS]
     self.assertEqual(histogram.columns.tolist(), expected_columns)
 
   def test_zone_occupancies_df(self):
@@ -495,6 +551,169 @@ class RewardInfoParserTest(absltest.TestCase):
           },
       ]
       self._assert_device_energy_consumption(df, 'boiler_0', expected)
+
+
+def _get_zone_conditions_histogram_helper(
+    reward_info: smart_control_reward_pb2.RewardInfo,
+    temperature_bins: Sequence[float],
+    zones: Sequence[smart_control_building_pb2.ZoneInfo],
+) -> pd.DataFrame:
+  """Generates a histogram DataFrame of building zone cond over temp bins."""
+  return reward_info_parser.RewardInfoParser(
+      reward_info=reward_info,
+      zone_temp_bins=temperature_bins,
+      temp_unit='K',
+  ).get_zone_conditions_histogram_by_floor(zones)
+
+
+class TestGetZoneConditionsHistogram(
+    compare.Proto2Assertions, unittest.TestCase
+):
+
+  def setUp(self):
+    super().setUp()
+    # Define 6 temperature bins: [290, 292, 294, 296, 298, 300]
+    # Indices: 0: 290, 1: 292, 2: 294, 3: 296, 4: 298, 5: 300
+    self.temperature_bins = [290.0, 292.0, 294.0, 296.0, 298.0, 300.0]
+
+  def _create_zone_reward_info(
+      self, temp: float, heat_set: float, cool_set: float, occupancy: float
+  ):
+    """Helper to create a populated RewardInfo.ZoneRewardInfo proto."""
+    zone_info = smart_control_reward_pb2.RewardInfo.ZoneRewardInfo(
+        zone_air_temperature=temp,
+        heating_setpoint_temperature=heat_set,
+        cooling_setpoint_temperature=cool_set,
+        average_occupancy=occupancy,
+        # Fields from proto not used by histogram logic, added for structural
+        # parity
+        air_flow_rate_setpoint=0.5,
+        air_flow_rate=0.5,
+    )
+    return zone_info
+
+  def _create_single_obs_request(self, device_id: str, measurement_name: str):
+    """Helper to create a SingleObservationRequest."""
+    req = smart_control_building_pb2.SingleObservationRequest(
+        device_id=device_id, measurement_name=measurement_name
+    )
+    return req
+
+  # ====================================================================
+  # get_zone_conditions_histogram Tests
+  # ====================================================================
+
+  def test_get_zone_conditions_histogram_standard_behavior(self):
+    """Tests aggregation across multiple floors and out-of-bounds temps."""
+    zones = [
+        _create_zone_info('zone_1', floor=1),
+        _create_zone_info('zone_2', floor=1),
+        _create_zone_info('zone_3', floor=2),
+    ]
+    reward_info = smart_control_reward_pb2.RewardInfo()
+
+    # Zone 1: Temp 292 (Too cold). Occ: 5 -> Exposed: -5
+    reward_info.zone_reward_infos['zone_1'].CopyFrom(
+        self._create_zone_reward_info(292.1, 294.0, 296.0, 5.0)
+    )
+    # Zone 2: Temp 296 (Comfort). Occ: 10 -> Exposed: 0
+    reward_info.zone_reward_infos['zone_2'].CopyFrom(
+        self._create_zone_reward_info(296.2, 294.0, 296.0, 10.0)
+    )
+    # Zone 3: Temp 298 (Too hot). Occ: 3 -> Exposed: 3
+    reward_info.zone_reward_infos['zone_3'].CopyFrom(
+        self._create_zone_reward_info(297.9, 294.0, 296.0, 3.0)
+    )
+    # Missing Zone: Temp 294 (Comfort). Occ: 2 -> Exposed: 0
+    reward_info.zone_reward_infos['zone_missing'].CopyFrom(
+        self._create_zone_reward_info(293.8, 294.0, 296.0, 2.0)
+    )
+
+    df = _get_zone_conditions_histogram_helper(
+        reward_info, self.temperature_bins, zones
+    )
+
+    # Build Expected DataFrame using the proper _OCCUPANCY_AT_FLOOR_PREFIX
+    expected_data = {
+        'occupancy_count': [0, 5, 2, 10, 3, 0],
+        'setpoint_mask': [-1, -1, 0, 0, 1, 1],
+        'setpoint_range': ['-', '-', '+', '+', '-', '-'],
+        'exposed_count': [0, -5, 0, 0, 3, 0],
+        f'{reward_info_parser.OCCUPANCY_AT_FLOOR_PREFIX}0': [
+            0.0,
+            0.0,
+            1.0,
+            0.0,
+            0.0,
+            0.0,
+        ],
+        f'{reward_info_parser.OCCUPANCY_AT_FLOOR_PREFIX}1': [
+            0.0,
+            0.5,
+            0.0,
+            0.5,
+            0.0,
+            0.0,
+        ],
+        f'{reward_info_parser.OCCUPANCY_AT_FLOOR_PREFIX}2': [
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0,
+            0.0,
+        ],
+    }
+    expected_df = pd.DataFrame(expected_data, index=self.temperature_bins)
+
+    pdt.assert_frame_equal(df, expected_df, check_dtype=False)
+
+  def test_empty_reward_info(self):
+    """Tests behavior when no telemetry data is provided."""
+    reward_info = smart_control_reward_pb2.RewardInfo()
+    zones = [_create_zone_info('zone_1', floor=1)]
+
+    df = _get_zone_conditions_histogram_helper(
+        reward_info, self.temperature_bins, zones
+    )
+
+    expected_data = {
+        'occupancy_count': [0, 0, 0, 0, 0, 0],
+        'setpoint_mask': [0, 0, 0, 0, 0, 0],
+        'setpoint_range': ['-', '-', '-', '-', '-', '-'],
+        'exposed_count': [0, 0, 0, 0, 0, 0],
+    }
+    expected_df = pd.DataFrame(expected_data, index=self.temperature_bins)
+    pdt.assert_frame_equal(df, expected_df, check_dtype=False)
+
+  def test_wide_setpoint_range(self):
+    """Tests the global setpoint mask adapts to the widest zone requirements."""
+    zones = [
+        _create_zone_info('zone_1', floor=1),
+        _create_zone_info('zone_2', floor=1),
+    ]
+    reward_info = smart_control_reward_pb2.RewardInfo()
+
+    reward_info.zone_reward_infos['zone_1'].CopyFrom(
+        self._create_zone_reward_info(294.0, 294.0, 296.0, 0.0)
+    )
+    reward_info.zone_reward_infos['zone_2'].CopyFrom(
+        self._create_zone_reward_info(294.0, 290.0, 300.0, 0.0)
+    )
+
+    df = _get_zone_conditions_histogram_helper(
+        reward_info, self.temperature_bins, zones
+    )
+
+    expected_setpoint_range = pd.Series(
+        ['+'] * 6, index=self.temperature_bins, name='setpoint_range'
+    )
+    pdt.assert_series_equal(df['setpoint_range'], expected_setpoint_range)
+
+    expected_setpoint_mask = pd.Series(
+        [0] * 6, index=self.temperature_bins, name='setpoint_mask'
+    )
+    pdt.assert_series_equal(df['setpoint_mask'], expected_setpoint_mask)
 
 
 class RewardInfoParserLegacyEnergyConsumptionTest(absltest.TestCase):

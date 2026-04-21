@@ -9,7 +9,7 @@ from typing import Any, Mapping, Sequence, Tuple
 
 import numpy as np
 import pandas as pd
-
+from smart_buildings.smart_control.proto import smart_control_building_pb2
 from smart_buildings.smart_control.proto import smart_control_reward_pb2
 from smart_buildings.smart_control.utils import conversion_utils
 from smart_buildings.smart_control.utils import temperature_conversion
@@ -22,7 +22,30 @@ proto_to_pandas_timestamp = conversion_utils.proto_to_pandas_timestamp
 WATT_SECONDS_KWH = conversion_utils._WATT_SECONDS_KWH  # pylint: disable=protected-access
 
 TEMP_UNIT = 'K'
-TEMP_BINS = (290, 291, 292, 293, 294, 295, 296, 297, 298, 299, 300)
+TEMP_BINS: Sequence[float] = (
+    290.0,
+    291.0,
+    292.0,
+    293.0,
+    294.0,
+    295.0,
+    296.0,
+    297.0,
+    298.0,
+    299.0,
+    300.0,
+)
+
+
+# Suffix appended to measurement names to indicate the floor number.
+FLOOR_PREFIX = '@floor'
+
+# Prefix used in DataFrame columns to identify occupancy metrics for a
+# specific floor.
+OCCUPANCY_AT_FLOOR_PREFIX = 'occ@floor'
+
+# The exact string identifier used for zone air temperature sensors.
+ZONE_AIR_TEMPERATURE_SENSOR = 'zone_air_temperature_sensor'
 
 
 def get_comfort_diffs(
@@ -89,7 +112,7 @@ class RewardInfoParser:
       self,
       reward_info: RewardInfo,
       temp_unit: str = TEMP_UNIT,
-      zone_temp_bins: Sequence[int] = TEMP_BINS,
+      zone_temp_bins: Sequence[float] = TEMP_BINS,
       comfort_diff_params: Mapping[str, Any] | None = None,
   ):
     """Initializes the RewardInfoParser.
@@ -137,6 +160,148 @@ class RewardInfoParser:
   #
   # ZONE INFO
   #
+
+  def get_zone_conditions_histogram_by_floor(
+      self,
+      zones: Sequence[smart_control_building_pb2.ZoneInfo],
+  ) -> pd.DataFrame:
+    """Generates a histogram DataFrame of building zone conditions over temp bins.
+
+    This function aggregates telemetry data from multiple building zones. It
+    bins
+    the current air temperature of each zone by floor, calculates the total
+    occupancy for each temperature bin, and determines how many occupants are
+    exposed to temperatures outside the established heating/cooling setpoints.
+
+    Args:
+        zones: A list of Protobuf ZoneInfo objects containing metadata (like the
+          floor number) for each zone in the building.
+
+    Returns:
+        pd.DataFrame: A DataFrame indexed by the `temperature_bins`.
+            Columns include:
+            - 'occupancy_count': Total occupants currently experiencing this
+            temperature.
+            - 'setpoint_mask': 0 if the temperature is within the global
+            setpoint
+            range,
+              -1 if below the heating setpoint, 1 if above the cooling setpoint.
+            - 'setpoint_range': String visualization ('-' for out of bounds, '+'
+            for in bounds).
+            - 'exposed_count': Number of occupants exposed to out-of-bounds
+            temperatures
+              (positive for too hot, negative for too cold).
+            - 'floor_X' (multiple): Normalized distribution of zone temperatures
+            for floor X.
+    """
+    # Convert bins to a numpy array for vectorized distance calculations later.
+    bins = np.array(self.zone_temp_bins)
+    num_bins = len(bins)
+
+    # Create a fast lookup dictionary to map a zone's ID to its floor number.
+    zone_floor_map = {zone.zone_id: zone.floor for zone in zones}
+
+    # Use a defaultdict to dynamically allocate arrays for floors as we
+    # encounter them.
+    # This safely handles missing floors, negative floors (basements), or sparse
+    # floor maps.
+    temperature_count_by_floor = collections.defaultdict(
+        lambda: np.zeros(num_bins, dtype=float)
+    )
+
+    # Array to accumulate total occupancy per temperature bin across the whole
+    # building.
+    occupancy_count = np.zeros(num_bins)
+
+    # Variables to track the absolute lowest heating setpoint and highest
+    # cooling setpoint across all zones, represented as indices of the `bins`
+    # array.
+    min_setpoint_ix = None
+    max_setpoint_ix = None
+
+    def get_bin_idx(val: float) -> int:
+      """Helper function to find the index of the temperature bin closest to `val`."""
+      return int(np.argmin(np.abs(bins - val)))
+
+    # --- Step 1: Accumulate Zone Data ---
+    for zone_id, zone_reward in self.reward_info.zone_reward_infos.items():
+      # Retrieve the floor for this zone. Default to 0 if the zone metadata is
+      # missing.
+      floor = zone_floor_map.get(zone_id, 0)
+
+      # Find which temperature bin this zone's current air temperature falls
+      # into, and increment the count for this specific floor.
+      temp_idx = get_bin_idx(zone_reward.zone_air_temperature)
+      temperature_count_by_floor[floor][temp_idx] += 1
+
+      # Add this zone's occupants to the total count for this temperature bin.
+      occupancy_count[temp_idx] += zone_reward.average_occupancy
+
+      # Find which bins correspond to this zone's specific setpoints.
+      heat_idx = get_bin_idx(zone_reward.heating_setpoint_temperature)
+      cool_idx = get_bin_idx(zone_reward.cooling_setpoint_temperature)
+
+      # Expand the global acceptable setpoint bounds if this zone's bounds are
+      # wider.
+      if min_setpoint_ix is None:
+        min_setpoint_ix = heat_idx
+        max_setpoint_ix = cool_idx
+      else:
+        min_setpoint_ix = min(min_setpoint_ix, heat_idx)
+        max_setpoint_ix = max(max_setpoint_ix, cool_idx)
+
+    # --- Step 2: Vectorized Setpoint Masking ---
+    # Initialize mask arrays. By default, assume all temperatures are
+    # out-of-bounds ("-").
+    setpoint_mask = np.zeros(num_bins, dtype=int)
+    setpoint_range = np.full(num_bins, '-', dtype=object)
+
+    # If we actually processed zones (meaning max_setpoint_ix is not None),
+    # slice the arrays to reflect the calculated global setpoint bounds.
+    if max_setpoint_ix is not None:
+      setpoint_mask[:min_setpoint_ix] = (
+          -1
+      )  # Temps below global heating setpoint
+      setpoint_mask[max_setpoint_ix + 1 :] = (
+          1  # Temps above global cooling setpoint
+      )
+      setpoint_range[min_setpoint_ix : max_setpoint_ix + 1] = (
+          '+'  # Acceptable comfort range
+      )
+
+    # --- Step 3: Calculate Exposed Occupancy ---
+    # Round up occupancy (you can't have a fraction of a person) and cast to
+    # integer.
+    occupancy_count = np.ceil(occupancy_count).astype(int)
+
+    # Multiply occupancy by the setpoint mask.
+    # Result: 0 = comfortable, negative values = cold occupants,
+    # positive values = hot occupants.
+    occupants_exposed = (occupancy_count * setpoint_mask).astype(int)
+
+    # --- Step 4: Assemble the Base DataFrame ---
+    table_rows = {
+        'occupancy_count': occupancy_count,
+        'setpoint_mask': setpoint_mask,
+        'setpoint_range': setpoint_range,
+        'exposed_count': occupants_exposed,
+    }
+
+    # --- Step 5: Normalize and Append Floor Distributions ---
+    # Sort the dictionary by floor number to ensure predictable column ordering.
+    for floor, count_arr in sorted(temperature_count_by_floor.items()):
+      total_floor_count = np.sum(count_arr)
+      # Normalize the array so it represents a probability
+      # distribution (summing to 1.0)
+      if total_floor_count > 0:
+        count_arr = count_arr / total_floor_count
+
+      # Add this floor's normalized distribution to the final table.
+      table_rows[f'{OCCUPANCY_AT_FLOOR_PREFIX}{floor}'] = count_arr
+
+    # Return the fully constructed DataFrame, using the specific
+    # temperature bins as the row index.
+    return pd.DataFrame(table_rows, index=bins)
 
   def get_zone_conditions_histogram(
       self,
@@ -213,7 +378,8 @@ class RewardInfoParser:
     occupants_exposed = occupants_exposed.astype(int)
     temperature_count = temperature_count.astype(int)
     occupancy_count = occupancy_count.astype(int)
-
+    # Use a degree symbol for Celsius and Fahrenheit, but not for Kelvin.
+    deg_symbol = '' if temp_unit in ['K', 'Kelvin'] else '°'
     return pd.DataFrame(
         {
             'count of zones': temperature_count,
@@ -221,7 +387,10 @@ class RewardInfoParser:
             'temperature setpoint range': setpoint_range,
             'count of occupants exposed': occupants_exposed,
         },
-        index=[f'{temp}°{temp_unit.title()[0]}' for temp in temperature_bins],
+        index=[
+            f'{temp}{deg_symbol}{temp_unit.title()[0]}'
+            for temp in temperature_bins
+        ],
     ).T
 
   @cached_property
