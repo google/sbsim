@@ -155,13 +155,6 @@ INTERIOR_FENESTRATION_VALUE = -43
 # In-between fenestration nodes (neither exterior nor interior adjacent)
 INBETWEEN_FENESTRATION_VALUE = -425
 
-# Fenestration azimuth angles (degrees)
-# Based on direction the fenestration faces outward
-FENESTRATION_AZIMUTH_TOP = 0  # Fenestration at top of building faces north
-FENESTRATION_AZIMUTH_RIGHT = 90  # Fenestration at right side faces east
-FENESTRATION_AZIMUTH_BOTTOM = 180  # Fenestration at bottom faces south
-FENESTRATION_AZIMUTH_LEFT = 270  # Fenestration at left side faces west
-
 # Default fenestration tilt angle (vertical surface)
 FENESTRATION_TILT_ANGLE = 90  # degrees from horizontal
 

@@ -5,20 +5,18 @@ For computing the physical and thermal characteristics of buildings.
 
 from collections import deque
 import math
-from typing import Optional, Tuple, TYPE_CHECKING
+from typing import Optional, Tuple
 
 import numpy as np
 
 from smart_control.simulator import constants
-
-if TYPE_CHECKING:
-  from smart_control.simulator import weather_controller
+from smart_control.simulator.solar_radiation import calculate_poa_irradiance  # re-export  # pylint: disable=unused-import
+from smart_control.simulator.solar_radiation import IrradianceComponents  # re-export  # pylint: disable=unused-import
 
 TEMPORARY_MARKED_VALUE = -33
 TEMPORARY_BLOCKED_VALUE = -34
 AIR_IN_LINE_OF_SIGHT = 9  # Air nodes along line of sight between wall nodes
 
-# we are choosing to keep the mathematical notation in this file
 # pylint: disable=invalid-name
 
 
@@ -341,7 +339,7 @@ def fix_view_factors(F: np.ndarray, A: np.ndarray = None) -> np.ndarray:
       Fixed view factor matrix
 
   References:
-      See `FixViewFactors` function in [EnergyPlus](https://github.com/NREL/EnergyPlus/blob/develop/src/EnergyPlus/HeatBalanceIntRadExchange.cc)
+      See `FixViewFactors` function in [EnergyPlus](https://github.com/NREL/EnergyPlus/blob/develop/src/EnergyPlus/HeatBalanceIntRadExchange.cc) # pylint: disable=line-too-long
   """
 
   # Parameter definitions
@@ -972,50 +970,3 @@ def mark_directly_seeing_nodes(
   # Mark the base node with a special value
   floor_plan_copy[base_row, base_col] = blocked_value + marked_value
   return floor_plan_copy
-
-
-def calculate_poa_irradiance(
-    irradiance_components: 'weather_controller.IrradianceComponents',
-    surface_tilt: float,
-    surface_azimuth: float,
-    solar_zenith: float,
-    solar_azimuth: float,
-) -> float:
-  """Calculate plane-of-array (POA) global irradiance.
-  Converts horizontal irradiance components (GHI, DNI, DHI) to the irradiance
-  incident on a tilted surface. Uses the pvlib library's get_total_irradiance
-  function.
-  Args:
-    irradiance_components: IrradianceComponents with ghi, dni, and dhi fields
-      containing Global Horizontal Irradiance, Direct Normal Irradiance,
-      and Diffuse Horizontal Irradiance in W/m2.
-    surface_tilt: Surface tilt angle from horizontal in degrees (0 = horizontal,
-      90 = vertical).
-    surface_azimuth: Surface azimuth angle in degrees (180 = south-facing in
-      Northern Hemisphere, compass direction that the surface normal points).
-    solar_zenith: Solar zenith angle in degrees (angle from vertical).
-    solar_azimuth: Solar azimuth angle in degrees (compass direction of sun).
-  Returns:
-    POA global irradiance in W/m2.
-  Example:
-    >>> from smart_control.simulator import weather_controller
-    >>> irrad = weather_controller.IrradianceComponents(
-    ...     ghi=800.0, dni=700.0, dhi=100.0, solar_zenith=30.0,
-    ...     solar_azimuth=180.0)
-    >>> poa = calculate_poa_irradiance(irrad, surface_tilt=30.0,
-    ...     surface_azimuth=180.0, solar_zenith=30.0, solar_azimuth=180.0)
-  """
-  # Import here to avoid circular imports and keep pvlib as optional dependency
-  from pvlib import irradiance as pvlib_irradiance  # pylint: disable=import-outside-toplevel
-
-  poa_irrad = pvlib_irradiance.get_total_irradiance(
-      surface_tilt=surface_tilt,
-      surface_azimuth=surface_azimuth,
-      dni=irradiance_components.dni,
-      ghi=irradiance_components.ghi,
-      dhi=irradiance_components.dhi,
-      solar_zenith=solar_zenith,
-      solar_azimuth=solar_azimuth,
-  )
-
-  return float(poa_irrad['poa_global'])
