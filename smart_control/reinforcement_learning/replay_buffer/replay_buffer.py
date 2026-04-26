@@ -1,5 +1,6 @@
 """Reinforcement learning replay buffers."""
 
+import json
 import logging
 import os
 from typing import Any, Optional, Tuple
@@ -22,6 +23,7 @@ except ImportError:  # pragma: no cover
 from tf_agents.replay_buffers.tf_uniform_replay_buffer import TFUniformReplayBuffer
 
 logger = logging.getLogger(__name__)
+_METADATA_FILENAME = "replay_buffer_metadata.json"
 
 
 class ReplayBufferManager:
@@ -95,6 +97,7 @@ class ReplayBufferManager:
       self.replay_buffer = replay_buffer
       self.observer = observer
       self._is_initialized = True
+      self._write_metadata()
       return replay_buffer, observer
 
     else:
@@ -122,6 +125,7 @@ class ReplayBufferManager:
       self.replay_buffer = replay_buffer
       self.observer = observer
       self._is_initialized = True
+      self._write_metadata()
       logger.info(
           "Using TFUniformReplayBuffer fallback (dm-reverb not available)."
       )
@@ -173,7 +177,16 @@ class ReplayBufferManager:
       logger.info("Replay buffer loaded from checkpoint (Reverb).")
       return replay_buffer, observer
 
-    # TFUniform fallback: restore via tf.train.Checkpoint if available.
+    # TFUniform fallback: read metadata first, then restore from checkpoint.
+    metadata_capacity = self._read_metadata_capacity()
+    if metadata_capacity is not None and metadata_capacity != self.capacity:
+      logger.info(
+          "Using replay-buffer capacity from metadata: %d (was %d)",
+          metadata_capacity,
+          self.capacity,
+      )
+      self.capacity = metadata_capacity
+
     replay_buffer, observer = self.create_replay_buffer()
     self.load_checkpoint()
     return replay_buffer, observer
@@ -243,6 +256,7 @@ class ReplayBufferManager:
 
     if self._tf_checkpoint_manager is None:
       return None
+    self._write_metadata()
     return self._tf_checkpoint_manager.save()
 
   def load_checkpoint(self) -> Optional[str]:
@@ -266,6 +280,38 @@ class ReplayBufferManager:
         "Loaded TFUniform replay buffer checkpoint: %s", latest_checkpoint
     )
     return latest_checkpoint
+
+  def _metadata_path(self) -> str:
+    return os.path.join(self.checkpoint_dir, _METADATA_FILENAME)
+
+  def _write_metadata(self) -> None:
+    """Persist replay-buffer metadata used for robust restore."""
+    metadata = {
+        "capacity": self.capacity,
+        "sequence_length": self.sequence_length,
+        "backend": "reverb" if self._use_reverb else "tf_uniform",
+    }
+    with tf.io.gfile.GFile(self._metadata_path(), "w") as metadata_file:
+      json.dump(metadata, metadata_file)
+
+  def _read_metadata_capacity(self) -> Optional[int]:
+    """Read replay-buffer capacity from metadata, if present."""
+    metadata_path = self._metadata_path()
+    if not tf.io.gfile.exists(metadata_path):
+      return None
+    try:
+      with tf.io.gfile.GFile(metadata_path, "r") as metadata_file:
+        metadata = json.load(metadata_file)
+    except (json.JSONDecodeError, OSError, ValueError):
+      logger.warning(
+          "Unable to parse replay buffer metadata at %s", metadata_path
+      )
+      return None
+
+    raw_capacity = metadata.get("capacity")
+    if not isinstance(raw_capacity, int) or raw_capacity <= 0:
+      return None
+    return raw_capacity
 
   def close(self) -> None:
     """Close the replay buffer server and clean up resources."""
