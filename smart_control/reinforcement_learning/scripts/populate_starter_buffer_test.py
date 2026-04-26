@@ -7,6 +7,7 @@ import tempfile
 
 from absl.testing import absltest
 from tf_agents.replay_buffers.reverb_replay_buffer import ReverbReplayBuffer
+from tf_agents.replay_buffers.tf_uniform_replay_buffer import TFUniformReplayBuffer
 from tf_agents.specs import BoundedTensorSpec
 from tf_agents.specs import TensorSpec
 from tf_agents.trajectories.trajectory import Trajectory
@@ -44,10 +45,15 @@ class StarterBufferPopulationTest(absltest.TestCase):
     replay_buffer = buffer_generator.populate()
 
     with self.subTest("returns a replay buffer"):
-      self.assertIsInstance(replay_buffer, ReverbReplayBuffer)
-      self.assertEqual(replay_buffer.name, "reverb_replay_buffer")
+      self.assertIsInstance(
+          replay_buffer, (ReverbReplayBuffer, TFUniformReplayBuffer)
+      )
       self.assertEqual(replay_buffer.capacity, capacity)
-      self.assertEqual(replay_buffer.num_frames(), steps_per_run - 1)
+      if isinstance(replay_buffer, ReverbReplayBuffer):
+        expected_num_frames = steps_per_run - 1
+      else:
+        expected_num_frames = steps_per_run
+      self.assertEqual(int(replay_buffer.num_frames()), expected_num_frames)
 
       trajectory = replay_buffer.data_spec
       self.assertIsInstance(trajectory, Trajectory)
@@ -66,25 +72,25 @@ class StarterBufferPopulationTest(absltest.TestCase):
       # reward:
       self.assertIsInstance(trajectory.reward, TensorSpec)
 
-    with self.subTest("stores checkpoints in the specified directory"):
+    with self.subTest("stores artifacts in the specified directory"):
       self.assertTrue(os.path.isdir(self.buffer_dirpath))
 
-      # creates a timestamped sub-directory:
-      timestamp_dirname = os.listdir(self.buffer_dirpath)[0]
-      today = datetime.now().strftime("%Y-%m-%d")
-      self.assertTrue(timestamp_dirname.startswith(today))
+      # Reverb writes checkpoint files; TFUniform fallback does not.
+      if hasattr(replay_buffer, "py_client"):
+        timestamp_dirname = os.listdir(self.buffer_dirpath)[0]
+        today = datetime.now().strftime("%Y-%m-%d")
+        self.assertTrue(timestamp_dirname.startswith(today))
 
-      # saves files, including "DONE" when complete:
-      filenames = [
-          "DONE",
-          "chunks.tfrecord",
-          "items.tfrecord",
-          "tables.tfrecord",
-      ]
-      timestamp_dirpath = os.path.join(self.buffer_dirpath, timestamp_dirname)
-      for filename in filenames:
-        filepath = os.path.join(timestamp_dirpath, filename)
-        self.assertTrue(os.path.isfile(filepath))
+        filenames = [
+            "DONE",
+            "chunks.tfrecord",
+            "items.tfrecord",
+            "tables.tfrecord",
+        ]
+        timestamp_dirpath = os.path.join(self.buffer_dirpath, timestamp_dirname)
+        for filename in filenames:
+          filepath = os.path.join(timestamp_dirpath, filename)
+          self.assertTrue(os.path.isfile(filepath))
 
 
 if __name__ == "__main__":

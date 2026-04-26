@@ -561,7 +561,7 @@ class RLAgentTrainer:
       # Checkpoint replay buffer periodically based on the new argument
       if i % self.checkpoint_interval == 0:
         logger.info('Checkpointing replay buffer')
-        replay_buffer.py_client.checkpoint()
+        replay_manager.save_checkpoint()
 
       train_step.assign_add(1)
 
@@ -569,7 +569,7 @@ class RLAgentTrainer:
     logger.info(
         'Training complete. Performing final evaluation and checkpointing.'
     )
-    replay_buffer.py_client.checkpoint()
+    replay_manager.save_checkpoint()
     eval_actor.run()
 
     # Write final evaluation metrics with the final step

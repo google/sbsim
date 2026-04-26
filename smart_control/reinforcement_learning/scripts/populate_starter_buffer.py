@@ -6,14 +6,13 @@ bootstrap the training process.
 
 import logging
 import os
-from typing import Sequence
+from typing import Any, Sequence
 
 from absl import app
 from absl import flags
 import tensorflow as tf
 from tf_agents.environments import tf_py_environment
 from tf_agents.policies import py_tf_eager_policy
-from tf_agents.replay_buffers.reverb_replay_buffer import ReverbReplayBuffer
 from tf_agents.train import actor
 from tf_agents.train.utils import spec_utils
 from tf_agents.trajectories import trajectory
@@ -110,7 +109,7 @@ class StarterBufferGenerator:
 
     self.buffer_dirpath = os.path.join(RL_STARTER_BUFFERS_DIR, self.buffer_name)
 
-  def populate(self) -> ReverbReplayBuffer:
+  def populate(self) -> Any:
     """Returns: The replay buffer."""
     logger.info('Buffer dirpath: %s', os.path.abspath(self.buffer_dirpath))
 
@@ -223,7 +222,7 @@ class StarterBufferGenerator:
           current_run + 1,
           self.num_runs,
       )
-      replay_buffer.py_client.checkpoint()
+      replay_manager.save_checkpoint()
 
     # Final checkpoint and stats
     logger.info(
@@ -232,7 +231,7 @@ class StarterBufferGenerator:
         total_steps,
     )
 
-    replay_buffer.py_client.checkpoint()
+    replay_manager.save_checkpoint()
     logger.info(
         'Final replay buffer size: %d frames', replay_buffer.num_frames()
     )
