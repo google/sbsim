@@ -114,6 +114,10 @@ class ForecastTest(absltest.TestCase):
           {True: 7, False: 7}
       )
 
+    with self.subTest(name="sorted_by_start_time_ascending"):
+      sorted_periods = sorted(periods, key=lambda p: p.start_timestamp)
+      self.assertEqual(list(periods), sorted_periods)
+
   def test_df(self):
     forecast_df = self.forecast.df
     self.assertIsInstance(forecast_df, pd.DataFrame)
@@ -121,7 +125,13 @@ class ForecastTest(absltest.TestCase):
 
     with self.subTest(name="example_periods"):
       comparison_df = forecast_df.drop(
-          columns=["start_timestamp", "end_timestamp", "duration", "start_date", "end_date"]  # pylint: disable=line-too-long
+          columns=[
+              "duration",
+              "start_date",
+              "end_date",
+              "start_seconds",
+              "end_seconds",
+          ]
       )
       self.assertEqual(
           comparison_df.iloc[0].to_dict(),
@@ -186,7 +196,13 @@ class HourlyForecastTest(absltest.TestCase):
 
     with self.subTest(name="example_periods"):
       comparison_df = df.drop(
-          columns=["start_timestamp", "end_timestamp", "duration", "start_date", "end_date"]  # pylint: disable=line-too-long
+          columns=[
+              "duration",
+              "start_date",
+              "end_date",
+              "start_seconds",
+              "end_seconds",
+          ]
       )
       self.assertEqual(
           comparison_df.iloc[0].to_dict(),

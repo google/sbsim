@@ -2,16 +2,20 @@
 
 from collections.abc import Mapping, Sequence
 import dataclasses
-import functools
-from typing import Any
+from typing import Any, Self
 
 import pandas as pd
+from smart_buildings.smart_control.services.weather import base_forecast
+from smart_buildings.smart_control.services.weather import base_forecast_period
+from smart_buildings.smart_control.utils import temperature_conversion
+
+assign_temp_unit = temperature_conversion.assign_temp_unit
 
 ResponseData = Mapping[str, Any]
 
 
 @dataclasses.dataclass(frozen=True)
-class ForecastPeriod:
+class ForecastPeriod(base_forecast_period.BaseForecastPeriod):
   """Schema for a single forecast period.
 
   The Weather.gov API's 'forecasts' endpoint provides a list of 14 periods,
@@ -47,43 +51,18 @@ class ForecastPeriod:
   """
   number: int
   name: str
-  start_time: str
-  end_time: str
+  start_timestamp: pd.Timestamp
+  end_timestamp: pd.Timestamp
   is_daytime: bool
   temp: int
-  temp_unit: str
+  temp_unit: temperature_conversion.TempUnit
   temp_trend: str | None
-  chance_of_precip: int | None
+  chance_of_precip: int
   wind_speed: str
   wind_direction: str
   icon: str
   short_forecast: str
   detailed_forecast: str
-
-  @property
-  def start_timestamp(self) -> pd.Timestamp:
-    """The start time of the forecast period as a pandas Timestamp."""
-    return pd.to_datetime(self.start_time)
-
-  @property
-  def end_timestamp(self) -> pd.Timestamp:
-    """The end time of the forecast period as a pandas Timestamp."""
-    return pd.to_datetime(self.end_time)
-
-  @property
-  def duration(self) -> pd.Timedelta:
-    """The duration of the forecast period as a pandas Timedelta."""
-    return self.end_timestamp - self.start_timestamp
-
-  @property
-  def start_date(self) -> str:
-    """The start date of the forecast period as a string."""
-    return str(self.start_timestamp.date())
-
-  @property
-  def end_date(self) -> str:
-    """The end date of the forecast period as a string."""
-    return str(self.end_timestamp.date())
 
 
 @dataclasses.dataclass(frozen=True)
@@ -102,8 +81,8 @@ class HourlyForecastPeriod(ForecastPeriod):
   Attributes:
     number: Forecast period number.
     name: Forecast period name. May be blank.
-    start_time: Forecast period start time.
-    end_time: Forecast period end time.
+    start_timestamp: Forecast period start time.
+    end_timestamp: Forecast period end time.
     is_daytime: Whether the forecast period is during the day-time.
     temp: Forecast temperature.
     temp_unit: Forecast temperature unit.
@@ -112,8 +91,8 @@ class HourlyForecastPeriod(ForecastPeriod):
       percentage value from 0 to 100.
     dewpoint: Forecast dewpoint, in Celsius.
     dewpoint_unit: Forecast dewpoint unit.
-    relative_humidity: Forecast relative humidity. Represented as a
-      percentage value from 0 to 100.
+    relative_humidity: Forecast relative humidity. Represented as a percentage
+      value from 0 to 100.
     relative_humidity_unit: Forecast relative humidity unit.
     wind_speed: Forecast wind speed.
     wind_direction: Forecast wind direction.
@@ -122,9 +101,9 @@ class HourlyForecastPeriod(ForecastPeriod):
     detailed_forecast: Detailed description of the forecast. May be blank.
   """
   dewpoint: float | None
-  dewpoint_unit: str
+  dewpoint_unit: str | None
   relative_humidity: int | None
-  relative_humidity_unit: str
+  relative_humidity_unit: str | None
 
 
 @dataclasses.dataclass(frozen=True)
@@ -197,53 +176,51 @@ class Gridpoint:
 
 
 @dataclasses.dataclass(frozen=True)
-class Forecast:
+class Forecast(base_forecast.BaseForecast):
   """Forecast data from the Weather.gov API.
 
   Represents a seven-day forecast, with two forecast periods for each calendar
   date (one for daytime and one for night-time), starting today.
 
   Attributes:
-    data: The JSON data returned by a request to the Forecast API endpoint
-      (e.g. https://api.weather.gov/gridpoints/MTR/95,87/forecast).
+    periods: Seven-day forecast periods (day and night for each calendar date).
   """
 
-  data: ResponseData
+  periods: Sequence[ForecastPeriod]
 
-  @functools.cached_property
-  def periods(self) -> Sequence[ForecastPeriod]:
-    """A list of forecast periods."""
-    periods = self.data.get("properties", {}).get("periods", [])
-    return [
+  @classmethod
+  def from_response_data(cls, data: ResponseData) -> Self:
+    """Constructs a Forecast object from API response data.
+
+    Args:
+      data: The JSON data returned by a request to the Forecast API endpoint
+        (e.g. https://api.weather.gov/gridpoints/MTR/95,87/forecast).
+
+    Returns:
+      A Forecast object.
+    """
+    periods = data.get("properties", {}).get("periods", [])
+    forecast_periods = [
         ForecastPeriod(
             number=p.get("number"),
             name=p.get("name", ""),
-            start_time=p["startTime"],
-            end_time=p["endTime"],
+            start_timestamp=pd.Timestamp(p.get("startTime")),
+            end_timestamp=pd.Timestamp(p.get("endTime")),
             is_daytime=p.get("isDaytime"),
-            temp=p["temperature"],
-            temp_unit=p["temperatureUnit"],
+            temp=p.get("temperature"),
+            temp_unit=assign_temp_unit(p.get("temperatureUnit")),
             temp_trend=p.get("temperatureTrend"),
-            chance_of_precip=p.get("probabilityOfPrecipitation", {}).get("value"),  # pytype: disable=attribute-error
+            chance_of_precip=p.get("probabilityOfPrecipitation", {}).get("value"),  # pylint: disable=line-too-long
             wind_speed=p.get("windSpeed"),
             wind_direction=p.get("windDirection"),
             icon=p.get("icon"),
-            short_forecast=p.get("shortForecast", ""),
+            short_forecast=p.get("shortForecast"),
             detailed_forecast=p.get("detailedForecast"),
         )
         for p in periods
     ]
-
-  @functools.cached_property
-  def df(self) -> pd.DataFrame:
-    """A pandas DataFrame of forecast records."""
-    df = pd.DataFrame(self.periods)
-    df["start_timestamp"] = pd.to_datetime(df["start_time"])
-    df["end_timestamp"] = pd.to_datetime(df["end_time"])
-    df["duration"] = df["end_timestamp"] - df["start_timestamp"]
-    df["start_date"] = df["start_timestamp"].dt.date
-    df["end_date"] = df["end_timestamp"].dt.date
-    return df
+    forecast_periods = sorted(forecast_periods, key=lambda p: p.start_timestamp)
+    return cls(periods=forecast_periods)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -254,36 +231,48 @@ class HourlyForecast(Forecast):
   starting from the current time.
 
   Attributes:
-    data: The JSON data returned by a request to the Hourly Forecast API
-      endpoint (e.g.
-      https://api.weather.gov/gridpoints/MTR/95,87/forecast/hourly).
+    periods: Hourly forecast periods.
   """
 
-  @functools.cached_property
-  def periods(self) -> Sequence[HourlyForecastPeriod]:
-    """A list of hourly forecast records."""
-    periods = self.data.get("properties", {}).get("periods", [])
-    return [
+  periods: Sequence[HourlyForecastPeriod]
+
+  @classmethod
+  def from_response_data(
+      cls,
+      data: ResponseData,
+  ) -> Self:
+    """Constructs an HourlyForecast object from API response data.
+
+    Args:
+      data: The JSON data returned by a request to the Hourly Forecast API
+        endpoint (e.g.
+        https://api.weather.gov/gridpoints/MTR/95,87/forecast/hourly).
+
+    Returns:
+      An HourlyForecast object.
+    """
+    periods = data.get("properties", {}).get("periods", [])
+    forecast_periods = [
         HourlyForecastPeriod(
             number=p.get("number"),
             name=p.get("name", ""),
-            start_time=p["startTime"],
-            end_time=p["endTime"],
+            start_timestamp=pd.Timestamp(p.get("startTime")),
+            end_timestamp=pd.Timestamp(p.get("endTime")),
             is_daytime=p.get("isDaytime"),
-            temp=p["temperature"],
-            temp_unit=p["temperatureUnit"],
+            temp=p.get("temperature"),
+            temp_unit=assign_temp_unit(p.get("temperatureUnit")),
             temp_trend=p.get("temperatureTrend"),
-            chance_of_precip=p.get("probabilityOfPrecipitation", {}).get("value"),  # pytype: disable=attribute-error
+            chance_of_precip=p.get("probabilityOfPrecipitation", {}).get("value"),  # pylint: disable=line-too-long
             dewpoint=p.get("dewpoint", {}).get("value"),
             dewpoint_unit=p.get("dewpoint", {}).get("unitCode"),
             relative_humidity=p.get("relativeHumidity", {}).get("value"),
-            relative_humidity_unit=p.get("relativeHumidity", {}).get("unitCode"),  # pytype: disable=attribute-error
+            relative_humidity_unit=p.get("relativeHumidity", {}).get("unitCode"),  # pylint: disable=line-too-long
             wind_speed=p.get("windSpeed"),
             wind_direction=p.get("windDirection"),
             icon=p.get("icon"),
             short_forecast=p.get("shortForecast"),
             detailed_forecast=p.get("detailedForecast"),
-        )
-        for p in periods
+        ) for p in periods
     ]
-
+    forecast_periods = sorted(forecast_periods, key=lambda p: p.start_timestamp)
+    return cls(periods=forecast_periods)

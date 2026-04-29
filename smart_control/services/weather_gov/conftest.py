@@ -4,10 +4,14 @@ import json
 import os
 from unittest import mock
 
+import pandas as pd
 import requests
 from smart_buildings.smart_control.services.weather_gov import models
 from smart_buildings.smart_control.services.weather_gov import weather_service
 from smart_buildings.smart_control.utils import constants
+from smart_buildings.smart_control.utils import temperature_conversion
+
+TempUnit = temperature_conversion.TempUnit
 
 TEST_DATA_DIR = os.path.join(
     constants.REPO_DIRPATH, "services", "weather_gov", "test_data"
@@ -42,24 +46,29 @@ def read_hourly_forecast_data() -> models.ResponseData:
 # FACTORIES
 
 
-def create_gridpoint() -> weather_service.Gridpoint:
+def create_gridpoint() -> models.Gridpoint:
   """Returns a test Gridpoint object for test purposes."""
-  return weather_service.Gridpoint(read_gridpoint_data())
+  return models.Gridpoint(read_gridpoint_data())
 
 
-def create_forecast() -> weather_service.Forecast:
+def create_forecast() -> models.Forecast:
   """Returns a test seven-day Forecast for test purposes."""
-  return weather_service.Forecast(read_forecast_data())
+  return models.Forecast.from_response_data(read_forecast_data())
 
 
-def create_hourly_forecast() -> weather_service.HourlyForecast:
+def create_hourly_forecast() -> models.HourlyForecast:
   """Returns a non-comprehensive HourlyForecast for test purposes.
 
   To keep the test data file size small, this data only includes the first three
   and the last three hourly periods. But in practice there are many more records
   returned by the API.
+
+  Returns:
+    A test HourlyForecast object.
   """
-  return weather_service.HourlyForecast(read_hourly_forecast_data())
+  return models.HourlyForecast.from_response_data(
+      data=read_hourly_forecast_data()
+  )
 
 
 # EXAMPLE FORECAST RECORDS
@@ -67,11 +76,11 @@ def create_hourly_forecast() -> weather_service.HourlyForecast:
 FIRST_PERIOD = models.ForecastPeriod(
     number=1,
     name="Today",
-    start_time="2026-02-06T09:00:00-08:00",
-    end_time="2026-02-06T18:00:00-08:00",
+    start_timestamp=pd.Timestamp("2026-02-06T09:00:00-08:00"),
+    end_timestamp=pd.Timestamp("2026-02-06T18:00:00-08:00"),
     is_daytime=True,
     temp=67,
-    temp_unit="F",
+    temp_unit=TempUnit.FAHRENHEIT,
     temp_trend=None,
     chance_of_precip=6,
     wind_speed="2 to 7 mph",
@@ -87,11 +96,11 @@ FIRST_PERIOD = models.ForecastPeriod(
 LAST_PERIOD = models.ForecastPeriod(
     number=14,
     name="Thursday Night",
-    start_time="2026-02-12T18:00:00-08:00",
-    end_time="2026-02-13T06:00:00-08:00",
+    start_timestamp=pd.Timestamp("2026-02-12T18:00:00-08:00"),
+    end_timestamp=pd.Timestamp("2026-02-13T06:00:00-08:00"),
     is_daytime=False,
     temp=44,
-    temp_unit="F",
+    temp_unit=TempUnit.FAHRENHEIT,
     temp_trend=None,
     chance_of_precip=11,
     wind_speed="2 to 9 mph",
@@ -108,11 +117,11 @@ LAST_PERIOD = models.ForecastPeriod(
 FIRST_HOURLY_PERIOD = models.HourlyForecastPeriod(
     number=1,
     name="",
-    start_time="2026-02-06T09:00:00-08:00",
-    end_time="2026-02-06T10:00:00-08:00",
+    start_timestamp=pd.Timestamp("2026-02-06T09:00:00-08:00"),
+    end_timestamp=pd.Timestamp("2026-02-06T10:00:00-08:00"),
     is_daytime=True,
     temp=57,
-    temp_unit="F",
+    temp_unit=TempUnit.FAHRENHEIT,
     temp_trend=None,
     chance_of_precip=6,
     dewpoint=9.444444444444445,
@@ -129,11 +138,11 @@ FIRST_HOURLY_PERIOD = models.HourlyForecastPeriod(
 LAST_HOURLY_PERIOD = models.HourlyForecastPeriod(
     number=156,
     name="",
-    start_time="2026-02-12T20:00:00-08:00",
-    end_time="2026-02-12T21:00:00-08:00",
+    start_timestamp=pd.Timestamp("2026-02-12T20:00:00-08:00"),
+    end_timestamp=pd.Timestamp("2026-02-12T21:00:00-08:00"),
     is_daytime=False,
     temp=52,
-    temp_unit="F",
+    temp_unit=TempUnit.FAHRENHEIT,
     temp_trend=None,
     chance_of_precip=9,
     dewpoint=8.88888888888889,
@@ -226,4 +235,3 @@ def setup_mock_session(test_case: mock.Mock) -> mock.MagicMock:
       )
   )
   return mock_session
-
