@@ -13,7 +13,6 @@ import os
 
 from absl.testing import absltest
 from absl.testing import parameterized
-import gin
 import numpy as np
 import pandas as pd
 from pvlib import irradiance
@@ -29,7 +28,6 @@ from smart_control.utils import conversion_utils as utils
 # Paths to shared weather data files.
 _LOCAL_WEATHER_TEST_DATA_PATH = os.path.join(
     os.path.dirname(__file__),
-    'solar_radiation_test_data',
     'local_weather_test_data.csv',
 )
 
@@ -602,10 +600,6 @@ class ReplaySolarRadiationTest(SolarRadiationTest):
     # Skip SolarRadiationTest.setUp; call IrradianceTestBase.setUp directly.
     super(SolarRadiationTest, self).setUp()  # pylint: disable=bad-super-call
 
-    # Clear any gin bindings from previous tests that might override
-    # ReplayWeatherController's local_weather_path default.
-    gin.clear_config()
-
     self.weather_controller = weather_controller.ReplayWeatherController(
         local_weather_path=_LOCAL_WEATHER_TEST_DATA_PATH,
         convection_coefficient=10.0,
@@ -1034,56 +1028,50 @@ class IrradianceDecompositionPvlibValidationTest(parameterized.TestCase):
 # ---------------------------------------------------------------------------
 # Replay helper function tests
 # ---------------------------------------------------------------------------
-class _ObservationHelper:
-  """Mixin providing _make_observation_response for test classes."""
-
-  def _make_observation_response(
-      self, measurements, timestamp_seconds=1688212800
-  ):
-    single_responses = []
-    for name, value in measurements.items():
-      single_request = smart_control_building_pb2.SingleObservationRequest(
-          device_id='test_device', measurement_name=name
-      )
-      single_response = smart_control_building_pb2.SingleObservationResponse(
-          single_observation_request=single_request,
-          continuous_value=value,
-      )
-      single_responses.append(single_response)
-    request = smart_control_building_pb2.ObservationRequest()
-    ts_proto = smart_control_building_pb2.ObservationResponse()
-    ts_proto.timestamp.seconds = timestamp_seconds
-    return smart_control_building_pb2.ObservationResponse(
-        timestamp=ts_proto.timestamp,
-        request=request,
-        single_observation_responses=single_responses,
+def _make_observation_response(measurements, timestamp_seconds=1688212800):
+  """Build a fake ObservationResponse proto for testing."""
+  single_responses = []
+  for name, value in measurements.items():
+    single_request = smart_control_building_pb2.SingleObservationRequest(
+        device_id='test_device', measurement_name=name
     )
+    single_response = smart_control_building_pb2.SingleObservationResponse(
+        single_observation_request=single_request,
+        continuous_value=value,
+    )
+    single_responses.append(single_response)
+  request = smart_control_building_pb2.ObservationRequest()
+  ts_proto = smart_control_building_pb2.ObservationResponse()
+  ts_proto.timestamp.seconds = timestamp_seconds
+  return smart_control_building_pb2.ObservationResponse(
+      timestamp=ts_proto.timestamp,
+      request=request,
+      single_observation_responses=single_responses,
+  )
 
 
-class GetReplayTemperaturesTest(_ObservationHelper, absltest.TestCase):
+class GetReplayTemperaturesTest(absltest.TestCase):
   """Tests for get_replay_temperatures."""
 
   def test_sensor_present(self):
     temp_k = utils.celsius_to_kelvin(25.0)
-    obs = self._make_observation_response(
-        {'outside_air_temperature_sensor': temp_k}
-    )
+    obs = _make_observation_response({'outside_air_temperature_sensor': temp_k})
     result = solar_radiation.get_replay_temperatures([obs])
     self.assertLen(result, 1)
     self.assertAlmostEqual(list(result.values())[0], temp_k, places=4)
 
   def test_sensor_absent_returns_default(self):
-    obs = self._make_observation_response({'some_other_sensor': 300.0})
+    obs = _make_observation_response({'some_other_sensor': 300.0})
     result = solar_radiation.get_replay_temperatures([obs])
     self.assertLen(result, 1)
     self.assertEqual(list(result.values())[0], -1.0)
 
   def test_multiple_observations(self):
-    obs1 = self._make_observation_response(
+    obs1 = _make_observation_response(
         {'outside_air_temperature_sensor': utils.celsius_to_kelvin(20.0)},
         timestamp_seconds=1688212800,
     )
-    obs2 = self._make_observation_response(
+    obs2 = _make_observation_response(
         {'outside_air_temperature_sensor': utils.celsius_to_kelvin(25.0)},
         timestamp_seconds=1688216400,
     )
@@ -1094,29 +1082,29 @@ class GetReplayTemperaturesTest(_ObservationHelper, absltest.TestCase):
     self.assertAlmostEqual(values[1], utils.celsius_to_kelvin(25.0), places=4)
 
 
-class GetReplayCloudCoverTest(_ObservationHelper, absltest.TestCase):
+class GetReplayCloudCoverTest(absltest.TestCase):
   """Tests for get_replay_cloud_cover."""
 
   def test_sensor_present(self):
-    obs = self._make_observation_response({'cloud_cover_sensor': 50.0})
+    obs = _make_observation_response({'cloud_cover_sensor': 50.0})
     result = solar_radiation.get_replay_cloud_cover([obs])
     self.assertLen(result, 1)
     self.assertAlmostEqual(list(result.values())[0], 50.0, places=4)
 
   def test_sensor_absent_returns_default(self):
-    obs = self._make_observation_response({'some_other_sensor': 100.0})
+    obs = _make_observation_response({'some_other_sensor': 100.0})
     result = solar_radiation.get_replay_cloud_cover([obs])
     self.assertLen(result, 1)
     self.assertEqual(list(result.values())[0], 0.0)
 
 
-class GetReplaySkyTemperatureTest(_ObservationHelper, absltest.TestCase):
+class GetReplaySkyTemperatureTest(absltest.TestCase):
   """Tests for get_replay_sky_temperature."""
 
   def test_with_both_sensors(self):
     temp_k = utils.celsius_to_kelvin(23.0)
     dp_k = utils.celsius_to_kelvin(15.0)
-    obs = self._make_observation_response({
+    obs = _make_observation_response({
         'outside_air_temperature_sensor': temp_k,
         'dew_point_temperature_sensor': dp_k,
     })
@@ -1134,9 +1122,7 @@ class GetReplaySkyTemperatureTest(_ObservationHelper, absltest.TestCase):
   def test_missing_dewpoint_uses_depression(self):
     temp_k = utils.celsius_to_kelvin(23.0)
     depression = 8.0
-    obs = self._make_observation_response(
-        {'outside_air_temperature_sensor': temp_k}
-    )
+    obs = _make_observation_response({'outside_air_temperature_sensor': temp_k})
     result = solar_radiation.get_replay_sky_temperature(
         [obs], dewpoint_depression=depression
     )
@@ -1151,10 +1137,10 @@ class GetReplaySkyTemperatureTest(_ObservationHelper, absltest.TestCase):
     self.assertAlmostEqual(temp_sky_k, expected, places=4)
 
   def test_missing_temp_skips_entry(self):
-    obs_no_temp = self._make_observation_response(
+    obs_no_temp = _make_observation_response(
         {'dew_point_temperature_sensor': utils.celsius_to_kelvin(15.0)}
     )
-    obs_with_temp = self._make_observation_response(
+    obs_with_temp = _make_observation_response(
         {'outside_air_temperature_sensor': utils.celsius_to_kelvin(23.0)}
     )
     result = solar_radiation.get_replay_sky_temperature(
@@ -1163,11 +1149,11 @@ class GetReplaySkyTemperatureTest(_ObservationHelper, absltest.TestCase):
     self.assertLen(result, 1)
 
 
-class GetReplayIrradianceTest(_ObservationHelper, absltest.TestCase):
+class GetReplayIrradianceTest(absltest.TestCase):
   """Tests for get_replay_irradiance."""
 
   def test_sensors_present(self):
-    obs = self._make_observation_response({
+    obs = _make_observation_response({
         'ghi_sensor': 800.0,
         'dni_sensor': 700.0,
         'dhi_sensor': 100.0,
@@ -1181,7 +1167,7 @@ class GetReplayIrradianceTest(_ObservationHelper, absltest.TestCase):
     self.assertIsNotNone(irrad.timestamp)
 
   def test_sensors_absent_returns_defaults(self):
-    obs = self._make_observation_response({'some_other_sensor': 999.0})
+    obs = _make_observation_response({'some_other_sensor': 999.0})
     result = solar_radiation.get_replay_irradiance([obs])
     self.assertLen(result, 1)
     irrad = result[0]
@@ -1190,11 +1176,11 @@ class GetReplayIrradianceTest(_ObservationHelper, absltest.TestCase):
     self.assertEqual(irrad.dhi, 0.0)
 
   def test_multiple_observations(self):
-    obs1 = self._make_observation_response(
+    obs1 = _make_observation_response(
         {'ghi_sensor': 500.0, 'dni_sensor': 400.0, 'dhi_sensor': 100.0},
         timestamp_seconds=1688212800,
     )
-    obs2 = self._make_observation_response(
+    obs2 = _make_observation_response(
         {'ghi_sensor': 0.0, 'dni_sensor': 0.0, 'dhi_sensor': 0.0},
         timestamp_seconds=1688216400,
     )
@@ -1204,23 +1190,23 @@ class GetReplayIrradianceTest(_ObservationHelper, absltest.TestCase):
     self.assertAlmostEqual(result[1].ghi, 0.0, places=4)
 
 
-class GetObservationValueTest(_ObservationHelper, absltest.TestCase):
+class GetObservationValueTest(absltest.TestCase):
   """Tests for _get_observation_value helper."""
 
   def test_value_found(self):
-    obs = self._make_observation_response({'ghi_sensor': 800.0})
+    obs = _make_observation_response({'ghi_sensor': 800.0})
     result = solar_radiation._get_observation_value(obs, 'ghi_sensor')
     self.assertEqual(result, 800.0)
 
   def test_value_not_found_returns_default(self):
-    obs = self._make_observation_response({'ghi_sensor': 800.0})
+    obs = _make_observation_response({'ghi_sensor': 800.0})
     result = solar_radiation._get_observation_value(
         obs, 'nonexistent_sensor', default=42.0
     )
     self.assertEqual(result, 42.0)
 
   def test_value_not_found_returns_none(self):
-    obs = self._make_observation_response({'ghi_sensor': 800.0})
+    obs = _make_observation_response({'ghi_sensor': 800.0})
     result = solar_radiation._get_observation_value(obs, 'nonexistent_sensor')
     self.assertIsNone(result)
 

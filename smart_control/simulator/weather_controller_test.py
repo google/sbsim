@@ -127,9 +127,7 @@ class ReplayWeatherControllerTest(parameterized.TestCase):
   def setUp(self):
     super().setUp()
     data_path = os.path.join(
-        os.path.dirname(__file__),
-        'solar_radiation_test_data',
-        'local_weather_test_data.csv',
+        os.path.dirname(__file__), 'local_weather_test_data.csv'
     )
     self.controller = weather_controller.ReplayWeatherController(
         local_weather_path=data_path, convection_coefficient=10.0

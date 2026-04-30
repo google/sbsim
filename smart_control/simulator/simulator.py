@@ -345,7 +345,7 @@ class Simulator:
       # q_lwx_idx is -1 if the CV does not have LWX
       q_lwx_idx = self.building.lwx_index[x, y]
       q_lwx = (
-          (q_lwx_array[q_lwx_idx] / conductivity / z)
+          (q_lwx_array[q_lwx_idx] * delta_x / conductivity)
           if q_lwx_idx != -1
           else 0.0
       )

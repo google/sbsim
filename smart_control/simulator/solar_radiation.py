@@ -3,11 +3,9 @@
 For computing irradiance components, solar position, and sky temperature.
 """
 
-from __future__ import annotations
-
 import dataclasses
 import math
-from typing import Final, Mapping, Sequence, TYPE_CHECKING
+from typing import Final, Mapping, Sequence
 
 import numpy as np
 import pandas as pd
@@ -15,10 +13,8 @@ from pvlib import irradiance as pvlib_irradiance
 from pvlib import location as pvlib_location
 
 from smart_control.simulator import constants
+from smart_control.simulator import weather_controller as wc_module
 from smart_control.utils import conversion_utils as utils
-
-if TYPE_CHECKING:
-  from smart_control.simulator import weather_controller as wc_module
 
 # ---------------------------------------------------------------------------
 # Valid irradiance method names
@@ -50,13 +46,17 @@ _CLOUD_COVER_SENSOR: Final[str] = 'cloud_cover_sensor'
 class BuildingInfo:
   """Information about the building under control.
 
+  On construction, `floor_plan_orientation` is validated to be within
+  [0, 360] degrees; a `ValueError` is raised otherwise.
+
   Attributes:
-    floor_plan_filepath: Path to the building's floor-plan ``.npy`` file.
+    floor_plan_filepath: Path to the building's floor-plan `.npy` file.
     floor_plan_orientation: Compass angle (degrees) of the floor-plan's
       "up" direction.  0 / 360 = North, 90 = East, 180 = South, 270 = West.
+      Must be between 0 and 360 inclusive.
     lat: Latitude of the building in decimal degrees.
     lon: Longitude of the building in decimal degrees.
-    time_zone: IANA time-zone string (e.g. ``"US/Pacific"``).
+    time_zone: IANA time-zone string (e.g. `"US/Pacific"`).
     altitude: Altitude above sea level in metres.  When *None* pvlib will
       attempt to look it up automatically.
   """
@@ -72,7 +72,7 @@ class BuildingInfo:
     self._validate_floor_plan_orientation()
 
   def _validate_floor_plan_orientation(self) -> None:
-    """Raise if ``floor_plan_orientation`` is outside [0, 360]."""
+    """Raise if `floor_plan_orientation` is outside [0, 360]."""
     if self.floor_plan_orientation < 0 or self.floor_plan_orientation > 360:
       raise ValueError(
           'Expecting floor_plan_orientation to be between 0 and 360, '
@@ -156,14 +156,14 @@ class SolarRadiation:
       dynamic cloud cover is configured, the clearsky model is used.
     cloud_cover_low: Low cloud cover in percent at midnight (dynamic mode).
     cloud_cover_high: High cloud cover in percent at noon (dynamic mode).
-    irradiance_method: One of ``'clearsky'``, ``'linear'``, or
-      ``'campbell_norman'``.
+    irradiance_method: One of `'clearsky'`, `'linear'`, or
+      `'campbell_norman'`.
   """
 
   def __init__(
       self,
       building_info: BuildingInfo | None = None,
-      weather_controller: 'wc_module.BaseWeatherController | None' = None,
+      weather_controller: wc_module.BaseWeatherController | None = None,
       dewpoint_depression: float = 5.0,
       cloud_cover: float | None = None,
       cloud_cover_low: float | None = None,
@@ -181,13 +181,22 @@ class SolarRadiation:
     self.cloud_cover_high = cloud_cover_high
     self.irradiance_method = irradiance_method
 
-    # --- validation -------------------------------------------------------
+    self._validate_irradiance_method()
+    self._validate_cloud_cover()
+    self._location = self._get_pvlib_location()
+
+  # ----- validation --------------------------------------------------------
+
+  def _validate_irradiance_method(self) -> None:
+    """Raise `ValueError` if `irradiance_method` is not recognised."""
     if self.irradiance_method not in IRRADIANCE_METHODS:
       raise ValueError(
           f'irradiance_method must be one of {IRRADIANCE_METHODS}, '
           f'got {self.irradiance_method!r}.'
       )
 
+  def _validate_cloud_cover(self) -> None:
+    """Raise `ValueError` if cloud-cover parameters are invalid."""
     if self.cloud_cover is not None:
       if self.cloud_cover < 0 or self.cloud_cover > 100:
         raise ValueError('cloud_cover must be between 0 and 100.')
@@ -207,13 +216,14 @@ class SolarRadiation:
             'cloud_cover_low cannot be greater than cloud_cover_high.'
         )
 
-    # --- pvlib location ---------------------------------------------------
+  def _get_pvlib_location(self) -> pvlib_location.Location:
+    """Construct and return the pvlib `Location` for this building."""
     kwargs: dict = dict(
         latitude=self.lat, longitude=self.lon, tz=self.time_zone
     )
     if self.building_info.altitude is not None:
       kwargs['altitude'] = self.building_info.altitude
-    self._location = pvlib_location.Location(**kwargs)
+    return pvlib_location.Location(**kwargs)
 
   # ----- timestamp helpers ------------------------------------------------
 
@@ -355,12 +365,12 @@ class SolarRadiation:
   def get_current_sky_temperature(self, timestamp: pd.Timestamp) -> float:
     """Return sky temperature in K using the Clark & Allen formula.
 
-    Requires ``weather_controller`` to have been set during construction so
+    Requires `weather_controller` to have been set during construction so
     that the dry-bulb temperature can be obtained.
 
     Args:
       timestamp: Pandas timestamp.  Passed as-is to the weather controller's
-        ``get_current_temp`` method.
+        `get_current_temp` method.
 
     Returns:
       Sky temperature in K.
@@ -399,7 +409,7 @@ class SolarRadiation:
 
   def get_exterior_radiation(
       self, timestamp: pd.Timestamp
-  ) -> 'ExteriorRadiationData':
+  ) -> ExteriorRadiationData:
     """Return ambient temperature, sky temperature, and irradiance at once.
 
     Convenience method for the simulator that needs all exterior radiation
@@ -409,11 +419,11 @@ class SolarRadiation:
     Args:
       timestamp: Pandas timestamp.  If naive, will be localised to the
         building's timezone for irradiance and sky-temperature calculations.
-        Passed as-is to ``weather_controller.get_current_temp()``.
+        Passed as-is to `weather_controller.get_current_temp()`.
 
     Returns:
-      :class:`ExteriorRadiationData` with ``ambient_temp_k``,
-      ``sky_temp_k``, and ``irradiance``.
+      :class:`ExteriorRadiationData` with `ambient_temp_k`,
+      `sky_temp_k`, and `irradiance`.
 
     Raises:
       ValueError: If no weather controller was provided.
@@ -459,17 +469,17 @@ def _get_observation_value(
 ):
   """Return the continuous value for a named measurement in an observation.
 
-  Searches the ``single_observation_responses`` of the given
-  *observation_response* for an entry whose ``measurement_name`` matches the
+  Searches the `single_observation_responses` of the given
+  *observation_response* for an entry whose `measurement_name` matches the
   requested name.
 
   Args:
-    observation_response: A single ``ObservationResponse`` proto.
+    observation_response: A single `ObservationResponse` proto.
     measurement_name: The sensor / measurement name to look up.
     default: Value to return when the measurement is not found.
 
   Returns:
-    The ``continuous_value`` of the matching observation, or *default* if no
+    The `continuous_value` of the matching observation, or *default* if no
     matching measurement is found.
   """
   for r in observation_response.single_observation_responses:
@@ -483,13 +493,13 @@ def get_replay_irradiance(
 ) -> Sequence[IrradianceComponents]:
   """Extract irradiance data from past observation protos.
 
-  Iterates over *observation_responses* and reads the ``ghi_sensor``,
-  ``dni_sensor``, and ``dhi_sensor`` measurements.  Solar zenith and azimuth
+  Iterates over *observation_responses* and reads the `ghi_sensor`,
+  `dni_sensor`, and `dhi_sensor` measurements.  Solar zenith and azimuth
   are set to 0.0 because they are not typically recorded in observation
   protos.
 
   Args:
-    observation_responses: Sequence of ``ObservationResponse`` protos.
+    observation_responses: Sequence of `ObservationResponse` protos.
 
   Returns:
     A list of :class:`IrradianceComponents`, one per observation.
@@ -521,11 +531,11 @@ def get_replay_temperatures(
   """Return temperature replays from past observations.
 
   Args:
-    observation_responses: Sequence of ``ObservationResponse`` protos.
+    observation_responses: Sequence of `ObservationResponse` protos.
 
   Returns:
     Mapping from timestamp string to temperature in Kelvin.  Entries missing
-    the ``outside_air_temperature_sensor`` measurement are mapped to -1.0.
+    the `outside_air_temperature_sensor` measurement are mapped to -1.0.
   """
   temps: dict[str, float] = {}
   for r in observation_responses:
@@ -541,11 +551,11 @@ def get_replay_cloud_cover(
   """Return cloud cover replays from past observations.
 
   Args:
-    observation_responses: Sequence of ``ObservationResponse`` protos.
+    observation_responses: Sequence of `ObservationResponse` protos.
 
   Returns:
     Mapping from timestamp string to cloud cover in percent (0–100).
-    Entries missing the ``cloud_cover_sensor`` measurement default to 0.0
+    Entries missing the `cloud_cover_sensor` measurement default to 0.0
     (clear sky).
   """
   cloud_covers: dict[str, float] = {}
@@ -565,11 +575,11 @@ def get_replay_sky_temperature(
   Calculates sky temperature using Clark & Allen formula from dry-bulb
   temperature and dew point.  If a dew-point sensor is not present in the
   observation, the dew point is estimated as
-  ``dry_bulb - dewpoint_depression``.  Observations that lack a dry-bulb
+  `dry_bulb - dewpoint_depression`.  Observations that lack a dry-bulb
   temperature are silently skipped.
 
   Args:
-    observation_responses: Sequence of ``ObservationResponse`` protos.
+    observation_responses: Sequence of `ObservationResponse` protos.
     dewpoint_depression: Difference between dry-bulb and dew-point
       temperatures in K.  Used when no dew-point sensor is available.
 
@@ -614,11 +624,11 @@ def calculate_poa_irradiance(
 
   Converts horizontal irradiance components (GHI, DNI, DHI) to the
   irradiance incident on a tilted surface using pvlib's
-  ``get_total_irradiance``.
+  `get_total_irradiance`.
 
   Args:
-    irradiance_components: :class:`IrradianceComponents` with ``ghi``,
-      ``dni``, and ``dhi`` fields (W/m²).
+    irradiance_components: :class:`IrradianceComponents` with `ghi`,
+      `dni`, and `dhi` fields (W/m²).
     surface_tilt: Surface tilt angle from horizontal in degrees
       (0 = horizontal, 90 = vertical).
     surface_azimuth: Surface azimuth angle in degrees (180 = south-facing
