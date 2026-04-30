@@ -3,6 +3,7 @@ from unittest import mock
 
 from absl.testing import absltest
 from absl.testing import parameterized
+import pandas as pd
 
 from smart_buildings.smart_control.environment import conftest as env_conftest
 from smart_buildings.smart_control.environment import environment
@@ -59,10 +60,13 @@ class DefaultAgentTest(parameterized.TestCase):
     self.env = self._create_environment()
     self.agent = self._create_agent(self.env)
 
-  def _create_environment(self) -> environment.Environment:
+  def _create_environment(
+      self, start_timestamp: pd.Timestamp | None = None
+  ) -> environment.Environment:
     return env_conftest.create_environment(
         layout=env_conftest.DEMO_LAYOUT,
         default_actions=env_conftest.DEFAULT_ACTIONS,
+        start_timestamp=start_timestamp,
     )
 
   def _create_agent(
@@ -85,6 +89,7 @@ class DefaultAgentTest(parameterized.TestCase):
                 "action_names": self.env.action_names,
                 "default_values": self.env.default_action_values,
             },
+            "clip": True,
         },
     )
 
@@ -133,10 +138,13 @@ class DefaultAgentTest(parameterized.TestCase):
 
 class DefaultHybridActionAgentTest(DefaultAgentTest):
 
-  def _create_environment(self):
+  def _create_environment(
+      self, start_timestamp: pd.Timestamp | None = None
+  ) -> hybrid_action_environment.HybridActionEnvironment:
     return env_conftest.create_hybrid_action_environment(
         layout=env_conftest.DEMO_LAYOUT,
         default_actions=env_conftest.DEFAULT_HYBRID_ACTIONS,
+        start_timestamp=start_timestamp,
     )
 
   def test_environment(self):

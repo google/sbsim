@@ -20,6 +20,8 @@ from typing import Literal, TypeAlias
 
 import pydantic
 
+from smart_buildings.smart_control.utils import serialization
+
 Field = pydantic.Field
 
 DEFAULT_VALIDITY_INTERVALS = (5, 10, 15, 20, 30, 45, 60, 75, 90, 120)
@@ -69,6 +71,11 @@ class DeviceSetpoint(pydantic.BaseModel):
       description="The reason for choosing this specific device setting."
   )
 
+  @property
+  def json_metadata(self) -> serialization.SerializableData:
+    """JSON-serializable metadata."""
+    return self.model_dump()
+
 
 class SetpointsAction(pydantic.BaseModel):
   """A flexible action model for setting any number of setpoints.
@@ -114,6 +121,11 @@ class SetpointsAction(pydantic.BaseModel):
       ):
         return setpoint
     return None
+
+  @property
+  def json_metadata(self) -> serialization.SerializableData:
+    """Serializable metadata."""
+    return self.model_dump()
 
 
 def create_action_model(

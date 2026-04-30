@@ -2,6 +2,7 @@ from typing import get_args
 from unittest import mock
 
 from absl.testing import absltest
+import pandas as pd
 import pydantic
 from smart_buildings.smart_control.environment import conftest as env_conftest
 from smart_buildings.smart_control.environment import environment
@@ -16,9 +17,7 @@ class ActionContextTest(output_schema_test.ActionTest):
   def setUp(self):
     super().setUp()
     self.env = env_conftest.create_environment(layout=env_conftest.DEMO_LAYOUT)
-    self.action_ctx = action_context.ActionContext(
-        env=self.env, **self.action.model_dump()
-    )
+    self.action_ctx = schema_conftest.create_action_context(env=self.env)
 
   def test_initialization(self):
     self.assertIsInstance(self.action_ctx, action_context.ActionContext)
@@ -67,6 +66,65 @@ class ActionContextTest(output_schema_test.ActionTest):
     with self.assertRaisesRegex(KeyError, "\\('air_handler_1', 'OOPS'\\)"):
       self.action_ctx.get_action_values()
 
+  def test_setpoints_df(self):
+    df = self.action_ctx.setpoints_df
+    expected_df = pd.DataFrame([
+        {
+            "timestamp": "2025-01-01 12:00:00",
+            "validity_interval": 60,
+            "justification": "These are my overall goals.",
+            "action_name": (
+                "air_handler_1_supply_air_heating_temperature_setpoint"
+            ),
+            "device_id": "air_handler_1",
+            "setpoint_name": "supply_air_heating_temperature_setpoint",
+            "setpoint_value": 285.0,
+            "setpoint_justification": "To cool the air.",
+        },
+        {
+            "timestamp": "2025-01-01 12:00:00",
+            "validity_interval": 60,
+            "justification": "These are my overall goals.",
+            "action_name": "boiler_1_supply_water_setpoint",
+            "device_id": "boiler_1",
+            "setpoint_name": "supply_water_setpoint",
+            "setpoint_value": 310.0,
+            "setpoint_justification": "To heat the water.",
+        },
+        {
+            "timestamp": "2025-01-01 12:00:00",
+            "validity_interval": 60,
+            "justification": "These are my overall goals.",
+            "action_name": (
+                "air_handler_2_supply_air_heating_temperature_setpoint"
+            ),
+            "device_id": "air_handler_2",
+            "setpoint_name": "supply_air_heating_temperature_setpoint",
+            "setpoint_value": 285.0,
+            "setpoint_justification": "To cool the air.",
+        },
+    ])
+    pd.testing.assert_frame_equal(df, expected_df)
+
+  def test_flattened_setpoints_record(self):
+    record = self.action_ctx.flattened_setpoints_record
+    expected_record = {
+        "timestamp": "2025-01-01 12:00:00",
+        "validity_interval": 60,
+        "justification": "These are my overall goals.",
+        "air_handler_1_supply_air_heating_temperature_setpoint": 285.0,
+        "air_handler_1_supply_air_heating_temperature_setpoint_justification": (
+            "To cool the air."
+        ),
+        "boiler_1_supply_water_setpoint": 310.0,
+        "boiler_1_supply_water_setpoint_justification": "To heat the water.",
+        "air_handler_2_supply_air_heating_temperature_setpoint": 285.0,
+        "air_handler_2_supply_air_heating_temperature_setpoint_justification": (
+            "To cool the air."
+        ),
+    }
+    self.assertDictEqual(record, expected_record)
+
 
 class HybridActionContextTest(output_schema_test.HybridActionTest):
 
@@ -75,9 +133,7 @@ class HybridActionContextTest(output_schema_test.HybridActionTest):
     self.env = env_conftest.create_hybrid_action_environment(
         layout=env_conftest.DEMO_LAYOUT
     )
-    self.action_ctx = action_context.HybridActionContext(
-        env=self.env, **self.action.model_dump()
-    )
+    self.action_ctx = schema_conftest.create_hybrid_action_context(env=self.env)
 
   def test_initialization(self):
     self.assertIsInstance(self.action_ctx, action_context.HybridActionContext)
@@ -128,6 +184,107 @@ class HybridActionContextTest(output_schema_test.HybridActionTest):
             "discrete_action": [1.0, 1.0, 1.0],
         },
     )
+
+  def test_setpoints_df(self):
+    df = self.action_ctx.setpoints_df
+    expected_df = pd.DataFrame([
+        {
+            "timestamp": "2025-01-01 12:00:00",
+            "validity_interval": 60,
+            "justification": "These are my overall goals.",
+            "action_name": (
+                "air_handler_1_supply_air_heating_temperature_setpoint"
+            ),
+            "device_id": "air_handler_1",
+            "setpoint_name": "supply_air_heating_temperature_setpoint",
+            "setpoint_value": 285.0,
+            "setpoint_justification": "To cool the air.",
+        },
+        {
+            "timestamp": "2025-01-01 12:00:00",
+            "validity_interval": 60,
+            "justification": "These are my overall goals.",
+            "action_name": "air_handler_1_supervisor_run_command",
+            "device_id": "air_handler_1",
+            "setpoint_name": "supervisor_run_command",
+            "setpoint_value": 1.0,
+            "setpoint_justification": "To turn the device on.",
+        },
+        {
+            "timestamp": "2025-01-01 12:00:00",
+            "validity_interval": 60,
+            "justification": "These are my overall goals.",
+            "action_name": "boiler_1_supply_water_setpoint",
+            "device_id": "boiler_1",
+            "setpoint_name": "supply_water_setpoint",
+            "setpoint_value": 310.0,
+            "setpoint_justification": "To heat the water.",
+        },
+        {
+            "timestamp": "2025-01-01 12:00:00",
+            "validity_interval": 60,
+            "justification": "These are my overall goals.",
+            "action_name": "boiler_1_supervisor_run_command",
+            "device_id": "boiler_1",
+            "setpoint_name": "supervisor_run_command",
+            "setpoint_value": 1.0,
+            "setpoint_justification": "To turn the device on.",
+        },
+        {
+            "timestamp": "2025-01-01 12:00:00",
+            "validity_interval": 60,
+            "justification": "These are my overall goals.",
+            "action_name": (
+                "air_handler_2_supply_air_heating_temperature_setpoint"
+            ),
+            "device_id": "air_handler_2",
+            "setpoint_name": "supply_air_heating_temperature_setpoint",
+            "setpoint_value": 285.0,
+            "setpoint_justification": "To cool the air.",
+        },
+        {
+            "timestamp": "2025-01-01 12:00:00",
+            "validity_interval": 60,
+            "justification": "These are my overall goals.",
+            "action_name": "air_handler_2_supervisor_run_command",
+            "device_id": "air_handler_2",
+            "setpoint_name": "supervisor_run_command",
+            "setpoint_value": 1.0,
+            "setpoint_justification": "To turn the device on.",
+        },
+    ])
+    pd.testing.assert_frame_equal(df, expected_df)
+
+  def test_flattened_setpoints_record(self):
+    record = self.action_ctx.flattened_setpoints_record
+    expected_record = {
+        "timestamp": "2025-01-01 12:00:00",
+        "validity_interval": 60,
+        "justification": "These are my overall goals.",
+        "air_handler_1_supervisor_run_command": 1.0,
+        "air_handler_1_supervisor_run_command_justification": (
+            "To turn the device on."
+        ),
+        "air_handler_2_supervisor_run_command": 1.0,
+        "air_handler_2_supervisor_run_command_justification": (
+            "To turn the device on."
+        ),
+        "boiler_1_supervisor_run_command": 1.0,
+        "boiler_1_supervisor_run_command_justification": (
+            "To turn the device on."
+        ),
+        "air_handler_1_supply_air_heating_temperature_setpoint": 285.0,
+        "air_handler_1_supply_air_heating_temperature_setpoint_justification": (
+            "To cool the air."
+        ),
+        "air_handler_2_supply_air_heating_temperature_setpoint": 285.0,
+        "air_handler_2_supply_air_heating_temperature_setpoint_justification": (
+            "To cool the air."
+        ),
+        "boiler_1_supply_water_setpoint": 310.0,
+        "boiler_1_supply_water_setpoint_justification": "To heat the water.",
+    }
+    self.assertDictEqual(record, expected_record)
 
 
 #
@@ -374,6 +531,47 @@ class HybridActionContextWithCustomValidityIntervalsTest(
   def test_initialization(self):
     self.assertTrue(issubclass(self.schema, action_context.ActionContext))
     self.assertTrue(issubclass(self.schema, action_context.HybridActionContext))
+
+
+#
+# FACTORY FUNCTION TESTS
+#
+
+
+class ActionContextFactoryTest(absltest.TestCase):
+
+  def test_defaults(self):
+    action_ctx = schema_conftest.create_action_context()
+    self.assertIsInstance(action_ctx, action_context.ActionContext)
+
+  def test_overrides(self):
+    env = env_conftest.create_environment(layout=env_conftest.DEMO_LAYOUT)
+    action = schema_conftest.create_action()
+    action.justification = "Custom justification."
+
+    action_ctx = schema_conftest.create_action_context(env=env, action=action)
+    self.assertIsInstance(action_ctx, action_context.ActionContext)
+    self.assertEqual(action_ctx.justification, "Custom justification.")
+
+
+class HybridActionContextFactoryTest(ActionContextFactoryTest):
+
+  def test_defaults(self):
+    action_ctx = schema_conftest.create_hybrid_action_context()
+    self.assertIsInstance(action_ctx, action_context.HybridActionContext)
+
+  def test_overrides(self):
+    env = env_conftest.create_hybrid_action_environment(
+        layout=env_conftest.DEMO_LAYOUT
+    )
+    action = schema_conftest.create_hybrid_action()
+    action.justification = "Custom justification."
+
+    action_ctx = schema_conftest.create_hybrid_action_context(
+        env=env, action=action
+    )
+    self.assertIsInstance(action_ctx, action_context.HybridActionContext)
+    self.assertEqual(action_ctx.justification, "Custom justification.")
 
 
 if __name__ == "__main__":

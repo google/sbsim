@@ -27,9 +27,11 @@ import abc
 from collections.abc import Sequence, Collection
 import dataclasses
 import json
-from typing import Literal, Self
+from typing import Any, Literal, Self
 
+import pandas as pd
 import pydantic
+
 from smart_buildings.smart_control.environment import environment
 from smart_buildings.smart_control.environment import hybrid_action_environment
 from smart_buildings.smart_control.llm.schema import output_schema
@@ -258,6 +260,46 @@ class ActionContext(output_schema.SetpointsAction, Steppable):
   def get_action(self) -> SteppableActionType:
     """Returns the action used to step the environment."""
     return self.get_action_values()
+
+  @property
+  def setpoint_records(self) -> list[dict[str, Any]]:
+    """The setpoints as a list of records (dictionaries)."""
+    return [
+        {
+            "timestamp": self.timestamp,
+            "validity_interval": self.validity_interval,
+            "justification": self.justification,
+            "action_name": self.env.id_map[(sp.device_id, sp.setpoint_name)],
+            "device_id": sp.device_id,
+            "setpoint_name": sp.setpoint_name,
+            "setpoint_value": sp.setpoint_value,
+            "setpoint_justification": sp.justification,
+        }
+        for sp in self.sorted_setpoints
+    ]
+
+  @property
+  def setpoints_df(self) -> pd.DataFrame:
+    """The setpoints as a pandas DataFrame."""
+    return pd.DataFrame(self.setpoint_records)
+
+  @property
+  def flattened_setpoints_record(self) -> dict[str, Any]:
+    """A flattened dictionary of setpoint records. No nesting.
+
+    The dictionary has keys for each action_name and setpoint value,
+    and a second set of keys for each action_name and setpoint justification.
+    """
+    record = {
+        "timestamp": self.timestamp,
+        "validity_interval": self.validity_interval,
+        "justification": self.justification,
+    }
+    for sp in self.sorted_setpoints:
+      action_name = self.env.id_map[(sp.device_id, sp.setpoint_name)]
+      record[action_name] = sp.setpoint_value
+      record[f"{action_name}_justification"] = sp.justification
+    return record
 
 
 class HybridActionContext(ActionContext, Steppable):

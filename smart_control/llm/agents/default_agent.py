@@ -8,7 +8,9 @@ child classes to inherit from, and can be useful for testing and debugging the
 agent control loop.
 """
 
-from typing import Any, Final
+from typing import Final
+
+import numpy as np
 
 from smart_buildings.smart_control.environment import environment
 from smart_buildings.smart_control.environment import hybrid_action_environment
@@ -17,9 +19,8 @@ from smart_buildings.smart_control.llm.schema import action_context
 from smart_buildings.smart_control.llm.schema import output_schema
 from smart_buildings.smart_control.proto import smart_control_building_pb2 as building_pb2
 from smart_buildings.smart_control.proto import smart_control_reward_pb2 as reward_pb2
+from smart_buildings.smart_control.utils import serialization
 
-
-SerializableData = dict[str, Any]
 
 DEFAULT_JUSTIFICATION: Final[str] = "Default action."
 DEFAULT_SETPOINT_JUSTIFICATION: Final[str] = "Default value."
@@ -44,6 +45,7 @@ class DefaultPolicyAgent(base_agent.BaseControlAgent):
         setpoint values to the valid range, and logs a record of the error.
         Defaults to `True`.
     """
+    super().__init__()
     self._clip = clip
     self.env = self._validate_environment(env)
 
@@ -66,13 +68,14 @@ class DefaultPolicyAgent(base_agent.BaseControlAgent):
     return env
 
   @property
-  def json_metadata(self) -> SerializableData:
+  def json_metadata(self) -> serialization.SerializableData:
     """Info about the agent and its setup, to be written to a JSON file."""
     return super().json_metadata | {
         "default_policy": {
             "action_names": self.env.action_names,
             "default_values": self.env.default_action_values,
-        }
+        },
+        "clip": self._clip,
     }
 
   @property
@@ -94,7 +97,7 @@ class DefaultPolicyAgent(base_agent.BaseControlAgent):
         raise ValueError(f"No normalizer found for setpoint: {action_name}")
 
       device_id, setpoint_name = self.env.id_map.inv[action_name]
-      native_value = normalizer.setpoint_value(normalized_value)
+      native_value = normalizer.setpoint_value(np.array(normalized_value))
       setpoints.append(
           output_schema.DeviceSetpoint(
               device_id=device_id,

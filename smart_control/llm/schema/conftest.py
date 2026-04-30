@@ -12,7 +12,10 @@ import re
 import textwrap
 from typing import Any
 
+from smart_buildings.smart_control.environment import conftest as env_conftest
+from smart_buildings.smart_control.environment import environment
 from smart_buildings.smart_control.environment import hybrid_action_environment
+from smart_buildings.smart_control.llm.schema import action_context
 from smart_buildings.smart_control.llm.schema import output_schema
 
 DISCRETE_ACTION_COMMAND = hybrid_action_environment.DISCRETE_ACTION_COMMAND
@@ -179,6 +182,16 @@ def create_action() -> output_schema.SetpointsAction:
   )
 
 
+def create_action_context(
+    env: environment.Environment | None = None,
+    action: output_schema.SetpointsAction | None = None,
+) -> action_context.ActionContext:
+  """Creates an action context for the continuous action environment."""
+  env = env or env_conftest.create_environment(layout=env_conftest.DEMO_LAYOUT)
+  action = action or create_action()
+  return action_context.ActionContext(env=env, **action.model_dump())
+
+
 def create_action_with_custom_intervals(
     validity_intervals: Sequence[int] = DEFAULT_VALIDITY_INTERVALS,
     selected_interval: int = 60,
@@ -327,6 +340,18 @@ def create_hybrid_action() -> output_schema.SetpointsAction:
           create_supply_water_setpoint("boiler_1"),
       ],
   )
+
+
+def create_hybrid_action_context(
+    env: hybrid_action_environment.HybridActionEnvironment | None = None,
+    action: output_schema.SetpointsAction | None = None,
+) -> action_context.HybridActionContext:
+  """Creates an action context for the hybrid action environment."""
+  env = env or env_conftest.create_hybrid_action_environment(
+      layout=env_conftest.DEMO_LAYOUT
+  )
+  action = action or create_hybrid_action()
+  return action_context.HybridActionContext(env=env, **action.model_dump())
 
 
 def create_hybrid_action_with_custom_intervals(
