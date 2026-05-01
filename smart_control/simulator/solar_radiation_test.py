@@ -820,10 +820,51 @@ class SolarRadiationPvlibValidationTest(IrradianceTestBase):
 # IrradianceDecompositionPvlibValidationTest (TMY3 data)
 # ---------------------------------------------------------------------------
 class IrradianceDecompositionPvlibValidationTest(parameterized.TestCase):
-  """Validate pvlib irradiance decomposition methods using TMY3 data."""
+  """Validate pvlib irradiance decomposition methods using TMY3 data.
+
+  Uses sample TMY3 data for Greensboro Piedmont Triad International Airport
+  (USAF 723170) obtained from the pvlib-python repository:
+  https://github.com/pvlib/pvlib-python/blob/main/pvlib/data/723170TYA.CSV
+
+  Station metadata::
+
+      USAF:      723170
+      Name:      "GREENSBORO PIEDMONT TRIAD INT"
+      State:     NC
+      TZ:        -5.0 (US/Eastern)
+      Latitude:  36.1
+      Longitude: -79.95
+      Altitude:  273.0 m
+
+  For details on the TMY3 file format, see:
+
+  > Wilcox, S and Marion, W. "Users Manual for TMY3 Data Sets (Revised).",
+  > May. 2008. https://doi.org/10.2172/928611
+
+  The test methods below compare our irradiance calculations against pvlib
+  reference implementations, following the transposition-gain validation
+  example in the pvlib documentation:
+  https://github.com/pvlib/pvlib-python/blob/main/docs/examples/irradiance-transposition/plot_transposition_gain.py
+
+  Attributes:
+    tmy3_data: A ``pandas.DataFrame`` of TMY3 weather observations read by
+      ``pvlib.iotools.read_tmy3`` with timestamps coerced to 1990.
+    metadata: A ``dict`` of station metadata returned by ``read_tmy3``
+      (latitude, longitude, altitude, time zone, etc.).
+    solpos: A ``pandas.DataFrame`` of solar-position angles computed by
+      ``pvlib.solarposition.get_solarposition`` at the midpoint of each
+      hourly TMY interval.
+  """
 
   @classmethod
   def setUpClass(cls):
+    """Load TMY3 data and pre-compute solar positions for all tests.
+
+    Reads the ``723170TYA.CSV`` file (Greensboro, NC) with pvlib's
+    ``read_tmy3``, coercing all timestamps to 1990.  Solar positions are
+    computed at the midpoint of each hourly interval (shifted by −30 min)
+    following pvlib conventions for TMY data.
+    """
     from pvlib.iotools import read_tmy3  # pylint: disable=import-outside-toplevel
     from pvlib.solarposition import get_solarposition  # pylint: disable=import-outside-toplevel
 
@@ -1195,19 +1236,19 @@ class GetObservationValueTest(absltest.TestCase):
 
   def test_value_found(self):
     obs = _make_observation_response({'ghi_sensor': 800.0})
-    result = solar_radiation._get_observation_value(obs, 'ghi_sensor')
+    result = solar_radiation._get_observation_value(obs, 'ghi_sensor')  # pylint: disable=protected-access
     self.assertEqual(result, 800.0)
 
   def test_value_not_found_returns_default(self):
     obs = _make_observation_response({'ghi_sensor': 800.0})
-    result = solar_radiation._get_observation_value(
+    result = solar_radiation._get_observation_value(  # pylint: disable=protected-access
         obs, 'nonexistent_sensor', default=42.0
     )
     self.assertEqual(result, 42.0)
 
   def test_value_not_found_returns_none(self):
     obs = _make_observation_response({'ghi_sensor': 800.0})
-    result = solar_radiation._get_observation_value(obs, 'nonexistent_sensor')
+    result = solar_radiation._get_observation_value(obs, 'nonexistent_sensor')  # pylint: disable=protected-access
     self.assertIsNone(result)
 
 

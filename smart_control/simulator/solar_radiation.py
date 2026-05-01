@@ -639,12 +639,20 @@ def calculate_poa_irradiance(
   Returns:
     POA global irradiance in W/m².
 
-  Example:
-    >>> irrad = IrradianceComponents(
-    ...     ghi=800.0, dni=700.0, dhi=100.0,
-    ...     solar_zenith=30.0, solar_azimuth=180.0)
-    >>> poa = calculate_poa_irradiance(irrad, surface_tilt=30.0,
-    ...     surface_azimuth=180.0, solar_zenith=30.0, solar_azimuth=180.0)
+  Examples:
+    ```python
+    irrad = IrradianceComponents(
+        ghi=800.0, dni=700.0, dhi=100.0,
+        solar_zenith=30.0, solar_azimuth=180.0,
+    )
+    poa = calculate_poa_irradiance(
+        irrad,
+        surface_tilt=30.0,
+        surface_azimuth=180.0,
+        solar_zenith=30.0,
+        solar_azimuth=180.0,
+    )
+    ```
   """
   poa_irrad = pvlib_irradiance.get_total_irradiance(
       surface_tilt=surface_tilt,
