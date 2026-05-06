@@ -105,6 +105,8 @@ class VavTest(parameterized.TestCase):
         a,
         device_id='device_id',
         zone_id='zone_id',
+        initial_zone_air_heating_temperature_setpoint=290.0,
+        initial_zone_air_cooling_temperature_setpoint=300.0,
     )
 
     self.assertEqual(v.max_air_flow_rate, max_air_flow_rate)
@@ -118,6 +120,8 @@ class VavTest(parameterized.TestCase):
     self.assertEqual(v.zone_air_temperature, 0)
     self.assertEqual(v._device_id, 'device_id')
     self.assertEqual(v._zone_id, 'zone_id')
+    self.assertEqual(v.zone_air_heating_temperature_setpoint, 290.0)
+    self.assertEqual(v.zone_air_cooling_temperature_setpoint, 300.0)
 
   def test_init_default(self):
     max_air_flow_rate = 0.6
@@ -129,6 +133,8 @@ class VavTest(parameterized.TestCase):
 
     self.assertIsNotNone(v._device_id)
     self.assertIsNotNone(v._zone_id)
+    self.assertEqual(v.zone_air_heating_temperature_setpoint, 294.0)
+    self.assertEqual(v.zone_air_cooling_temperature_setpoint, 297.0)
 
   def test_setters(self):
     max_air_flow_rate = 0.6
@@ -164,14 +170,14 @@ class VavTest(parameterized.TestCase):
       v.damper_setting = -0.1
 
   @parameterized.parameters(
-      (pd.Timestamp('2021-05-09 14:00'), 293, 0.1, 0.0),
-      (pd.Timestamp('2021-05-10 09:00'), 296, 1.0, 0.0),
-      (pd.Timestamp('2021-05-12 09:00'), 291, 1.0, 1.0),
-      (pd.Timestamp('2021-05-12 17:59'), 291, 1.0, 1.0),
-      (pd.Timestamp('2021-05-11 03:00'), 288, 1.0, 1.0),
-      (pd.Timestamp('2021-05-11 03:00'), 291, 0.1, 0.0),
-      (pd.Timestamp('2021-05-11 22:00'), 298, 1.0, 0.0),
-      (pd.Timestamp('2021-05-11 22:00'), 297, 0.1, 0.0),
+      (pd.Timestamp('2021-05-09 14:00'), 293, 0.1, 0.0, 290, 297),
+      (pd.Timestamp('2021-05-10 09:00'), 296, 1.0, 0.0, 292, 295),
+      (pd.Timestamp('2021-05-12 09:00'), 291, 1.0, 1.0, 292, 295),
+      (pd.Timestamp('2021-05-12 17:59'), 291, 1.0, 1.0, 292, 295),
+      (pd.Timestamp('2021-05-11 03:00'), 288, 1.0, 1.0, 290, 297),
+      (pd.Timestamp('2021-05-11 03:00'), 291, 0.1, 0.0, 290, 297),
+      (pd.Timestamp('2021-05-11 22:00'), 298, 1.0, 0.0, 290, 297),
+      (pd.Timestamp('2021-05-11 22:00'), 297, 0.1, 0.0, 290, 297),
   )
   def test_update_settings(
       self,
@@ -179,6 +185,8 @@ class VavTest(parameterized.TestCase):
       zone_temp,
       expected_damper_setting,
       expected_reheat_valve_setting,
+      expected_heating_setpoint,
+      expected_cooling_setpoint,
   ):
     max_air_flow_rate = 0.6
     reheat_max_water_flow_factor = 0.4
@@ -192,6 +200,12 @@ class VavTest(parameterized.TestCase):
     v.update_settings(zone_temp, current_timestamp)
     self.assertEqual(expected_damper_setting, v._damper_setting)
     self.assertEqual(expected_reheat_valve_setting, v._reheat_valve_setting)
+    self.assertEqual(
+        expected_heating_setpoint, v.zone_air_heating_temperature_setpoint
+    )
+    self.assertEqual(
+        expected_cooling_setpoint, v.zone_air_cooling_temperature_setpoint
+    )
 
   @parameterized.parameters(
       (0.5, 0.4, 270, 260),
@@ -482,12 +496,22 @@ class VavTest(parameterized.TestCase):
             'supply_air_damper_percentage_command',
             'supply_air_flowrate_setpoint',
             'zone_air_temperature_sensor',
+            'zone_air_heating_temperature_setpoint_sensor',
+            'zone_air_cooling_temperature_setpoint_sensor',
         ],
     )
 
   @parameterized.parameters(
       ('supply_air_damper_percentage_command', 'damper_setting'),
       ('supply_air_flowrate_setpoint', 'max_air_flow_rate'),
+      (
+          'zone_air_heating_temperature_setpoint_sensor',
+          'zone_air_heating_temperature_setpoint',
+      ),
+      (
+          'zone_air_cooling_temperature_setpoint_sensor',
+          'zone_air_cooling_temperature_setpoint',
+      ),
   )
   def test_observations(self, observation_name, attribute_name):
     max_air_flow_rate = 0.6

@@ -41,6 +41,8 @@ class Vav(smart_device.SmartDevice):
       device_id: Optional[str] = None,
       zone_id: Optional[str] = None,
       max_air_flow_static_pressure: Optional[float] = 20000.0,
+      initial_zone_air_heating_temperature_setpoint: float = 294.0,
+      initial_zone_air_cooling_temperature_setpoint: float = 297.0,
   ):
     observable_fields = {
         'supply_air_damper_percentage_command': smart_device.AttributeInfo(
@@ -51,6 +53,16 @@ class Vav(smart_device.SmartDevice):
         ),
         'zone_air_temperature_sensor': smart_device.AttributeInfo(
             'zone_air_temperature', float
+        ),
+        'zone_air_heating_temperature_setpoint_sensor': (
+            smart_device.AttributeInfo(
+                'zone_air_heating_temperature_setpoint', float
+            )
+        ),
+        'zone_air_cooling_temperature_setpoint_sensor': (
+            smart_device.AttributeInfo(
+                'zone_air_cooling_temperature_setpoint', float
+            )
         ),
     }
     action_fields = {
@@ -78,6 +90,12 @@ class Vav(smart_device.SmartDevice):
     self._init_damper_setting = 0.1
     self._init_thermostat = therm
     self._init_zone_air_temperature = 0
+    self._zone_air_heating_temperature_setpoint = (
+        initial_zone_air_heating_temperature_setpoint
+    )
+    self._zone_air_cooling_temperature_setpoint = (
+        initial_zone_air_cooling_temperature_setpoint
+    )
     self.reset()
     self._hot_water_system = hot_water_system
     self._air_handler = air_handler
@@ -89,6 +107,14 @@ class Vav(smart_device.SmartDevice):
     self._damper_setting = self._init_damper_setting
     self._thermostat = self._init_thermostat
     self._zone_air_temperature = self._init_zone_air_temperature
+
+  @property
+  def zone_air_heating_temperature_setpoint(self) -> float:
+    return self._zone_air_heating_temperature_setpoint
+
+  @property
+  def zone_air_cooling_temperature_setpoint(self) -> float:
+    return self._zone_air_cooling_temperature_setpoint
 
   @property
   def thermostat(self) -> thermostat.Thermostat:
@@ -258,6 +284,14 @@ class Vav(smart_device.SmartDevice):
       current_timestamp: Pandas timestamp representing current time.
     """
     self._zone_air_temperature = zone_temp
+
+    temperature_window = (
+        self._thermostat.get_setpoint_schedule().get_temperature_window(
+            current_timestamp
+        )
+    )
+    self._zone_air_heating_temperature_setpoint = temperature_window[0]
+    self._zone_air_cooling_temperature_setpoint = temperature_window[1]
     mode = self._thermostat.update(zone_temp, current_timestamp)
     if mode == thermostat.Thermostat.Mode.HEAT:
       self.damper_setting = 1.0
