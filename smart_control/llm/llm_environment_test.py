@@ -12,6 +12,7 @@ from smart_buildings.smart_control.environment import environment
 from smart_buildings.smart_control.environment import hybrid_action_environment
 from smart_buildings.smart_control.models import base_building
 from smart_buildings.smart_control.models import base_reward_function
+from smart_buildings.smart_control.utils import bounded_action_normalizer
 from smart_buildings.smart_control.utils import building_image_generator
 from smart_buildings.smart_control.utils import controller_writer
 from smart_buildings.smart_control.utils import observation_normalizer
@@ -45,8 +46,14 @@ class LLMEnvironmentTest(parameterized.TestCase):
           observation_normalizer.StandardScoreObservationNormalizer,
       )
 
-    with self.subTest(name="action_config"):
-      self.assertIsInstance(self.env.action_config, environment.ActionConfig)
+    with self.subTest(name="action_normalizers"):
+      self.assertIsInstance(self.env.action_normalizers, dict)
+
+      bounded_normalizers = [
+          isinstance(n, bounded_action_normalizer.BoundedActionNormalizer)
+          for n in self.env.action_normalizers.values()
+      ]
+      self.assertTrue(all(bounded_normalizers))
 
     with self.subTest(name="default_actions"):
       self.assertEqual(
@@ -362,8 +369,13 @@ class LLMHybridActionEnvironmentTest(parameterized.TestCase):
           observation_normalizer.StandardScoreObservationNormalizer,
       )
 
-    with self.subTest(name="action_config"):
-      self.assertIsInstance(self.env.action_config, environment.ActionConfig)
+    with self.subTest(name="action_normalizers"):
+      self.assertIsInstance(self.env.action_normalizers, dict)
+
+      self.assertEqual(
+          set(type(n) for n in self.env.action_normalizers.values()),
+          {bounded_action_normalizer.BoundedActionNormalizer},
+      )
 
     with self.subTest(name="default_actions"):
       self.assertEqual(

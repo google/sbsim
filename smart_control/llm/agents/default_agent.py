@@ -92,11 +92,11 @@ class DefaultPolicyAgent(base_agent.BaseControlAgent):
     for action_name, normalized_value in zip(
         self.env.action_names, self.env.default_action_values
     ):
-      normalizer = self.env.action_normalizers.get(action_name)
-      if normalizer is None:
-        raise ValueError(f"No normalizer found for setpoint: {action_name}")
-
       device_id, setpoint_name = self.env.id_map.inv[action_name]
+      normalizer = self.env.action_normalizers.get(setpoint_name)
+      if normalizer is None:
+        raise ValueError(f"No normalizer found for setpoint: {setpoint_name}")
+
       native_value = normalizer.setpoint_value(np.array(normalized_value))
       setpoints.append(
           output_schema.DeviceSetpoint(

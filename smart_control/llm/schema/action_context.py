@@ -193,7 +193,7 @@ class ActionContext(output_schema.SetpointsAction, Steppable):
         ) from err
       setpoint_action_names.add(action_name)
 
-      normalizer = self.env.action_normalizers.get(action_name)
+      normalizer = self.env.action_normalizers.get(setpoint_name)
       if normalizer is None:
         raise ValueError(
             f"Normalizer not found for setpoint: {action_name!r}"
@@ -251,7 +251,7 @@ class ActionContext(output_schema.SetpointsAction, Steppable):
     normalized_values = []
     for sp in self.sorted_setpoints:
       action_name = self.env.id_map[(sp.device_id, sp.setpoint_name)]
-      normalizer = self.env.action_normalizers.get(action_name)
+      normalizer = self.env.action_normalizers.get(sp.setpoint_name)
       if normalizer is None:
         raise ValueError(f"No normalizer found for setpoint: {action_name!r}.")
       normalized_values.append(normalizer.agent_value(sp.setpoint_value))

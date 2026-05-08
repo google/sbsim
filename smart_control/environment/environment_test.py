@@ -907,5 +907,118 @@ class EnvironmentTest(parameterized.TestCase, tf.test.TestCase):
     )
 
 
+class DefaultActionsTest(parameterized.TestCase):
+
+  def setUp(self):
+    super().setUp()
+    self.building = environment_test_utils.SimpleBuilding()
+    self.reward_function = environment_test_utils.SimpleRewardFunction()
+    self.observation_normalizer = observation_normalizer.StandardScoreObservationNormalizer(  # pylint: disable=line-too-long
+        {
+            "temperature": (
+                smart_control_normalization_pb2.ContinuousVariableInfo(
+                    id="temperature",
+                    sample_mean=310.0,
+                    sample_variance=2500.0,
+                )
+            )
+        }
+    )
+    normalizer = bounded_action_normalizer.BoundedActionNormalizer(200, 300)
+    self.action_config = environment.ActionConfig({
+        "setpoint_1": normalizer,
+        "setpoint_2": normalizer,
+    })
+
+  @parameterized.named_parameters(
+      dict(
+          testcase_name="action_names_only",
+          default_actions={
+              "air_handler_1_setpoint_1": 250.0,
+              "air_handler_2_setpoint_1": 260.0,
+              "air_handler_1_setpoint_2": 250.0,
+              "air_handler_2_setpoint_2": 250.0,
+          },
+          expected_action_values=[0.0, 0.2, 0.0, 0.0],
+      ),
+      dict(
+          testcase_name="setpoint_names_only",
+          default_actions={
+              "setpoint_1": 250.0,
+              "setpoint_2": 250.0,
+          },
+          expected_action_values=[0.0, 0.0, 0.0, 0.0],
+      ),
+      dict(
+          testcase_name="mixed_names",
+          default_actions={
+              "air_handler_1_setpoint_1": 250.0,
+              "air_handler_2_setpoint_1": 260.0,
+              "setpoint_2": 250.0,
+          },
+          expected_action_values=[0.0, 0.2, 0.0, 0.0],
+      ),
+  )
+  def test_default_actions(
+      self, default_actions, expected_action_values
+  ):
+    env = environment.Environment(
+        building=self.building,
+        reward_function=self.reward_function,
+        observation_normalizer=self.observation_normalizer,
+        action_config=self.action_config,
+        device_action_tuples=[
+            ("air_handler_1", "setpoint_1"),
+            ("air_handler_2", "setpoint_1"),
+            ("air_handler_1", "setpoint_2"),
+            ("air_handler_2", "setpoint_2"),
+        ],
+        default_actions=default_actions,
+    )
+    self.assertSequenceAlmostEqual(
+        env.default_action_values, expected_action_values, delta=0.001
+    )
+
+  def test_normalize_default_actions_missing_normalizer_raises(self):
+    env = environment.Environment(
+        building=self.building,
+        reward_function=self.reward_function,
+        observation_normalizer=self.observation_normalizer,
+        action_config=self.action_config,
+    )
+    # Clear out normalizers to simulate a missing entry
+    env.action_normalizers.clear()
+    env._action_names = ["example_field"]
+    env.id_map[("example_device", "example_setpoint")] = "example_field"
+
+    with self.assertRaisesRegex(
+        ValueError, "No normalizer found for setpoint: .*example_setpoint.*"
+    ):
+      env._normalize_default_actions({"example_field": 250.0})
+
+  def test_normalize_default_actions_with_empty_dict_raises(self):
+    env = environment.Environment(
+        building=self.building,
+        reward_function=self.reward_function,
+        observation_normalizer=self.observation_normalizer,
+        action_config=self.action_config,
+    )
+    env._action_names = ["example_field"]
+    env.id_map[("example_device", "example_setpoint")] = "example_field"
+    with self.assertRaisesRegex(
+        ValueError, "Missing default action for action: .*example_field.*"
+    ):
+      env._normalize_default_actions({})
+
+  def test_environment_init_without_default_actions_sets_empty_tensor(self):
+    env = environment.Environment(
+        building=self.building,
+        reward_function=self.reward_function,
+        observation_normalizer=self.observation_normalizer,
+        action_config=self.action_config,
+    )
+    self.assertEqual(env.default_policy_values.numpy().tolist(), [])
+
+
 if __name__ == "__main__":
   absltest.main()

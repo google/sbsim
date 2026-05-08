@@ -158,7 +158,7 @@ class SchedulePolicyAgent(default_agent.DefaultPolicyAgent):
     ):
       device_id, setpoint_name = self.env.id_map.inv[action_name]
 
-      normalizer = self.env.action_normalizers.get(action_name)
+      normalizer = self.env.action_normalizers.get(setpoint_name)
       if normalizer is None:
         raise ValueError(f"No normalizer found for setpoint: {setpoint_name}")
 

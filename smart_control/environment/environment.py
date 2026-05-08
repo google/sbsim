@@ -10,7 +10,7 @@ import dataclasses
 import functools
 import os
 import time
-from typing import Any, Final, Mapping, NewType, Optional, Tuple
+from typing import Any, Final, NewType, Optional, Tuple
 
 from absl import logging
 import bidict
@@ -39,6 +39,7 @@ from smart_buildings.smart_control.utils import run_command_predictor
 from smart_buildings.smart_control.utils import writer_lib
 from smart_buildings.smart_control.utils.proto_parsers import reward_info_parser
 
+Mapping = collections.abc.Mapping
 Sequence = collections.abc.Sequence
 
 ActionRequest = smart_control_building_pb2.ActionRequest
@@ -56,16 +57,14 @@ ValueType = smart_control_building_pb2.DeviceInfo.ValueType
 
 
 DeviceId = NewType("DeviceId", str)
-DeviceFieldId = NewType("DeviceFieldId", str)
-FieldName = NewType("FieldName", str)
+DeviceFieldId = NewType("DeviceFieldId", str)  # i.e. the Action Name
+FieldName = NewType("FieldName", str)  # i.e. the Setpoint Name
 DeviceCode = str
 MeasurementName = str
 Setpoint = str
 
-ActionNormalizerMap = Mapping[
-    DeviceFieldId, base_normalizer.BaseActionNormalizer
-]
-DefaultActions = Mapping[DeviceFieldId, float]
+ActionNormalizerMap = Mapping[FieldName, base_normalizer.BaseActionNormalizer]
+DefaultActions = Mapping[DeviceFieldId | FieldName, float]
 DeviceActionTuple = Tuple[DeviceCode, Setpoint]
 DeviceMeasurementTuple = Tuple[DeviceCode, MeasurementName]
 NativeActionValues = Sequence[float]
@@ -558,10 +557,7 @@ class Environment(py_environment.PyEnvironment):
     # Retain the last observation to fill in missing or invalid values.
     self._last_observation_response: Optional[ObservationResponse] = None
 
-    if self.discount_factor <= 0 or self.discount_factor > 1:
-      raise ValueError("Discount factor must be in (0,1]")
-
-    self.action_config = action_config
+    self.action_normalizers = action_config.action_normalizers
     if device_action_tuples is not None:
       self._action_spec, self.action_normalizers, self._action_names = (
           self._get_action_spec_and_normalizers_from_device_action_tuples(
@@ -713,7 +709,7 @@ class Environment(py_environment.PyEnvironment):
     for device in self.building.devices:
       for setpoint_name, value_type in device.action_fields.items():
 
-        normalizer = self.action_config.get_action_normalizer(setpoint_name)
+        normalizer = self.action_normalizers.get(setpoint_name)
         if normalizer:
           if device.device_id not in mapping:
             mapping[device.device_id] = {
@@ -732,8 +728,14 @@ class Environment(py_environment.PyEnvironment):
               "units": get_setpoint_units(setpoint_name),
               "min_native_value": normalizer.setpoint_min,
               "max_native_value": normalizer.setpoint_max,
-              "min_normalized_value": normalizer.min_normalized_value,
-              "max_normalized_value": normalizer.max_normalized_value,
+              # The BaseActionNormalizer does not have min/max normalized values
+              # but the BoundedActionNormalizer does. Get them if available.
+              "min_normalized_value": getattr(
+                  normalizer, "min_normalized_value", None
+              ),
+              "max_normalized_value": getattr(
+                  normalizer, "max_normalized_value", None
+              ),
           })
 
     return mapping
@@ -796,7 +798,7 @@ class Environment(py_environment.PyEnvironment):
         zip(self.action_names, normalized_values)
     ):
       device_id, setpoint_name = self.id_map.inv[action_name]
-      normalizer = self.action_normalizers.get(action_name)
+      normalizer = self.action_normalizers.get(setpoint_name)
       if normalizer is None:
         raise ValueError(f"No normalizer found for setpoint: {setpoint_name}")
 
@@ -848,7 +850,7 @@ class Environment(py_environment.PyEnvironment):
     ):
       device_id, setpoint_name = self.id_map.inv[action_name]
 
-      normalizer = self.action_normalizers.get(action_name)
+      normalizer = self.action_normalizers.get(setpoint_name)
       if normalizer is None:
         raise ValueError(f"No normalizer found for setpoint: {setpoint_name}")
 
@@ -913,13 +915,23 @@ class Environment(py_environment.PyEnvironment):
 
     fixed_actions = []
     for field_id in self._action_names:
-      # assert action_name in default_actions
+      _, setpoint_name = self.id_map.inv[field_id]
 
-      native_setpoint_value = default_actions[field_id]
-
-      normalized_agent_value = self.action_normalizers[field_id].agent_value(
-          native_setpoint_value
+      native_setpoint_value = default_actions.get(
+          field_id,
+          default_actions.get(setpoint_name)
       )
+      if native_setpoint_value is None:
+        raise ValueError(
+            f"Missing default action for action: {field_id} (setpoint:"
+            f" {setpoint_name!r})"
+        )
+
+      normalizer = self.action_normalizers.get(setpoint_name)
+      if normalizer is None:
+        raise ValueError(f"No normalizer found for setpoint: {setpoint_name!r}")
+
+      normalized_agent_value = normalizer.agent_value(native_setpoint_value)
       fixed_actions.append(normalized_agent_value)
 
     return tf.constant(fixed_actions)
@@ -964,7 +976,7 @@ class Environment(py_environment.PyEnvironment):
         setpoint_name = FieldName(setpoint_name)
 
         # Get BaseActionNormalizer based on device and setpoint_name
-        action_normalizer = action_config.get_action_normalizer(setpoint_name)
+        action_normalizer = self.action_normalizers.get(setpoint_name)
 
         # Do not add to action_spec without an action_normalizer.
         if not action_normalizer:
@@ -978,7 +990,7 @@ class Environment(py_environment.PyEnvironment):
         field_array_spec = action_normalizer.get_array_spec(field_id)
 
         action_spec[field_id] = field_array_spec
-        action_normalizers[field_id] = action_normalizer
+        action_normalizers[setpoint_name] = action_normalizer
 
     action_spec = array_spec.BoundedArraySpec(
         shape=(len(action_names),),
@@ -1013,7 +1025,7 @@ class Environment(py_environment.PyEnvironment):
       setpoint_name = FieldName(device_action_tuple[1])
 
       # Get BaseActionNormalizer based on device and setpoint_name
-      action_normalizer = action_config.get_action_normalizer(setpoint_name)
+      action_normalizer = self.action_normalizers.get(setpoint_name)
 
       # Do not add to action_spec without an action_normalizer.
       # TODO(sipple) Include a unit test.
@@ -1026,7 +1038,7 @@ class Environment(py_environment.PyEnvironment):
 
       field_array_spec = action_normalizer.get_array_spec(field_id)
       action_spec[field_id] = field_array_spec
-      action_normalizers[field_id] = action_normalizer
+      action_normalizers[setpoint_name] = action_normalizer
 
     action_spec = array_spec.BoundedArraySpec(
         shape=(len(action_names),),
@@ -1202,7 +1214,7 @@ class Environment(py_environment.PyEnvironment):
 
       agent_action = action[field_id]
 
-      action_normalizer = self.action_normalizers[field_id]
+      action_normalizer = self.action_normalizers[setpoint_name]
 
       action_value = action_normalizer.setpoint_value(agent_action)
 

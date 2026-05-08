@@ -250,7 +250,7 @@ class EnvironmentConfigTest(parameterized.TestCase):
     self.assertCountEqual(self.env.action_names, self.expected_action_names)
 
   def test_action_normalizers(self):
-    action_normalizers = self.env.action_config.action_normalizers
+    action_normalizers = self.env.action_normalizers
     self.assertCountEqual(
         action_normalizers.keys(), self.expected_action_normalizer_names
     )
@@ -258,7 +258,7 @@ class EnvironmentConfigTest(parameterized.TestCase):
   @parameterized.named_parameters(
       dict(
           testcase_name="supply_water_setpoint",
-          action_name="supply_water_setpoint",
+          setpoint_name="supply_water_setpoint",
           min_normalized_value=-1.0,
           max_normalized_value=1.0,
           min_native_value=310.0,
@@ -266,7 +266,7 @@ class EnvironmentConfigTest(parameterized.TestCase):
       ),
       dict(
           testcase_name="differential_pressure",
-          action_name="differential_pressure",
+          setpoint_name="differential_pressure",
           min_normalized_value=-1.0,
           max_normalized_value=1.0,
           min_native_value=0.0,
@@ -274,7 +274,7 @@ class EnvironmentConfigTest(parameterized.TestCase):
       ),
       dict(
           testcase_name="ahu_1_supply_air_temperature_setpoint",
-          action_name="ahu_1_supply_air_temperature_setpoint",
+          setpoint_name="ahu_1_supply_air_temperature_setpoint",
           min_normalized_value=-1.0,
           max_normalized_value=1.0,
           min_native_value=285.0,
@@ -282,7 +282,7 @@ class EnvironmentConfigTest(parameterized.TestCase):
       ),
       dict(
           testcase_name="ahu_1_static_pressure_setpoint",
-          action_name="ahu_1_static_pressure_setpoint",
+          setpoint_name="ahu_1_static_pressure_setpoint",
           min_normalized_value=-1.0,
           max_normalized_value=1.0,
           min_native_value=0.0,
@@ -290,7 +290,7 @@ class EnvironmentConfigTest(parameterized.TestCase):
       ),
       dict(
           testcase_name="ahu_2_supply_air_temperature_setpoint",
-          action_name="ahu_2_supply_air_temperature_setpoint",
+          setpoint_name="ahu_2_supply_air_temperature_setpoint",
           min_normalized_value=-1.0,
           max_normalized_value=1.0,
           min_native_value=285.0,
@@ -298,7 +298,7 @@ class EnvironmentConfigTest(parameterized.TestCase):
       ),
       dict(
           testcase_name="ahu_2_static_pressure_setpoint",
-          action_name="ahu_2_static_pressure_setpoint",
+          setpoint_name="ahu_2_static_pressure_setpoint",
           min_normalized_value=-1.0,
           max_normalized_value=1.0,
           min_native_value=0.0,
@@ -307,13 +307,13 @@ class EnvironmentConfigTest(parameterized.TestCase):
   )
   def test_action_normalizer_values(
       self,
-      action_name,
+      setpoint_name,
       min_normalized_value,
       max_normalized_value,
       min_native_value,
       max_native_value,
   ):
-    normalizer = self.env.action_config.action_normalizers[action_name]
+    normalizer = self.env.action_normalizers[setpoint_name]
     self.assertEqual(normalizer.min_normalized_value, min_normalized_value)
     self.assertEqual(normalizer.max_normalized_value, max_normalized_value)
     self.assertEqual(normalizer.min_native_value, min_native_value)
@@ -351,7 +351,7 @@ class HybridActionEnvironmentConfigTest(EnvironmentConfigTest):
   @parameterized.named_parameters(
       dict(
           testcase_name="supervisor_run_command",
-          action_name="supervisor_run_command",
+          setpoint_name="supervisor_run_command",
           min_normalized_value=-1.0,
           max_normalized_value=1.0,
           min_native_value=0.0,
@@ -359,7 +359,7 @@ class HybridActionEnvironmentConfigTest(EnvironmentConfigTest):
       ),
       dict(
           testcase_name="ahu_1_supervisor_run_command",
-          action_name="ahu_1_supervisor_run_command",
+          setpoint_name="ahu_1_supervisor_run_command",
           min_normalized_value=-1.0,
           max_normalized_value=1.0,
           min_native_value=0.0,
@@ -367,7 +367,7 @@ class HybridActionEnvironmentConfigTest(EnvironmentConfigTest):
       ),
       dict(
           testcase_name="ahu_2_supervisor_run_command",
-          action_name="ahu_2_supervisor_run_command",
+          setpoint_name="ahu_2_supervisor_run_command",
           min_normalized_value=-1.0,
           max_normalized_value=1.0,
           min_native_value=0.0,
@@ -376,13 +376,13 @@ class HybridActionEnvironmentConfigTest(EnvironmentConfigTest):
   )
   def test_discrete_action_normalizer_values(
       self,
-      action_name,
+      setpoint_name,
       min_normalized_value,
       max_normalized_value,
       min_native_value,
       max_native_value,
   ):
-    normalizer = self.env.action_config.action_normalizers[action_name]
+    normalizer = self.env.action_normalizers[setpoint_name]
     self.assertEqual(normalizer.min_normalized_value, min_normalized_value)
     self.assertEqual(normalizer.max_normalized_value, max_normalized_value)
     self.assertEqual(normalizer.min_native_value, min_native_value)

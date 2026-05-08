@@ -187,5 +187,97 @@ class HybridActionEnvironmentTest(parameterized.TestCase, tf.test.TestCase):
     utils.validate_py_environment(env, episodes=5)
 
 
+class HybridDefaultActionsTest(parameterized.TestCase):
+
+  def setUp(self):
+    super().setUp()
+    self.building = SimpleBuildingHybridAction()
+    self.reward_function = environment_test_utils.SimpleRewardFunction()
+    self.observation_normalizer = observation_normalizer.StandardScoreObservationNormalizer(  # pylint: disable=line-too-long
+        {
+            "temperature": (
+                smart_control_normalization_pb2.ContinuousVariableInfo(
+                    id="temperature",
+                    sample_mean=310.0,
+                    sample_variance=2500.0,
+                )
+            )
+        }
+    )
+    self.action_config = environment.ActionConfig({
+        "supply_air_temp": bounded_action_normalizer.BoundedActionNormalizer(
+            200, 300
+        ),
+        "supervisor_run_command": (
+            bounded_action_normalizer.BoundedActionNormalizer(-1, 1)
+        ),
+    })
+
+  @parameterized.named_parameters(
+      dict(
+          testcase_name="action_names_only",
+          default_actions={
+              "ahu_1_supply_air_temp": 290.0,
+              "ahu_2_supply_air_temp": 295.0,
+              "ahu_1_supervisor_run_command": 1.0,
+              "ahu_2_supervisor_run_command": 1.0,
+          },
+          expected_hybrid_actions={
+              "continuous_action": [0.8, 0.9],
+              "discrete_action": [1.0, 1.0],
+          },
+      ),
+      dict(
+          testcase_name="setpoint_names_only",
+          default_actions={
+              "supply_air_temp": 290.0,
+              "supervisor_run_command": 1.0,
+          },
+          expected_hybrid_actions={
+              "continuous_action": [0.8, 0.8],
+              "discrete_action": [1.0, 1.0],
+          },
+      ),
+      dict(
+          testcase_name="mixed_approach",
+          default_actions={
+              "ahu_1_supply_air_temp": 292.0,
+              "ahu_2_supply_air_temp": 295.0,
+              "supervisor_run_command": 1.0,
+          },
+          expected_hybrid_actions={
+              "continuous_action": [0.84, 0.9],
+              "discrete_action": [1.0, 1.0],
+          },
+      ),
+  )
+  def test_hybrid_default_actions(
+      self, default_actions, expected_hybrid_actions
+  ):
+    env = hybrid_action_environment.HybridActionEnvironment(
+        building=self.building,
+        reward_function=self.reward_function,
+        observation_normalizer=self.observation_normalizer,
+        action_config=self.action_config,
+        device_action_tuples=[
+            ("ahu_1", "supply_air_temp"),
+            ("ahu_2", "supply_air_temp"),
+            ("ahu_1", "supervisor_run_command"),
+            ("ahu_2", "supervisor_run_command"),
+        ],
+        default_actions=default_actions,
+    )
+    self.assertSequenceAlmostEqual(
+        env.default_hybrid_action["continuous_action"],
+        expected_hybrid_actions["continuous_action"],
+        delta=0.001,
+    )
+    self.assertSequenceAlmostEqual(
+        env.default_hybrid_action["discrete_action"],
+        expected_hybrid_actions["discrete_action"],
+        delta=0.001,
+    )
+
+
 if __name__ == "__main__":
   absltest.main()

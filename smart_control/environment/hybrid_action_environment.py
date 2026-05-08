@@ -90,7 +90,7 @@ class HybridActionEnvironment(environment.Environment):
       setpoint_name = environment.FieldName(device_action_tuple[1])
 
       # Get BaseActionNormalizer based on device and setpoint_name.
-      action_normalizer = action_config.get_action_normalizer(setpoint_name)
+      action_normalizer = self.action_normalizers.get(setpoint_name)
 
       if not action_normalizer:
         raise ValueError("Missing a normalizer")
@@ -110,7 +110,7 @@ class HybridActionEnvironment(environment.Environment):
 
       action_names.append(field_id)
 
-      action_normalizers[field_id] = action_normalizer
+      action_normalizers[setpoint_name] = action_normalizer
 
     action_spec = {
         CONTINUOUS_ACTION: array_spec.BoundedArraySpec(
