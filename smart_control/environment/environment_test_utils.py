@@ -36,7 +36,13 @@ DEFAULT_LAYOUT = {
 class SimpleBuilding(base_building.BaseBuilding):
   """Building implementation for unit tests."""
 
-  def __init__(self, layout=None, initial_values=None, start_timestamp=None):
+  def __init__(
+      self,
+      layout=None,
+      initial_values=None,
+      start_timestamp=None,
+      zone_reward_configs=None,
+  ):
     self.layout = layout or DEFAULT_LAYOUT
     self.values = collections.defaultdict(int)
     if initial_values:
@@ -45,6 +51,7 @@ class SimpleBuilding(base_building.BaseBuilding):
     self._start_timestamp = start_timestamp or pd.Timestamp(
         "2021-06-07 12:00:01"
     )
+    self.zone_reward_configs = zone_reward_configs
     self.reset_called = False
     self.step_count = 0
 
@@ -58,21 +65,33 @@ class SimpleBuilding(base_building.BaseBuilding):
     reward_info = smart_control_reward_pb2.RewardInfo()
     for zone_id, device_info in self.layout.items():
       for device_id in device_info:
+        if device_id == "floor":
+          continue
         if "air_handler" in device_id:
           ahu_reward_info = reward_info.air_handler_reward_infos[device_id]
           ahu_reward_info.blower_electrical_energy_rate = 100.0
           ahu_reward_info.air_conditioning_electrical_energy_rate = 200.0
         elif "boiler" in device_id:
           boiler_reward_info = reward_info.boiler_reward_infos[device_id]
-          boiler_reward_info.natural_gas_heating_energy_rate = 100.0
           boiler_reward_info.pump_electrical_energy_rate = 50.0
           boiler_reward_info.natural_gas_heating_energy_rate = 500.0
+        elif "heat_pump" in device_id:
+          heat_pump_reward_info = reward_info.heat_pump_reward_infos[device_id]
+          heat_pump_reward_info.pump_electrical_energy_rate = 100.0
+          heat_pump_reward_info.electricity_heating_energy_rate = 1000.0
 
       zone_reward_info = reward_info.zone_reward_infos[zone_id]
-      zone_reward_info.average_occupancy = 5
-      zone_reward_info.zone_air_temperature = 295.0
-      zone_reward_info.heating_setpoint_temperature = 290.0
-      zone_reward_info.cooling_setpoint_temperature = 300.0
+      config = (self.zone_reward_configs or {}).get(zone_id, {})
+      zone_reward_info.average_occupancy = config.get("average_occupancy", 5)
+      zone_reward_info.zone_air_temperature = config.get(
+          "zone_air_temperature", 295.0
+      )
+      zone_reward_info.heating_setpoint_temperature = config.get(
+          "heating_setpoint_temperature", 290.0
+      )
+      zone_reward_info.cooling_setpoint_temperature = config.get(
+          "cooling_setpoint_temperature", 300.0
+      )
       zone_reward_info.air_flow_rate_setpoint = 10.0
       zone_reward_info.air_flow_rate = 5.0
 
@@ -154,6 +173,8 @@ class SimpleBuilding(base_building.BaseBuilding):
     devices = []
     for zone, info in self.layout.items():
       for device, fields in info.items():
+        if device == "floor":
+          continue
         zone_id = zone
         device_id = device
         device_type = None
@@ -192,11 +213,13 @@ class SimpleBuilding(base_building.BaseBuilding):
     zones = []
     for zone, info in self.layout.items():
       zone_id = zone
-      devices = info.keys()
+      devices = (k for k in info.keys() if k != "floor")
+      floor = info.get("floor", 0)
       zone_info = smart_control_building_pb2.ZoneInfo(
           zone_id=zone_id,
           building_id="SimpleBuilding",
           zone_description=zone_id,
+          floor=floor,
       )
       for device in devices:
         zone_info.devices.append(device)

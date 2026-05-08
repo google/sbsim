@@ -4,24 +4,22 @@ Translates protos into data structures that are useful or easier to work with.
 """
 
 import collections
+from collections.abc import Mapping, Sequence
 from functools import cached_property  # pylint: disable=g-importing-member
-from typing import Any, Mapping, Sequence, Tuple
+from typing import Any
 
 import numpy as np
 import pandas as pd
 from smart_buildings.smart_control.proto import smart_control_building_pb2
-from smart_buildings.smart_control.proto import smart_control_reward_pb2
+from smart_buildings.smart_control.proto import smart_control_reward_pb2 as reward_pb2
 from smart_buildings.smart_control.utils import conversion_utils
-from smart_buildings.smart_control.utils import temperature_conversion
+from smart_buildings.smart_control.utils import temperature_conversion as tc
 
-RewardInfo = smart_control_reward_pb2.RewardInfo
-
-assign_kelvin_conversion_function = temperature_conversion.assign_kelvin_conversion_function  # pylint: disable=line-too-long
 proto_to_pandas_timestamp = conversion_utils.proto_to_pandas_timestamp
 
 WATT_SECONDS_KWH = conversion_utils._WATT_SECONDS_KWH  # pylint: disable=protected-access
 
-TEMP_UNIT = 'K'
+TEMP_UNIT = tc.TempUnit.KELVIN
 TEMP_BINS: Sequence[float] = (
     290.0,
     291.0,
@@ -52,7 +50,7 @@ def get_comfort_diffs(
     row: pd.Series,
     use_magnitude_labels: bool = False,
     label_max_degrees: int | None = 5,
-) -> Tuple[float, str]:
+) -> tuple[float, str]:
   """Calculates a comfort label and differential for each zone.
 
   Args:
@@ -106,29 +104,44 @@ def get_comfort_diffs(
 
 
 class RewardInfoParser:
-  """Parses a RewardInfo proto into a more usable format."""
+  """A parser for RewardInfo protos, converting them into more usable data structures."""
 
   def __init__(
       self,
-      reward_info: RewardInfo,
-      temp_unit: str = TEMP_UNIT,
-      zone_temp_bins: Sequence[float] = TEMP_BINS,
+      reward_info: reward_pb2.RewardInfo,
       comfort_diff_params: Mapping[str, Any] | None = None,
   ):
     """Initializes the RewardInfoParser.
 
     Args:
       reward_info: The RewardInfo proto to parse.
-      temp_unit: The unit of temperature to use (default is 'K').
-      zone_temp_bins: The temperature bins to use for the histogram (default is
-        [290, 291, 292, 293, 294, 295, 296, 297, 298, 299, 300]).
       comfort_diff_params: A dictionary of parameters to pass to the
         get_comfort_diffs function (default is None).
     """
     self.reward_info = reward_info
-    self.temp_unit = temp_unit
-    self.zone_temp_bins = zone_temp_bins
     self.comfort_diff_params = comfort_diff_params or {}
+
+  def _setup_temp_params(
+      self,
+      temp_unit: tc.TempUnit | str | None = None,
+      temp_bins: Sequence[float] | None = None,
+  ) -> tuple[tc.TempUnit, Sequence[float], tc.TempConversionFunction | None]:
+    """Validates and sets up temperature units and bins."""
+    if temp_unit is not None:
+      unit = tc.assign_temp_unit(temp_unit)
+    else:
+      unit = TEMP_UNIT
+
+    temp_convert = tc.assign_kelvin_conversion_function(unit)
+
+    if temp_bins is None:
+      bins = TEMP_BINS
+      if temp_convert is not None:
+        bins = [temp_convert(b) for b in bins]
+    else:
+      bins = temp_bins
+
+    return unit, bins, temp_convert
 
   # PROPERTIES AND ALIASES
 
@@ -146,16 +159,28 @@ class RewardInfoParser:
     return (self.end_timestamp - self.start_timestamp).total_seconds()
 
   @cached_property
-  def zone_reward_infos(self) -> Mapping[str, RewardInfo.ZoneRewardInfo]:
+  def zone_reward_infos(
+      self,
+  ) -> Mapping[str, reward_pb2.RewardInfo.ZoneRewardInfo]:
     return self.reward_info.zone_reward_infos
 
   @cached_property
-  def air_handler_reward_infos(self) -> Mapping[str, RewardInfo.AirHandlerRewardInfo]:  # pylint: disable=line-too-long
+  def air_handler_reward_infos(
+      self,
+  ) -> Mapping[str, reward_pb2.RewardInfo.AirHandlerRewardInfo]:
     return self.reward_info.air_handler_reward_infos
 
   @cached_property
-  def boiler_reward_infos(self) -> Mapping[str, RewardInfo.BoilerRewardInfo]:
+  def boiler_reward_infos(
+      self,
+  ) -> Mapping[str, reward_pb2.RewardInfo.BoilerRewardInfo]:
     return self.reward_info.boiler_reward_infos
+
+  @cached_property
+  def heat_pump_reward_infos(
+      self,
+  ) -> Mapping[str, reward_pb2.RewardInfo.HeatPumpRewardInfo]:
+    return self.reward_info.heat_pump_reward_infos
 
   #
   # ZONE INFO
@@ -164,18 +189,22 @@ class RewardInfoParser:
   def get_zone_conditions_histogram_by_floor(
       self,
       zones: Sequence[smart_control_building_pb2.ZoneInfo],
+      temp_unit: tc.TempUnit | str | None = None,
+      temp_bins: Sequence[float] | None = None,
   ) -> pd.DataFrame:
-    """Generates a histogram DataFrame of building zone conditions over temp bins.
+    """Generates a histogram DataFrame of building zone conditions by temp bin.
 
     This function aggregates telemetry data from multiple building zones. It
-    bins
-    the current air temperature of each zone by floor, calculates the total
+    bins the current air temperature of each zone by floor, calculates the total
     occupancy for each temperature bin, and determines how many occupants are
     exposed to temperatures outside the established heating/cooling setpoints.
 
     Args:
         zones: A list of Protobuf ZoneInfo objects containing metadata (like the
           floor number) for each zone in the building.
+        temp_unit: The unit of temperature to use (default is Kelvin).
+        temp_bins: The temperature bins to use for the histogram (default is
+          TEMP_BINS).
 
     Returns:
         pd.DataFrame: A DataFrame indexed by the `temperature_bins`.
@@ -194,8 +223,12 @@ class RewardInfoParser:
             - 'floor_X' (multiple): Normalized distribution of zone temperatures
             for floor X.
     """
+    temp_unit, temp_bins, temp_convert = self._setup_temp_params(
+        temp_unit, temp_bins
+    )
+
     # Convert bins to a numpy array for vectorized distance calculations later.
-    bins = np.array(self.zone_temp_bins)
+    bins = np.array(temp_bins)
     num_bins = len(bins)
 
     # Create a fast lookup dictionary to map a zone's ID to its floor number.
@@ -231,15 +264,23 @@ class RewardInfoParser:
 
       # Find which temperature bin this zone's current air temperature falls
       # into, and increment the count for this specific floor.
-      temp_idx = get_bin_idx(zone_reward.zone_air_temperature)
+      zone_air_temp = zone_reward.zone_air_temperature
+      heating_setpoint_temp = zone_reward.heating_setpoint_temperature
+      cooling_setpoint_temp = zone_reward.cooling_setpoint_temperature
+      if temp_convert:
+        zone_air_temp = temp_convert(zone_air_temp)
+        heating_setpoint_temp = temp_convert(heating_setpoint_temp)
+        cooling_setpoint_temp = temp_convert(cooling_setpoint_temp)
+
+      temp_idx = get_bin_idx(zone_air_temp)
       temperature_count_by_floor[floor][temp_idx] += 1
 
       # Add this zone's occupants to the total count for this temperature bin.
       occupancy_count[temp_idx] += zone_reward.average_occupancy
 
       # Find which bins correspond to this zone's specific setpoints.
-      heat_idx = get_bin_idx(zone_reward.heating_setpoint_temperature)
-      cool_idx = get_bin_idx(zone_reward.cooling_setpoint_temperature)
+      heat_idx = get_bin_idx(heating_setpoint_temp)
+      cool_idx = get_bin_idx(cooling_setpoint_temp)
 
       # Expand the global acceptable setpoint bounds if this zone's bounds are
       # wider.
@@ -305,17 +346,17 @@ class RewardInfoParser:
 
   def get_zone_conditions_histogram(
       self,
-      temp_unit: str | None = None,
+      temp_unit: tc.TempUnit | str | None = None,
       temp_bins: Sequence[float] | None = None,
-  ):
+  ) -> pd.DataFrame:
     """Summarizes the number of zones and occupants in each temperature bin.
 
     Zone temperatures are assigned to the bin with the closest numerical value.
 
     Args:
-      temp_unit: The unit of temperature to use (default is 'K').
+      temp_unit: The unit of temperature to use (default is Kelvin).
       temp_bins: The temperature bins to use for the histogram (default is
-        [290, 291, 292, 293, 294, 295, 296, 297, 298, 299, 300]).
+        TEMP_BINS).
 
     Returns:
       A pandas dataframe containing the number of zones and occupants in each
@@ -330,8 +371,9 @@ class RewardInfoParser:
       The dataframe is transposed so that the index is the metrics and the
       columns are the temperature bins.
     """
-    temp_unit = temp_unit or self.temp_unit
-    temp_bins = temp_bins or self.zone_temp_bins
+    temp_unit, temp_bins, temp_convert = self._setup_temp_params(
+        temp_unit, temp_bins
+    )
 
     temperature_bins = np.array(temp_bins)
     temperature_count = np.zeros(len(temperature_bins))
@@ -341,7 +383,6 @@ class RewardInfoParser:
     min_setpoint_ix = len(temperature_bins)
     max_setpoint_ix = -1
 
-    temp_convert = assign_kelvin_conversion_function(temp_unit)
     for _, zone_reward_info in self.zone_reward_infos.items():
       zone_temp = zone_reward_info.zone_air_temperature
       heating_setpoint_temp = zone_reward_info.heating_setpoint_temperature
@@ -378,8 +419,6 @@ class RewardInfoParser:
     occupants_exposed = occupants_exposed.astype(int)
     temperature_count = temperature_count.astype(int)
     occupancy_count = occupancy_count.astype(int)
-    # Use a degree symbol for Celsius and Fahrenheit, but not for Kelvin.
-    deg_symbol = '' if temp_unit in ['K', 'Kelvin'] else '°'
     return pd.DataFrame(
         {
             'count of zones': temperature_count,
@@ -388,7 +427,7 @@ class RewardInfoParser:
             'count of occupants exposed': occupants_exposed,
         },
         index=[
-            f'{temp}{deg_symbol}{temp_unit.title()[0]}'
+            f'{temp}{temp_unit.deg_symbol}{temp_unit.abbrev}'
             for temp in temperature_bins
         ],
     ).T
@@ -470,37 +509,40 @@ class RewardInfoParser:
   # ENERGY CONSUMPTION
   #
 
+  def watts_to_kwh(self, watts: float) -> float:
+    """Converts watts to kWh for the given device."""
+    return watts * self.dt * WATT_SECONDS_KWH
+
   def get_energy_consumption(self) -> Mapping[str, float]:
-    """Energy consumption in kWh for ac, blower, pump, and nat gas heating."""
+    """Returns a dictionary of energy consumption, in kWh, for each source."""
 
     energy_use = collections.defaultdict(float)
 
-    for air_handler_id in self.air_handler_reward_infos:
-      energy_use['air_handler_blower_electricity'] += (
-          self.air_handler_reward_infos[
-              air_handler_id
-          ].blower_electrical_energy_rate
-          * self.dt
-          * WATT_SECONDS_KWH
+    # AIR HANDLER REWARDS:
+    for ahu_info in self.air_handler_reward_infos.values():
+      energy_use['air_handler_blower_electrical_energy'] += self.watts_to_kwh(
+          ahu_info.blower_electrical_energy_rate
       )
-      energy_use['air_handler_air_conditioning'] += (
-          self.air_handler_reward_infos[
-              air_handler_id
-          ].air_conditioning_electrical_energy_rate
-          * self.dt
-          * WATT_SECONDS_KWH
+      energy_use['air_handler_air_conditioning_electrical_energy'] += self.watts_to_kwh(  # pylint: disable=line-too-long
+          ahu_info.air_conditioning_electrical_energy_rate
       )
 
-    for boiler_id in self.boiler_reward_infos:
-      energy_use['boiler_natural_gas_heating_energy'] += (
-          self.boiler_reward_infos[boiler_id].natural_gas_heating_energy_rate
-          * self.dt
-          * WATT_SECONDS_KWH
+    # BOILER REWARDS:
+    for blr_info in self.boiler_reward_infos.values():
+      energy_use['boiler_natural_gas_heating_energy'] += self.watts_to_kwh(
+          blr_info.natural_gas_heating_energy_rate
       )
-      energy_use['boiler_pump_electrical_energy'] += (
-          self.boiler_reward_infos[boiler_id].pump_electrical_energy_rate
-          * self.dt
-          * WATT_SECONDS_KWH
+      energy_use['boiler_pump_electrical_energy'] += self.watts_to_kwh(
+          blr_info.pump_electrical_energy_rate
+      )
+
+    # HEAT PUMP REWARDS:
+    for ashp_info in self.heat_pump_reward_infos.values():
+      energy_use['heat_pump_electricity_heating_energy'] += self.watts_to_kwh(
+          ashp_info.electricity_heating_energy_rate
+      )
+      energy_use['heat_pump_pump_electrical_energy'] += self.watts_to_kwh(
+          ashp_info.pump_electrical_energy_rate
       )
 
     return energy_use
@@ -524,15 +566,14 @@ class RewardInfoParser:
     records = []
 
     # AIR HANDLER REWARDS:
-    for device_id, ac_reward_info in self.air_handler_reward_infos.items():
+    for device_id, ahu_reward_info in self.air_handler_reward_infos.items():
       device_type = 'AHU'
-
       records.append({
           'device_type': device_type,
           'device_id': device_id,
           'metric': 'blower_electrical_energy_rate',
           'description': 'Cumulative electrical power in W applied to blowers.',
-          'value': ac_reward_info.blower_electrical_energy_rate,
+          'value': ahu_reward_info.blower_electrical_energy_rate,
           'unit': 'W'
       })
       records.append({
@@ -545,14 +586,13 @@ class RewardInfoParser:
               'running refrigeration or heat pump cycles (includes running a '
               'compressor and pumps to recirculate refrigerant).'
           ),
-          'value': ac_reward_info.air_conditioning_electrical_energy_rate,
+          'value': ahu_reward_info.air_conditioning_electrical_energy_rate,
           'unit': 'W'
       })
 
-    # HWS REWARDS:
-    for device_id, hws_reward_info in self.boiler_reward_infos.items():
-      device_type = 'HWS'
-
+    # BOILER REWARDS:
+    for device_id, blr_reward_info in self.boiler_reward_infos.items():
+      device_type = 'BLR'
       records.append({
           'device_type': device_type,
           'device_id': device_id,
@@ -560,10 +600,9 @@ class RewardInfoParser:
           'description': (
               'Cumulative electrical power in W for water recirculation pumps.'
           ),
-          'value': hws_reward_info.pump_electrical_energy_rate,
+          'value': blr_reward_info.pump_electrical_energy_rate,
           'unit': 'W'
       })
-
       records.append({
           'device_type': device_type,
           'device_id': device_id,
@@ -571,7 +610,31 @@ class RewardInfoParser:
           'description': (
               'Energy rate consumed in W by natural gas for heating water.'
           ),
-          'value': hws_reward_info.natural_gas_heating_energy_rate,
+          'value': blr_reward_info.natural_gas_heating_energy_rate,
+          'unit': 'W',
+      })
+
+    # HEAT PUMP REWARDS:
+    for device_id, ashp_reward_info in self.heat_pump_reward_infos.items():
+      device_type = 'ASHP'
+      records.append({
+          'device_type': device_type,
+          'device_id': device_id,
+          'metric': 'electricity_heating_energy_rate',
+          'description': (
+              'Energy rate consumed in W by electricity for heating water.'
+          ),
+          'value': ashp_reward_info.electricity_heating_energy_rate,
+          'unit': 'W',
+      })
+      records.append({
+          'device_type': device_type,
+          'device_id': device_id,
+          'metric': 'pump_electrical_energy_rate',
+          'description': (
+              'Cumulative electrical power in W for water recirculation pumps.'
+          ),
+          'value': ashp_reward_info.pump_electrical_energy_rate,
           'unit': 'W',
       })
 
@@ -590,5 +653,5 @@ class RewardInfoParser:
     df = df.rename(columns={'value': 'rate_watts'})
     df = df.drop(columns=['unit'], errors='ignore')
     # calculate the energy consumption in kWh:
-    df['consumption_kwh'] = df['rate_watts'] * self.dt * WATT_SECONDS_KWH
+    df['consumption_kwh'] = self.watts_to_kwh(df['rate_watts'])
     return df

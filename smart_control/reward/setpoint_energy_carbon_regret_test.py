@@ -319,6 +319,21 @@ class SetpointEnergyCarbonRegretTest(parameterized.TestCase):
 
     return info
 
+  def test_weights(self):
+    reward_fn = self._get_test_reward_function(
+        productivity_weight=0.5,
+        energy_cost_weight=0.3,
+        carbon_emission_weight=0.2,
+    )
+    self.assertEqual(
+        reward_fn.weights,
+        {
+            'energy_cost_weight': 0.3,
+            'carbon_emission_weight': 0.2,
+            'productivity_weight': 0.5,
+        },
+    )
+
 
 class TestEnergyCost(BaseEnergyCost):
   """Calculates energy cost and carbon emissions based on fixed rates.

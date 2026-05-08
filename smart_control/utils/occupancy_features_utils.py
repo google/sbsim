@@ -62,9 +62,9 @@ def get_zone_conditions_histogram(
   """Generates a histogram DataFrame of building zone conditions over temp bins."""
   return reward_info_parser.RewardInfoParser(
       reward_info=reward_info,
-      zone_temp_bins=temperature_bins,
-      temp_unit="K",
-  ).get_zone_conditions_histogram_by_floor(zones)
+  ).get_zone_conditions_histogram_by_floor(
+      zones=zones, temp_unit="K", temp_bins=temperature_bins
+  )
 
 
 def append_floor_to_measurement_name(measurement_name: str, floor: int) -> str:

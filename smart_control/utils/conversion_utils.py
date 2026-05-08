@@ -16,6 +16,10 @@ import pandas as pd
 from smart_buildings.smart_control.proto import smart_control_reward_pb2
 from smart_buildings.smart_control.utils import temperature_conversion
 
+# TODO: b/505380216 - Refactor time related logic into "time_utils.py", and
+# change external references to this file's temperature conversion function to
+# reference the new temperature_conversion module / "thermal_utils.py" instead.
+
 
 _COUNTRY = 'US'
 _SECONDS_IN_DAY = 24 * 3600
@@ -190,4 +194,3 @@ def get_reward_info_energy_use(
     )
 
   return energy_use
-

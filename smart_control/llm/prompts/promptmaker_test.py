@@ -1,6 +1,8 @@
 from absl.testing import absltest
+from absl.testing import parameterized
 
 import pandas as pd
+
 from smart_buildings.smart_control.environment import conftest as env_conftest
 from smart_buildings.smart_control.llm.prompts import promptmaker
 from smart_buildings.smart_control.llm.schema import output_schema
@@ -22,6 +24,7 @@ BUILDING_INFO = {
     'stories': 'two',
     'sqft': 96_000,
     'location': 'Mountain View, California',
+    'name': 'SB-1',
 }
 
 
@@ -61,6 +64,7 @@ class PromptmakerTest(absltest.TestCase):
       self.assertEqual(building_info.location, 'Mountain View, California')
 
     with self.subTest(name='proto_parsers'):
+      self.assertFalse(self.pm.lazy_init_protos)
       self.assertIsInstance(
           self.pm.observation_response_parser,
           observation_response_parser.ObservationResponseParser,
@@ -90,8 +94,15 @@ class PromptmakerTest(absltest.TestCase):
     with self.subTest(name='building_info'):
       self.assertEqual(json_metadata['building_info'], BUILDING_INFO)
 
-    with self.subTest(name='env'):
-      self.assertIn('env', json_metadata)
+  def test_weights(self):
+    self.assertEqual(
+        self.pm.weights,
+        {
+            'energy_cost_weight': 0.3,
+            'carbon_emission_weight': 0.2,
+            'comfort_weight': 0.5,
+        },
+    )
 
   def test_setpoints_df(self):
     df = self.pm.setpoints_df
@@ -102,6 +113,7 @@ class PromptmakerTest(absltest.TestCase):
             'device_id': 'air_handler_1',
             'setpoint_name': 'supervisor_run_command',
             'setpoint_type': 'DISCRETE',
+            'units': 'On/Off',
             'min_native_value': 0.0,
             'max_native_value': 1.0,
         },
@@ -109,6 +121,7 @@ class PromptmakerTest(absltest.TestCase):
             'device_id': 'air_handler_1',
             'setpoint_name': 'supply_air_heating_temperature_setpoint',
             'setpoint_type': 'CONTINUOUS',
+            'units': 'Kelvin',
             'min_native_value': 285.0,
             'max_native_value': 295.0,
         },
@@ -116,6 +129,7 @@ class PromptmakerTest(absltest.TestCase):
             'device_id': 'air_handler_2',
             'setpoint_name': 'supervisor_run_command',
             'setpoint_type': 'DISCRETE',
+            'units': 'On/Off',
             'min_native_value': 0.0,
             'max_native_value': 1.0,
         },
@@ -123,6 +137,7 @@ class PromptmakerTest(absltest.TestCase):
             'device_id': 'air_handler_2',
             'setpoint_name': 'supply_air_heating_temperature_setpoint',
             'setpoint_type': 'CONTINUOUS',
+            'units': 'Kelvin',
             'min_native_value': 285.0,
             'max_native_value': 295.0,
         },
@@ -130,6 +145,7 @@ class PromptmakerTest(absltest.TestCase):
             'device_id': 'boiler_1',
             'setpoint_name': 'supervisor_run_command',
             'setpoint_type': 'DISCRETE',
+            'units': 'On/Off',
             'min_native_value': 0.0,
             'max_native_value': 1.0,
         },
@@ -137,6 +153,7 @@ class PromptmakerTest(absltest.TestCase):
             'device_id': 'boiler_1',
             'setpoint_name': 'supply_water_setpoint',
             'setpoint_type': 'CONTINUOUS',
+            'units': 'Kelvin',
             'min_native_value': 310.0,
             'max_native_value': 350.0,
         },
@@ -219,20 +236,25 @@ class PromptmakerTest(absltest.TestCase):
     with self.subTest(name='contains_section_headers'):
       self.assertIn('## HVAC System Control Guidelines', section)
       self.assertIn('### Devices and Setpoints', section)
-      self.assertIn('### Air Handler Unit (AHU) Guidelines', section)
-      self.assertIn('### Boiler (HWS) Guidelines', section)
+      self.assertIn(
+          '### Air Conditioner (AC) / Air Handler (AHU) Guidelines',
+          section,
+      )
+      self.assertIn('### Boiler (BLR) Guidelines', section)
       self.assertIn('### Zone Temperature Control Guidelines', section)
 
     with self.subTest(name='mentions_specific_devices'):
       self.assertIn(
-          '**AHU-1**: Air Handler Unit (for all zones on the first floor)',
+          '**AC-1**: Air Conditioner / Air Handler Unit (for all zones on the'
+          ' first floor)',
           section,
       )
       self.assertIn(
-          '**AHU-2**: Air Handler Unit (for all zones on the second floor)',
+          '**AC-2**: Air Conditioner / Air Handler Unit (for all zones on the'
+          ' second floor)',
           section,
       )
-      self.assertIn('**HWS**: Boiler (for both floors):', section)
+      self.assertIn('**BLR**: Boiler (for both floors)', section)
 
     with self.subTest(name='mentions_key_setpoints'):
       self.assertIn("'supervisor_run_command'", section)
@@ -289,7 +311,9 @@ class PromptmakerTest(absltest.TestCase):
       )
 
     parser = self.pm.reward_info_parser
+    self.assertIsNotNone(parser)
 
+    # pytype: disable=attribute-error
     with self.subTest(name='includes_current_zone_temperatures_table'):
       table = parser.zone_conditions_histogram.to_markdown(index=True)
       self.assertIn(table, section)
@@ -297,6 +321,7 @@ class PromptmakerTest(absltest.TestCase):
     with self.subTest(name='includes_current_power_consumption_table'):
       table = parser.energy_consumption_df_watts.to_markdown(index=False)
       self.assertIn(table, section)
+    # pytype: enable=attribute-error
 
   def test_current_action_section(self):
     section = self.pm.current_action_section
@@ -364,14 +389,74 @@ class PromptmakerWeightsInclusionTest(absltest.TestCase):
     self.env.reward_function.weights = WEIGHTS
     self.pm = promptmaker.Promptmaker(env=self.env, include_weights=True)
 
+  def test_weights(self):
+    self.assertEqual(
+        self.pm.weights,
+        {
+            'energy_cost_weight': 0.3,
+            'carbon_emission_weight': 0.2,
+            'comfort_weight': 0.5,
+        },
+    )
+
   def test_weights_included(self):
-    weights = self.env.reward_function.weights
+    weights = self.pm.weights
     self.assertIsInstance(weights, dict)
 
     section = self.pm.objectives_section
     self.assertIn(WEIGHTS_INCLUDED_CONTENT, section)
     weights_table = pd.Series(weights, name='weight').to_markdown(index=True)
     self.assertIn(weights_table, section)
+
+
+class PromptmakerLazyInitProtosTest(parameterized.TestCase):
+
+  ATTRIBUTE_NAMES = (
+      dict(
+          testcase_name='base_prompt',
+          attribute_name='base_prompt',
+      ),
+      dict(
+          testcase_name='current_conditions_section',
+          attribute_name='current_conditions_section',
+      ),
+  )
+
+  def setUp(self):
+    super().setUp()
+    self.env = env_conftest.create_hybrid_action_environment(
+        layout=env_conftest.DEMO_LAYOUT
+    )
+    self.pm = promptmaker.Promptmaker(self.env, lazy_init_protos=True)
+
+  @parameterized.named_parameters(*ATTRIBUTE_NAMES)
+  def test_lazy_init_protos_raises_when_protos_not_set(self, attribute_name):
+    self.assertIsNone(self.pm._observation_response_parser)
+    self.assertIsNone(self.pm._reward_info_parser)
+
+    with self.assertRaisesRegex(
+        ValueError, 'Observation response parser is None.'
+    ):
+      _ = getattr(self.pm, attribute_name)
+
+  @parameterized.named_parameters(*ATTRIBUTE_NAMES)
+  def test_lazy_init_protos_ok_when_protos_are_set(self, attribute_name):
+    self.assertIsNone(self.pm._observation_response_parser)
+    self.assertIsNone(self.pm._reward_info_parser)
+
+    self.pm.set_protos(
+        observation_response=self.env.get_observation_response(),
+        reward_info=self.env.get_reward_info(),
+    )
+    self.assertIsInstance(
+        self.pm.observation_response_parser,
+        observation_response_parser.ObservationResponseParser,
+    )
+    self.assertIsInstance(
+        self.pm.reward_info_parser,
+        reward_info_parser.RewardInfoParser,
+    )
+    _ = getattr(self.pm, attribute_name)  # No error thrown.
 
 
 if __name__ == '__main__':

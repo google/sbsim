@@ -1,4 +1,4 @@
-"""Tests for gin config files used in simulation experiments."""
+"""Tests for Building 'SB-1' config files used in simulation experiments."""
 
 from unittest import mock
 import warnings

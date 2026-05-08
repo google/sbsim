@@ -106,8 +106,8 @@ class BasePromptmaker(abc.ABC):
     return '\n'.join([
         '## Formatting Instructions\n',
         (
-            'The output MUST be a single, valid JSON object conforming to the'
-            ' schema below.'
+            'IMPORTANT: The output MUST be a single, valid JSON object '
+            'conforming to the schema below.'
         ),
         (
             'Do NOT include any other text, explanations, pleasantries, or any '

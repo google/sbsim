@@ -7,13 +7,10 @@ continuous and discrete action spaces.
 import collections
 from collections.abc import Sequence
 import dataclasses
-import functools
-from typing import Final
 
 from absl import logging
 import gin
 import numpy as np
-import pandas as pd
 import tensorflow as tf
 from tf_agents.specs import array_spec
 from tf_agents.typing import types
@@ -27,13 +24,9 @@ HybridAction = dict[str, list[float]]
 # Aliases kept here for backward compatibility:
 DISCRETE_ACTION = environment.DISCRETE_ACTION
 CONTINUOUS_ACTION = environment.CONTINUOUS_ACTION
-
-DISCRETE_ACTION_COMMAND: Final[str] = "supervisor_run_command"
-
-
-def is_discrete_action(setpoint_name: str) -> bool:
-  """Checks if a setpoint name corresponds to a discrete action."""
-  return DISCRETE_ACTION_COMMAND in setpoint_name
+DISCRETE_ACTION_COMMAND = environment.DISCRETE_ACTION_COMMAND
+# TODO(mjrossetti): Rename this alias once Schedule Agent is merged / submitted:
+is_discrete_action = environment.is_discrete_setpoint
 
 
 def map_discrete_off_value(action_value: float) -> float:
@@ -205,18 +198,6 @@ class HybridActionEnvironment(environment.Environment):
       )
 
     return merged_actions
-
-  @functools.cached_property
-  def action_fields_df(self) -> pd.DataFrame:
-    """Action fields DataFrame with awareness of discrete actions."""
-    df = super().action_fields_df.copy()
-    is_discrete = df["setpoint_name"].apply(is_discrete_action)
-    df["setpoint_type"] = np.where(
-        is_discrete,
-        environment.action_type_label(DISCRETE_ACTION),
-        environment.action_type_label(CONTINUOUS_ACTION),
-    )
-    return df
 
   def convert_to_hybrid(
       self, action_values: environment.NormalizedActionValues

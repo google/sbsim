@@ -34,26 +34,16 @@ from typing import Any, Callable, Final
 import pandas as pd
 
 from smart_buildings.smart_control.environment import environment
-from smart_buildings.smart_control.environment import hybrid_action_environment
+from smart_buildings.smart_control.environment import hybrid_action_environment as hybrid_env
 from smart_buildings.smart_control.llm.prompts import base_promptmaker
 from smart_buildings.smart_control.llm.schema import output_schema
-from smart_buildings.smart_control.proto import smart_control_building_pb2
-from smart_buildings.smart_control.proto import smart_control_reward_pb2
-from smart_buildings.smart_control.utils import temperature_conversion
-from smart_buildings.smart_control.utils.proto_parsers import observation_response_parser
-from smart_buildings.smart_control.utils.proto_parsers import reward_info_parser
-
-assign_temp_unit = temperature_conversion.assign_temp_unit
-
-ObservationResponse = smart_control_building_pb2.ObservationResponse
-ObservationResponseParser = observation_response_parser.ObservationResponseParser  # pylint: disable=line-too-long
-RewardInfo = smart_control_reward_pb2.RewardInfo
-RewardInfoParser = reward_info_parser.RewardInfoParser
-SetpointsAction = output_schema.SetpointsAction
+from smart_buildings.smart_control.proto import smart_control_building_pb2 as building_pb2
+from smart_buildings.smart_control.proto import smart_control_reward_pb2 as reward_pb2
+from smart_buildings.smart_control.utils import temperature_conversion as tc
+from smart_buildings.smart_control.utils.proto_parsers import observation_response_parser as or_parser
+from smart_buildings.smart_control.utils.proto_parsers import reward_info_parser as ri_parser
 
 SerializableData = dict[str, Any]
-
-DISCRETE_ACTION_COMMAND = hybrid_action_environment.DISCRETE_ACTION_COMMAND
 
 # TODO(mjrossetti): Consider importing these constants from other more central
 # locations related to the devices, once they are available there.
@@ -73,7 +63,9 @@ class BuildingInfo:
     stories: The number of stories in the building.
     sqft: The square footage of the building.
     location: The location of the building.
+    name: The name of the building, if applicable.
   """
+  name: str = "SB-1"
   stories: str = "two"
   sqft: int = 96_000
   location: str = "Mountain View, California"
@@ -88,14 +80,18 @@ class Promptmaker(base_promptmaker.BasePromptmaker):
   def __init__(
       self,
       env: environment.Environment,
-      observation_response: ObservationResponse | None = None,
-      reward_info: RewardInfo | None = None,
+      *,
+      observation_response: building_pb2.ObservationResponse | None = None,
+      reward_info: reward_pb2.RewardInfo | None = None,
       building_info: BuildingInfo | None = None,
-      output_schema_class: type[SetpointsAction] | None = SetpointsAction,
+      output_schema_class: (
+          type[output_schema.SetpointsAction] | None
+      ) = output_schema.SetpointsAction,
       dedent: Callable[[str], str] = base_promptmaker.full_dedent,
       include_weights: bool = False,
       occupancy_mode_min: int = 10,
-      temp_display_unit: str = "Fahrenheit",
+      temp_display_unit: tc.TempUnit | str = tc.TempUnit.FAHRENHEIT,
+      lazy_init_protos: bool = False,
   ):
     """Initializes the instance.
 
@@ -123,38 +119,100 @@ class Promptmaker(base_promptmaker.BasePromptmaker):
         be considered in occupancy mode.
       temp_display_unit: The temperature unit to be used by the LLM in its
         justifications and reasoning. All input temperatures are in Kelvin.
+      lazy_init_protos: Whether to lazily setup the observation
+        response and reward info. If False, (by default), the protos
+        should be passed in during initialization, or will automatically be set,
+        for convenience. If True, the protos are expected to be passed in after
+        initialization, using the `set_protos` method.
     """
     super().__init__(output_schema_class=output_schema_class, dedent=dedent)
     self.env = env
     self.include_weights = include_weights
     self.occupancy_mode_min = occupancy_mode_min
-    self.temp_display_unit = assign_temp_unit(temp_display_unit).value
+    self.temp_display_unit = tc.assign_temp_unit(temp_display_unit)
     self.building_info = building_info or BuildingInfo()
+    self.lazy_init_protos = lazy_init_protos
+    self._observation_response_parser: (
+        or_parser.ObservationResponseParser | None
+    ) = None
+    self._reward_info_parser: ri_parser.RewardInfoParser | None = None
 
-    self.observation_response_parser = self._setup_observation_response(
-        observation_response=observation_response
+    if not self.lazy_init_protos:
+      self.set_protos(
+          observation_response=observation_response,
+          reward_info=reward_info,
+      )
+
+  def set_protos(
+      self,
+      observation_response: building_pb2.ObservationResponse | None,
+      reward_info: reward_pb2.RewardInfo | None,
+  ) -> None:
+    """Sets up the observation response and reward info parsers.
+
+    If you lazy initialized the protos, you must call this method to set them.
+
+    Args:
+      observation_response: The observation response from the environment. If
+        None, the observation response will be retrieved from the environment.
+      reward_info: The reward info from the environment. If None, the reward
+        info will be retrieved from the environment.
+    """
+    self._observation_response_parser = self._setup_observation_response(
+        observation_response=observation_response,
     )
-    self.reward_info_parser = self._setup_reward_info(reward_info)
+    self._reward_info_parser = self._setup_reward_info(reward_info=reward_info)
 
   def _setup_observation_response(
       self,
-      observation_response: ObservationResponse | None = None,
-  ):
-    """Returns an observation response parser."""
+      observation_response: building_pb2.ObservationResponse | None = None,
+  ) -> or_parser.ObservationResponseParser:
+    """Returns an observation response parser.
+
+    Args:
+      observation_response: The observation response from the environment. If
+        None, the observation response will be retrieved from the environment.
+
+    Returns:
+      An observation response parser.
+    """
     if observation_response is None:
       observation_response = self.env.get_observation_response()
 
-    return ObservationResponseParser(observation_response=observation_response)
+    return or_parser.ObservationResponseParser(
+        observation_response=observation_response
+    )
 
-  def _setup_reward_info(self, reward_info: RewardInfo | None = None):
-    """Returns a reward info parser."""
+  def _setup_reward_info(
+      self, reward_info: reward_pb2.RewardInfo | None = None
+  ) -> ri_parser.RewardInfoParser:
+    """Returns a reward info parser.
+
+    Args:
+      reward_info: The reward info from the environment. If None, the reward
+        info will be retrieved from the environment.
+
+    Returns:
+      A reward info parser.
+    """
     if reward_info is None:
       reward_info = self.env.get_reward_info()
 
-    return RewardInfoParser(
-        reward_info=reward_info,
-        temp_unit=self.temp_display_unit,
-    )
+    return ri_parser.RewardInfoParser(reward_info=reward_info)
+
+  @property
+  def observation_response_parser(self) -> or_parser.ObservationResponseParser:
+    """The observation response parser. Assumed to have been set up already."""
+    if self._observation_response_parser is None:
+      raise ValueError("Observation response parser is None.")
+    return self._observation_response_parser
+
+  @property
+  def reward_info_parser(self) -> ri_parser.RewardInfoParser:
+    """The reward info parser. Assumed to have been set up already."""
+    if self._reward_info_parser is None:
+      raise ValueError("Reward info parser is None.")
+    return self._reward_info_parser
 
   # DATA AND PROPERTIES
 
@@ -164,9 +222,8 @@ class Promptmaker(base_promptmaker.BasePromptmaker):
     return super().json_metadata | {
         "include_weights": self.include_weights,
         "occupancy_mode_min": self.occupancy_mode_min,
-        "temp_display_unit": self.temp_display_unit,
+        "temp_display_unit": self.temp_display_unit.value,
         "building_info": dataclasses.asdict(self.building_info),
-        "env": self.env.json_metadata,
     }
 
   @property
@@ -194,6 +251,7 @@ class Promptmaker(base_promptmaker.BasePromptmaker):
         "device_id",
         "setpoint_name",
         "setpoint_type",
+        "units",
         "min_native_value",
         "max_native_value",
     ]].copy()
@@ -202,10 +260,21 @@ class Promptmaker(base_promptmaker.BasePromptmaker):
     )
 
   @property
+  def weights(self) -> dict[str, float] | None:
+    """Returns the reward function weights, if available."""
+    if hasattr(self.env.reward_function, "weights"):
+      weights = self.env.reward_function.weights.copy()
+      # Rename "productivity_weight" to "comfort_weight":
+      if "productivity_weight" in weights:
+        weights["comfort_weight"] = weights.pop("productivity_weight")
+      return weights
+    return None
+
+  @property
   def weights_series(self) -> pd.Series | None:
     """A pandas.Series describing the reward function weights, if available."""
-    if self.include_weights and hasattr(self.env.reward_function, "weights"):
-      return pd.Series(self.env.reward_function.weights, name="weight")
+    if self.weights is not None:
+      return pd.Series(self.weights, name="weight")
 
   @property
   def validity_intervals(self) -> list[int]:
@@ -229,7 +298,7 @@ class Promptmaker(base_promptmaker.BasePromptmaker):
     ])
 
   @property
-  def objectives_section(self):
+  def objectives_section(self) -> str:
     """A section describing the LLM's role and objectives.
 
     Includes the reward function weights, if available and enabled via the
@@ -278,7 +347,7 @@ class Promptmaker(base_promptmaker.BasePromptmaker):
     return self.dedent(section)
 
   @property
-  def zone_info_section(self):
+  def zone_info_section(self) -> str:
     """A section describing zone related terminology."""
 
     return self.dedent("""
@@ -300,7 +369,7 @@ class Promptmaker(base_promptmaker.BasePromptmaker):
     """)
 
   @property
-  def occupancy_modes_section(self):
+  def occupancy_modes_section(self) -> str:
     """A section describing and contrasting the different occupancy modes."""
 
     # TODO(mjrossetti): Add a table of hourly occupancy trends, for each day of
@@ -335,7 +404,7 @@ class Promptmaker(base_promptmaker.BasePromptmaker):
     """)
 
   @property
-  def hvac_system_guidelines_section(self):
+  def hvac_system_guidelines_section(self) -> str:
     """A section describing building-specific HVAC system setup and guidelines.
 
     This section describes the HVAC devices under control, and provides
@@ -345,41 +414,41 @@ class Promptmaker(base_promptmaker.BasePromptmaker):
     return self.dedent(f"""
       ## HVAC System Control Guidelines
 
-      There are two systems (AHU and HWS) under your control, with three devices total.
-      The AHU system includes two air handler devices (AHU-1 and AHU-2).
-      The HWS comprises one boiler device.
+      There are two systems under your control, with three devices total.
+      The Air Handler System (AHS) includes two air handler / air conditioner devices (AC-1 and AC-2).
+      The Hot Water System (HWS) includes one boiler device (BLR).
 
       ### Devices and Setpoints
 
-      **AHU-1**: Air Handler Unit (for all zones on the first floor)
+      **AC-1**: Air Conditioner / Air Handler Unit (for all zones on the first floor)
 
-        * '{DISCRETE_ACTION_COMMAND}': you can turn the device ON (1) and OFF (0)
+        * '{hybrid_env.DISCRETE_ACTION_COMMAND}': you can turn the device ON (1) and OFF (0)
         * '{AHU_STATIC_PRESSURE_SETPOINT}': you can increase/decrease airflow by increasing/decreasing static pressure
         * '{AHU_SUPPLY_AIR_TEMPERATURE_SETPOINT}': you can cool the zones by lowering the supply air temperature
 
-      **AHU-2**: Air Handler Unit (for all zones on the second floor)
+      **AC-2**: Air Conditioner / Air Handler Unit (for all zones on the second floor)
 
-        * '{DISCRETE_ACTION_COMMAND}': you can turn the device ON (1) and OFF (0)
+        * '{hybrid_env.DISCRETE_ACTION_COMMAND}': you can turn the device ON (1) and OFF (0)
         * '{AHU_STATIC_PRESSURE_SETPOINT}': you can increase/decrease airflow by increasing/decreasing static pressure
         * '{AHU_SUPPLY_AIR_TEMPERATURE_SETPOINT}': you can cool the zones by lowering the supply air temperature
 
-      **HWS**: Boiler (for both floors):
+      **BLR**: Boiler (for both floors):
 
-        * '{DISCRETE_ACTION_COMMAND}': you can turn the device ON (1) and OFF (0)
+        * '{hybrid_env.DISCRETE_ACTION_COMMAND}': you can turn the device ON (1) and OFF (0)
         * '{HWS_DIFFERENTIAL_PRESSURE_SETPOINT}': you can increase/decrease water flow to the zones by increasing/decreasing differential pressure
         * '{HWS_SUPPLY_WATER_TEMPERATURE_SETPOINT}': you can heat the zones by increasing the water supply temperature
 
-      ### Air Handler Unit (AHU) Guidelines
+      ### Air Conditioner (AC) / Air Handler (AHU) Guidelines
 
-      Turning on an AHU will consume electricity by running the air blowers and running the refrigeration compressors.
+      Turning on an AC will consume electricity by running the air blowers and running the refrigeration compressors.
       Turning them off will not consume any electricity, but will also remove air cooling and ventilation.
 
-      Lowering an AHU supply air temperature below outside air temperature will cause the compressor to run, consuming electricity, and will cool the zones.
+      Lowering an AC's supply air temperature below outside air temperature will cause the compressor to run, consuming electricity, and will cool the zones.
       Setting the supply air temperature only enables you to cool, but not heat the zones.
 
-      Increasing AHU static pressure will increase air circulation through the zones, which results in cooling or heating the zones.
+      Increasing an AC's static pressure will increase air circulation through the zones, which results in cooling or heating the zones.
 
-      ### Boiler (HWS) Guidelines
+      ### Boiler (BLR) Guidelines
 
       Lowering the boiler's supply water temperature will reduce carbon emission, but will also reduce the ability to heat zones.
 
@@ -393,7 +462,7 @@ class Promptmaker(base_promptmaker.BasePromptmaker):
     """)
 
   @property
-  def action_guidelines_section(self):
+  def action_guidelines_section(self) -> str:
     """A section describing the action space."""
 
     return self.dedent(f"""
@@ -409,17 +478,13 @@ class Promptmaker(base_promptmaker.BasePromptmaker):
       All temperatures will be reported to you in Kelvin.
       The temperatures you choose to set should be in Kelvin.
       However, in your textual responses and justifications only,
-      you should communicate temperatures in {self.temp_display_unit} instead,
+      you should communicate temperatures in {self.temp_display_unit.value} instead,
       accurately converting and translating between units as necessary.
     """)
 
   @property
-  def current_conditions_section(self):
+  def current_conditions_section(self) -> str:
     """A section describing the current conditions in the building."""
-
-    # TODO(mjrossetti): Differentiate comfort conditions by floor, or by AHU.
-    # So the LLM can understand which AHU is responsible for controlling the
-    # affected zones! Right now it chooses the same setpoints for both AHUs.
 
     # TODO(mjrossetti): Add upcoming temperature forecast for at least the next
     # six hours, using interpolation and caching strategies.
@@ -427,25 +492,17 @@ class Promptmaker(base_promptmaker.BasePromptmaker):
     return self.dedent(f"""
       ## Current Conditions
 
-      The current local time is: {self.env.current_local_timestamp.strftime('%A, %B %d, %Y %l:%M %p %Z')}
+      The current local time is: {self.env.current_local_timestamp.strftime('%A, %B %d, %Y %l:%M %p %Z')}.
 
-      The current outside air temperature is: {self.observation_response_parser.outside_air_temp:.1f} Kelvin
+      The current outside air temperature is: {self.observation_response_parser.outside_air_temp:.1f} Kelvin.
 
       Total number of zones: {len(self.env.building.zones)}
 
-      Current number of occupants: {self.reward_info_parser.total_occupancy}
+      Current number of occupants: {self.reward_info_parser.total_occupancy}.
 
-      Current number of occupants exposed to unacceptable comfort conditions: {self.reward_info_parser.num_occupants_uncomfortable}
+      Current number of occupants exposed to unacceptable comfort conditions: {self.reward_info_parser.num_occupants_uncomfortable}.
 
-      ### Current Zone Temperatures
-
-      The table below conveys the comfort conditions across all zones in the building:
-
-      {self.reward_info_parser.zone_conditions_histogram.to_markdown(index=True)}
-
-      The first two rows show the number of zones and the number of occupants at a specific temperature.
-      The row marked 'temperature setpoint range' makes a '+' for a temperature inside acceptable range, and a '-' for a temperature outside of acceptable range.
-      The row labeled 'count of occupants exposed' indicates the count of all occupants being exposed to unacceptable comfort conditions.
+      {self.zone_conditions_subsection}
 
       ### Current Power Consumption
 
@@ -455,7 +512,26 @@ class Promptmaker(base_promptmaker.BasePromptmaker):
     """)
 
   @property
-  def current_action_section(self):
+  def zone_conditions_subsection(self) -> str:
+    """A subsection describing the current zone conditions.
+
+    For floor-by-floor occupant comfort, see the FloorBasedPromptmaker class.
+    """
+
+    return self.dedent(f"""
+      ### Current Zone Temperatures
+
+      The table below conveys the comfort conditions across all zones in the building:
+
+      {self.reward_info_parser.zone_conditions_histogram.to_markdown(index=True)}
+
+      The first two rows show the number of zones and the number of occupants at a specific temperature.
+      The row marked 'temperature setpoint range' makes a '+' for a temperature inside acceptable range, and a '-' for a temperature outside of acceptable range.
+      The row labeled 'count of occupants exposed' indicates the count of all occupants being exposed to unacceptable comfort conditions.
+    """)
+
+  @property
+  def current_action_section(self) -> str:
     """A section containing guidance for choosing the next action."""
 
     return self.dedent(f"""
@@ -463,7 +539,7 @@ class Promptmaker(base_promptmaker.BasePromptmaker):
 
       First, observe the building conditions (including occupancy levels, outside air temperature, zone air temperatures, energy consumption levels, etc.), and use this information to devise an overall strategy for your next action.
 
-      According to your strategy, decide to turn each device ON (1) or OFF (0), using their discrete '{DISCRETE_ACTION_COMMAND}' setpoints.
+      According to your strategy, decide to turn each device ON (1) or OFF (0), using their discrete '{hybrid_env.DISCRETE_ACTION_COMMAND}' setpoints.
 
       For each device, also decide on values for that device's continuous setpoints.
       NOTE: even if the devices are off, you still need to supply values for these continuous setpoints, however they will not be used, so it is ok to choose a value in the middle of the setpoint range.

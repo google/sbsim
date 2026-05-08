@@ -421,6 +421,7 @@ def get_test_reward_info(
     boiler_energies: Sequence[tuple[str, float, float]],
     start_timestamp: pd.Timestamp,
     end_timestamp: pd.Timestamp,
+    heat_pump_energies: Sequence[tuple[str, float, float]] = (),
 ) -> smart_control_reward_pb2.RewardInfo:
   """Creates RewardInfos for unit tests."""
   heating_setpoint_temperature = 293.0
@@ -438,9 +439,7 @@ def get_test_reward_info(
       ),
   )
 
-  for zone_temp_occupancy in zone_temp_occupancies:
-    zone_id, zone_air_temp, zone_occupancy = zone_temp_occupancy
-
+  for zone_id, zone_air_temp, zone_occupancy in zone_temp_occupancies:
     zone_info = smart_control_reward_pb2.RewardInfo.ZoneRewardInfo(
         heating_setpoint_temperature=heating_setpoint_temperature,
         cooling_setpoint_temperature=cooling_setpoint_temperature,
@@ -452,27 +451,38 @@ def get_test_reward_info(
 
     info.zone_reward_infos[zone_id].CopyFrom(zone_info)
 
-  for air_handler_energy in air_handler_energies:
-    (
-        air_handler_id,
-        blower_electrical_energy_rate,
-        air_conditioning_electrical_energy_rate,
-    ) = air_handler_energy
+  for (
+      air_handler_id,
+      blower_electrical_energy_rate,
+      air_conditioning_electrical_energy_rate,
+  ) in air_handler_energies:
     air_handler_info = smart_control_reward_pb2.RewardInfo.AirHandlerRewardInfo(
         blower_electrical_energy_rate=blower_electrical_energy_rate,
         air_conditioning_electrical_energy_rate=air_conditioning_electrical_energy_rate,  # pylint: disable=line-too-long
     )
     info.air_handler_reward_infos[air_handler_id].CopyFrom(air_handler_info)
 
-  for boiler_energy in boiler_energies:
-    boiler_id, natural_gas_heating_energy_rate, pump_electrical_energy_rate = (
-        boiler_energy
-    )
+  for (
+      boiler_id,
+      natural_gas_heating_energy_rate,
+      pump_electrical_energy_rate,
+  ) in boiler_energies:
     boiler_info = smart_control_reward_pb2.RewardInfo.BoilerRewardInfo(
         natural_gas_heating_energy_rate=natural_gas_heating_energy_rate,
         pump_electrical_energy_rate=pump_electrical_energy_rate,
     )
     info.boiler_reward_infos[boiler_id].CopyFrom(boiler_info)
+
+  for (
+      heat_pump_id,
+      electricity_heating_energy_rate,
+      pump_electrical_energy_rate,
+  ) in heat_pump_energies:
+    heat_pump_info = smart_control_reward_pb2.RewardInfo.HeatPumpRewardInfo(
+        electricity_heating_energy_rate=electricity_heating_energy_rate,
+        pump_electrical_energy_rate=pump_electrical_energy_rate,
+    )
+    info.heat_pump_reward_infos[heat_pump_id].CopyFrom(heat_pump_info)
 
   return info
 

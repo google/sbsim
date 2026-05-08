@@ -168,18 +168,20 @@ Current number of occupants exposed to unacceptable comfort conditions: 0.
 
 ### Current Zone Temperatures
 
-The table below conveys the comfort conditions across all zones in the building:
+The table below conveys the comfort conditions across all zones in the building, by floor:
 
-|                            | 290.0K   | 291.0K   | 292.0K   | 293.0K   | 294.0K   | 295.0K   | 296.0K   | 297.0K   | 298.0K   | 299.0K   | 300.0K   |
-|:---------------------------|:---------|:---------|:---------|:---------|:---------|:---------|:---------|:---------|:---------|:---------|:---------|
-| count of zones             | 0        | 0        | 0        | 0        | 126      | 0        | 0        | 0        | 0        | 0        | 0        |
-| count of occupants         | 0        | 0        | 0        | 0        | 0        | 0        | 0        | 0        | 0        | 0        | 0        |
-| temperature setpoint range | +        | +        | +        | +        | +        | +        | +        | +        | +        | -        | -        |
-| count of occupants exposed | 0        | 0        | 0        | 0        | 0        | 0        | 0        | 0        | 0        | 0        | 0        |
+|                 | 290.0   | 291.0   | 292.0   | 293.0   | 294.0   | 295.0   | 296.0   | 297.0   | 298.0   | 299.0   | 300.0   |
+|:----------------|:--------|:--------|:--------|:--------|:--------|:--------|:--------|:--------|:--------|:--------|:--------|
+| occupancy_count | 0       | 0       | 0       | 0       | 0       | 0       | 0       | 0       | 0       | 0       | 0       |
+| setpoint_mask   | 0       | 0       | 0       | 0       | 0       | 0       | 0       | 0       | 0       | 1       | 1       |
+| setpoint_range  | +       | +       | +       | +       | +       | +       | +       | +       | +       | -       | -       |
+| exposed_count   | 0       | 0       | 0       | 0       | 0       | 0       | 0       | 0       | 0       | 0       | 0       |
+| occ@floor0      | 0.0     | 0.0     | 0.0     | 0.0     | 1.0     | 0.0     | 0.0     | 0.0     | 0.0     | 0.0     | 0.0     |
 
-The first two rows show the number of zones and the number of occupants at a specific temperature.
-The row marked 'temperature setpoint range' makes a '+' for a temperature inside acceptable range, and a '-' for a temperature outside of acceptable range.
-The row labeled 'count of occupants exposed' indicates the count of all occupants being exposed to unacceptable comfort conditions.
+The row 'occupancy_count' shows the total number of occupants building-wide at a specific temperature.
+The row 'setpoint_range' indicates with '+' if the temperature is inside the acceptable range, and '-' if it is outside.
+The row 'exposed_count' indicates the count of occupants being exposed to unacceptable comfort conditions.
+The rows starting with 'occ@floor' show the normalized distribution of zone counts for each floor at that temperature.
 
 ### Current Power Consumption
 

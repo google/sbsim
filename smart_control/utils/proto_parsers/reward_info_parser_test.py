@@ -10,7 +10,7 @@ import pandas.testing as pdt
 from smart_buildings.smart_control.proto import smart_control_building_pb2
 from smart_buildings.smart_control.proto import smart_control_reward_pb2
 from smart_buildings.smart_control.utils import conversion_utils
-from smart_buildings.smart_control.utils import test_utils
+from smart_buildings.smart_control.utils.proto_parsers import conftest
 from smart_buildings.smart_control.utils.proto_parsers import reward_info_parser
 
 from google3.net.proto2.contrib.pyutil import compare
@@ -18,9 +18,8 @@ from google3.net.proto2.contrib.pyutil import compare
 get_comfort_diffs = reward_info_parser.get_comfort_diffs
 
 
-TIME_ZONE = 'US/Pacific'
-START_TIMESTAMP = pd.Timestamp('2022-03-13 00:00:00', tz=TIME_ZONE)
-END_TIMESTAMP = pd.Timestamp('2022-03-13 00:05:00', tz=TIME_ZONE)
+START_TIMESTAMP = conftest.START_TIMESTAMP
+END_TIMESTAMP = conftest.END_TIMESTAMP
 
 HISTOGRAM_INDEX_NAMES = [
     'count of zones',
@@ -158,36 +157,13 @@ class ComfortDiffsTest(parameterized.TestCase):
 
 
 class RewardInfoParserTest(absltest.TestCase):
+
   def setUp(self):
     super().setUp()
-
-    # FYI the usual comfort range is between 293 and 297 K
-    zone_temp_occupancies = [
-        # zone_id, zone_air_temp, zone_occupancy
-        ('zone_0', 295.0, 8.0),  # IN_RANGE  (71.33°F)
-        ('zone_1', 292.0, 4.0),  # TOO_COLD_1  (65.93°F)
-        ('zone_2', 299.0, 2.0),  # TOO_HOT_2  (78.53°F)
-    ]
-    air_handler_energies = [
-        # ahu_id, blower_electrical_energy_rate, ac_electrical_energy_rate
-        ('air_handler_0', 23.0, 15.0),
-        ('air_handler_1', 26.0, 22.0),
-    ]
-    boiler_energies = [
-        # hws_id, natural_gas_heating_energy_rate, pump_electrical_energy_rate
-        ('boiler_0', 200.1, 2.3),
-    ]
-
-    self.reward_info = test_utils.get_test_reward_info(
-        zone_temp_occupancies=zone_temp_occupancies,
-        air_handler_energies=air_handler_energies,
-        boiler_energies=boiler_energies,
-        start_timestamp=START_TIMESTAMP,
-        end_timestamp=END_TIMESTAMP,
-    )
-
+    self.reward_info = conftest.get_reward_info()
     self.parser = reward_info_parser.RewardInfoParser(
-        self.reward_info, comfort_diff_params={'use_magnitude_labels': True}
+        reward_info=self.reward_info,
+        comfort_diff_params={'use_magnitude_labels': True},
     )
 
   # PROPERTIES AND ALIASES
@@ -217,6 +193,12 @@ class RewardInfoParserTest(absltest.TestCase):
     self.assertEqual(
         self.parser.boiler_reward_infos,
         self.reward_info.boiler_reward_infos,
+    )
+
+  def test_heat_pump_reward_infos(self):
+    self.assertEqual(
+        self.parser.heat_pump_reward_infos,
+        self.reward_info.heat_pump_reward_infos,
     )
 
   # ZONE INFO
@@ -340,6 +322,18 @@ class RewardInfoParserTest(absltest.TestCase):
     self.assertIsInstance(histogram, pd.DataFrame)
     expected_columns = [f'{temp}K' for temp in reward_info_parser.TEMP_BINS]
     self.assertEqual(histogram.columns.tolist(), expected_columns)
+
+  def test_get_zone_conditions_histogram_with_unit_override_only(self):
+    """Tests unit override using default bins converted to that unit."""
+    # Celsius: 0 C = 273.15 K.
+    # TEMP_BINS starts at 290.0 K, which is 16.85 C.
+    parser = reward_info_parser.RewardInfoParser(reward_info=self.reward_info)
+    histogram = parser.get_zone_conditions_histogram(temp_unit='C')
+
+    # Default TEMP_BINS converted to C:
+    expected_bins = [b - 273.15 for b in reward_info_parser.TEMP_BINS]
+    column_names = [f'{b}°C' for b in expected_bins]
+    self.assertEqual(histogram.columns.tolist(), column_names)
 
   def test_zone_occupancies_df(self):
     df = self.parser.zone_occupancies_df
@@ -496,7 +490,8 @@ class RewardInfoParserTest(absltest.TestCase):
       expected_devices = [
           {'device_type': 'AHU', 'device_id': 'air_handler_0'},
           {'device_type': 'AHU', 'device_id': 'air_handler_1'},
-          {'device_type': 'HWS', 'device_id': 'boiler_0'},
+          {'device_type': 'ASHP', 'device_id': 'heat_pump_0'},
+          {'device_type': 'BLR', 'device_id': 'boiler_0'},
       ]
       self.assertEqual(unique_devices.to_dict('records'), expected_devices)
 
@@ -552,6 +547,21 @@ class RewardInfoParserTest(absltest.TestCase):
       ]
       self._assert_device_energy_consumption(df, 'boiler_0', expected)
 
+    with self.subTest(name='consumption metrics (heat_pump_0)'):
+      expected = [
+          {
+              'metric': 'electricity_heating_energy_rate',
+              'rate_watts': 150.0,
+              'consumption_kwh': 0.0125,
+          },
+          {
+              'metric': 'pump_electrical_energy_rate',
+              'rate_watts': 20.0,
+              'consumption_kwh': 0.0016666666666666668,
+          },
+      ]
+      self._assert_device_energy_consumption(df, 'heat_pump_0', expected)
+
 
 def _get_zone_conditions_histogram_helper(
     reward_info: smart_control_reward_pb2.RewardInfo,
@@ -561,9 +571,9 @@ def _get_zone_conditions_histogram_helper(
   """Generates a histogram DataFrame of building zone cond over temp bins."""
   return reward_info_parser.RewardInfoParser(
       reward_info=reward_info,
-      zone_temp_bins=temperature_bins,
-      temp_unit='K',
-  ).get_zone_conditions_histogram_by_floor(zones)
+  ).get_zone_conditions_histogram_by_floor(
+      zones, temp_unit='K', temp_bins=temperature_bins
+  )
 
 
 class TestGetZoneConditionsHistogram(
@@ -715,6 +725,30 @@ class TestGetZoneConditionsHistogram(
     )
     pdt.assert_series_equal(df['setpoint_mask'], expected_setpoint_mask)
 
+  def test_get_zone_conditions_histogram_by_floor_with_conversion(self):
+    """Tests that units are converted from Kelvin to the specified unit."""
+    # 294.261 K is approx 70 F
+    # 291.483 K is approx 65 F
+    # 297.039 K is approx 75 F
+
+    zones = [_create_zone_info('zone_1', floor=1)]
+    reward_info = smart_control_reward_pb2.RewardInfo()
+    reward_info.zone_reward_infos['zone_1'].CopyFrom(
+        self._create_zone_reward_info(294.261, 291.483, 297.039, 10.0)
+    )
+
+    parser = reward_info_parser.RewardInfoParser(reward_info=reward_info)
+    df = parser.get_zone_conditions_histogram_by_floor(
+        zones, temp_bins=[65, 70, 75], temp_unit='F'
+    )
+
+    # Air temp 70F should be in bin 70.
+    self.assertEqual(df.loc[70, 'occupancy_count'], 10)
+    # Setpoints 65F and 75F.
+    self.assertEqual(df.loc[70, 'setpoint_range'], '+')
+    self.assertEqual(df.loc[65, 'setpoint_range'], '+')
+    self.assertEqual(df.loc[75, 'setpoint_range'], '+')
+
 
 class RewardInfoParserLegacyEnergyConsumptionTest(absltest.TestCase):
   """This uses the same setup as the original conversion_utils test."""
@@ -761,6 +795,13 @@ class RewardInfoParserLegacyEnergyConsumptionTest(absltest.TestCase):
             pump_electrical_energy_rate=100.0,
         )
     )
+    # HEAT PUMPS:
+    reward_info.heat_pump_reward_infos['heat_pump_0'].CopyFrom(
+        smart_control_reward_pb2.RewardInfo.HeatPumpRewardInfo(
+            electricity_heating_energy_rate=150.0,
+            pump_electrical_energy_rate=20.0,
+        )
+    )
 
     self.reward_info = reward_info
     self.parser = reward_info_parser.RewardInfoParser(self.reward_info)
@@ -769,10 +810,12 @@ class RewardInfoParserLegacyEnergyConsumptionTest(absltest.TestCase):
     energy_use = self.parser.get_energy_consumption()
 
     expected_energy_use = {
-        'air_handler_blower_electricity': 110.0 * self.to_kwh,
-        'air_handler_air_conditioning': 50.0 * self.to_kwh,
+        'air_handler_blower_electrical_energy': 110.0 * self.to_kwh,
+        'air_handler_air_conditioning_electrical_energy': 50.0 * self.to_kwh,
         'boiler_natural_gas_heating_energy': 300.0 * self.to_kwh,
         'boiler_pump_electrical_energy': 130 * self.to_kwh,
+        'heat_pump_electricity_heating_energy': 150 * self.to_kwh,
+        'heat_pump_pump_electrical_energy': 20 * self.to_kwh,
     }
 
     for field in expected_energy_use:

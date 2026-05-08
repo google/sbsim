@@ -1,4 +1,10 @@
-"""Temperature-related utilities, including conversion functions."""
+"""Thermal utilities, including constants and conversion functions.
+
+This is the place for all logic related to temperature, pressure, volume,
+and other thermodynamic physical quantities and their units.
+"""
+
+# TODO: b/505380216 - Rename this file to be called "thermal_utils.py"
 
 import enum
 from typing import Callable, Final, Mapping
@@ -10,9 +16,19 @@ TempConversionFunction = Callable[[float], float]
 class TempUnit(str, enum.Enum):
   """Temperature units."""
 
-  KELVIN = 'Kelvin'
-  CELSIUS = 'Celsius'
-  FAHRENHEIT = 'Fahrenheit'
+  KELVIN: Final[str] = 'Kelvin'
+  CELSIUS: Final[str] = 'Celsius'
+  FAHRENHEIT: Final[str] = 'Fahrenheit'
+
+  @property
+  def abbrev(self) -> str:
+    """The single letter abbreviation for the temperature unit."""
+    return self.value[0].upper()
+
+  @property
+  def deg_symbol(self) -> str:
+    """The degree symbol for the temperature unit. Kelvin does not use one."""
+    return '' if self == TempUnit.KELVIN else '°'
 
 
 TEMP_UNITS: Final = tuple(TempUnit)
@@ -27,14 +43,15 @@ ABSOLUTE_ZERO_CELSIUS = -CELSIUS_TO_KELVIN_OFFSET
 ABSOLUTE_ZERO_FAHRENHEIT = -459.67
 
 
-def assign_temp_unit(temp_unit: str) -> TempUnit:
+def assign_temp_unit(temp_unit: TempUnit | str) -> TempUnit:
   """Assigns and validates a given temperature display unit.
 
   Args:
     temp_unit: The desired temperature unit (e.g. "Kelvin", "Celsius", or
-      "Fahrenheit"). Alternatively, you can use just the first letter. This
-      provides a more flexible experience, because "Fahrenheit" is easily
-      misspelled, and some services only provide the first letter of the unit.
+      "Fahrenheit"). Alternatively, you can use just the first letter, or a
+      TempUnit enum. This provides a more flexible experience, because
+      "Fahrenheit" is easily misspelled, and some services only provide the
+      first letter of the unit.
 
   Returns:
     A valid official long-form temperature display unit.

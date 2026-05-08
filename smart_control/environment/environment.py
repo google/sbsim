@@ -37,6 +37,7 @@ from smart_buildings.smart_control.utils import plot_utils
 from smart_buildings.smart_control.utils import regression_building_utils
 from smart_buildings.smart_control.utils import run_command_predictor
 from smart_buildings.smart_control.utils import writer_lib
+from smart_buildings.smart_control.utils.proto_parsers import reward_info_parser
 
 Sequence = collections.abc.Sequence
 
@@ -79,16 +80,44 @@ HOD_LABEL: Final[str] = "hod"
 
 DISCRETE_ACTION: Final[str] = "discrete_action"
 CONTINUOUS_ACTION: Final[str] = "continuous_action"
+DISCRETE_ACTION_COMMAND: Final[str] = "supervisor_run_command"
+
+ACTION_TYPE_LABELS_MAP: Final[Mapping[str, str]] = {
+    DISCRETE_ACTION: "DISCRETE",
+    CONTINUOUS_ACTION: "CONTINUOUS",
+}  # Labels, for display purposes.
 
 
-def action_type_label(action_type: str) -> str:
-  """Returns a label for the given action type, used for display purposes."""
-  if action_type not in (DISCRETE_ACTION, CONTINUOUS_ACTION):
-    raise ValueError(
-        f"Invalid action_type: {action_type}. Action type must be one of"
-        f" {DISCRETE_ACTION, CONTINUOUS_ACTION}."
-    )
-  return action_type.replace("_action", "").upper()
+def is_discrete_setpoint(setpoint_name: str) -> bool:
+  """Checks if a setpoint name corresponds with a discrete action."""
+  return DISCRETE_ACTION_COMMAND in setpoint_name
+
+
+def get_setpoint_type(setpoint_name: str) -> str:
+  """Returns the type of the setpoint."""
+  if is_discrete_setpoint(setpoint_name):
+    return DISCRETE_ACTION
+  return CONTINUOUS_ACTION
+
+
+def get_setpoint_type_label(setpoint_name: str) -> str:
+  """Returns the type of the setpoint, as a label, for display purposes."""
+  return ACTION_TYPE_LABELS_MAP[get_setpoint_type(setpoint_name)]
+
+
+def get_setpoint_units(setpoint_name: str) -> str:
+  """Returns the units for the given setpoint name, for display purposes."""
+  # TODO(mjrossetti): formalize unit specification for each setpoint.
+  if is_discrete_setpoint(setpoint_name):
+    return "On/Off"
+  elif (
+      "temperature" in setpoint_name
+      or "supply_water_setpoint" in setpoint_name
+  ):
+    return "Kelvin"
+  elif "pressure" in setpoint_name:
+    return "Pascal"
+  return "N/A"
 
 
 def all_actions_accepted(action_response: ActionResponse) -> bool:
@@ -307,9 +336,41 @@ class ActionConfig:
     return self.action_normalizers.get(DeviceFieldId(setpoint_name))
 
 
+@dataclasses.dataclass(frozen=True)
+class SetpointRecord:
+  """Represents a flattened record for an action field, for display purposes.
+
+  Attributes:
+    device_id: Unique identifier for the device.
+    device_type: Type of the device.
+    zone_id: Zone identifier.
+    setpoint_type: Type of the setpoint (e.g., 'CONTINUOUS', 'DISCRETE').
+    action_name: Unique identifier for the action.
+    setpoint_name: Name of the setpoint.
+    value_type: Value type of the setpoint.
+    units: Units of the setpoint.
+    min_native_value: Minimum value in native units.
+    max_native_value: Maximum value in native units.
+    min_normalized_value: Minimum value in normalized units.
+    max_normalized_value: Maximum value in normalized units.
+  """
+  device_id: str
+  device_type: str
+  zone_id: str
+  setpoint_type: str
+  action_name: str
+  setpoint_name: str
+  value_type: str
+  units: str
+  min_native_value: float
+  max_native_value: float
+  min_normalized_value: float
+  max_normalized_value: float
+
+
 @dataclasses.dataclass(frozen=True, kw_only=True)
 class ActionRecord:
-  """An action for a specific setpoint.
+  """An action for a specific setpoint, for display purposes.
 
   Provides a mapping between normalized and native values.
 
@@ -335,10 +396,7 @@ class ActionRecord:
   action_value: float
 
   def __post_init__(self) -> None:
-    labels = [
-        action_type_label(action_type)
-        for action_type in (CONTINUOUS_ACTION, DISCRETE_ACTION)
-    ]
+    labels = ACTION_TYPE_LABELS_MAP.values()
     if self.setpoint_type not in labels:
       raise ValueError(
           f"Invalid setpoint_type: {self.setpoint_type}. "
@@ -671,6 +729,7 @@ class Environment(py_environment.PyEnvironment):
               ),
               "setpoint_name": setpoint_name,
               "value_type": ValueType.Name(value_type),
+              "units": get_setpoint_units(setpoint_name),
               "min_native_value": normalizer.setpoint_min,
               "max_native_value": normalizer.setpoint_max,
               "min_normalized_value": normalizer.min_normalized_value,
@@ -680,22 +739,33 @@ class Environment(py_environment.PyEnvironment):
     return mapping
 
   @functools.cached_property
-  def action_fields_flattened(self) -> list[dict[str, Any]]:
+  def action_fields_flattened(self) -> Tuple[SetpointRecord, ...]:
+    """A tuple of immutable SetpointRecord dataclasses, for display purposes."""
     records = []
     for device_id, device_info in self.action_fields_map.items():
       for setpoint_info in device_info["setpoints"]:
-        record = {
-            "device_id": device_id,
-            "device_type": device_info["device_type"],
-            "zone_id": device_info["zone_id"],
-            "setpoint_type": action_type_label(CONTINUOUS_ACTION),
-        }
-        record.update(setpoint_info)
-        records.append(record)
-    return records
+        setpoint_name = setpoint_info["setpoint_name"]
+        records.append(
+            SetpointRecord(
+                device_id=device_id,
+                device_type=device_info["device_type"],
+                zone_id=device_info["zone_id"],
+                setpoint_type=get_setpoint_type_label(setpoint_name),
+                action_name=setpoint_info["action_name"],
+                setpoint_name=setpoint_info["setpoint_name"],
+                value_type=setpoint_info["value_type"],
+                units=setpoint_info["units"],
+                min_native_value=setpoint_info["min_native_value"],
+                max_native_value=setpoint_info["max_native_value"],
+                min_normalized_value=setpoint_info["min_normalized_value"],
+                max_normalized_value=setpoint_info["max_normalized_value"],
+            )
+        )
+    return tuple(records)
 
   @functools.cached_property
   def action_fields_df(self) -> pd.DataFrame:
+    """A DataFrame of setpoint records, for display purposes."""
     return pd.DataFrame(self.action_fields_flattened)
 
   @property
@@ -738,7 +808,7 @@ class Environment(py_environment.PyEnvironment):
               action_name=action_name,
               device_id=device_id,
               setpoint_name=setpoint_name,
-              setpoint_type=action_type_label(CONTINUOUS_ACTION),
+              setpoint_type=get_setpoint_type_label(setpoint_name),
               normalized_value=normalized_value,
               native_value=native_value,
               action_value=normalized_value,
@@ -790,7 +860,7 @@ class Environment(py_environment.PyEnvironment):
               action_name=action_name,
               device_id=device_id,
               setpoint_name=setpoint_name,
-              setpoint_type=action_type_label(CONTINUOUS_ACTION),
+              setpoint_type=get_setpoint_type_label(setpoint_name),
               normalized_value=normalized_value,
               native_value=native_value,
               action_value=normalized_value,
@@ -1404,12 +1474,15 @@ class Environment(py_environment.PyEnvironment):
       self, reward_info: smart_control_reward_pb2.RewardInfo
   ) -> None:
     """Writes reward input metrics into the TensorBoard logs."""
-    energy_use = conversion_utils.get_reward_info_energy_use(reward_info)
+    parser = reward_info_parser.RewardInfoParser(reward_info)
+    energy_use = parser.get_energy_consumption()
 
     self._accumulator["electrical_energy"].append(
-        energy_use["air_handler_blower_electricity"]
-        + energy_use["air_handler_air_conditioning"]
+        energy_use["air_handler_blower_electrical_energy"]
+        + energy_use["air_handler_air_conditioning_electrical_energy"]
         + energy_use["boiler_pump_electrical_energy"]
+        + energy_use["heat_pump_electricity_heating_energy"]
+        + energy_use["heat_pump_pump_electrical_energy"]
     )
     self._accumulator["natural_gas_energy"].append(
         energy_use["boiler_natural_gas_heating_energy"]

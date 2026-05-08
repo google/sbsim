@@ -66,6 +66,35 @@ DEMO_LAYOUT = {
     },
 }
 
+MULTI_FLOOR_LAYOUT = {
+    "zone_1": {
+        "air_handler_1": [
+            "supply_air_heating_temperature_setpoint",
+            "supervisor_run_command",
+        ],
+        "boiler_1": [
+            "supply_water_setpoint",
+            "supervisor_run_command",
+        ],
+        "floor": 1,
+    },
+    "zone_2": {
+        "air_handler_2": [
+            "supply_air_heating_temperature_setpoint",
+            "supervisor_run_command",
+        ],
+        "outside_air_sensor": ["outside_air_temperature_sensor"],
+        "floor": 1,
+    },
+    "zone_3": {
+        "air_handler_3": [
+            "supply_air_heating_temperature_setpoint",
+            "supervisor_run_command",
+        ],
+        "floor": 2,
+    },
+}
+
 SIM_NEW_HVAC_LAYOUT = {
     "zone_1": {
         "ahu": [
@@ -299,7 +328,12 @@ HYBRID_ACTION_RECORDS = [
 #
 
 
-def create_building(layout=None, initial_values=None, start_timestamp=None):
+def create_building(
+    layout=None,
+    initial_values=None,
+    start_timestamp=None,
+    zone_reward_configs=None
+):
   """Building implementation for unit tests."""
   layout = layout or LAYOUT
   initial_values = initial_values or {"outside_air_temperature_sensor": 295.0}
@@ -307,6 +341,7 @@ def create_building(layout=None, initial_values=None, start_timestamp=None):
       layout=layout,
       initial_values=initial_values,
       start_timestamp=start_timestamp,
+      zone_reward_configs=zone_reward_configs,
   )
 
 
@@ -359,11 +394,14 @@ def create_environment(
     default_actions=None,
     building=None,
     num_days_in_episode=3,
+    zone_reward_configs=None,
 ):
   """Creates an environment to use for testing purposes."""
 
   building = building or create_building(
-      layout=layout, start_timestamp=start_timestamp
+      layout=layout,
+      start_timestamp=start_timestamp,
+      zone_reward_configs=zone_reward_configs,
   )
   reward_function = environment_test_utils.SimpleRewardFunction()
   obs_normalizer = create_observation_normalizer(observation_normalizers)
@@ -395,11 +433,14 @@ def create_hybrid_action_environment(
     default_actions=None,
     building=None,
     num_days_in_episode=3,
+    zone_reward_configs=None,
 ):
   """Creates an environment to use for testing purposes."""
 
   building = building or create_building(
-      layout=layout, start_timestamp=start_timestamp
+      layout=layout,
+      start_timestamp=start_timestamp,
+      zone_reward_configs=zone_reward_configs,
   )
   reward_function = environment_test_utils.SimpleRewardFunction()
   obs_normalizer = create_observation_normalizer(observation_normalizers)

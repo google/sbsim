@@ -49,20 +49,45 @@ def _get_histogram_reducer():
   )
 
 
-class ActionTypeLabelsTest(parameterized.TestCase):
+class SetpointLabelsTest(parameterized.TestCase):
 
   @parameterized.parameters(
-      (environment.CONTINUOUS_ACTION, "CONTINUOUS"),
-      (environment.DISCRETE_ACTION, "DISCRETE"),
+      ("supervisor_run_command", True),
+      ("ahu_1_supervisor_run_command", True),
+      ("setpoint_1", False),
   )
-  def test_action_type_labels_valid(self, setpoint_type, expected_label):
-    label = environment.action_type_label(setpoint_type)
+  def test_is_discrete_setpoint(self, setpoint_name, expected):
+    self.assertEqual(environment.is_discrete_setpoint(setpoint_name), expected)
+
+  @parameterized.parameters(
+      ("supervisor_run_command", environment.DISCRETE_ACTION),
+      ("ahu_1_supervisor_run_command", environment.DISCRETE_ACTION),
+      ("setpoint_1", environment.CONTINUOUS_ACTION),
+  )
+  def test_get_setpoint_type(self, setpoint_name, expected):
+    self.assertEqual(environment.get_setpoint_type(setpoint_name), expected)
+
+  @parameterized.parameters(
+      ("supervisor_run_command", "DISCRETE"),
+      ("ahu_1_supervisor_run_command", "DISCRETE"),
+      ("temperature_setpoint", "CONTINUOUS"),
+      ("pressure_setpoint", "CONTINUOUS"),
+  )
+  def test_get_setpoint_type_label(self, setpoint_name, expected_label):
+    label = environment.get_setpoint_type_label(setpoint_name)
     self.assertEqual(label, expected_label)
 
-  @parameterized.parameters("continuous", "discrete", "OTHER")
-  def test_action_type_labels_invalid(self, setpoint_type):
-    with self.assertRaises(ValueError):
-      environment.action_type_label(setpoint_type)
+  @parameterized.parameters(
+      ("supervisor_run_command", "On/Off"),
+      ("ahu_1_supervisor_run_command", "On/Off"),
+      ("supply_water_temperature_setpoint", "Kelvin"),
+      ("pressure_setpoint", "Pascal"),
+      ("other_setpoint", "N/A"),
+  )
+  def test_get_setpoint_units(self, setpoint_name, expected_units):
+    self.assertEqual(
+        environment.get_setpoint_units(setpoint_name), expected_units
+    )
 
 
 class EnvironmentTest(parameterized.TestCase, tf.test.TestCase):
