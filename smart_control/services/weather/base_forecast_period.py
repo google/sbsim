@@ -93,7 +93,9 @@ class BaseForecastPeriod:
   @property
   def as_dict(self) -> dict[str, Any]:
     """A dictionary of period attributes."""
-    return dataclasses.asdict(self) | dict(
+    data = dataclasses.asdict(self)
+    data["temp_unit"] = data["temp_unit"].value  # use the value, not the enum
+    return data | dict(
         duration=self.duration,
         start_date=self.start_date,
         end_date=self.end_date,

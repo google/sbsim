@@ -114,7 +114,7 @@ class BaseForecastPeriodTest(parameterized.TestCase):
             'start_timestamp': conftest.START_TIMESTAMP,
             'end_timestamp': conftest.END_TIMESTAMP,
             'temp': conftest.TEMP,
-            'temp_unit': conftest.TEMP_UNIT,
+            'temp_unit': conftest.TEMP_UNIT.value,
             'duration': self.period.duration,
             'start_date': self.period.start_date,
             'end_date': self.period.end_date,

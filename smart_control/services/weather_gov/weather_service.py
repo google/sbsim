@@ -77,8 +77,10 @@ class WeatherService(base_weather_service.BaseWeatherService):
     """Initializes the instance.
 
     Args:
-      lat: Latitude of the location to fetch weather data for.
-      lon: Longitude of the location to fetch weather data for.
+      lat: Latitude (in fractional degrees / decimal degrees) of the location
+        to fetch weather data for.
+      lon: Longitude (in fractional degrees / decimal degrees) of the location
+        to fetch weather data for.
       user_agent: User agent to use for the request.
       cache_max_age: The duration of time to wait before fetching a new
         forecast. If specified, cached data is used until the interval expires.
