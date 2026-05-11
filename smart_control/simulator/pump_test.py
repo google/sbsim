@@ -52,9 +52,9 @@ class PumpTest(parameterized.TestCase):
         * water_pump_differential_head
         / constants.PASCALS_PER_BAR
     )
-    self.assertAlmostEqual(pump.differential_pressure, expected_dp)
-    pump.differential_pressure = 30
-    self.assertAlmostEqual(pump.differential_pressure, 30)
+    self.assertAlmostEqual(pump.differential_pressure_setpoint, expected_dp)
+    pump.differential_pressure_setpoint = 30
+    self.assertAlmostEqual(pump.differential_pressure_setpoint, 30)
     expected_head = 30 / (
         constants.GRAVITY * constants.WATER_DENSITY / constants.PASCALS_PER_BAR
     )

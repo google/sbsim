@@ -15,7 +15,9 @@ class WeatherDataTest(absltest.TestCase):
     self.weather_df = data_files.get_weather_data()
 
   def test_columns(self):
-    self.assertEqual(list(self.weather_df.columns), conftest.WEATHER_COLUMNS)
+    self.assertEqual(
+        list(self.weather_df.columns), list(conftest.WEATHER_COLUMNS)
+    )
 
   def test_time_range(self):
     self.assertEqual(self.weather_df["Time"].min(), "20240101-0100")

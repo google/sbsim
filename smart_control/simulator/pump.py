@@ -14,7 +14,7 @@ class WaterPump(smart_device.SmartDevice):
   """Models a water pump.
 
   Attributes:
-    differential_pressure: Differential pressure of the pump in bars.
+    differential_pressure_setpoint: Differential pressure of the pump in bars.
     run_command: Command indicating if the pump is on or off
     _water_pump_differential_head: Length in meters of pump head.
     _water_pump_efficiency: Electrical efficiency of water pump [0,1].
@@ -27,8 +27,8 @@ class WaterPump(smart_device.SmartDevice):
       device_id: Optional[str] = None,
   ):
     observable_fields = {
-        'differential_pressure': smart_device.AttributeInfo(
-            'differential_pressure', float
+        'differential_pressure_setpoint': smart_device.AttributeInfo(
+            'differential_pressure_setpoint', float
         ),
         'supervisor_run_command': smart_device.AttributeInfo(
             'run_command', smart_device.RunStatus
@@ -39,8 +39,8 @@ class WaterPump(smart_device.SmartDevice):
     }
 
     action_fields = {
-        'differential_pressure': smart_device.AttributeInfo(
-            'differential_pressure', float
+        'differential_pressure_setpoint': smart_device.AttributeInfo(
+            'differential_pressure_setpoint', float
         ),
         'supervisor_run_command': smart_device.AttributeInfo(
             'run_command', smart_device.RunStatus
@@ -132,15 +132,15 @@ class WaterPump(smart_device.SmartDevice):
     )
 
   @property
-  def differential_pressure(self) -> float:
+  def differential_pressure_setpoint(self) -> float:
     if self._run_command == smart_device.RunStatus.OFF:
       return 0.0
     return self._convert_differential_head_to_pressure(
         self._water_pump_differential_head
     )
 
-  @differential_pressure.setter
-  def differential_pressure(self, value: float) -> None:
+  @differential_pressure_setpoint.setter
+  def differential_pressure_setpoint(self, value: float) -> None:
     self._water_pump_differential_head = (
         self._convert_pressure_to_differential_head(value)
     )

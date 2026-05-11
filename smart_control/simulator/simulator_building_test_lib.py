@@ -64,11 +64,11 @@ class SimulatorBuildingTestBase(parameterized.TestCase):
 
   def _create_small_hvac(self):
     """Returns hvac matching zones for small test building."""
-    reheat_water_setpoint = 260
+    supply_water_temperature_setpoint = 260
     water_pump_differential_head = 3
     water_pump_efficiency = 0.6
     hot_water_system = hot_water_system_py.construct_hot_water_system(
-        reheat_water_setpoint=reheat_water_setpoint,
+        supply_water_temperature_setpoint=supply_water_temperature_setpoint,
         water_pump_differential_head=water_pump_differential_head,
         water_pump_efficiency=water_pump_efficiency,
         device_id='hws_id',
@@ -148,7 +148,11 @@ class SimulatorBuildingTestBase(parameterized.TestCase):
     self.assertLen(devices, 4)
 
   @parameterized.named_parameters(
-      ('obs_supply_water_setpoint', 'supply_water_setpoint', 260),
+      (
+          'obs_supply_water_temperature_setpoint',
+          'supply_water_temperature_setpoint',
+          260,
+      ),
       (
           'obs_supply_water_temperature_sensor',
           'supply_water_temperature_sensor',
@@ -196,7 +200,8 @@ class SimulatorBuildingTestBase(parameterized.TestCase):
 
     single_field_request_1 = (
         smart_control_building_pb2.SingleObservationRequest(
-            device_id='hws_id', measurement_name='supply_water_setpoint'
+            device_id='hws_id',
+            measurement_name='supply_water_temperature_setpoint',
         )
     )
     observation_request.single_observation_requests.append(
@@ -278,7 +283,7 @@ class SimulatorBuildingTestBase(parameterized.TestCase):
     )
 
   @parameterized.named_parameters(
-      ('act_supply_water_setpoint', 'supply_water_setpoint', 301),
+      ('act_supply_water_setpoint', 'supply_water_temperature_setpoint', 260),
   )
   def test_request_action_single_success(self, setpoint_name, set_value):
     """Tests request single action with success."""

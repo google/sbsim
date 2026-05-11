@@ -270,7 +270,7 @@ class VavTest(parameterized.TestCase):
         max_air_flow_rate,
         supply_air_temp,
         input_water_temp,
-        v._hot_water_system.differential_pressure,
+        v._hot_water_system.differential_pressure_setpoint,
         v._hot_water_system._header_resistance,
     )
 
@@ -372,8 +372,8 @@ class VavTest(parameterized.TestCase):
         damper_setting,
         max_air_flow_rate,
         supply_air_temp,
-        b.reheat_water_setpoint,
-        v._hot_water_system.differential_pressure,
+        b.supply_water_temperature_setpoint,
+        v._hot_water_system.differential_pressure_setpoint,
         v._hot_water_system._header_resistance,
     )
 
@@ -418,8 +418,8 @@ class VavTest(parameterized.TestCase):
         damper_setting,
         max_air_flow_rate,
         supply_air_temp,
-        b.reheat_water_setpoint,
-        v._hot_water_system.differential_pressure,
+        b.supply_water_temperature_setpoint,
+        v._hot_water_system.differential_pressure_setpoint,
         v._hot_water_system._header_resistance,
     )
 
@@ -467,8 +467,8 @@ class VavTest(parameterized.TestCase):
         damper_setting,
         max_air_flow_rate,
         supply_air_temp,
-        b.reheat_water_setpoint,
-        v._hot_water_system.differential_pressure,
+        b.supply_water_temperature_setpoint,
+        v._hot_water_system.differential_pressure_sensor,
         v._hot_water_system._header_resistance,
     )
 

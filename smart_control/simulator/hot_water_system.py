@@ -71,7 +71,7 @@ class HotWaterSystem(smart_device.SmartDevice):
   For simplicity, we model a single pump and heat source. We can view multiple
   sources/pumps as a single big boiler/pump that has their combined capacity.
 
-  TODO(sipple): Add support for multiple pumps and multiple heat sources.
+  TODO: sipple - Add support for multiple pumps and multiple heat sources.
 
   Attributes:
     heat_source: a boiler or ASHP responsible for heating water
@@ -91,8 +91,10 @@ class HotWaterSystem(smart_device.SmartDevice):
       header_resistance: float = 0.0,
   ):
     observable_fields = {
-        smart_device.SUPPLY_WATER_SETPOINT: smart_device.AttributeInfo(
-            smart_device.SUPPLY_WATER_SETPOINT, float
+        smart_device.SUPPLY_WATER_TEMPERATURE_SETPOINT: (
+            smart_device.AttributeInfo(
+                smart_device.SUPPLY_WATER_TEMPERATURE_SETPOINT, float
+            )
         ),
         smart_device.SUPPLY_WATER_TEMPERATURE_SENSOR: (
             smart_device.AttributeInfo(
@@ -108,20 +110,25 @@ class HotWaterSystem(smart_device.SmartDevice):
         smart_device.RUN_STATUS: smart_device.AttributeInfo(
             smart_device.RUN_STATUS, smart_device.RunStatus
         ),
-        smart_device.DIFFERENTIAL_PRESSURE: smart_device.AttributeInfo(
-            smart_device.DIFFERENTIAL_PRESSURE, float
+        smart_device.DIFFERENTIAL_PRESSURE_SETPOINT: smart_device.AttributeInfo(
+            smart_device.DIFFERENTIAL_PRESSURE_SETPOINT, float
+        ),
+        smart_device.DIFFERENTIAL_PRESSURE_SENSOR: smart_device.AttributeInfo(
+            smart_device.DIFFERENTIAL_PRESSURE_SENSOR, float
         ),
     }
 
     action_fields = {
-        smart_device.SUPPLY_WATER_SETPOINT: smart_device.AttributeInfo(
-            smart_device.REHEAT_WATER_SETPOINT, float
+        smart_device.SUPPLY_WATER_TEMPERATURE_SETPOINT: (
+            smart_device.AttributeInfo(
+                smart_device.SUPPLY_WATER_TEMPERATURE_SETPOINT, float
+            )
         ),
         smart_device.SUPERVISOR_RUN_COMMAND: smart_device.AttributeInfo(
             smart_device.RUN_COMMAND, smart_device.RunStatus
         ),
-        smart_device.DIFFERENTIAL_PRESSURE: smart_device.AttributeInfo(
-            smart_device.DIFFERENTIAL_PRESSURE, float
+        smart_device.DIFFERENTIAL_PRESSURE_SETPOINT: smart_device.AttributeInfo(
+            smart_device.DIFFERENTIAL_PRESSURE_SETPOINT, float
         ),
     }
 
@@ -166,15 +173,18 @@ class HotWaterSystem(smart_device.SmartDevice):
     self._heat_source.return_water_temperature_sensor = value
 
   @property
-  def reheat_water_setpoint(self) -> float:
+  def supply_water_temperature_setpoint(self) -> float:
     return self._heat_source.get_observation(
-        smart_device.SUPPLY_WATER_SETPOINT, self._observation_timestamp
+        smart_device.SUPPLY_WATER_TEMPERATURE_SETPOINT,
+        self._observation_timestamp,
     )
 
-  @reheat_water_setpoint.setter
-  def reheat_water_setpoint(self, value: float) -> None:
+  @supply_water_temperature_setpoint.setter
+  def supply_water_temperature_setpoint(self, value: float) -> None:
     self._heat_source.set_action(
-        smart_device.SUPPLY_WATER_SETPOINT, value, self._action_timestamp
+        smart_device.SUPPLY_WATER_TEMPERATURE_SETPOINT,
+        value,
+        self._action_timestamp,
     )
 
   @property
@@ -186,12 +196,6 @@ class HotWaterSystem(smart_device.SmartDevice):
     return self._heat_source.get_observation(
         smart_device.SUPPLY_WATER_TEMPERATURE_SENSOR,
         self._observation_timestamp,
-    )
-
-  @property
-  def supply_water_setpoint(self) -> float:
-    return self._heat_source.get_observation(
-        smart_device.SUPPLY_WATER_SETPOINT, self._observation_timestamp
     )
 
   @property
@@ -217,12 +221,17 @@ class HotWaterSystem(smart_device.SmartDevice):
     self._pump.water_pump_differential_head = value
 
   @property
-  def differential_pressure(self) -> float:
-    return self._pump.differential_pressure
+  def differential_pressure_sensor(self) -> float:
+    # TODO(sipple) Add differential pressure sensor to the pump model.
+    return self._pump.differential_pressure_setpoint
 
-  @differential_pressure.setter
-  def differential_pressure(self, value: float) -> None:
-    self._pump.differential_pressure = value
+  @property
+  def differential_pressure_setpoint(self) -> float:
+    return self._pump.differential_pressure_setpoint
+
+  @differential_pressure_setpoint.setter
+  def differential_pressure_setpoint(self, value: float) -> None:
+    self._pump.differential_pressure_setpoint = value
 
   def add_demand(self, flow_factor: float):
     """Adds to current flow rate demand.
@@ -298,7 +307,7 @@ class HotWaterSystem(smart_device.SmartDevice):
   @property
   def total_flow_rate(self) -> float:
     return self._calculate_flow_rate(
-        self.differential_pressure, self._flow_factor_sum
+        self.differential_pressure_setpoint, self._flow_factor_sum
     )
 
   def set_action(self, action_field_name, value, action_timestamp):
@@ -311,14 +320,14 @@ class HotWaterSystem(smart_device.SmartDevice):
     super().set_action(action_field_name, value, action_timestamp)
 
 
-# TODO(sipple): Add keword arguments for all parameters in construct_hot_water_
+# TODO(sipple): Add keyword arguments for all parameters in construct_hot_water_
 # system.
 @gin.configurable
 def construct_hot_water_system(
     # --- Shared System & Pump Parameters ---
     water_pump_differential_head: float,
     water_pump_efficiency: float,
-    reheat_water_setpoint: float,
+    supply_water_temperature_setpoint: float,
     device_id: str | None = None,
     pump_device_id: str | None = None,
     heat_source_device_id: str | None = None,
@@ -346,13 +355,13 @@ def construct_hot_water_system(
   Example 1: A traditional building with a Boiler
   ```gin
   construct_hot_water_system.heat_source_type = "boiler"
-  construct_hot_water_system.reheat_water_setpoint = 338.0  # 65C / 150F
+  construct_hot_water_system.supply_water_temperature_setpoint = 338.0  # 65C
   construct_hot_water_system.water_pump_differential_head = 15.0
   construct_hot_water_system.water_pump_efficiency = 0.75
   # Boiler specific configs
   construct_hot_water_system.water_capacity = 2.0
   construct_hot_water_system.insulation_thickness = 0.08
-  ```
+
 
   Example 2: A building with an Air Source Heat Pump
   ```gin
@@ -370,7 +379,7 @@ def construct_hot_water_system(
     water_pump_differential_head: The differential head of the water pump in
       meters of water column.
     water_pump_efficiency: The efficiency of the water pump.
-    reheat_water_setpoint: The desired water temperature setpoint in Kelvin.
+    supply_water_temperature_setpoint: The water temperature setpoint in Kelvin.
     device_id: The unique identifier for the hot water system.
     pump_device_id: The unique identifier for the water pump.
     heat_source_device_id: The unique identifier for the heat source.
@@ -395,7 +404,7 @@ def construct_hot_water_system(
   # 1. Instantiate the requested Heat Source
   if heat_source_type == HeatSourceType.ASHP:
     heat_source = air_source_heat_pump.AirSourceHeatPump(
-        reheat_water_setpoint=reheat_water_setpoint,
+        supply_water_temperature_setpoint=supply_water_temperature_setpoint,
         device_id=heat_source_device_id,
         max_heating_capacity_w=ashp_max_capacity_w,
         nominal_cop=ashp_nominal_cop,
@@ -403,7 +412,7 @@ def construct_hot_water_system(
     )
   elif heat_source_type == HeatSourceType.BOILER:
     heat_source = boiler_py.Boiler(
-        reheat_water_setpoint=reheat_water_setpoint,
+        supply_water_temperature_setpoint=supply_water_temperature_setpoint,
         device_id=heat_source_device_id,
         heating_rate=heating_rate,
         cooling_rate=cooling_rate,

@@ -79,7 +79,8 @@ class AirSourceHeatPump(hot_water_heat_source.HotWaterHeatSource):
 
   def __init__(
       self,
-      reheat_water_setpoint: float,
+      *,
+      supply_water_temperature_setpoint: float,
       device_id: str | None = None,
       # ~600k BTU/hr, typical for large commercial ASHP
       max_heating_capacity_w: float = 180000.0,
@@ -87,8 +88,8 @@ class AirSourceHeatPump(hot_water_heat_source.HotWaterHeatSource):
       init_return_water_temperature_sensor: float = 295.0,
   ):
     observable_fields = {
-        'supply_water_setpoint': smart_device.AttributeInfo(
-            'reheat_water_setpoint', float
+        'supply_water_temperature_setpoint': smart_device.AttributeInfo(
+            'supply_water_temperature_setpoint', float
         ),
         'supply_water_temperature_sensor': smart_device.AttributeInfo(
             'supply_water_temperature_sensor', float
@@ -96,8 +97,8 @@ class AirSourceHeatPump(hot_water_heat_source.HotWaterHeatSource):
     }
 
     action_fields = {
-        'supply_water_setpoint': smart_device.AttributeInfo(
-            'reheat_water_setpoint', float
+        'supply_water_temperature_setpoint': smart_device.AttributeInfo(
+            'supply_water_temperature_setpoint', float
         ),
     }
 
@@ -113,7 +114,7 @@ class AirSourceHeatPump(hot_water_heat_source.HotWaterHeatSource):
     self._init_return_water_temp = init_return_water_temperature_sensor
     self._return_water_temp = init_return_water_temperature_sensor
     self._run_command = smart_device.RunStatus.ON
-    self._supply_water_setpoint = reheat_water_setpoint
+    self._supply_water_temperature_setpoint = supply_water_temperature_setpoint
 
   def reset(self) -> None:
     self._return_water_temp = self._init_return_water_temp
@@ -122,15 +123,15 @@ class AirSourceHeatPump(hot_water_heat_source.HotWaterHeatSource):
   @property
   def supply_water_temperature_sensor(self) -> float:
     # ASHP does not have a tank, so supply water temperature is the setpoint.
-    return self._supply_water_setpoint
+    return self._supply_water_temperature_setpoint
 
   @property
-  def reheat_water_setpoint(self) -> float:
-    return self._supply_water_setpoint
+  def supply_water_temperature_setpoint(self) -> float:
+    return self._supply_water_temperature_setpoint
 
-  @reheat_water_setpoint.setter
-  def reheat_water_setpoint(self, value: float) -> None:
-    self._supply_water_setpoint = value
+  @supply_water_temperature_setpoint.setter
+  def supply_water_temperature_setpoint(self, value: float) -> None:
+    self._supply_water_temperature_setpoint = value
 
   @property
   def return_water_temperature_sensor(self) -> float:
@@ -188,9 +189,9 @@ class AirSourceHeatPump(hot_water_heat_source.HotWaterHeatSource):
     # Using placeholder constants for density and specific heat capacity
     specific_heat_water = constants.WATER_HEAT_CAPACITY  # J/(kg*K)
     target_temp = self.get_observation(
-        'supply_water_setpoint', self._observation_timestamp
+        'supply_water_temperature_setpoint', self._observation_timestamp
     )
-    self._supply_water_setpoint = target_temp
+    self._supply_water_temperature_setpoint = target_temp
 
     delta_t = max(0.0, target_temp - return_water_temp)
     required_thermal_power_w = (

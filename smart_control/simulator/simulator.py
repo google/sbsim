@@ -559,6 +559,7 @@ class Simulator:
     return_water_temp = (
         self._hvac.hot_water_system.return_water_temperature_sensor
     )
+
     heating_energy_rate = (
         self._hvac.hot_water_system.compute_thermal_energy_rate(
             return_water_temp,

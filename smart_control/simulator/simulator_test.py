@@ -59,13 +59,13 @@ class SimulatorTest(parameterized.TestCase, compare.Proto2Assertions):
       use_boiler=True,
   ):
     """Returns hvac matching zones for small test building."""
-    reheat_water_setpoint = 260
+    supply_water_temperature_setpoint = 260
     water_pump_differential_head = 3
     water_pump_efficiency = 0.6
 
     if use_boiler:
       hot_water_system = hot_water_system_py.construct_hot_water_system(
-          reheat_water_setpoint=reheat_water_setpoint,
+          supply_water_temperature_setpoint=supply_water_temperature_setpoint,
           water_pump_differential_head=water_pump_differential_head,
           water_pump_efficiency=water_pump_efficiency,
           device_id='hws_id',
@@ -74,7 +74,7 @@ class SimulatorTest(parameterized.TestCase, compare.Proto2Assertions):
 
     else:
       hot_water_system = hot_water_system_py.construct_hot_water_system(
-          reheat_water_setpoint=reheat_water_setpoint,
+          supply_water_temperature_setpoint=supply_water_temperature_setpoint,
           heat_source_type=hot_water_system_py.HeatSourceType.ASHP,
           water_pump_differential_head=water_pump_differential_head,
           water_pump_efficiency=water_pump_efficiency,
@@ -154,19 +154,19 @@ class SimulatorTest(parameterized.TestCase, compare.Proto2Assertions):
 
   def _create_scenario_hvac(self, use_boiler=True):
     """Returns hvac matching zones for scenario building."""
-    reheat_water_setpoint = 350
+    supply_water_temperature_setpoint = 350
     water_pump_differential_head = 3
     water_pump_efficiency = 0.6
     if use_boiler:
       hot_water_system = hot_water_system_py.construct_hot_water_system(
-          reheat_water_setpoint=reheat_water_setpoint,
+          supply_water_temperature_setpoint=supply_water_temperature_setpoint,
           water_pump_differential_head=water_pump_differential_head,
           water_pump_efficiency=water_pump_efficiency,
           device_id='hws_id',
       )
     else:
       hot_water_system = hot_water_system_py.construct_hot_water_system(
-          reheat_water_setpoint=reheat_water_setpoint,
+          supply_water_temperature_setpoint=supply_water_temperature_setpoint,
           heat_source_type=hot_water_system_py.HeatSourceType.ASHP,
           water_pump_differential_head=water_pump_differential_head,
           water_pump_efficiency=water_pump_efficiency,
@@ -294,7 +294,6 @@ class SimulatorTest(parameterized.TestCase, compare.Proto2Assertions):
     simulator.building.input_q[2][2] = 1000.0
     simulator.building.input_q[0][3] = 1000.0
 
-    simulator.hvac.hot_water_system.return_water_temperature_sensor += 10.0
     simulator.hvac.hot_water_system.water_pump_differential_head += 100.0
 
     simulator.hvac.air_handler._air_flow_rate += 0.1
@@ -335,8 +334,8 @@ class SimulatorTest(parameterized.TestCase, compare.Proto2Assertions):
 
     expected_hws = expected_hvac.hot_water_system
     self.assertEqual(
-        simulator._hvac.hot_water_system.reheat_water_setpoint,
-        expected_hws.reheat_water_setpoint,
+        simulator._hvac.hot_water_system.supply_water_temperature_setpoint,
+        expected_hws.supply_water_temperature_setpoint,
     )
     self.assertEqual(
         simulator._hvac.hot_water_system.water_pump_differential_head,
@@ -1165,7 +1164,7 @@ class SimulatorTest(parameterized.TestCase, compare.Proto2Assertions):
     if use_boiler:
       natural_gas_heating_energy_rate = (
           sim._hvac.hot_water_system.compute_thermal_energy_rate(
-              sim._hvac.hot_water_system.return_water_temperature_sensor,
+              sim._hvac.hot_water_system.supply_water_temperature_sensor,
               ambient_temp,
           )
       )

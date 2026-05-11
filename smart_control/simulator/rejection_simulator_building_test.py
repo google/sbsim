@@ -30,7 +30,7 @@ class RejectionSimulatorBuildingTest(
 
     single_field_request_1 = smart_control_building_pb2.SingleActionRequest(
         device_id="boiler_id",
-        setpoint_name="supply_water_setpoint",
+        setpoint_name="supply_water_temperature_setpoint",
         continuous_value=300,
     )
     action_request.single_action_requests.append(single_field_request_1)
@@ -68,7 +68,7 @@ class RejectionSimulatorBuildingTest(
 
     single_field_request_1 = smart_control_building_pb2.SingleActionRequest(
         device_id="boiler_id",
-        setpoint_name="supply_water_setpoint",
+        setpoint_name="supply_water_temperature_setpoint",
         continuous_value=300,
     )
     action_request.single_action_requests.append(single_field_request_1)

@@ -95,7 +95,7 @@ hvac/SetpointSchedule:
 
 water_pump_differential_head =  6.0
 water_pump_efficiency = 0.98
-reheat_water_setpoint = 360.0
+supply_water_temperature_setpoint = 360.0
 boiler_heating_rate = 0.5 # K / min
 boiler_cooling_rate = 0.1 # K / min
 
@@ -161,7 +161,7 @@ hvac/WaterPump:
   water_pump_efficiency = %water_pump_efficiency
 
 hvac/Boiler:
-  reheat_water_setpoint = %reheat_water_setpoint
+  supply_water_temperature_setpoint = %supply_water_temperature_setpoint
   heating_rate = %boiler_heating_rate
   cooling_rate = %boiler_cooling_rate
 
@@ -326,8 +326,8 @@ run_command/set_action_normalization_constants.max_native_value = 1.0
 # ENV
 
 action_normalizer_map_continuous = {
-    'supply_water_setpoint': @supply_water_bounded_action_normalizer/set_action_normalization_constants(),
-    'differential_pressure': @differential_pressure_setpoint/set_action_normalization_constants(),
+    'supply_water_temperature_setpoint': @supply_water_bounded_action_normalizer/set_action_normalization_constants(),
+    'differential_pressure_setpoint': @differential_pressure_setpoint/set_action_normalization_constants(),
     'ahu_1_supply_air_temperature_setpoint': @supply_air_temperature_setpoint/set_action_normalization_constants(),
     'ahu_1_static_pressure_setpoint': @static_pressure_setpoint/set_action_normalization_constants(),
     'ahu_2_supply_air_temperature_setpoint': @supply_air_temperature_setpoint/set_action_normalization_constants(),
@@ -341,13 +341,13 @@ device_action_tuples = [
     ('ahs', 'ahu_1_static_pressure_setpoint'),
     ('ahs', 'ahu_2_supply_air_temperature_setpoint'),
     ('ahs', 'ahu_2_static_pressure_setpoint'),
-    ('hws', 'supply_water_setpoint'),
-    ('hws', 'differential_pressure'),
+    ('hws', 'supply_water_temperature_setpoint'),
+    ('hws', 'differential_pressure_setpoint'),
 ]
 
 default_actions = {
-    'hws_supply_water_setpoint': 340.0,
-    'hws_differential_pressure': 20.0,
+    'hws_supply_water_temperature_setpoint': 340.0,
+    'hws_differential_pressure_setpoint': 20.0,
     'ahs_ahu_1_supply_air_temperature_setpoint': 293.0,
     'ahs_ahu_1_static_pressure_setpoint': 20000.0,
     'ahs_ahu_2_supply_air_temperature_setpoint': 293.0,
@@ -358,8 +358,8 @@ default_actions = {
 # HYBRID ENV
 
 action_normalizer_map_hybrid = {
-    'supply_water_setpoint': @supply_water_bounded_action_normalizer/set_action_normalization_constants(),
-    'differential_pressure': @differential_pressure_setpoint/set_action_normalization_constants(),
+    'supply_water_temperature_setpoint': @supply_water_bounded_action_normalizer/set_action_normalization_constants(),
+    'differential_pressure_setpoint': @differential_pressure_setpoint/set_action_normalization_constants(),
     'ahu_1_supply_air_temperature_setpoint': @supply_air_temperature_setpoint/set_action_normalization_constants(),
     'ahu_1_static_pressure_setpoint': @static_pressure_setpoint/set_action_normalization_constants(),
     'ahu_2_supply_air_temperature_setpoint': @supply_air_temperature_setpoint/set_action_normalization_constants(),
@@ -379,13 +379,13 @@ hybrid_device_action_tuples = [
     ('ahs', 'ahu_2_supply_air_temperature_setpoint'),
     ('ahs', 'ahu_2_static_pressure_setpoint'),
     ('hws', 'supervisor_run_command'),
-    ('hws', 'supply_water_setpoint'),
-    ('hws', 'differential_pressure'),
+    ('hws', 'supply_water_temperature_setpoint'),
+    ('hws', 'differential_pressure_setpoint'),
 ]
 
 hybrid_default_actions = {
-    'hws_supply_water_setpoint': 340.0,
-    'hws_differential_pressure': 20.0,
+    'hws_supply_water_temperature_setpoint': 340.0,
+    'hws_differential_pressure_setpoint': 20.0,
     'hws_supervisor_run_command': 1.0,
     'ahs_ahu_1_supply_air_temperature_setpoint': 293.0,
     'ahs_ahu_1_static_pressure_setpoint': 20000.0,

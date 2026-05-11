@@ -2,7 +2,7 @@
 
 # WEATHER DATA
 
-WEATHER_COLUMNS = [
+WEATHER_COLUMNS = (
     "Time",
     "StationName",
     "Location",
@@ -18,31 +18,31 @@ WEATHER_COLUMNS = [
     "Humidity",
     "TempF",
     "HumidityARM",
-]
+)
 
 # ENVIRONMENT
 
-ACTION_NORMALIZER_NAMES = [
+ACTION_NORMALIZER_NAMES = (
     "ahu_1_supply_air_temperature_setpoint",
     "ahu_1_static_pressure_setpoint",
     "ahu_2_supply_air_temperature_setpoint",
     "ahu_2_static_pressure_setpoint",
-    "supply_water_setpoint",
-    "differential_pressure",
-]
+    "supply_water_temperature_setpoint",
+    "differential_pressure_setpoint",
+)
 
-ACTION_NAMES = [
+ACTION_NAMES = (
     "ahs_ahu_1_supply_air_temperature_setpoint",
     "ahs_ahu_1_static_pressure_setpoint",
     "ahs_ahu_2_supply_air_temperature_setpoint",
     "ahs_ahu_2_static_pressure_setpoint",
-    "hws_supply_water_setpoint",
-    "hws_differential_pressure",
-]
+    "hws_supply_water_temperature_setpoint",
+    "hws_differential_pressure_setpoint",
+)
 
-DEFAULT_ACTION_VALUES = [-0.2, 1.0, -0.2, 1.0, 0.5, 1.0]
+DEFAULT_ACTION_VALUES = (-0.2, 1.0, -0.2, 1.0, 0.5, 1.0)
 
-ACTION_FIELDS = [
+ACTION_FIELDS = (
     {
         "device_id": "ahs",
         "device_type": "AHU",
@@ -104,8 +104,8 @@ ACTION_FIELDS = [
         "device_type": "HWS",
         "zone_id": "default_zone_id",
         "setpoint_type": "CONTINUOUS",
-        "action_name": "hws_supply_water_setpoint",
-        "setpoint_name": "supply_water_setpoint",
+        "action_name": "hws_supply_water_temperature_setpoint",
+        "setpoint_name": "supply_water_temperature_setpoint",
         "value_type": "VALUE_CONTINUOUS",
         "units": "Kelvin",
         "min_native_value": 310.0,
@@ -118,8 +118,8 @@ ACTION_FIELDS = [
         "device_type": "HWS",
         "zone_id": "default_zone_id",
         "setpoint_type": "CONTINUOUS",
-        "action_name": "hws_differential_pressure",
-        "setpoint_name": "differential_pressure",
+        "action_name": "hws_differential_pressure_setpoint",
+        "setpoint_name": "differential_pressure_setpoint",
         "value_type": "VALUE_CONTINUOUS",
         "units": "Pascal",
         "min_native_value": 0.0,
@@ -127,11 +127,11 @@ ACTION_FIELDS = [
         "min_normalized_value": -1.0,
         "max_normalized_value": 1.0,
     },
-]
+)
 
 # HYBRID ACTION ENVIRONMENT
 
-HYBRID_ACTION_NAMES = [
+HYBRID_ACTION_NAMES = (
     "ahs_ahu_1_supervisor_run_command",
     "ahs_ahu_2_supervisor_run_command",
     "ahs_ahu_1_supply_air_temperature_setpoint",
@@ -139,13 +139,13 @@ HYBRID_ACTION_NAMES = [
     "ahs_ahu_2_supply_air_temperature_setpoint",
     "ahs_ahu_2_static_pressure_setpoint",
     "hws_supervisor_run_command",
-    "hws_supply_water_setpoint",
-    "hws_differential_pressure",
-]
+    "hws_supply_water_temperature_setpoint",
+    "hws_differential_pressure_setpoint",
+)
 
-HYBRID_ACTION_NORMALIZER_NAMES = [
-    "supply_water_setpoint",
-    "differential_pressure",
+HYBRID_ACTION_NORMALIZER_NAMES = (
+    "supply_water_temperature_setpoint",
+    "differential_pressure_setpoint",
     "ahu_1_supply_air_temperature_setpoint",
     "ahu_1_static_pressure_setpoint",
     "ahu_2_supply_air_temperature_setpoint",
@@ -153,11 +153,11 @@ HYBRID_ACTION_NORMALIZER_NAMES = [
     "supervisor_run_command",
     "ahu_1_supervisor_run_command",
     "ahu_2_supervisor_run_command",
-]
+)
 
-HYBRID_DEFAULT_ACTION_VALUES = [1.0, 1.0, -0.2, 1.0, -0.2, 1.0, 1.0, 0.5, 1.0]
+HYBRID_DEFAULT_ACTION_VALUES = (1.0, 1.0, -0.2, 1.0, -0.2, 1.0, 1.0, 0.5, 1.0)
 
-HYBRID_ACTION_FIELDS = [
+HYBRID_ACTION_FIELDS = (
     {
         "device_id": "ahs",
         "device_type": "AHU",
@@ -261,8 +261,8 @@ HYBRID_ACTION_FIELDS = [
         "device_type": "HWS",
         "zone_id": "default_zone_id",
         "setpoint_type": "CONTINUOUS",
-        "action_name": "hws_supply_water_setpoint",
-        "setpoint_name": "supply_water_setpoint",
+        "action_name": "hws_supply_water_temperature_setpoint",
+        "setpoint_name": "supply_water_temperature_setpoint",
         "value_type": "VALUE_CONTINUOUS",
         "units": "Kelvin",
         "min_native_value": 310.0,
@@ -275,8 +275,8 @@ HYBRID_ACTION_FIELDS = [
         "device_type": "HWS",
         "zone_id": "default_zone_id",
         "setpoint_type": "CONTINUOUS",
-        "action_name": "hws_differential_pressure",
-        "setpoint_name": "differential_pressure",
+        "action_name": "hws_differential_pressure_setpoint",
+        "setpoint_name": "differential_pressure_setpoint",
         "value_type": "VALUE_CONTINUOUS",
         "units": "Pascal",
         "min_native_value": 0.0,
@@ -284,4 +284,4 @@ HYBRID_ACTION_FIELDS = [
         "min_normalized_value": -1.0,
         "max_normalized_value": 1.0,
     },
-]
+)

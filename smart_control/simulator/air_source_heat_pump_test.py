@@ -24,7 +24,7 @@ class AirSourceHeatPumpTest(parameterized.TestCase):
     self.nominal_cop = 3.2
 
     self.ashp = air_source_heat_pump.AirSourceHeatPump(
-        reheat_water_setpoint=self.reheat_setpoint_k,
+        supply_water_temperature_setpoint=self.reheat_setpoint_k,
         device_id="test_ashp_01",
         max_heating_capacity_w=self.max_capacity_w,
         nominal_cop=self.nominal_cop,
@@ -52,11 +52,11 @@ class AirSourceHeatPumpTest(parameterized.TestCase):
     self.assertEqual(self.ashp.return_water_temperature_sensor, 295.15)
     self.assertEqual(self.ashp.run_command, smart_device.RunStatus.ON)
 
-  def test_reheat_water_setpoint_setter(self):
+  def test_supply_water_temperature_setpoint_setter(self):
     """Tests we can change the reheat setpoint."""
     new_setpoint = 310.0
-    self.ashp.reheat_water_setpoint = new_setpoint
-    self.assertEqual(self.ashp.reheat_water_setpoint, new_setpoint)
+    self.ashp.supply_water_temperature_setpoint = new_setpoint
+    self.assertEqual(self.ashp.supply_water_temperature_setpoint, new_setpoint)
 
   @parameterized.parameters(
       (280.15, 3.2),  # 7°C Outside -> Nominal COP

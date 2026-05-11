@@ -17,10 +17,10 @@ class Boiler(hot_water_heat_source.HotWaterHeatSource):
   """Models a boiler that is part of a hot water system.
 
   Attributes:
-    reheat_water_setpoint: Temperature in K that the boiler will maintain.
-    device_code: unique name of the device.
+    supply_water_temperature_setpoint: Temperature in K that the boiler will
+      maintain.
+    device_id: unique name of the device.
     supply_water_temperature_sensor: temp [K] of water being supplied to VAVs.
-    supply_water_setpoint: setpoint [K] of the supply water.
     return_water_temperature_sensor: temp [K] of return water
     heating_rate: degrees C / minute a boiler can heat
     cooling_rate: degrees C / minute the boiler temp will drop
@@ -35,7 +35,7 @@ class Boiler(hot_water_heat_source.HotWaterHeatSource):
 
   def __init__(
       self,
-      reheat_water_setpoint: float,
+      supply_water_temperature_setpoint: float,
       device_id: Optional[str] = None,
       heating_rate: Optional[float] = 0,
       cooling_rate: Optional[float] = 0,
@@ -48,8 +48,8 @@ class Boiler(hot_water_heat_source.HotWaterHeatSource):
       init_return_water_temperature_sensor: float = 295.0,
   ):
     observable_fields = {
-        'supply_water_setpoint': smart_device.AttributeInfo(
-            'reheat_water_setpoint', float
+        'supply_water_temperature_setpoint': smart_device.AttributeInfo(
+            'supply_water_temperature_setpoint', float
         ),
         'supply_water_temperature_sensor': smart_device.AttributeInfo(
             'supply_water_temperature_sensor', float
@@ -57,8 +57,8 @@ class Boiler(hot_water_heat_source.HotWaterHeatSource):
     }
 
     action_fields = {
-        'supply_water_setpoint': smart_device.AttributeInfo(
-            'reheat_water_setpoint', float
+        'supply_water_temperature_setpoint': smart_device.AttributeInfo(
+            'supply_water_temperature_setpoint', float
         ),
     }
 
@@ -72,7 +72,9 @@ class Boiler(hot_water_heat_source.HotWaterHeatSource):
         device_id=device_id,
     )
 
-    self._init_reheat_water_setpoint = reheat_water_setpoint
+    self._init_supply_water_temperature_setpoint = (
+        supply_water_temperature_setpoint
+    )
     self._init_return_water_temperature_sensor = (
         init_return_water_temperature_sensor
     )
@@ -92,11 +94,13 @@ class Boiler(hot_water_heat_source.HotWaterHeatSource):
     self.reset()
 
   def reset(self):
-    self._reheat_water_setpoint = self._init_reheat_water_setpoint
+    self._supply_water_temperature_setpoint = (
+        self._init_supply_water_temperature_setpoint
+    )
     self._return_water_temperature_sensor = (
         self._init_return_water_temperature_sensor
     )
-    self._current_temperature = self._init_reheat_water_setpoint
+    self._current_temperature = self._init_supply_water_temperature_setpoint
     self._step_tank_temperature_change = 0.0
     self._last_step_duration = pd.Timedelta(0, unit='second')
     self._run_command = smart_device.RunStatus.OFF
@@ -110,21 +114,17 @@ class Boiler(hot_water_heat_source.HotWaterHeatSource):
     self._return_water_temperature_sensor = value
 
   @property
-  def reheat_water_setpoint(self) -> float:
-    return self._reheat_water_setpoint
+  def supply_water_temperature_setpoint(self) -> float:
+    return self._supply_water_temperature_setpoint
 
-  @reheat_water_setpoint.setter
-  def reheat_water_setpoint(self, value: float) -> None:
-    self._reheat_water_setpoint = value
+  @supply_water_temperature_setpoint.setter
+  def supply_water_temperature_setpoint(self, value: float) -> None:
+    self._supply_water_temperature_setpoint = value
 
   @property
   def supply_water_temperature_sensor(self) -> float:
     self._set_current_temperature()
     return self._current_temperature
-
-  @property
-  def supply_water_setpoint(self) -> float:
-    return self._reheat_water_setpoint
 
   @property
   def run_command(self) -> smart_device.RunStatus:
@@ -153,14 +153,16 @@ class Boiler(hot_water_heat_source.HotWaterHeatSource):
     ):
       begin_step_temp = self._current_temperature
       self._current_temperature = self._adjust_temperature(
-          self._reheat_water_setpoint, begin_step_temp, self._last_step_duration
+          self._supply_water_temperature_setpoint,
+          begin_step_temp,
+          self._last_step_duration,
       )
 
       self._step_tank_temperature_change = (
           self._current_temperature - begin_step_temp
       )
     else:
-      self._current_temperature = self._reheat_water_setpoint
+      self._current_temperature = self._supply_water_temperature_setpoint
 
   def _adjust_temperature(
       self,
@@ -211,8 +213,8 @@ class Boiler(hot_water_heat_source.HotWaterHeatSource):
     """
     # If return_water_temp is greater than the setpoint,
     # the boiler should not be cooling.
-    if self._reheat_water_setpoint > return_water_temp:
-      supply_water_temp = self._reheat_water_setpoint
+    if self._supply_water_temperature_setpoint > return_water_temp:
+      supply_water_temp = self._supply_water_temperature_setpoint
     else:
       supply_water_temp = return_water_temp
 
@@ -225,7 +227,6 @@ class Boiler(hot_water_heat_source.HotWaterHeatSource):
     dissipation_energy_rate = self.compute_thermal_dissipation_rate(
         supply_water_temp, outside_temp
     )
-
     if self._last_step_duration.total_seconds() > 0:
       tank_heating_energy_rate = (
           constants.WATER_HEAT_CAPACITY
@@ -276,8 +277,11 @@ class Boiler(hot_water_heat_source.HotWaterHeatSource):
     Returns:
       thermal loss rate of the tank in Watts
     """
+    # If the water temperature is less than the outside temperature,
+    # there should be no heat transfer.
+    if water_temp < outside_temp:
+      return 0.0
 
-    assert water_temp >= outside_temp
     delta_temp = water_temp - outside_temp
     numerator = self._tank_length * 2.0 * np.pi * delta_temp
     interior_radius = self._tank_radius

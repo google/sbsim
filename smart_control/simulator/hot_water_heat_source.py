@@ -59,13 +59,13 @@ class HotWaterHeatSource(smart_device.SmartDevice, abc.ABC):
 
   @property
   @abc.abstractmethod
-  def reheat_water_setpoint(self) -> float:
-    """Gets the reheat water setpoint."""
+  def supply_water_temperature_setpoint(self) -> float:
+    """Gets the supply water setpoint."""
 
-  @reheat_water_setpoint.setter
+  @supply_water_temperature_setpoint.setter
   @abc.abstractmethod
-  def reheat_water_setpoint(self, value: float) -> None:
-    """Sets the reheat water setpoint."""
+  def supply_water_temperature_setpoint(self, value: float) -> None:
+    """Sets the supply water setpoint."""
 
   @property
   @abc.abstractmethod

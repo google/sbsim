@@ -464,7 +464,7 @@ def update_metrics(
   metrics['boiler_thermal_energy_rates'].append(
       hvac.hot_water_system.compute_thermal_energy_rate(
           return_water_temp=supply_air_temp,
-          outside_temp=hvac.hot_water_system.reheat_water_setpoint,
+          outside_temp=hvac.hot_water_system.supply_water_temperature_setpoint,
       )
   )
   metrics['boiler_electrical_energy_rates'].append(

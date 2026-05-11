@@ -33,12 +33,12 @@ differential_head_val = 10.204081632653061
 class HotWaterSystemTest(parameterized.TestCase):
 
   def get_default_boiler(self):
-    reheat_water_setpoint = 360
+    supply_water_temperature_setpoint = 360
     water_pump_differential_head = differential_head_val
     water_pump_efficiency = 0.6
     return get_single_boiler_hot_water_system(
         boiler.Boiler(
-            reheat_water_setpoint,
+            supply_water_temperature_setpoint,
             device_id='boiler_id',
             heating_rate=0.0,
             cooling_rate=0.0,
@@ -57,12 +57,12 @@ class HotWaterSystemTest(parameterized.TestCase):
     )
 
   def test_init(self):
-    reheat_water_setpoint = 260
+    supply_water_temperature_setpoint = 260
     water_pump_differential_head = differential_head_val
     water_pump_efficiency = 0.6
     b = get_single_boiler_hot_water_system(
         boiler.Boiler(
-            reheat_water_setpoint,
+            supply_water_temperature_setpoint,
             device_id='boiler_id',
         ),
         pump.WaterPump(
@@ -72,7 +72,9 @@ class HotWaterSystemTest(parameterized.TestCase):
         ),
     )
 
-    self.assertEqual(b.reheat_water_setpoint, reheat_water_setpoint)
+    self.assertEqual(
+        b.supply_water_temperature_setpoint, supply_water_temperature_setpoint
+    )
     self.assertEqual(
         b.water_pump_differential_head, water_pump_differential_head
     )
@@ -80,12 +82,12 @@ class HotWaterSystemTest(parameterized.TestCase):
     self.assertEqual(b.total_flow_rate, 0)
 
   def test_reset(self):
-    reheat_water_setpoint = 260
+    supply_water_temperature_setpoint = 260
     water_pump_differential_head = differential_head_val
     water_pump_efficiency = 0.6
     b = get_single_boiler_hot_water_system(
         boiler.Boiler(
-            reheat_water_setpoint,
+            supply_water_temperature_setpoint,
             device_id='boiler_id',
         ),
         pump.WaterPump(
@@ -95,7 +97,7 @@ class HotWaterSystemTest(parameterized.TestCase):
         ),
     )
 
-    b.reheat_water_setpoint += 1.0
+    b.supply_water_temperature_setpoint += 1.0
     b.water_pump_differential_head = 4.0
     b._pump._water_pump_efficiency = 0.1
     b._heating_request_count = 10
@@ -103,7 +105,9 @@ class HotWaterSystemTest(parameterized.TestCase):
 
     b.reset()
 
-    self.assertEqual(b.reheat_water_setpoint, reheat_water_setpoint)
+    self.assertEqual(
+        b.supply_water_temperature_setpoint, supply_water_temperature_setpoint
+    )
     self.assertEqual(
         b.water_pump_differential_head, water_pump_differential_head
     )
@@ -111,12 +115,12 @@ class HotWaterSystemTest(parameterized.TestCase):
     self.assertEqual(b.total_flow_rate, 0)
 
   def test_init_default_id(self):
-    reheat_water_setpoint = 260
+    supply_water_temperature_setpoint = 260
     water_pump_differential_head = differential_head_val
     water_pump_efficiency = 0.6
     b = get_single_boiler_hot_water_system(
         boiler.Boiler(
-            reheat_water_setpoint,
+            supply_water_temperature_setpoint,
         ),
         pump.WaterPump(
             water_pump_differential_head,
@@ -152,13 +156,13 @@ class HotWaterSystemTest(parameterized.TestCase):
 
   def test_ashp_system_integration(self):
     """Verifies that the HotWaterSystem works properly with an ASHP."""
-    reheat_water_setpoint = 313.15  # 40C
+    supply_water_temperature_setpoint = 313.15  # 40C
     water_pump_differential_head = differential_head_val
     water_pump_efficiency = 0.6
 
     sys = get_ashp_hot_water_system(
         ashp.AirSourceHeatPump(
-            reheat_water_setpoint,
+            supply_water_temperature_setpoint=supply_water_temperature_setpoint,
             device_id='ashp_id',
             max_heating_capacity_w=180000.0,
             nominal_cop=3.2,
@@ -171,7 +175,9 @@ class HotWaterSystemTest(parameterized.TestCase):
     )
 
     self.assertEqual(sys.device_id(), 'hws_ashp_id')
-    self.assertEqual(sys.reheat_water_setpoint, reheat_water_setpoint)
+    self.assertEqual(
+        sys.supply_water_temperature_setpoint, supply_water_temperature_setpoint
+    )
 
     # Mock observation to simulate standard conditions
     sys._heat_source.get_observation = mock.MagicMock(return_value=313.15)
@@ -188,7 +194,7 @@ class HotWaterSystemTest(parameterized.TestCase):
     return_water_temp = 300
     outside_temp = 280
     q0 = b.compute_thermal_energy_rate(return_water_temp, outside_temp)
-    b.reheat_water_setpoint = setpoint_temperature
+    b.supply_water_temperature_setpoint = setpoint_temperature
     _ = b._heat_source._adjust_temperature(
         setpoint_temperature, outside_temp, pd.Timedelta(5, unit='minute')
     )
@@ -225,7 +231,7 @@ class HotWaterSystemTest(parameterized.TestCase):
             device_id='pump_id',
         ),
     )
-    self.assertEqual(b._pump.differential_pressure, 1)
+    self.assertEqual(b._pump.differential_pressure_setpoint, 1)
     b.add_demand(total_flow_rate)
     self.assertAlmostEqual(
         b.compute_thermal_energy_rate(return_water_temp, outside_temp),
@@ -233,16 +239,16 @@ class HotWaterSystemTest(parameterized.TestCase):
         places=3,
     )
 
-  def test_compute_thermal_energy_rate_raises_assertion_error(self):
+  def test_compute_thermal_energy_rate_zero(self):
     return_water_temp = 200
     total_flow_rate = 0.5
-    reheat_water_setpoint = 100
+    supply_water_temperature_setpoint = 100
     water_pump_differential_head = differential_head_val
     water_pump_efficiency = 0.6
     outside_temp = 293
     b = get_single_boiler_hot_water_system(
         boiler.Boiler(
-            reheat_water_setpoint,
+            supply_water_temperature_setpoint,
             device_id='boiler_id',
         ),
         pump.WaterPump(
@@ -254,8 +260,11 @@ class HotWaterSystemTest(parameterized.TestCase):
 
     b.add_demand(total_flow_rate)
 
-    with self.assertRaises(AssertionError):
-      _ = b.compute_thermal_energy_rate(return_water_temp, outside_temp)
+    self.assertAlmostEqual(
+        b.compute_thermal_energy_rate(return_water_temp, outside_temp),
+        0.0,
+        places=3,
+    )
 
   @parameterized.parameters(
       (330.0, 290.0, pd.Timedelta(60, unit='second'), 0.0, 0.0, 290.0),
@@ -273,12 +282,12 @@ class HotWaterSystemTest(parameterized.TestCase):
       cooling_rate,
       expected_temperature,
   ):
-    reheat_water_setpoint = 310
+    supply_water_temperature_setpoint = 310
     water_pump_differential_head = differential_head_val
     water_pump_efficiency = 0.6
     b = get_single_boiler_hot_water_system(
         boiler.Boiler(
-            reheat_water_setpoint,
+            supply_water_temperature_setpoint,
             device_id='boiler_id',
             heating_rate=heating_rate,
             cooling_rate=cooling_rate,
@@ -309,10 +318,10 @@ class HotWaterSystemTest(parameterized.TestCase):
       water_pump_differential_head,
       water_pump_efficiency,
   ):
-    reheat_water_setpoint = 100
+    supply_water_temperature_setpoint = 100
     b = get_single_boiler_hot_water_system(
         boiler.Boiler(
-            reheat_water_setpoint,
+            supply_water_temperature_setpoint,
             device_id='boiler_id',
         ),
         pump.WaterPump(
@@ -326,7 +335,7 @@ class HotWaterSystemTest(parameterized.TestCase):
 
     expected = (
         total_flow_factor
-        * math.sqrt(b.differential_pressure)
+        * math.sqrt(b.differential_pressure_setpoint)
         * constants.WATER_DENSITY
         * constants.GRAVITY
         * water_pump_differential_head
@@ -340,34 +349,35 @@ class HotWaterSystemTest(parameterized.TestCase):
     self.assertSameElements(
         b.observable_field_names(),
         [
-            'supply_water_setpoint',
+            'supply_water_temperature_setpoint',
             'supply_water_temperature_sensor',
             'heating_request_count',
-            'differential_pressure',
+            'differential_pressure_setpoint',
+            'differential_pressure_sensor',
             'supervisor_run_command',
             'run_status',
         ],
     )
 
-  def test_observe_supply_water_setpoint(self):
-    reheat_water_setpoint = 360
+  def test_observe_supply_water_temperature_setpoint(self):
+    supply_water_temperature_setpoint = 360
     b = self.get_default_boiler()
 
     observed_value = b.get_observation(
-        'supply_water_setpoint', pd.Timestamp('2021-09-01 10:00')
+        'supply_water_temperature_setpoint', pd.Timestamp('2021-09-01 10:00')
     )
 
-    self.assertEqual(observed_value, reheat_water_setpoint)
+    self.assertEqual(observed_value, supply_water_temperature_setpoint)
 
   def test_observe_supply_water_temperature_sensor(self):
-    reheat_water_setpoint = 360
+    supply_water_temperature_setpoint = 360
     water_pump_differential_head = differential_head_val
     water_pump_efficiency = 0.6
     heating_rate = 2.0
     cooling_rate = 0.5
     b = get_single_boiler_hot_water_system(
         boiler.Boiler(
-            reheat_water_setpoint,
+            supply_water_temperature_setpoint,
             device_id='boiler_id',
             heating_rate=heating_rate,
             cooling_rate=cooling_rate,
@@ -383,11 +393,13 @@ class HotWaterSystemTest(parameterized.TestCase):
     observed_value = b.get_observation(
         'supply_water_temperature_sensor', pd.Timestamp('2021-09-01 10:00')
     )
-    self.assertEqual(observed_value, reheat_water_setpoint)
+    self.assertEqual(observed_value, supply_water_temperature_setpoint)
 
     # Up the setpoint to 365, one minute later, the temp should go to 362.
     b.set_action(
-        'supply_water_setpoint', 365.0, pd.Timestamp('2021-09-01 10:00:00')
+        'supply_water_temperature_setpoint',
+        365.0,
+        pd.Timestamp('2021-09-01 10:00:00'),
     )
     observed_value = b.get_observation(
         'supply_water_temperature_sensor', pd.Timestamp('2021-09-01 10:01')
@@ -404,7 +416,9 @@ class HotWaterSystemTest(parameterized.TestCase):
 
     # Drop the setpoint to 350; after 20 min, should drop to 355.
     b.set_action(
-        'supply_water_setpoint', 350.0, pd.Timestamp('2021-09-01 10:10:00')
+        'supply_water_temperature_setpoint',
+        350.0,
+        pd.Timestamp('2021-09-01 10:10:00'),
     )
 
     observed_value = b.get_observation(
@@ -481,12 +495,12 @@ class HotWaterSystemTest(parameterized.TestCase):
       expected_temp,
       expected_energy_rate,
   ):
-    reheat_water_setpoint = current_temp
+    supply_water_temperature_setpoint = current_temp
     water_pump_differential_head = differential_head_val
     water_pump_efficiency = 0.6
     b = get_single_boiler_hot_water_system(
         boiler.Boiler(
-            reheat_water_setpoint,
+            supply_water_temperature_setpoint,
             device_id='boiler_id',
             heating_rate=heating_rate,
             cooling_rate=cooling_rate,
@@ -498,7 +512,9 @@ class HotWaterSystemTest(parameterized.TestCase):
         ),
     )
 
-    b.set_action('supply_water_setpoint', setpoint_temp, action_timestamp)
+    b.set_action(
+        'supply_water_temperature_setpoint', setpoint_temp, action_timestamp
+    )
 
     observed_temp = b.get_observation(
         'supply_water_temperature_sensor', observation_timestamp
@@ -530,10 +546,11 @@ class HotWaterSystemTest(parameterized.TestCase):
     q = b.compute_thermal_dissipation_rate(290.0, 290.0)
     self.assertAlmostEqual(q, 0.0, places=4)
 
-  def test_compute_thermal_dissipation_rate_invalid(self):
+  def test_compute_thermal_dissipation_rate_zero_low_temp(self):
     b = self.get_default_boiler()
-    with self.assertRaises(AssertionError):
-      _ = b.compute_thermal_dissipation_rate(240.0, 290.0)
+    self.assertAlmostEqual(
+        b.compute_thermal_dissipation_rate(240.0, 290.0), 0.0
+    )
 
   def test_action_field_names(self):
     b = self.get_default_boiler()
@@ -541,21 +558,23 @@ class HotWaterSystemTest(parameterized.TestCase):
     self.assertSameElements(
         b.action_field_names(),
         [
-            'supply_water_setpoint',
-            'differential_pressure',
+            'supply_water_temperature_setpoint',
+            'differential_pressure_setpoint',
             'supervisor_run_command',
         ],
     )
 
-  def test_action_supply_water_setpoint(self):
+  def test_action_supply_water_temperature_setpoint(self):
     b = self.get_default_boiler()
 
     new_value = 280.0
     b.set_action(
-        'supply_water_setpoint', new_value, pd.Timestamp('2021-09-01 10:00')
+        'supply_water_temperature_setpoint',
+        new_value,
+        pd.Timestamp('2021-09-01 10:00'),
     )
 
-    self.assertEqual(b.reheat_water_setpoint, new_value)
+    self.assertEqual(b.supply_water_temperature_setpoint, new_value)
 
   def test_device_type(self):
     b = self.get_default_boiler()
@@ -584,10 +603,20 @@ class HotWaterSystemTest(parameterized.TestCase):
 
     self.assertEqual(device_id, 'hws_id')
 
+  def test_differential_pressure(self):
+    b = self.get_default_boiler()
+    # Default differential pressure setpoint of the pump is 1.0
+    self.assertAlmostEqual(b.differential_pressure_setpoint, 1.0)
+    self.assertAlmostEqual(b.differential_pressure_sensor, 1.0)
+
+    b.differential_pressure_setpoint = 2.5
+    self.assertAlmostEqual(b.differential_pressure_setpoint, 2.5)
+    self.assertAlmostEqual(b.differential_pressure_sensor, 2.5)
+
   def test_construct_hot_water_system_boiler(self):
     system = hot_water_system.construct_hot_water_system(
         heat_source_type=hot_water_system.HeatSourceType.BOILER,
-        reheat_water_setpoint=313.0,
+        supply_water_temperature_setpoint=313.0,
         water_pump_differential_head=15.0,
         water_pump_efficiency=0.85,
         heating_rate=0.0,
@@ -601,7 +630,7 @@ class HotWaterSystemTest(parameterized.TestCase):
     )
     self.assertIsInstance(system, hot_water_system.HotWaterSystem)
     self.assertIsInstance(system._heat_source, boiler.Boiler)
-    self.assertEqual(system.reheat_water_setpoint, 313.0)
+    self.assertEqual(system.supply_water_temperature_setpoint, 313.0)
     self.assertEqual(system.water_pump_differential_head, 15.0)
     self.assertEqual(system._pump._water_pump_efficiency, 0.85)
     self.assertEqual(system._heat_source._heating_rate, 0.0)
@@ -616,7 +645,7 @@ class HotWaterSystemTest(parameterized.TestCase):
   def test_construct_hot_water_system_ashp(self):
     system = hot_water_system.construct_hot_water_system(
         heat_source_type=hot_water_system.HeatSourceType.ASHP,
-        reheat_water_setpoint=313.0,
+        supply_water_temperature_setpoint=313.0,
         water_pump_differential_head=15.0,
         water_pump_efficiency=0.85,
         ashp_max_capacity_w=250000.0,
@@ -624,7 +653,7 @@ class HotWaterSystemTest(parameterized.TestCase):
     )
     self.assertIsInstance(system, hot_water_system.HotWaterSystem)
     self.assertIsInstance(system._heat_source, ashp.AirSourceHeatPump)
-    self.assertEqual(system.reheat_water_setpoint, 313.0)
+    self.assertEqual(system.supply_water_temperature_setpoint, 313.0)
     self.assertEqual(system.water_pump_differential_head, 15.0)
     self.assertEqual(system._pump._water_pump_efficiency, 0.85)
     self.assertEqual(system._heat_source._max_capacity_w, 250000.0)
