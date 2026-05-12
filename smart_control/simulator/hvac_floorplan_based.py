@@ -11,7 +11,7 @@ from typing import Union
 
 import gin
 import pandas as pd
-from smart_buildings.smart_control.proto import smart_control_building_pb2
+from smart_buildings.smart_control.proto import smart_control_building_pb2 as building_pb2
 from smart_buildings.smart_control.simulator import air_handler as air_handler_py
 from smart_buildings.smart_control.simulator import hot_water_system as hot_water_system_py
 from smart_buildings.smart_control.simulator import setpoint_schedule
@@ -128,8 +128,39 @@ class FloorPlanBasedHvac:
       for v_id in v_ids:
         self._vav_id_to_zones[v_id].append(zone)
 
-    self._vavs = {}
+    self._create_vavs()
 
+    for z, v_ids in self._zone_to_vav_ids.items():
+      self._zone_infos[z] = building_pb2.ZoneInfo(
+          zone_id=z,
+          building_id="US-SIM-001",
+          zone_description="Simulated zone",
+          devices=v_ids,
+          zone_type=building_pb2.ZoneInfo.ROOM,
+          floor=0,
+      )
+
+  def set_override_zones(self, zones: list[building_pb2.ZoneInfo]):
+    """Overrides the zones in the HVAC system.
+
+    Args:
+      zones: A list of ZoneInfo objects.
+    """
+    self._zone_infos.clear()
+    self._zone_to_vav_ids = {}
+    self._vav_id_to_zones = collections.defaultdict(list)
+
+    for zone in zones:
+      self._zone_infos[zone.zone_id] = zone
+      self._zone_to_vav_ids[zone.zone_id] = list(zone.devices)
+      for v_id in zone.devices:
+        self._vav_id_to_zones[v_id].append(zone.zone_id)
+
+    self._create_vavs()
+
+  def _create_vavs(self) -> None:
+    """Creates VAV devices for the HVAC system."""
+    self._vavs = {}
     for v_id, affected_zones in sorted(self._vav_id_to_zones.items()):
       # Vav constructor requires a single zone as id
       rep_zone = affected_zones[0]
@@ -145,16 +176,6 @@ class FloorPlanBasedHvac:
           max_air_flow_static_pressure=self._vav_max_air_flow_static_pressure,
       )
       self._vavs[v_id] = vav_device
-
-    for z, v_ids in self._zone_to_vav_ids.items():
-      self._zone_infos[z] = smart_control_building_pb2.ZoneInfo(
-          zone_id=z,
-          building_id="US-SIM-001",
-          zone_description="Simulated zone",
-          devices=v_ids,
-          zone_type=smart_control_building_pb2.ZoneInfo.ROOM,
-          floor=0,
-      )
 
   def reset(self):
     self.air_handler.reset()
@@ -179,5 +200,5 @@ class FloorPlanBasedHvac:
     return self._schedule.is_comfort_mode(current_time)
 
   @property
-  def zone_infos(self) -> Mapping[str, smart_control_building_pb2.ZoneInfo]:
+  def zone_infos(self) -> Mapping[str, building_pb2.ZoneInfo]:
     return self._zone_infos

@@ -4,17 +4,18 @@ This file is used to build an RL environment with a simulator controlling the
 thermodynamics and observation/action space.
 """
 
-from typing import Sequence, Type, Union
+from collections.abc import Sequence
 import uuid
 
 from absl import logging
 import gin
 import pandas as pd
-
-from smart_buildings.smart_control.models.base_building import BaseBuilding
-from smart_buildings.smart_control.models.base_occupancy import BaseOccupancy
+from smart_buildings.smart_control.models import base_building
+from smart_buildings.smart_control.models import base_occupancy
 from smart_buildings.smart_control.proto import smart_control_building_pb2
 from smart_buildings.smart_control.proto import smart_control_reward_pb2
+from smart_buildings.smart_control.simulator import hvac as hvac_py
+from smart_buildings.smart_control.simulator import hvac_floorplan_based
 from smart_buildings.smart_control.simulator import simulator as simulator_py
 from smart_buildings.smart_control.simulator import simulator_flexible_floor_plan
 from smart_buildings.smart_control.simulator import smart_device
@@ -27,32 +28,50 @@ _ActionResponseType = (
 )
 
 
+def _synchronize_zones(
+    hvac: hvac_py.Hvac | hvac_floorplan_based.FloorPlanBasedHvac,
+    zones: Sequence[smart_control_building_pb2.ZoneInfo] | None,
+) -> Sequence[smart_control_building_pb2.ZoneInfo]:
+  """Synchronizes the zones in the HVAC system and the building."""
+
+  if zones is None:
+    # Use HVAC zones by default.
+    return list(hvac.zone_infos.values())
+
+  # Overwrite HVAC zones to match the provided building zones.
+  if isinstance(hvac, hvac_floorplan_based.FloorPlanBasedHvac):
+    hvac.set_override_zones(zones)
+
+  return zones
+
+
 @gin.configurable
-class SimulatorBuilding(BaseBuilding):
+class SimulatorBuilding(base_building.BaseBuilding):
   """Base class for a controllable building for reinforcement learning."""
 
   def __init__(
       self,
-      simulator: Union[
-          simulator_flexible_floor_plan.SimulatorFlexibleGeometries,
-          simulator_py.Simulator,
-          tf_simulator.TFSimulator,
-      ],
-      occupancy: BaseOccupancy,
+      simulator: (
+          simulator_flexible_floor_plan.SimulatorFlexibleGeometries
+          | simulator_py.Simulator
+          | tf_simulator.TFSimulator
+      ),
+      occupancy: base_occupancy.BaseOccupancy,
+      zones: Sequence[smart_control_building_pb2.ZoneInfo] | None = None,
   ):
     """Creates SimulatorBuilding.
 
     Args:
-      simulator: Simulator to run for the RL environment. This can take in
-        either the floor_plan based simulator or the rectangular sim
-        (deprecated).
-      occupancy: a function to determine building occupancy by zone.
+      simulator: Simulator to run for the RL environment.
+      occupancy: A function to determine building occupancy by zone.
+      zones: A list of the thermal zones in the building.
     """
-
     self.simulator = simulator
-
     self._occupancy = occupancy
     hvac = self.simulator.hvac
+
+    synchronized_zones = _synchronize_zones(hvac, zones)
+    super().__init__(zones=synchronized_zones)
 
     # List of tuple (device, device_info)
     all_devices = [
@@ -76,7 +95,7 @@ class SimulatorBuilding(BaseBuilding):
         for smart_device, device_info in all_devices
     }
 
-  def _class_to_value_type(self, clazz: Type[object]) -> _ValueType:
+  def _class_to_value_type(self, clazz: type[object]) -> _ValueType:
     """Returns a ValueType that corresponds to a given class/type.
 
     Args:
@@ -123,7 +142,7 @@ class SimulatorBuilding(BaseBuilding):
     return device_info
 
   @property
-  def occupancy(self) -> BaseOccupancy:
+  def occupancy(self) -> base_occupancy.BaseOccupancy:
     return self._occupancy
 
   @property
@@ -267,12 +286,6 @@ class SimulatorBuilding(BaseBuilding):
   def devices(self) -> Sequence[smart_control_building_pb2.DeviceInfo]:
     """Lists the devices that can be queried and/or controlled."""
     return self._device_infos
-
-  @property
-  def zones(self) -> Sequence[smart_control_building_pb2.ZoneInfo]:
-    """Lists the zones in the building managed by the RL agent."""
-
-    return list(self.simulator.hvac.zone_infos.values())
 
   @property
   def time_step_sec(self) -> float:

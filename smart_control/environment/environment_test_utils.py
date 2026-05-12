@@ -1,10 +1,9 @@
 """Shared test utiltiles for environment tests."""
 
 import collections
-from typing import Sequence
+from collections.abc import Mapping, Sequence
 
 import pandas as pd
-
 from smart_buildings.smart_control.models import base_building
 from smart_buildings.smart_control.models import base_reward_function
 from smart_buildings.smart_control.proto import smart_control_building_pb2
@@ -38,12 +37,45 @@ class SimpleBuilding(base_building.BaseBuilding):
 
   def __init__(
       self,
-      layout=None,
-      initial_values=None,
-      start_timestamp=None,
-      zone_reward_configs=None,
+      layout: Mapping[str, Mapping[str, Sequence[str]]] | None = None,
+      initial_values: Mapping[str, float] | None = None,
+      start_timestamp: pd.Timestamp | None = None,
+      zones: Sequence[smart_control_building_pb2.ZoneInfo] | None = None,
+      zone_reward_configs: (
+          Mapping[str, Mapping[str, int | float]] | None
+      ) = None,
   ):
+    """Initializes the SimpleBuilding.
+
+    Args:
+      layout: A mapping defining the building structure,
+        {zone_id: {device_id: [field_name1, ...]}}. Defaults to DEFAULT_LAYOUT.
+      initial_values: Initial continuous values for measurements and setpoints.
+      start_timestamp: The starting timestamp for the environment.
+      zones: A sequence of pre-defined ZoneInfo protos. If None, ZoneInfo protos
+        will be generated based on the provided or default `layout`. Each zone
+        in the layout will result in a ZoneInfo, with devices populated from the
+        layout's device keys.
+      zone_reward_configs: Optional per-zone configurations used to populate
+        the reward_info.
+    """
     self.layout = layout or DEFAULT_LAYOUT
+
+    if not zones:
+      zones = []
+      for zone, info in self.layout.items():
+        zone_id = zone
+        devices = info.keys()
+        zone_info = smart_control_building_pb2.ZoneInfo(
+            zone_id=zone_id,
+            building_id="SimpleBuilding",
+            zone_description=zone_id,
+            floor=0,
+            devices=devices,
+        )
+        zones.append(zone_info)
+    super().__init__(zones=zones)
+
     self.values = collections.defaultdict(int)
     if initial_values:
       self.values.update(initial_values)
@@ -221,8 +253,7 @@ class SimpleBuilding(base_building.BaseBuilding):
           zone_description=zone_id,
           floor=floor,
       )
-      for device in devices:
-        zone_info.devices.append(device)
+      zone_info.devices.extend(devices)
       zones.append(zone_info)
     return zones
 

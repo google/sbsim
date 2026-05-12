@@ -13,8 +13,8 @@ class _MockBuilding(base_building.BaseBuilding):
   # consider moving the environment_test_utils.SimpleBuilding class here
   # and updating all references
   def __init__(self, devices, zones):
+    super().__init__(zones=zones)
     self._devices = devices
-    self._zones = zones
 
   @property
   def reward_info(self) -> smart_control_reward_pb2.RewardInfo:
@@ -40,10 +40,6 @@ class _MockBuilding(base_building.BaseBuilding):
   @property
   def devices(self) -> Sequence[smart_control_building_pb2.DeviceInfo]:
     return self._devices
-
-  @property
-  def zones(self) -> Sequence[smart_control_building_pb2.ZoneInfo]:
-    return self._zones
 
   @property
   def current_timestamp(self) -> pd.Timestamp:
@@ -119,6 +115,16 @@ class BaseBuildingTest(absltest.TestCase):
     }])
 
     pd.testing.assert_frame_equal(building.zones_df, expected_df)
+
+  def test_zone_floor_mappings(self):
+    building = _MockBuilding(
+        devices=[],
+        zones=[
+            smart_control_building_pb2.ZoneInfo(zone_id='z1', floor=5),
+            smart_control_building_pb2.ZoneInfo(zone_id='z2', floor=10),
+        ],
+    )
+    self.assertEqual(building.zones_df['floor'].tolist(), [5, 10])
 
   def test_json_metadata(self):
     devices = [smart_control_building_pb2.DeviceInfo(device_id='device_1')]

@@ -4,15 +4,12 @@ The base class should be extended by the simulation and actual buildings.
 """
 
 import abc
-from typing import Any, Sequence
+from collections.abc import Sequence
+from typing import Any
 
 import pandas as pd
-
-from smart_buildings.smart_control.proto import smart_control_building_pb2
-from smart_buildings.smart_control.proto import smart_control_reward_pb2
-
-DeviceInfo = smart_control_building_pb2.DeviceInfo
-ZoneInfo = smart_control_building_pb2.ZoneInfo
+from smart_buildings.smart_control.proto import smart_control_building_pb2 as building_pb2
+from smart_buildings.smart_control.proto import smart_control_reward_pb2 as reward_pb2
 
 SerializableData = dict[str, Any]
 
@@ -20,30 +17,38 @@ SerializableData = dict[str, Any]
 class BaseBuilding(metaclass=abc.ABCMeta):
   """Base class for a controllable building for reinforcement learning."""
 
+  def __init__(self, zones: Sequence[building_pb2.ZoneInfo] | None = None):
+    """Initializes the instance.
+
+    Args:
+      zones: A list of thermal zones in the building.
+    """
+    self._zones = list(zones) if zones else []
+
   @property
   @abc.abstractmethod
-  def reward_info(self) -> smart_control_reward_pb2.RewardInfo:
+  def reward_info(self) -> reward_pb2.RewardInfo:
     """Returns a message with data to compute the instantaneous reward."""
 
   @abc.abstractmethod
   def request_observations(
-      self, observation_request: smart_control_building_pb2.ObservationRequest
-  ) -> smart_control_building_pb2.ObservationResponse:
+      self, observation_request: building_pb2.ObservationRequest
+  ) -> building_pb2.ObservationResponse:
     """Queries the building for its current state."""
 
   @abc.abstractmethod
   def request_observations_within_time_interval(
       self,
-      observation_request: smart_control_building_pb2.ObservationRequest,
+      observation_request: building_pb2.ObservationRequest,
       start_timestamp: pd.Timestamp,
       end_timestamp: pd.Timestamp,
-  ) -> Sequence[smart_control_building_pb2.ObservationResponse]:
+  ) -> Sequence[building_pb2.ObservationResponse]:
     """Queries the building for observations between start and end times."""
 
   @abc.abstractmethod
   def request_action(
-      self, action_request: smart_control_building_pb2.ActionRequest
-  ) -> smart_control_building_pb2.ActionResponse:
+      self, action_request: building_pb2.ActionRequest
+  ) -> building_pb2.ActionResponse:
     """Issues a command to the building to change one or more setpoints."""
 
   @abc.abstractmethod
@@ -56,7 +61,7 @@ class BaseBuilding(metaclass=abc.ABCMeta):
 
   @property
   @abc.abstractmethod
-  def devices(self) -> Sequence[DeviceInfo]:
+  def devices(self) -> Sequence[building_pb2.DeviceInfo]:
     """Lists the devices that can be queried and/or controlled."""
 
   @property
@@ -69,24 +74,24 @@ class BaseBuilding(metaclass=abc.ABCMeta):
           'namespace': device.namespace,
           'code': device.code,
           'zone_id': device.zone_id,
-          'device_type': DeviceInfo.DeviceType.Name(device.device_type),
+          'device_type': building_pb2.DeviceInfo.DeviceType.Name(device.device_type),  # pylint: disable=line-too-long
           'observable_fields': sorted(list(device.observable_fields.keys())),
           'action_fields': sorted(list(device.action_fields.keys())),
           'observable_field_types': {
-              k: DeviceInfo.ValueType.Name(v)
+              k: building_pb2.DeviceInfo.ValueType.Name(v)
               for k, v in device.observable_fields.items()
           },
           'action_field_types': {
-              k: DeviceInfo.ValueType.Name(v)
+              k: building_pb2.DeviceInfo.ValueType.Name(v)
               for k, v in device.action_fields.items()
           },
       })
     return pd.DataFrame(device_records)
 
   @property
-  @abc.abstractmethod
-  def zones(self) -> Sequence[ZoneInfo]:
-    """Lists the zones in the building managed by the RL agent."""
+  def zones(self) -> Sequence[building_pb2.ZoneInfo]:
+    """Sequence of thermal zones in the building managed by the RL agent."""
+    return self._zones
 
   @property
   def zones_df(self) -> pd.DataFrame:
@@ -99,7 +104,7 @@ class BaseBuilding(metaclass=abc.ABCMeta):
           'zone_description': zone.zone_description,
           'area': zone.area,
           'devices': list(zone.devices),
-          'zone_type': ZoneInfo.ZoneType.Name(zone.zone_type),
+          'zone_type': building_pb2.ZoneInfo.ZoneType.Name(zone.zone_type),
           'floor': zone.floor,
       })
     return pd.DataFrame(zone_records)

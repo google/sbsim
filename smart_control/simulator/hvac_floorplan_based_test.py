@@ -3,6 +3,7 @@ from typing import Collection, Optional
 from absl.testing import absltest
 import pandas as pd
 
+from smart_buildings.smart_control.proto import smart_control_building_pb2 as building_pb2
 from smart_buildings.smart_control.simulator import air_handler
 from smart_buildings.smart_control.simulator import hot_water_system as hot_water_system_py
 from smart_buildings.smart_control.simulator import hvac_floorplan_based
@@ -219,6 +220,59 @@ class FloorPlanBasedHvacTest(absltest.TestCase):
 
     with self.subTest("check_zone_assignment_is_equal"):
       self.assertEqual(test_hvac._vavs.keys(), self._hvac.vavs.keys())
+
+  def test_set_override_zones(self):
+    hvac = self._create_default_hvac()
+
+    zone1 = building_pb2.ZoneInfo(
+        zone_id="new_zone_1",
+        devices=["new_vav_1"]
+    )
+    zone2 = building_pb2.ZoneInfo(
+        zone_id="new_zone_2",
+        devices=["new_vav_2"]
+    )
+
+    hvac.set_override_zones([zone1, zone2])
+
+    with self.subTest("check_vavs_created"):
+      self.assertCountEqual(hvac.vavs.keys(), ["new_vav_1", "new_vav_2"])
+
+    with self.subTest("check_vav_attributes"):
+      vav1 = hvac.vavs["new_vav_1"]
+      self.assertEqual(vav1._device_id, "new_vav_1")
+      self.assertEqual(vav1._zone_id, "new_zone_1")
+
+  def test_set_override_zones_many_to_many(self):
+    hvac = self._create_default_hvac()
+
+    zone1 = building_pb2.ZoneInfo(
+        zone_id="zone_1",
+        devices=["shared_vav", "vav_1"]
+    )
+    zone2 = building_pb2.ZoneInfo(
+        zone_id="zone_2",
+        devices=["shared_vav", "vav_2"]
+    )
+
+    hvac.set_override_zones([zone1, zone2])
+
+    with self.subTest("check_vavs_created"):
+      self.assertCountEqual(
+          hvac.vavs.keys(), ["shared_vav", "vav_1", "vav_2"]
+      )
+
+    with self.subTest("check_vav_mapping"):
+      self.assertCountEqual(
+          hvac.get_zones_for_vav("shared_vav"), ["zone_1", "zone_2"]
+      )
+      self.assertCountEqual(hvac.get_zones_for_vav("vav_1"), ["zone_1"])
+      self.assertCountEqual(hvac.get_zones_for_vav("vav_2"), ["zone_2"])
+
+    with self.subTest("check_vav_representative_zone"):
+      shared_vav = hvac.vavs["shared_vav"]
+      self.assertEqual(shared_vav._device_id, "shared_vav")
+      self.assertEqual(shared_vav._zone_id, "zone_1")
 
 
 if __name__ == "__main__":

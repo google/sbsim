@@ -8,6 +8,9 @@ import pandas as pd
 from smart_buildings.smart_control.models.base_building import BaseBuilding
 from smart_buildings.smart_control.proto import smart_control_building_pb2
 from smart_buildings.smart_control.proto import smart_control_reward_pb2
+from smart_buildings.smart_control.simulator import simulator as simulator_py
+from smart_buildings.smart_control.simulator import simulator_flexible_floor_plan
+from smart_buildings.smart_control.simulator import tf_simulator
 
 _ValueType = smart_control_building_pb2.DeviceInfo.ValueType
 _ActionResponseType = (
@@ -84,6 +87,20 @@ class RejectionSimulatorBuilding(BaseBuilding):
   def zones(self) -> Sequence[smart_control_building_pb2.ZoneInfo]:
     """Lists the zones in the building managed by the RL agent."""
     return self._base_building.zones
+
+  @property
+  def simulator(
+      self,
+  ) -> (
+      simulator_py.Simulator
+      | simulator_flexible_floor_plan.SimulatorFlexibleGeometries
+      | tf_simulator.TFSimulator
+  ):
+    """The simulator instance."""
+    # Instead of using getattr, we could check the type of the building, and
+    # only conditionally return the simulator if it is a simulator building,
+    # however that requires a messy casting approach to make type checks work.
+    return getattr(self._base_building, 'simulator')
 
   @property
   def current_timestamp(self) -> pd.Timestamp:

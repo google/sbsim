@@ -11,11 +11,20 @@ class RejectionSimulatorBuildingTest(
     simulator_building_test_lib.SimulatorBuildingTestBase
 ):
 
+  def setUp(self):
+    super().setUp()
+    self.expected_devices = {
+        "zone_id_(0, 0)": ["vav_0_0"],
+        "zone_id_(1, 0)": ["vav_1_0"],
+    }
+
   def get_sim_building(
-      self, initial_rejection_count: int = 0
+      self, initial_rejection_count: int = 0, zones=None, simulator=None
   ) -> rj_sb_py.RejectionSimulatorBuilding:
-    simulator = self._create_small_simulator()
-    simulator_building = sb_py.SimulatorBuilding(simulator, self.occupancy)
+    sim = simulator or self._create_small_simulator()
+    simulator_building = sb_py.SimulatorBuilding(
+        simulator=sim, occupancy=self.occupancy, zones=zones
+    )
     return rj_sb_py.RejectionSimulatorBuilding(
         simulator_building, initial_rejection_count
     )

@@ -23,8 +23,15 @@ class SimulatorBuildingTestBase(parameterized.TestCase):
   """Base class for testing variants of Simulator Building."""
 
   occupancy = step_function_occupancy.StepFunctionOccupancy(
-      pd.Timedelta(9, unit='h'), pd.Timedelta(17, unit='h'), 10, 0.1
+      work_start_time=pd.Timedelta(9, unit='h'),
+      work_end_time=pd.Timedelta(17, unit='h'),
+      work_occupancy=10,
+      nonwork_occupancy=0.1,
   )
+
+  def setUp(self):
+    super().setUp()
+    self.building = self.get_sim_building()
 
   def _create_small_building(self, initial_temp):
     """Returns building with specified initial temperature.
@@ -136,16 +143,21 @@ class SimulatorBuildingTestBase(parameterized.TestCase):
     )
 
   def get_sim_building(
-      self, initial_rejection_count: int = 0
+      self,
+      initial_rejection_count: int = 0,
+      zones=None,
+      simulator=None,
   ) -> sb_py.SimulatorBuilding:
     raise NotImplementedError()  # pragma: nocover
 
   def test_devices(self):
-    simulator_building = self.get_sim_building()
+    simulator_building = self.building
 
     devices = simulator_building.devices
 
     self.assertLen(devices, 4)
+
+  # OBSERVATIONS
 
   @parameterized.named_parameters(
       (
@@ -164,7 +176,7 @@ class SimulatorBuildingTestBase(parameterized.TestCase):
       self, measurement_name, expected_value
   ):
     """Tests request observations."""
-    simulator_building = self.get_sim_building()
+    simulator_building = self.building
 
     observation_request = smart_control_building_pb2.ObservationRequest()
     single_field_request = smart_control_building_pb2.SingleObservationRequest(
@@ -194,7 +206,7 @@ class SimulatorBuildingTestBase(parameterized.TestCase):
 
   def test_request_observation_multiple_success(self):
     """Tests request multiple observations."""
-    simulator_building = self.get_sim_building()
+    simulator_building = self.building
 
     observation_request = smart_control_building_pb2.ObservationRequest()
 
@@ -246,7 +258,7 @@ class SimulatorBuildingTestBase(parameterized.TestCase):
 
   def test_request_observation_incorrect_device(self):
     """Tests when an observation is requested on a nonexistent device."""
-    simulator_building = self.get_sim_building()
+    simulator_building = self.building
 
     observation_request = smart_control_building_pb2.ObservationRequest()
     single_field_request = smart_control_building_pb2.SingleObservationRequest(
@@ -265,7 +277,7 @@ class SimulatorBuildingTestBase(parameterized.TestCase):
 
   def test_request_observation_incorrect_measurement(self):
     """Tests when an observation is requested for a nonexistnt measurement."""
-    simulator_building = self.get_sim_building()
+    simulator_building = self.building
 
     observation_request = smart_control_building_pb2.ObservationRequest()
     single_field_request = smart_control_building_pb2.SingleObservationRequest(
@@ -282,12 +294,14 @@ class SimulatorBuildingTestBase(parameterized.TestCase):
         observation_response.single_observation_responses[0].observation_valid
     )
 
+  # ACTIONS
+
   @parameterized.named_parameters(
       ('act_supply_water_setpoint', 'supply_water_temperature_setpoint', 260),
   )
   def test_request_action_single_success(self, setpoint_name, set_value):
     """Tests request single action with success."""
-    simulator_building = self.get_sim_building()
+    simulator_building = self.building
 
     action_request = smart_control_building_pb2.ActionRequest()
     single_field_request = smart_control_building_pb2.SingleActionRequest(
@@ -312,7 +326,7 @@ class SimulatorBuildingTestBase(parameterized.TestCase):
 
   def test_request_action_incorrect_device(self):
     """Tests when an action is sent to a nonexistent device."""
-    simulator_building = self.get_sim_building()
+    simulator_building = self.building
 
     action_request = smart_control_building_pb2.ActionRequest()
     single_field_request = smart_control_building_pb2.SingleActionRequest(
@@ -330,7 +344,7 @@ class SimulatorBuildingTestBase(parameterized.TestCase):
 
   def test_request_action_incorrect_setpoint(self):
     """Tests when an action is sent to a nonexistent setpoint."""
-    simulator_building = self.get_sim_building()
+    simulator_building = self.building
 
     action_request = smart_control_building_pb2.ActionRequest()
     single_field_request = smart_control_building_pb2.SingleActionRequest(
@@ -345,3 +359,13 @@ class SimulatorBuildingTestBase(parameterized.TestCase):
         action_response.single_action_responses[0].response_type,
         _ACTION_RESPONSE_TYPE.REJECTED_NOT_ENABLED_OR_AVAILABLE,
     )
+
+  # ZONES
+
+  def test_init_uses_hvac_zones_by_default(self):
+    self.assertEqual(
+        list(self.building.zones),
+        list(self.building.simulator.hvac.zone_infos.values()),
+    )
+
+
