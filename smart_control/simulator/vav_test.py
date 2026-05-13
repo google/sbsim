@@ -42,16 +42,15 @@ def _get_default_hws():
 
 def _get_default_air_handler():
   recirculation = 0.65
-  heating_air_temp_setpoint = 280
-  cooling_air_temp_setpoint = 290
+
+  supply_air_temperature_setpoint = 290
   fan_static_pressure = 20000.0
   fan_efficiency = 0.8
   return air_handler.AirHandler(
-      recirculation,
-      heating_air_temp_setpoint,
-      cooling_air_temp_setpoint,
-      fan_static_pressure,
-      fan_efficiency,
+      recirculation=recirculation,
+      supply_air_temperature_setpoint=supply_air_temperature_setpoint,
+      fan_static_pressure=fan_static_pressure,
+      fan_efficiency=fan_efficiency,
   )
 
 
@@ -596,19 +595,25 @@ class VavTest(parameterized.TestCase):
     max_air_flow_rate = 0.6
     reheat_max_water_flow_rate = 0.4
     t = _get_default_thermostat()
-    b = _get_default_hws()
+    hws = _get_default_hws()
     a = _get_default_air_handler()
-    v = vav.Vav(max_air_flow_rate, reheat_max_water_flow_rate, t, b, a)
+    v = vav.Vav(
+        max_air_flow_rate=max_air_flow_rate,
+        reheat_max_water_flow_factor=reheat_max_water_flow_rate,
+        therm=t,
+        hot_water_system=hws,
+        air_handler=a,
+    )
     v.damper_setting = 0.6
     v._max_air_flow_rate = 0.6
     v._max_air_flow_static_pressure = 20000.0
-    a.fan_static_pressure = 20000.0
+    a.supply_air_static_pressure_setpoint = 20000.0
     self.assertEqual(v.flow_rate_demand, 0.36)
 
-    a.fan_static_pressure = 10000.0
+    a.supply_air_static_pressure_setpoint = 10000.0
     self.assertEqual(v.flow_rate_demand, 0.36 * math.sqrt(0.5))
 
-    a.fan_static_pressure = 0.0
+    a.supply_air_static_pressure_setpoint = 0.0
     self.assertEqual(v.flow_rate_demand, 0.00001)
 
 

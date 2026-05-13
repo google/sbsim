@@ -175,7 +175,7 @@ class Vav(smart_device.SmartDevice):
         self._damper_setting
         * self._max_air_flow_rate
         * math.sqrt(
-            self._air_handler.fan_static_pressure
+            self._air_handler.supply_air_static_pressure_sensor
             / self._max_air_flow_static_pressure
         )
     )

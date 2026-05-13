@@ -60,8 +60,7 @@ class FloorPlanBasedSimulatorBuildingTest(
 
     ahu = air_handler.AirHandler(
         recirculation=0.3,
-        heating_air_temp_setpoint=270,
-        cooling_air_temp_setpoint=288,
+        supply_air_temperature_setpoint=270,
         fan_static_pressure=20000.0,
         fan_efficiency=0.8,
     )

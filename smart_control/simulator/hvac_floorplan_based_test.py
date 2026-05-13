@@ -2,12 +2,13 @@ from typing import Collection, Optional
 
 from absl.testing import absltest
 import pandas as pd
-
 from smart_buildings.smart_control.proto import smart_control_building_pb2 as building_pb2
 from smart_buildings.smart_control.simulator import air_handler
 from smart_buildings.smart_control.simulator import hot_water_system as hot_water_system_py
 from smart_buildings.smart_control.simulator import hvac_floorplan_based
 from smart_buildings.smart_control.simulator import setpoint_schedule
+from smart_buildings.smart_control.simulator import smart_device
+from smart_buildings.smart_control.simulator import weather_controller
 
 
 class FloorPlanBasedHvacTest(absltest.TestCase):
@@ -55,18 +56,27 @@ class FloorPlanBasedHvacTest(absltest.TestCase):
     return hot_water_system
 
   def _get_default_air_handler(self):
+
+    class TestWeatherController(weather_controller.BaseWeatherController):
+
+      def get_current_temp(self, timestamp):
+        del self, timestamp  # Unused by this test implementation.
+        return 285.15
+
     recirculation = 0.3
-    heating_air_temp_setpoint = 270
-    cooling_air_temp_setpoint = 288
+    supply_air_temperature_setpoint = 292
+
     fan_static_pressure = 20000.0
-    fan_efficiency = 0.8
+    fan_efficiency = 0.9
 
     handler = air_handler.AirHandler(
-        recirculation,
-        heating_air_temp_setpoint,
-        cooling_air_temp_setpoint,
-        fan_static_pressure,
-        fan_efficiency,
+        recirculation=recirculation,
+        supply_air_temperature_setpoint=supply_air_temperature_setpoint,
+        fan_static_pressure=fan_static_pressure,
+        fan_efficiency=fan_efficiency,
+        sim_weather_controller=TestWeatherController(),
+        device_id="ah_id",
+        run_command=smart_device.RunStatus.ON,
     )
     return handler
 
@@ -133,18 +143,18 @@ class FloorPlanBasedHvacTest(absltest.TestCase):
     self.assertEqual(
         self._hvac.air_handler.recirculation, expected_air_handler.recirculation
     )
-    # TODO(sipple): Re-enable this test once the heating setpoint is fixed.
-    # self.assertEqual(
-    #     self._hvac.air_handler.heating_air_temp_setpoint,
-    #     expected_air_handler.heating_air_temp_setpoint,
-    # )
-    # self.assertEqual(
-    #     self._hvac.air_handler.cooling_air_temp_setpoint,
-    #     expected_air_handler.cooling_air_temp_setpoint,
-    # )
+
     self.assertEqual(
-        self._hvac.air_handler.fan_static_pressure,
-        expected_air_handler.fan_static_pressure,
+        self._hvac.air_handler.supply_air_temperature_sensor,
+        expected_air_handler.supply_air_temperature_sensor,
+    )
+    self.assertEqual(
+        self._hvac.air_handler.supply_air_temperature_setpoint,
+        expected_air_handler.supply_air_temperature_setpoint,
+    )
+    self.assertEqual(
+        self._hvac.air_handler.outside_air_temperature_sensor,
+        expected_air_handler.outside_air_temperature_sensor,
     )
     self.assertEqual(
         self._hvac.air_handler.fan_efficiency,

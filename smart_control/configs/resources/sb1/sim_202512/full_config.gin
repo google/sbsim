@@ -102,8 +102,7 @@ boiler_cooling_rate = 0.1 # K / min
 fan_static_pressure = 10000.0  # pascal
 fan_efficiency = 0.9
 
-air_handler_heating_setpoint = 285.0
-air_handler_cooling_setpoint = 298.0
+supply_air_temperature_setpoint = 298.0
 air_handler_recirculation_ratio = 0.3
 
 vav_max_air_flowrate = 2.0
@@ -131,8 +130,7 @@ floor_2_rooms = [
 
 ahu_1/AirHandler:
   recirculation = %air_handler_recirculation_ratio
-  heating_air_temp_setpoint = %air_handler_heating_setpoint
-  cooling_air_temp_setpoint = %air_handler_cooling_setpoint
+  supply_air_temperature_setpoint = %supply_air_temperature_setpoint
   fan_static_pressure = %fan_static_pressure
   fan_efficiency = %fan_efficiency
   max_air_flow_rate = 8.67
@@ -141,8 +139,7 @@ ahu_1/AirHandler:
 
 ahu_2/AirHandler:
   recirculation = %air_handler_recirculation_ratio
-  heating_air_temp_setpoint = %air_handler_heating_setpoint
-  cooling_air_temp_setpoint = %air_handler_cooling_setpoint
+  supply_air_temperature_setpoint = %supply_air_temperature_setpoint
   fan_static_pressure = %fan_static_pressure
   fan_efficiency = %fan_efficiency
   max_air_flow_rate = 8.67

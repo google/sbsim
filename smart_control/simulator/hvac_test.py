@@ -109,7 +109,7 @@ class HvacTest(absltest.TestCase):
     h.hot_water_system.supply_water_temperature_setpoint += 2.0
 
     h.air_handler._air_flow_rate += 0.1
-    h.air_handler._fan_static_pressure = 0.1
+    h.air_handler.supply_air_static_pressure_setpoint = 0.1
 
     for coord in zone_coordinates:
       vav = h.vavs[coord]
@@ -124,18 +124,14 @@ class HvacTest(absltest.TestCase):
     self.assertEqual(
         h.air_handler.recirculation, expected_air_handler.recirculation
     )
-    # TODO(sipple): Re-enable this test once the heating setpoint is fixed.
-    # self.assertEqual(
-    #     h.air_handler.heating_air_temp_setpoint,
-    #     expected_air_handler.heating_air_temp_setpoint,
-    # )
-    # self.assertEqual(
-    #     h.air_handler.cooling_air_temp_setpoint,
-    #     expected_air_handler.cooling_air_temp_setpoint,
-    # )
+
     self.assertEqual(
-        h.air_handler.fan_static_pressure,
-        expected_air_handler.fan_static_pressure,
+        h.air_handler.supply_air_temperature_setpoint,
+        expected_air_handler.supply_air_temperature_setpoint,
+    )
+    self.assertEqual(
+        h.air_handler.supply_air_static_pressure_setpoint,
+        expected_air_handler.supply_air_static_pressure_setpoint,
     )
     self.assertEqual(
         h.air_handler.fan_efficiency, expected_air_handler.fan_efficiency

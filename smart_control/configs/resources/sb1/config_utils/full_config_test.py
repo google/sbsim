@@ -396,7 +396,6 @@ class HybridActionEnvironmentConfigTest(EnvironmentConfigTest):
     self.assertCountEqual(df.to_dict("records"), conftest.HYBRID_ACTION_FIELDS)
 
 
-@absltest.skip("TODO(sipple): re-enabled in cl/912501527 with fixes to ACs.")
 class OverrideConfigTest(parameterized.TestCase):
 
   def test_override_config_values(self):

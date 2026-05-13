@@ -17,10 +17,6 @@ class AirHandler(smart_device.SmartDevice):
   Attributes:
     recirculation: Proportion of air recirculated.
     air_flow_rate: Flow rate produced by fan in m^3/s.
-    heating_air_temp_setpoint: Minimum temperature in K until air will need to
-      be heated. Deprecated, use supply_air_temperature_setpoint instead.
-    cooling_air_temp_setpoint: Maximum temperature in K until air will be
-      cooled. Deprecated, use supply_air_temperature_setpoint instead.
     supply_air_temperature_setpoint: Average temperature in K of air output from
       the air handler. This is reduced to the heating or cooling setpoint.
       Either this, or those two, can be used. For backwards compatibility, the
@@ -37,8 +33,7 @@ class AirHandler(smart_device.SmartDevice):
   def __init__(
       self,
       recirculation: float,
-      heating_air_temp_setpoint: int,
-      cooling_air_temp_setpoint: int,
+      supply_air_temperature_setpoint: int,
       fan_static_pressure: float,
       fan_efficiency: float,
       max_air_flow_rate: float = 8.67,
@@ -48,24 +43,34 @@ class AirHandler(smart_device.SmartDevice):
       ] = None,
       run_command=smart_device.RunStatus.ON,
   ):
-    if cooling_air_temp_setpoint <= heating_air_temp_setpoint:
-      raise ValueError(
-          'cooling_air_temp_setpoint must greater than'
-          ' heating_air_temp_setpoint'
-      )
 
     observable_fields = {
-        'static_pressure_setpoint': smart_device.AttributeInfo(
-            'fan_static_pressure', float
+        'cooling_request_count': smart_device.AttributeInfo(
+            'cooling_request_count', float
+        ),
+        'supply_air_static_pressure_setpoint': smart_device.AttributeInfo(
+            'supply_air_static_pressure_setpoint', float
+        ),
+        'supply_air_static_pressure_sensor': smart_device.AttributeInfo(
+            'supply_air_static_pressure_sensor', float
+        ),
+        'supply_air_flowrate_setpoint': smart_device.AttributeInfo(
+            'air_flow_rate', float
         ),
         'supply_air_flowrate_sensor': smart_device.AttributeInfo(
             'air_flow_rate', float
         ),
-        'supply_air_heating_temperature_setpoint': smart_device.AttributeInfo(
-            'heating_air_temp_setpoint', float
+        'supply_air_temperature_sensor': smart_device.AttributeInfo(
+            'supply_air_temperature_sensor', float
         ),
-        'supply_air_cooling_temperature_setpoint': smart_device.AttributeInfo(
-            'cooling_air_temp_setpoint', float
+        'supply_air_temperature_setpoint': smart_device.AttributeInfo(
+            'supply_air_temperature_setpoint', float
+        ),
+        'supply_fan_run_command': smart_device.AttributeInfo(
+            'run_command', int
+        ),
+        'exhaust_fan_run_command': smart_device.AttributeInfo(
+            'run_command', int
         ),
         'supply_fan_speed_percentage_command': smart_device.AttributeInfo(
             'supply_fan_speed_percentage', float
@@ -76,14 +81,8 @@ class AirHandler(smart_device.SmartDevice):
         'outside_air_flowrate_sensor': smart_device.AttributeInfo(
             'ambient_flow_rate', float
         ),
-        'cooling_request_count': smart_device.AttributeInfo(
-            'cooling_request_count', float
-        ),
         'supervisor_run_command': smart_device.AttributeInfo(
             'run_command', int
-        ),
-        'supply_air_temperature_setpoint': smart_device.AttributeInfo(
-            'supply_air_temperature_setpoint', float
         ),
     }
     if sim_weather_controller:
@@ -92,17 +91,11 @@ class AirHandler(smart_device.SmartDevice):
       )
 
     action_fields = {
-        'supply_air_heating_temperature_setpoint': smart_device.AttributeInfo(
-            'heating_air_temp_setpoint', float
-        ),
-        'supply_air_cooling_temperature_setpoint': smart_device.AttributeInfo(
-            'cooling_air_temp_setpoint', float
-        ),
         'supervisor_run_command': smart_device.AttributeInfo(
             'run_command', int
         ),
-        'static_pressure_setpoint': smart_device.AttributeInfo(
-            'fan_static_pressure', float
+        'supply_air_static_pressure_setpoint': smart_device.AttributeInfo(
+            'supply_air_static_pressure_setpoint', float
         ),
         'supply_air_temperature_setpoint': smart_device.AttributeInfo(
             'supply_air_temperature_setpoint', float
@@ -121,8 +114,8 @@ class AirHandler(smart_device.SmartDevice):
 
     self._init_recirculation = recirculation
     self._init_air_flow_rate = 0.0
-    self._init_heating_air_temp_setpoint = heating_air_temp_setpoint
-    self._init_cooling_air_temp_setpoint = cooling_air_temp_setpoint
+
+    self._init_cooling_air_temp_setpoint = supply_air_temperature_setpoint
     self._init_fan_static_pressure = fan_static_pressure
     self._init_fan_efficiency = fan_efficiency
     self._init_cooling_request_count = 0
@@ -134,8 +127,7 @@ class AirHandler(smart_device.SmartDevice):
   def reset(self):
     self._recirculation = self._init_recirculation
     self._air_flow_rate = self._init_air_flow_rate
-    self._heating_air_temp_setpoint = self._init_heating_air_temp_setpoint
-    self._cooling_air_temp_setpoint = self._init_cooling_air_temp_setpoint
+    self._supply_air_temperature_setpoint = self._init_cooling_air_temp_setpoint
     self._fan_static_pressure = self._init_fan_static_pressure
     self._fan_efficiency = self._init_fan_efficiency
     self._cooling_request_count = self._init_cooling_request_count
@@ -183,47 +175,34 @@ class AirHandler(smart_device.SmartDevice):
     self._air_flow_rate = value
 
   @property
-  def cooling_air_temp_setpoint(self) -> int:
-    return self._cooling_air_temp_setpoint  # pytype: disable=bad-return-type  # trace-all-classes
-
-  @cooling_air_temp_setpoint.setter
-  def cooling_air_temp_setpoint(self, value: float):
-    self._cooling_air_temp_setpoint = value
-
-  @property
-  def heating_air_temp_setpoint(self) -> int:
-    return self._heating_air_temp_setpoint  # pytype: disable=bad-return-type  # trace-all-classes
-
-  @heating_air_temp_setpoint.setter
-  def heating_air_temp_setpoint(self, value: float):
-    self._heating_air_temp_setpoint = value
-
-  @property
   def supply_air_temperature_setpoint(self) -> float:
-    return (self.heating_air_temp_setpoint + self.cooling_air_temp_setpoint) / 2
+    return self._supply_air_temperature_setpoint
 
   @supply_air_temperature_setpoint.setter
   def supply_air_temperature_setpoint(self, value: float):
-    temperature_band = (
-        self.cooling_air_temp_setpoint - self.heating_air_temp_setpoint
-    ) / 2
     self._supply_air_temperature_setpoint = value
-    self.cooling_air_temp_setpoint = value + temperature_band
-    self.heating_air_temp_setpoint = value - temperature_band
 
   @property
-  def fan_static_pressure(self) -> float:
+  def supply_air_temperature_sensor(self) -> float:
+    return self._supply_air_temperature_setpoint
+
+  @property
+  def supply_air_static_pressure_setpoint(self) -> float:
     if self._run_command == smart_device.RunStatus.OFF:
       return 0.0
     return self._fan_static_pressure
 
-  @fan_static_pressure.setter
-  def fan_static_pressure(self, value: float):
+  @supply_air_static_pressure_setpoint.setter
+  def supply_air_static_pressure_setpoint(self, value: float):
     self._fan_static_pressure = value
 
   @property
   def fan_efficiency(self) -> float:
     return self._fan_efficiency
+
+  @property
+  def supply_air_static_pressure_sensor(self) -> float:
+    return self.supply_air_static_pressure_setpoint
 
   @fan_efficiency.setter
   def fan_efficiency(self, value: float):
@@ -347,7 +326,7 @@ class AirHandler(smart_device.SmartDevice):
     """Returns power in W consumed by the intake fan."""
     return self.compute_fan_power(
         self.air_flow_rate,
-        self.fan_static_pressure,
+        self.supply_air_static_pressure_setpoint,
         self._fan_efficiency,
     )
 
@@ -355,7 +334,7 @@ class AirHandler(smart_device.SmartDevice):
     """Returns power in W consumed by the exhaust fan."""
     return self.compute_fan_power(
         self.air_flow_rate * (1.0 - self._recirculation),
-        self.fan_static_pressure,
+        self.supply_air_static_pressure_setpoint,
         self._fan_efficiency,
     )
 

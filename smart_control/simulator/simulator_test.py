@@ -157,6 +157,7 @@ class SimulatorTest(parameterized.TestCase, compare.Proto2Assertions):
     supply_water_temperature_setpoint = 350
     water_pump_differential_head = 3
     water_pump_efficiency = 0.6
+
     if use_boiler:
       hot_water_system = hot_water_system_py.construct_hot_water_system(
           supply_water_temperature_setpoint=supply_water_temperature_setpoint,
@@ -176,17 +177,15 @@ class SimulatorTest(parameterized.TestCase, compare.Proto2Assertions):
       )
 
     recirculation = 0.6
-    heating_air_temp_setpoint = 291
-    cooling_air_temp_setpoint = 295
+    supply_air_temperature_setpoint = 291
     fan_static_pressure = 20000.0
     fan_efficiency = 0.8
 
     air_handler = air_handler_py.AirHandler(
         recirculation,
-        heating_air_temp_setpoint,
-        cooling_air_temp_setpoint,
-        fan_static_pressure,
-        fan_efficiency,
+        supply_air_temperature_setpoint=supply_air_temperature_setpoint,
+        fan_static_pressure=fan_static_pressure,
+        fan_efficiency=fan_efficiency,
     )
 
     morning_start_hour = 9
@@ -297,7 +296,7 @@ class SimulatorTest(parameterized.TestCase, compare.Proto2Assertions):
     simulator.hvac.hot_water_system.water_pump_differential_head += 100.0
 
     simulator.hvac.air_handler._air_flow_rate += 0.1
-    simulator.hvac.air_handler._fan_static_pressure = 0.1
+    simulator.hvac.air_handler.supply_air_static_pressure_setpoint = 0.1
 
     for coord in simulator.hvac._zone_coordinates:
       vav = simulator.hvac.vavs[coord]
@@ -316,16 +315,16 @@ class SimulatorTest(parameterized.TestCase, compare.Proto2Assertions):
         expected_air_handler.recirculation,
     )
     self.assertEqual(
-        simulator._hvac.air_handler.heating_air_temp_setpoint,
-        expected_air_handler.heating_air_temp_setpoint,
+        simulator._hvac.air_handler.supply_air_temperature_setpoint,
+        expected_air_handler.supply_air_temperature_setpoint,
     )
     self.assertEqual(
-        simulator._hvac.air_handler.cooling_air_temp_setpoint,
-        expected_air_handler.cooling_air_temp_setpoint,
+        simulator._hvac.air_handler.supply_air_temperature_sensor,
+        expected_air_handler.supply_air_temperature_sensor,
     )
     self.assertEqual(
-        simulator._hvac.air_handler.fan_static_pressure,
-        expected_air_handler.fan_static_pressure,
+        simulator._hvac.air_handler.supply_air_static_pressure_setpoint,
+        expected_air_handler.supply_air_static_pressure_setpoint,
     )
     self.assertEqual(
         simulator._hvac.air_handler.fan_efficiency,
@@ -808,7 +807,7 @@ class SimulatorTest(parameterized.TestCase, compare.Proto2Assertions):
     iteration_warning = 10
     start_timestamp = pd.Timestamp('12-21-2012')
 
-    initial_temperature = 292.0
+    initial_temperature = 285.0
     building = self._create_scenario_building(initial_temp=initial_temperature)
 
     sim = simulator_py.Simulator(
@@ -853,7 +852,7 @@ class SimulatorTest(parameterized.TestCase, compare.Proto2Assertions):
     iteration_warning = 10
     start_timestamp = pd.Timestamp('12-21-2012')
 
-    initial_temperature = 292.0
+    initial_temperature = 285.0
 
     # Building is 3x3 zones.
     building = self._create_scenario_building(initial_temp=initial_temperature)
