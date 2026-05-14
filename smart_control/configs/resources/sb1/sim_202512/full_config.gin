@@ -326,18 +326,18 @@ action_normalizer_map_continuous = {
     'supply_water_temperature_setpoint': @supply_water_bounded_action_normalizer/set_action_normalization_constants(),
     'differential_pressure_setpoint': @differential_pressure_setpoint/set_action_normalization_constants(),
     'ahu_1_supply_air_temperature_setpoint': @supply_air_temperature_setpoint/set_action_normalization_constants(),
-    'ahu_1_static_pressure_setpoint': @static_pressure_setpoint/set_action_normalization_constants(),
+    'ahu_1_supply_air_static_pressure_setpoint': @static_pressure_setpoint/set_action_normalization_constants(),
     'ahu_2_supply_air_temperature_setpoint': @supply_air_temperature_setpoint/set_action_normalization_constants(),
-    'ahu_2_static_pressure_setpoint': @static_pressure_setpoint/set_action_normalization_constants(),
+    'ahu_2_supply_air_static_pressure_setpoint': @static_pressure_setpoint/set_action_normalization_constants(),
 }
 continuous/ActionConfig:
     action_normalizers = %action_normalizer_map_continuous
 
 device_action_tuples = [
     ('ahs', 'ahu_1_supply_air_temperature_setpoint'),
-    ('ahs', 'ahu_1_static_pressure_setpoint'),
+    ('ahs', 'ahu_1_supply_air_static_pressure_setpoint'),
     ('ahs', 'ahu_2_supply_air_temperature_setpoint'),
-    ('ahs', 'ahu_2_static_pressure_setpoint'),
+    ('ahs', 'ahu_2_supply_air_static_pressure_setpoint'),
     ('hws', 'supply_water_temperature_setpoint'),
     ('hws', 'differential_pressure_setpoint'),
 ]
@@ -346,9 +346,9 @@ default_actions = {
     'hws_supply_water_temperature_setpoint': 340.0,
     'hws_differential_pressure_setpoint': 20.0,
     'ahs_ahu_1_supply_air_temperature_setpoint': 293.0,
-    'ahs_ahu_1_static_pressure_setpoint': 20000.0,
+    'ahs_ahu_1_supply_air_static_pressure_setpoint': 20000.0,
     'ahs_ahu_2_supply_air_temperature_setpoint': 293.0,
-    'ahs_ahu_2_static_pressure_setpoint': 20000.0,
+    'ahs_ahu_2_supply_air_static_pressure_setpoint': 20000.0,
 
 }
 
@@ -358,9 +358,9 @@ action_normalizer_map_hybrid = {
     'supply_water_temperature_setpoint': @supply_water_bounded_action_normalizer/set_action_normalization_constants(),
     'differential_pressure_setpoint': @differential_pressure_setpoint/set_action_normalization_constants(),
     'ahu_1_supply_air_temperature_setpoint': @supply_air_temperature_setpoint/set_action_normalization_constants(),
-    'ahu_1_static_pressure_setpoint': @static_pressure_setpoint/set_action_normalization_constants(),
+    'ahu_1_supply_air_static_pressure_setpoint': @static_pressure_setpoint/set_action_normalization_constants(),
     'ahu_2_supply_air_temperature_setpoint': @supply_air_temperature_setpoint/set_action_normalization_constants(),
-    'ahu_2_static_pressure_setpoint': @static_pressure_setpoint/set_action_normalization_constants(),
+    'ahu_2_supply_air_static_pressure_setpoint': @static_pressure_setpoint/set_action_normalization_constants(),
     'supervisor_run_command': @run_command/set_action_normalization_constants(),
     'ahu_1_supervisor_run_command': @run_command/set_action_normalization_constants(),
     'ahu_2_supervisor_run_command': @run_command/set_action_normalization_constants(),
@@ -372,9 +372,9 @@ hybrid_device_action_tuples = [
     ('ahs', 'ahu_1_supervisor_run_command'),
     ('ahs', 'ahu_2_supervisor_run_command'),
     ('ahs', 'ahu_1_supply_air_temperature_setpoint'),
-    ('ahs', 'ahu_1_static_pressure_setpoint'),
+    ('ahs', 'ahu_1_supply_air_static_pressure_setpoint'),
     ('ahs', 'ahu_2_supply_air_temperature_setpoint'),
-    ('ahs', 'ahu_2_static_pressure_setpoint'),
+    ('ahs', 'ahu_2_supply_air_static_pressure_setpoint'),
     ('hws', 'supervisor_run_command'),
     ('hws', 'supply_water_temperature_setpoint'),
     ('hws', 'differential_pressure_setpoint'),
@@ -385,9 +385,9 @@ hybrid_default_actions = {
     'hws_differential_pressure_setpoint': 20.0,
     'hws_supervisor_run_command': 1.0,
     'ahs_ahu_1_supply_air_temperature_setpoint': 293.0,
-    'ahs_ahu_1_static_pressure_setpoint': 20000.0,
+    'ahs_ahu_1_supply_air_static_pressure_setpoint': 20000.0,
     'ahs_ahu_2_supply_air_temperature_setpoint': 293.0,
-    'ahs_ahu_2_static_pressure_setpoint': 20000.0,
+    'ahs_ahu_2_supply_air_static_pressure_setpoint': 20000.0,
     'ahs_ahu_1_supervisor_run_command': 1.0,
     'ahs_ahu_2_supervisor_run_command': 1.0,
 }

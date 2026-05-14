@@ -1,10 +1,4 @@
-"""Reproducible gin configurations for running simulation experiments.
-
-NOTE: if/when more configs are added in the future, consider namespacing this
-file under a new "config_utils/sim_202512" subdirectory, or perhaps better yet,
-moving up into the "configs" directory itself, to accompany the corresponding
-config file.
-"""
+"""Gin configuration utilities for Building 'SB-1'."""
 
 import os
 

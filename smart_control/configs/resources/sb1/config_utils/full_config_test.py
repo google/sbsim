@@ -42,7 +42,6 @@ logging.set_verbosity(logging.WARNING)
 warnings.filterwarnings("ignore", category=UserWarning)
 
 
-@absltest.skip("TODO(sipple): re-enabled in cl/912501527 with fixes to ACs.")
 class EnvironmentConfigTest(parameterized.TestCase):
 
   @classmethod
@@ -98,7 +97,7 @@ class EnvironmentConfigTest(parameterized.TestCase):
       df = wc.weather_df
       self.assertIsInstance(df, pd.DataFrame)
       self.assertEqual(df.shape, (8529, 15))
-      self.assertEqual(df.columns.tolist(), conftest.WEATHER_COLUMNS)
+      self.assertEqual(df.columns.tolist(), list(conftest.WEATHER_COLUMNS))
 
     with self.subTest("time_range"):
       timestamp = pd.Timestamp(full_config.START_TIMESTAMP)
@@ -259,7 +258,7 @@ class EnvironmentConfigTest(parameterized.TestCase):
   @parameterized.named_parameters(
       dict(
           testcase_name="supply_water_temperature_setpoint",
-          action_name="supply_water_temperature_setpoint",
+          setpoint_name="supply_water_temperature_setpoint",
           min_normalized_value=-1.0,
           max_normalized_value=1.0,
           min_native_value=310.0,
@@ -267,7 +266,7 @@ class EnvironmentConfigTest(parameterized.TestCase):
       ),
       dict(
           testcase_name="differential_pressure_setpoint",
-          action_name="differential_pressure_setpoint",
+          setpoint_name="differential_pressure_setpoint",
           min_normalized_value=-1.0,
           max_normalized_value=1.0,
           min_native_value=0.0,
@@ -282,8 +281,8 @@ class EnvironmentConfigTest(parameterized.TestCase):
           max_native_value=305.0,
       ),
       dict(
-          testcase_name="ahu_1_static_pressure_setpoint",
-          setpoint_name="ahu_1_static_pressure_setpoint",
+          testcase_name="ahu_1_supply_air_static_pressure_setpoint",
+          setpoint_name="ahu_1_supply_air_static_pressure_setpoint",
           min_normalized_value=-1.0,
           max_normalized_value=1.0,
           min_native_value=0.0,
@@ -298,8 +297,8 @@ class EnvironmentConfigTest(parameterized.TestCase):
           max_native_value=305.0,
       ),
       dict(
-          testcase_name="ahu_2_static_pressure_setpoint",
-          setpoint_name="ahu_2_static_pressure_setpoint",
+          testcase_name="ahu_2_supply_air_static_pressure_setpoint",
+          setpoint_name="ahu_2_supply_air_static_pressure_setpoint",
           min_normalized_value=-1.0,
           max_normalized_value=1.0,
           min_native_value=0.0,
@@ -333,7 +332,6 @@ class EnvironmentConfigTest(parameterized.TestCase):
     self.assertCountEqual(df.to_dict("records"), conftest.ACTION_FIELDS)
 
 
-@absltest.skip("TODO(sipple): re-enabled in cl/912501527 with fixes to ACs.")
 class HybridActionEnvironmentConfigTest(EnvironmentConfigTest):
 
   @classmethod
