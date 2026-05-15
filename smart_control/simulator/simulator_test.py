@@ -1,29 +1,13 @@
-"""Tests for simulator.
-
-Copyright 2023 Google LLC
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    https://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-"""
-
 from unittest import mock
 
 from absl.testing import absltest
 from absl.testing import parameterized
 import pandas as pd
+from google3.net.proto2.contrib.pyutil import compare
 from smart_buildings.smart_control.proto import smart_control_reward_pb2
 from smart_buildings.smart_control.simulator import air_handler as air_handler_py
-from smart_buildings.smart_control.simulator import boiler as boiler_py
 from smart_buildings.smart_control.simulator import building as building_py
+from smart_buildings.smart_control.simulator import hot_water_system as hot_water_system_py
 from smart_buildings.smart_control.simulator import hvac as hvac_py
 from smart_buildings.smart_control.simulator import setpoint_schedule
 from smart_buildings.smart_control.simulator import simulator as simulator_py
@@ -32,7 +16,7 @@ from smart_buildings.smart_control.simulator import weather_controller as weathe
 from smart_buildings.smart_control.utils import conversion_utils
 
 
-class SimulatorTest(parameterized.TestCase):
+class SimulatorTest(parameterized.TestCase, compare.Proto2Assertions):
 
   def _create_small_building(self, initial_temp):
     """Returns building with specified initial temperature.
@@ -70,29 +54,46 @@ class SimulatorTest(parameterized.TestCase):
     )
     return building
 
-  def _create_small_hvac(self):
+  def _create_small_hvac(
+      self,
+      use_boiler=True,
+  ):
     """Returns hvac matching zones for small test building."""
-    reheat_water_setpoint = 260
+    supply_water_temperature_setpoint = 260
     water_pump_differential_head = 3
     water_pump_efficiency = 0.6
-    boiler = boiler_py.Boiler(
-        reheat_water_setpoint,
-        water_pump_differential_head,
-        water_pump_efficiency,
-        'boiler_id',
-    )
+
+    if use_boiler:
+      hot_water_system = hot_water_system_py.construct_hot_water_system(
+          supply_water_temperature_setpoint=supply_water_temperature_setpoint,
+          water_pump_differential_head=water_pump_differential_head,
+          water_pump_efficiency=water_pump_efficiency,
+          device_id='hws_id',
+          heat_source_type=hot_water_system_py.HeatSourceType.BOILER,
+      )
+
+    else:
+      hot_water_system = hot_water_system_py.construct_hot_water_system(
+          supply_water_temperature_setpoint=supply_water_temperature_setpoint,
+          heat_source_type=hot_water_system_py.HeatSourceType.ASHP,
+          water_pump_differential_head=water_pump_differential_head,
+          water_pump_efficiency=water_pump_efficiency,
+          ashp_max_capacity_w=600000.0,
+          ashp_nominal_cop=3.2,
+          device_id='hws_id',
+      )
 
     recirculation = 0.3
     heating_air_temp_setpoint = 270
     cooling_air_temp_setpoint = 288
-    fan_differential_pressure = 20000.0
+    fan_static_pressure = 20000.0
     fan_efficiency = 0.8
 
     air_handler = air_handler_py.AirHandler(
         recirculation,
         heating_air_temp_setpoint,
         cooling_air_temp_setpoint,
-        fan_differential_pressure,
+        fan_static_pressure,
         fan_efficiency,
     )
 
@@ -113,7 +114,7 @@ class SimulatorTest(parameterized.TestCase):
     zone_coordinates = [(0, 0), (1, 0)]
 
     hvac = hvac_py.Hvac(
-        zone_coordinates, air_handler, boiler, schedule, 0.45, 0.02
+        zone_coordinates, air_handler, hot_water_system, schedule, 0.45, 0.02
     )
     return hvac
 
@@ -151,30 +152,40 @@ class SimulatorTest(parameterized.TestCase):
     )
     return building
 
-  def _create_scenario_hvac(self):
+  def _create_scenario_hvac(self, use_boiler=True):
     """Returns hvac matching zones for scenario building."""
-    reheat_water_setpoint = 350
+    supply_water_temperature_setpoint = 350
     water_pump_differential_head = 3
     water_pump_efficiency = 0.6
-    boiler = boiler_py.Boiler(
-        reheat_water_setpoint,
-        water_pump_differential_head,
-        water_pump_efficiency,
-        'boiler_id',
-    )
+
+    if use_boiler:
+      hot_water_system = hot_water_system_py.construct_hot_water_system(
+          supply_water_temperature_setpoint=supply_water_temperature_setpoint,
+          water_pump_differential_head=water_pump_differential_head,
+          water_pump_efficiency=water_pump_efficiency,
+          device_id='hws_id',
+      )
+    else:
+      hot_water_system = hot_water_system_py.construct_hot_water_system(
+          supply_water_temperature_setpoint=supply_water_temperature_setpoint,
+          heat_source_type=hot_water_system_py.HeatSourceType.ASHP,
+          water_pump_differential_head=water_pump_differential_head,
+          water_pump_efficiency=water_pump_efficiency,
+          ashp_max_capacity_w=600000.0,
+          ashp_nominal_cop=3.2,
+          device_id='hws_id',
+      )
 
     recirculation = 0.6
-    heating_air_temp_setpoint = 291
-    cooling_air_temp_setpoint = 295
-    fan_differential_pressure = 20000.0
+    supply_air_temperature_setpoint = 291
+    fan_static_pressure = 20000.0
     fan_efficiency = 0.8
 
     air_handler = air_handler_py.AirHandler(
         recirculation,
-        heating_air_temp_setpoint,
-        cooling_air_temp_setpoint,
-        fan_differential_pressure,
-        fan_efficiency,
+        supply_air_temperature_setpoint=supply_air_temperature_setpoint,
+        fan_static_pressure=fan_static_pressure,
+        fan_efficiency=fan_efficiency,
     )
 
     morning_start_hour = 9
@@ -202,24 +213,28 @@ class SimulatorTest(parameterized.TestCase):
     ]
 
     vav_max_air_flow_rate = 0.45
-    vav_reheat_max_water_flow_rate = 0.02
+    reheat_max_water_flow_factor = 0.03688555555
     hvac = hvac_py.Hvac(
         zone_coordinates,
         air_handler,
-        boiler,
+        hot_water_system,
         schedule,
         vav_max_air_flow_rate,
-        vav_reheat_max_water_flow_rate,
+        reheat_max_water_flow_factor,
     )
     return hvac
 
-  def test_init(self):
+  @parameterized.named_parameters(
+      ('Boiler', True),
+      ('ASHP', False),
+  )
+  def test_init(self, use_boiler):
     building = mock.create_autospec(building_py.Building)
     weather_controller = mock.create_autospec(
         weather_controller_py.WeatherController
     )
     time_step_sec = 300.0
-    hvac = self._create_small_hvac()
+    hvac = self._create_small_hvac(use_boiler=use_boiler)
     convergence_threshold = 0.1
     iteration_limit = 100
     iteration_warning = 10
@@ -236,7 +251,7 @@ class SimulatorTest(parameterized.TestCase):
         start_timestamp,
     )
 
-    self.assertEqual(simulator._building, building)
+    self.assertEqual(simulator.building, building)
     self.assertEqual(simulator._weather_controller, weather_controller)
     self.assertEqual(simulator._time_step_sec, time_step_sec)
     self.assertEqual(simulator.time_step_sec, time_step_sec)
@@ -245,14 +260,18 @@ class SimulatorTest(parameterized.TestCase):
     self.assertEqual(simulator._iteration_warning, iteration_warning)
     self.assertEqual(simulator._current_timestamp, start_timestamp)
 
-  def test_reset(self):
+  @parameterized.named_parameters(
+      ('Boiler', True),
+      ('ASHP', False),
+  )
+  def test_reset(self, use_boiler):
     initial_temp = 293
     building = self._create_small_building(initial_temp)
     weather_controller = mock.create_autospec(
         weather_controller_py.WeatherController
     )
     time_step_sec = 300.0
-    hvac = self._create_small_hvac()
+    hvac = self._create_small_hvac(use_boiler=use_boiler)
     convergence_threshold = 0.1
     iteration_limit = 100
     iteration_warning = 10
@@ -269,84 +288,89 @@ class SimulatorTest(parameterized.TestCase):
         start_timestamp,
     )
 
-    simulator._building.temp[2][2] += 10.0
-    simulator._building.temp[0][3] += 10.0
-    simulator._building.input_q[2][2] = 1000.0
-    simulator._building.input_q[0][3] = 1000.0
+    simulator.building.temp[2][2] += 10.0
+    simulator.building.temp[0][3] += 10.0
+    simulator.building.input_q[2][2] = 1000.0
+    simulator.building.input_q[0][3] = 1000.0
 
-    simulator.hvac.boiler._return_water_temperature_sensor += 10.0
-    simulator.hvac.boiler._water_pump_differential_head += 100.0
-    simulator.hvac.boiler._reheat_water_setpoint += 2.0
+    simulator.hvac.hot_water_system.water_pump_differential_head += 100.0
 
     simulator.hvac.air_handler._air_flow_rate += 0.1
-    simulator.hvac.air_handler._fan_differential_pressure = 0.1
+    simulator.hvac.air_handler.supply_air_static_pressure_setpoint = 0.1
 
     for coord in simulator.hvac._zone_coordinates:
       vav = simulator.hvac.vavs[coord]
       vav.thermostat._setpoint_schedule.morning_start_hour += 1.0
       vav.thermostat._setpoint_schedule.comfort_temp_window = (280, 310)
       vav.max_air_flow_rate += 0.1
-      vav._reheat_max_water_flow_rate += 0.1
+      vav._reheat_max_water_flow_factor += 0.1
 
     simulator._current_timestamp += pd.Timedelta(360.0, unit='seconds')
     simulator.reset()
-    self.assertEqual(simulator._building, building)
-    expected_hvac = self._create_small_hvac()
+    self.assertEqual(simulator.building, building)
+    expected_hvac = self._create_small_hvac(use_boiler=use_boiler)
     expected_air_handler = expected_hvac.air_handler
     self.assertEqual(
         simulator._hvac.air_handler.recirculation,
         expected_air_handler.recirculation,
     )
     self.assertEqual(
-        simulator._hvac.air_handler.heating_air_temp_setpoint,
-        expected_air_handler.heating_air_temp_setpoint,
+        simulator._hvac.air_handler.supply_air_temperature_setpoint,
+        expected_air_handler.supply_air_temperature_setpoint,
     )
     self.assertEqual(
-        simulator._hvac.air_handler.cooling_air_temp_setpoint,
-        expected_air_handler.cooling_air_temp_setpoint,
+        simulator._hvac.air_handler.supply_air_temperature_sensor,
+        expected_air_handler.supply_air_temperature_sensor,
     )
     self.assertEqual(
-        simulator._hvac.air_handler.fan_differential_pressure,
-        expected_air_handler.fan_differential_pressure,
+        simulator._hvac.air_handler.supply_air_static_pressure_setpoint,
+        expected_air_handler.supply_air_static_pressure_setpoint,
     )
     self.assertEqual(
         simulator._hvac.air_handler.fan_efficiency,
         expected_air_handler.fan_efficiency,
     )
 
-    expected_boiler = expected_hvac.boiler
+    expected_hws = expected_hvac.hot_water_system
     self.assertEqual(
-        simulator._hvac.boiler.reheat_water_setpoint,
-        expected_boiler._reheat_water_setpoint,
+        simulator._hvac.hot_water_system.supply_water_temperature_setpoint,
+        expected_hws.supply_water_temperature_setpoint,
     )
     self.assertEqual(
-        simulator._hvac.boiler._water_pump_differential_head,
-        expected_boiler._water_pump_differential_head,
+        simulator._hvac.hot_water_system.water_pump_differential_head,
+        expected_hws.water_pump_differential_head,
     )
     self.assertEqual(
-        simulator._hvac.boiler._water_pump_efficiency,
-        expected_boiler._water_pump_efficiency,
+        simulator._hvac.hot_water_system._pump._water_pump_efficiency,
+        expected_hws._pump._water_pump_efficiency,
     )
-    self.assertEqual(simulator._hvac.boiler._total_flow_rate, 0)
+    self.assertEqual(simulator._hvac.hot_water_system.total_flow_rate, 0)
 
     self.assertEqual(simulator._current_timestamp, start_timestamp)
-    self.assertEqual(simulator._building.temp[2][2], initial_temp)
-    self.assertEqual(simulator._building.temp[0][3], initial_temp)
-    self.assertEqual(simulator._building.input_q[2][2], 0)
-    self.assertEqual(simulator._building.input_q[0][3], 0)
+    self.assertEqual(simulator.building.temp[2][2], initial_temp)
+    self.assertEqual(simulator.building.temp[0][3], initial_temp)
+    self.assertEqual(simulator.building.input_q[2][2], 0)
+    self.assertEqual(simulator.building.input_q[0][3], 0)
 
-  def test_get_cv_temp_estimate_cell_no_change(self):
+  @parameterized.named_parameters(
+      ('Boiler', True),
+      ('ASHP', False),
+  )
+  def test_get_cv_temp_estimate_cell_no_change(self, use_boiler):
     """This tests that temperatures don't change in stable conditions.
 
     This test sets up a small building at temperature 292. The ambient
     conditions are also 292.
+
+    Args:
+      use_boiler: Whether to use a boiler or ASHP.
     """
     # Set up simulation parameters
     weather_controller = mock.create_autospec(
         weather_controller_py.WeatherController
     )
     time_step_sec = 300.0
-    hvac = self._create_small_hvac()
+    hvac = self._create_small_hvac(use_boiler=use_boiler)
     convergence_threshold = 0.1
     iteration_limit = 100
     iteration_warning = 10
@@ -761,22 +785,29 @@ class SimulatorTest(parameterized.TestCase):
         1,
     )
 
-  def test_step_sim_heating_scenario_avg_temps_increase(self):
+  @parameterized.named_parameters(
+      ('boiler', True),
+      ('heat_pump', False),
+  )
+  def test_step_sim_heating_scenario_avg_temps_increase(self, use_boiler):
     """Tests that the average temperature increases.
 
     Ambient temperatures are set high.
+
+    Args:
+      use_boiler: Whether to use a boiler or heat pump.
     """
     # Constant temp of 300C
     weather_controller = weather_controller_py.WeatherController(300.0, 300.0)
 
     time_step_sec = 300.0
-    hvac = self._create_scenario_hvac()
+    hvac = self._create_scenario_hvac(use_boiler=use_boiler)
     convergence_threshold = 0.1
     iteration_limit = 100
     iteration_warning = 10
     start_timestamp = pd.Timestamp('12-21-2012')
 
-    initial_temperature = 292.0
+    initial_temperature = 285.0
     building = self._create_scenario_building(initial_temp=initial_temperature)
 
     sim = simulator_py.Simulator(
@@ -798,23 +829,30 @@ class SimulatorTest(parameterized.TestCase):
     for temperature in avg_temperatures.values():
       self.assertGreater(temperature, initial_temperature)
 
-  def test_step_sim_heating_scenario_zone_temperature_speeds(self):
+  @parameterized.named_parameters(
+      ('boiler', True),
+      ('heat_pump', False),
+  )
+  def test_step_sim_heating_scenario_zone_temperature_speeds(self, use_boiler):
     """Tests that certain zones heat faster than others.
 
     Ambient temperatures are set high. Corner zones should heat fastest,
     followed by edge zones, lastly the center zone.
+
+    Args:
+      use_boiler: Whether to use a boiler or heat pump.
     """
     # Constant temp of 300C
     weather_controller = weather_controller_py.WeatherController(300.0, 300.0)
 
     time_step_sec = 3000.0
-    hvac = self._create_scenario_hvac()
+    hvac = self._create_scenario_hvac(use_boiler=use_boiler)
     convergence_threshold = 0.1
     iteration_limit = 100
     iteration_warning = 10
     start_timestamp = pd.Timestamp('12-21-2012')
 
-    initial_temperature = 292.0
+    initial_temperature = 285.0
 
     # Building is 3x3 zones.
     building = self._create_scenario_building(initial_temp=initial_temperature)
@@ -843,17 +881,24 @@ class SimulatorTest(parameterized.TestCase):
     self.assertGreater(edge_temp, interior_temp)
     self.assertGreater(interior_temp, initial_temperature)
 
-  def test_step_sim_heating_scenario_vavs_cools(self):
+  @parameterized.named_parameters(
+      ('boiler', True),
+      ('heat_pump', False),
+  )
+  def test_step_sim_heating_scenario_vavs_cools(self, use_boiler):
     """Tests that the vavs work to keep the building cool.
 
     Initial temperatures are set high. After a time step, thermostats
     should enter cooling mode and keep the building cool.
+
+    Args:
+      use_boiler: Whether to use a boiler or heat pump.
     """
     # Constant temp of 300C
     weather_controller = weather_controller_py.WeatherController(310.0, 310.0)
 
     time_step_sec = 3000.0
-    hvac = self._create_scenario_hvac()
+    hvac = self._create_scenario_hvac(use_boiler=use_boiler)
     convergence_threshold = 0.1
     iteration_limit = 100
     iteration_warning = 10
@@ -881,17 +926,24 @@ class SimulatorTest(parameterized.TestCase):
     # Average building temperature should decrease.
     self.assertLess(building.temp.mean(), initial_temperature)
 
-  def test_step_sim_cooling_scenario_vavs_heat(self):
+  @parameterized.named_parameters(
+      ('boiler', True),
+      ('heat_pump', False),
+  )
+  def test_step_sim_cooling_scenario_vavs_heat(self, use_boiler):
     """Tests that the vavs work to keep the building warm.
 
     Initial temperatures are set low. After a time step, thermostats
     should enter heating mode and keep the building warm.
+
+    Args:
+      use_boiler: Whether to use a boiler or heat pump.
     """
     # Constant temp of 300C
     weather_controller = weather_controller_py.WeatherController(275.0, 275.0)
 
     time_step_sec = 3000.0
-    hvac = self._create_scenario_hvac()
+    hvac = self._create_scenario_hvac(use_boiler=use_boiler)
     convergence_threshold = 0.1
     iteration_limit = 100
     iteration_warning = 10
@@ -919,10 +971,14 @@ class SimulatorTest(parameterized.TestCase):
     # Average building temperature should increase.
     self.assertGreater(building.temp.mean(), initial_temperature)
 
-  def test_step_sim_increments_current_time(self):
+  @parameterized.named_parameters(
+      ('boiler', True),
+      ('heat_pump', False),
+  )
+  def test_step_sim_increments_current_time(self, use_boiler):
     weather_controller = weather_controller_py.WeatherController(296.0, 296.0)
     time_step_sec = 300.0
-    hvac = self._create_scenario_hvac()
+    hvac = self._create_scenario_hvac(use_boiler=use_boiler)
     convergence_threshold = 0.1
     iteration_limit = 100
     iteration_warning = 10
@@ -952,17 +1008,23 @@ class SimulatorTest(parameterized.TestCase):
 
     self.assertEqual(sim._current_timestamp, expected_end_timestamp)
 
-  def test_step_sim_sets_boiler_return_water_temperature_sensor(self):
+  @parameterized.named_parameters(
+      ('boiler', True),
+      ('heat_pump', False),
+  )
+  def test_step_sim_sets_hot_water_system_return_water_temperature_sensor(
+      self, use_boiler
+  ):
     weather_controller = weather_controller_py.WeatherController(296.0, 296.0)
     time_step_sec = 300.0
-    hvac = self._create_scenario_hvac()
+    hvac = self._create_scenario_hvac(use_boiler=use_boiler)
     convergence_threshold = 0.1
     iteration_limit = 100
     iteration_warning = 10
     start_timestamp = pd.Timestamp('12-21-2012')
 
     initial_temperature = 200.0
-    expected_return_water_temperature = 301.895482
+    expected_return_water_temperature = 265.771116
 
     # Building is 3x3 zones.
     building = self._create_scenario_building(initial_temp=initial_temperature)
@@ -978,18 +1040,23 @@ class SimulatorTest(parameterized.TestCase):
         start_timestamp,
     )
 
-    sim.step_sim()
+    for _ in range(45):
+      sim.step_sim()
 
     self.assertAlmostEqual(
-        sim._hvac.boiler.return_water_temperature_sensor,
+        sim._hvac.hot_water_system.return_water_temperature_sensor,
         expected_return_water_temperature,
         delta=1e-5,
     )
 
-  def test_reward_info(self):
+  @parameterized.named_parameters(
+      ('boiler', True),
+      ('heat_pump', False),
+  )
+  def test_reward_info(self, use_boiler):
     weather_controller = weather_controller_py.WeatherController(296.0, 296.0)
     time_step_sec = 300.0
-    hvac = self._create_scenario_hvac()
+    hvac = self._create_scenario_hvac(use_boiler=use_boiler)
     convergence_threshold = 0.1
     iteration_limit = 100
     iteration_warning = 10
@@ -1052,7 +1119,7 @@ class SimulatorTest(parameterized.TestCase):
           .thermostat.get_setpoint_schedule()
           .get_temperature_window(sim._current_timestamp)
       )
-      zone_temperature = sim._building.get_zone_average_temps()[coords]
+      zone_temperature = sim.building.get_zone_average_temps()[coords]
 
       expected_zone_info = smart_control_reward_pb2.RewardInfo.ZoneRewardInfo(
           heating_setpoint_temperature=heating_setpoint,
@@ -1080,7 +1147,7 @@ class SimulatorTest(parameterized.TestCase):
         air_handler_reward_info.blower_electrical_energy_rate,
     )
 
-    recirculation_temp = sim._building.temp.mean()
+    recirculation_temp = sim.building.temp.mean()
     ambient_temp = sim._weather_controller.get_current_temp(
         sim._current_timestamp
     )
@@ -1093,26 +1160,29 @@ class SimulatorTest(parameterized.TestCase):
         air_conditioning_electrical_energy_rate,
         air_handler_reward_info.air_conditioning_electrical_energy_rate,
     )
-
-    boiler_reward_info = reward_info.boiler_reward_infos[
-        sim._hvac.boiler.device_id()
-    ]
-    natural_gas_heating_energy_rate = (
-        sim._hvac.boiler.compute_thermal_energy_rate(
-            sim._hvac.boiler.return_water_temperature_sensor, ambient_temp
-        )
-    )
-    self.assertAlmostEqual(
-        natural_gas_heating_energy_rate,
-        boiler_reward_info.natural_gas_heating_energy_rate,
-        places=3,
-    )
-
-    pump_electrical_energy_rate = sim._hvac.boiler.compute_pump_power()
-    self.assertEqual(
-        pump_electrical_energy_rate,
-        boiler_reward_info.pump_electrical_energy_rate,
-    )
+    if use_boiler:
+      natural_gas_heating_energy_rate = (
+          sim._hvac.hot_water_system.compute_thermal_energy_rate(
+              sim._hvac.hot_water_system.supply_water_temperature_sensor,
+              ambient_temp,
+          )
+      )
+      pump_electrical_energy_rate = (
+          sim._hvac.hot_water_system.compute_pump_power()
+      )
+      expected_boiler_reward_info = (
+          smart_control_reward_pb2.RewardInfo.BoilerRewardInfo(
+              natural_gas_heating_energy_rate=natural_gas_heating_energy_rate,
+              pump_electrical_energy_rate=pump_electrical_energy_rate,
+          )
+      )
+      self.assertProto2Equal(
+          expected_boiler_reward_info,
+          reward_info.boiler_reward_infos[
+              sim._hvac.hot_water_system.device_id()
+          ],
+          precision=3,
+      )
 
 
 if __name__ == '__main__':

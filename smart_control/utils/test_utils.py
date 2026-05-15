@@ -1,30 +1,19 @@
-"""Test utilities for replay_building.
+"""Test utilities for replay_building."""
 
-  Copyright 2022 Google LLC
-
-  Licensed under the Apache License, Version 2.0 (the "License");
-  you may not use this file except in compliance with the License.
-  You may obtain a copy of the License at
-
-      https://www.apache.org/licenses/LICENSE-2.0
-
-  Unless required by applicable law or agreed to in writing, software
-  distributed under the License is distributed on an "AS IS" BASIS,
-  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-  See the License for the specific language governing permissions and
-  limitations under the License.
-
-"""
-from typing import Sequence, Tuple
+from collections.abc import Sequence
 
 import pandas as pd
-from smart_buildings.smart_control.environment.environment import ActionConfig
+
+from smart_buildings.smart_control.environment import environment
 from smart_buildings.smart_control.proto import smart_control_building_pb2
 from smart_buildings.smart_control.proto import smart_control_reward_pb2
 from smart_buildings.smart_control.simulator import setpoint_schedule
+from smart_buildings.smart_control.utils import bounded_action_normalizer
 from smart_buildings.smart_control.utils import conversion_utils
-from smart_buildings.smart_control.utils.bounded_action_normalizer import BoundedActionNormalizer
-from smart_buildings.smart_control.utils.reader_lib import BaseReader
+from smart_buildings.smart_control.utils import reader_lib as base_reader
+
+
+BoundedActionNormalizer = bounded_action_normalizer.BoundedActionNormalizer
 
 
 def get_test_setpoint_schedule() -> setpoint_schedule.SetpointSchedule:
@@ -43,7 +32,7 @@ def get_test_setpoint_schedule() -> setpoint_schedule.SetpointSchedule:
 
 def get_test_action_response(
     timestamp: pd.Timestamp,
-    device_setpoint_values: Sequence[Tuple[str, str, float]],
+    device_setpoint_values: Sequence[tuple[str, str, float]],
 ) -> smart_control_building_pb2.ActionResponse:
   """Returns an ActionResponse for unit testing."""
 
@@ -101,13 +90,13 @@ def get_zone_infos() -> Sequence[smart_control_building_pb2.ZoneInfo]:
   return [z0, z1]
 
 
-def get_action_config() -> ActionConfig:
+def get_action_config() -> environment.ActionConfig:
   action_normalizer_inits = {
       'a0': BoundedActionNormalizer(0, 100, -1, 1),
       'a1': BoundedActionNormalizer(-10, 10, -1, 1),
   }
 
-  return ActionConfig(action_normalizer_inits)
+  return environment.ActionConfig(action_normalizer_inits)
 
 
 def get_replay_action_responses() -> (
@@ -187,7 +176,7 @@ def get_test_observation_request() -> (
 
 
 def get_observation_request(
-    device_measurements: Sequence[Tuple[str, str]]
+    device_measurements: Sequence[tuple[str, str]],
 ) -> smart_control_building_pb2.ObservationRequest:
   """Returns a test observation request."""
   single_observation_requests = []
@@ -204,9 +193,15 @@ def get_observation_request(
 
 def get_test_observation_response(
     timestamp: pd.Timestamp,
-    device_measurement_values: Sequence[Tuple[str, str, float]],
+    device_measurement_values: Sequence[tuple[str, str, float]] | None = None,
 ) -> smart_control_building_pb2.ObservationResponse:
   """Returns test observation responses."""
+  device_measurement_values = device_measurement_values or [
+      ('device_0', 'measurement_0', 7.0),
+      ('device_0', 'measurement_1', 0.1),
+      ('device_1', 'measurement_0', 10.0),
+      ('device_1', 'measurement_1', -0.2),
+  ]
   request_ts = conversion_utils.pandas_to_proto_timestamp(
       pd.Timestamp(timestamp)
   )
@@ -421,11 +416,12 @@ def get_test_reward_infos() -> Sequence[smart_control_reward_pb2.RewardInfo]:
 
 
 def get_test_reward_info(
-    zone_temp_occupancies: Sequence[Tuple[str, float, float]],
-    air_handler_energies: Sequence[Tuple[str, float, float]],
-    boiler_energies: Sequence[Tuple[str, float, float]],
+    zone_temp_occupancies: Sequence[tuple[str, float, float]],
+    air_handler_energies: Sequence[tuple[str, float, float]],
+    boiler_energies: Sequence[tuple[str, float, float]],
     start_timestamp: pd.Timestamp,
     end_timestamp: pd.Timestamp,
+    heat_pump_energies: Sequence[tuple[str, float, float]] = (),
 ) -> smart_control_reward_pb2.RewardInfo:
   """Creates RewardInfos for unit tests."""
   heating_setpoint_temperature = 293.0
@@ -443,9 +439,7 @@ def get_test_reward_info(
       ),
   )
 
-  for zone_temp_occupancy in zone_temp_occupancies:
-    zone_id, zone_air_temp, zone_occupancy = zone_temp_occupancy
-
+  for zone_id, zone_air_temp, zone_occupancy in zone_temp_occupancies:
     zone_info = smart_control_reward_pb2.RewardInfo.ZoneRewardInfo(
         heating_setpoint_temperature=heating_setpoint_temperature,
         cooling_setpoint_temperature=cooling_setpoint_temperature,
@@ -457,32 +451,43 @@ def get_test_reward_info(
 
     info.zone_reward_infos[zone_id].CopyFrom(zone_info)
 
-  for air_handler_energy in air_handler_energies:
-    (
-        air_handler_id,
-        blower_electrical_energy_rate,
-        air_conditioning_electrical_energy_rate,
-    ) = air_handler_energy
+  for (
+      air_handler_id,
+      blower_electrical_energy_rate,
+      air_conditioning_electrical_energy_rate,
+  ) in air_handler_energies:
     air_handler_info = smart_control_reward_pb2.RewardInfo.AirHandlerRewardInfo(
         blower_electrical_energy_rate=blower_electrical_energy_rate,
-        air_conditioning_electrical_energy_rate=air_conditioning_electrical_energy_rate,
+        air_conditioning_electrical_energy_rate=air_conditioning_electrical_energy_rate,  # pylint: disable=line-too-long
     )
     info.air_handler_reward_infos[air_handler_id].CopyFrom(air_handler_info)
 
-  for boiler_energy in boiler_energies:
-    boiler_id, natural_gas_heating_energy_rate, pump_electrical_energy_rate = (
-        boiler_energy
-    )
+  for (
+      boiler_id,
+      natural_gas_heating_energy_rate,
+      pump_electrical_energy_rate,
+  ) in boiler_energies:
     boiler_info = smart_control_reward_pb2.RewardInfo.BoilerRewardInfo(
         natural_gas_heating_energy_rate=natural_gas_heating_energy_rate,
         pump_electrical_energy_rate=pump_electrical_energy_rate,
     )
     info.boiler_reward_infos[boiler_id].CopyFrom(boiler_info)
 
+  for (
+      heat_pump_id,
+      electricity_heating_energy_rate,
+      pump_electrical_energy_rate,
+  ) in heat_pump_energies:
+    heat_pump_info = smart_control_reward_pb2.RewardInfo.HeatPumpRewardInfo(
+        electricity_heating_energy_rate=electricity_heating_energy_rate,
+        pump_electrical_energy_rate=pump_electrical_energy_rate,
+    )
+    info.heat_pump_reward_infos[heat_pump_id].CopyFrom(heat_pump_info)
+
   return info
 
 
-class TestReader(BaseReader):
+class TestReader(base_reader.BaseReader):
   """Implementation of BaseReader for test."""
 
   def read_observation_responses(

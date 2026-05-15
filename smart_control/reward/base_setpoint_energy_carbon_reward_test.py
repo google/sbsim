@@ -1,24 +1,7 @@
-"""Tests for setpoint_energy_carbon_reward.
-
-Copyright 2024 Google LLC
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    https://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-
-"""
-
 from absl.testing import absltest
 from absl.testing import parameterized
 import pandas as pd
+
 from smart_buildings.smart_control.models.base_energy_cost import BaseEnergyCost
 from smart_buildings.smart_control.proto import smart_control_reward_pb2
 from smart_buildings.smart_control.reward import base_setpoint_energy_carbon_reward
@@ -60,12 +43,36 @@ class BaseSetpointEnergyCarbonRewardTest(parameterized.TestCase):
     self.assertEqual(10.0, occupancy)
     self.assertAlmostEqual(5000.0 / 12.0, productivity_reward, delta=0.001)
 
-  def test_sum_electricity_energy_rate(self):
-    info = self._get_test_reward_info()
+  @parameterized.named_parameters([
+      ('boiler', 5000.0, 250.0, 0.0, 0.0),
+      ('heat_pump', 0.0, 0.0, 5000.0, 250.0),
+  ])
+  def test_sum_electricity_energy_rate(
+      self,
+      natural_gas_heating_energy_rate,
+      boiler_pump_electrical_energy_rate,
+      heat_pump_electricity_heating_energy_rate,
+      heat_pump_pump_electrical_energy_rate,
+  ):
+    info = self._get_test_reward_info(
+        natural_gas_heating_energy_rate=natural_gas_heating_energy_rate,
+        boiler_pump_electrical_energy_rate=boiler_pump_electrical_energy_rate,
+        heat_pump_electricity_heating_energy_rate=heat_pump_electricity_heating_energy_rate,
+        heat_pump_pump_electrical_energy_rate=heat_pump_pump_electrical_energy_rate,
+    )
     reward_fn = self._get_test_reward_function()
     energy_rate = reward_fn._sum_electricity_energy_rate(info)
     # Expected = 1 units x (pump + a/c + blower)
-    self.assertAlmostEqual((250.0 + 4500.0 + 800.0), energy_rate, delta=0.001)
+    sum_heating_electricity_energy_rate = (
+        + boiler_pump_electrical_energy_rate
+        + heat_pump_electricity_heating_energy_rate
+        + heat_pump_pump_electrical_energy_rate
+    )
+    self.assertAlmostEqual(
+        (sum_heating_electricity_energy_rate + 4500.0 + 800.0),
+        energy_rate,
+        delta=0.001,
+    )
 
   def test_sum_natural_gas_energy_rate(self):
     info = self._get_test_reward_info()
@@ -86,7 +93,7 @@ class BaseSetpointEnergyCarbonRewardTest(parameterized.TestCase):
     productivity_decay_stiffness = 4.3
     productivity_midpoint_delta = 1.5
 
-    return base_setpoint_energy_carbon_reward.BaseSetpointEnergyCarbonRewardFunction(
+    return base_setpoint_energy_carbon_reward.BaseSetpointEnergyCarbonRewardFunction(  # pylint: disable=line-too-long
         max_productivity_personhour_usd=max_productivity_personhour_usd,
         productivity_midpoint_delta=productivity_midpoint_delta,
         productivity_decay_stiffness=productivity_decay_stiffness,
@@ -99,7 +106,9 @@ class BaseSetpointEnergyCarbonRewardTest(parameterized.TestCase):
       blower_electrical_energy_rate=800.0,
       air_conditioning_electrical_energy_rate=4500.0,
       natural_gas_heating_energy_rate=5000.0,
-      pump_electrical_energy_rate=250.0,
+      boiler_pump_electrical_energy_rate=250.0,
+      heat_pump_electricity_heating_energy_rate=0,
+      heat_pump_pump_electrical_energy_rate=0.0,
   ):
     heating_setpoint_temperature = 293.0
     cooling_setpoint_temperature = 297.0
@@ -143,17 +152,36 @@ class BaseSetpointEnergyCarbonRewardTest(parameterized.TestCase):
     boiler_info.natural_gas_heating_energy_rate = (
         natural_gas_heating_energy_rate
     )
-    boiler_info.pump_electrical_energy_rate = pump_electrical_energy_rate
+    boiler_info.pump_electrical_energy_rate = boiler_pump_electrical_energy_rate
     info.boiler_reward_infos['boiler_0'].CopyFrom(boiler_info)
+
+    heat_pump_info = smart_control_reward_pb2.RewardInfo.HeatPumpRewardInfo()
+    heat_pump_info.electricity_heating_energy_rate = (
+        heat_pump_electricity_heating_energy_rate
+    )
+    heat_pump_info.pump_electrical_energy_rate = (
+        heat_pump_pump_electrical_energy_rate
+    )
+    info.heat_pump_reward_infos['heat_pump_0'].CopyFrom(heat_pump_info)
     return info
 
 
 class TestEnergyCost(BaseEnergyCost):
+  """Calculates energy cost and carbon emissions based on fixed rates.
+
+  Used for testing purposes.
+
+  TODO: https://github.com/google/sbsim/issues/49 - refactor identical classes:
+    smart_control/reward/setpoint_energy_carbon_regret_test.py
+    smart_control/reward/setpoint_energy_carbon_reward_test.py
+
+  UPDATE: this class is unused, so let's move it to a more central location.
+  """
 
   def __init__(self, usd_per_kwh: float, kg_per_kwh: float):
     # Energy price in USD/Watt second (fixed schedule)
     # To convert denominator units hours to seconds, divide by 3600.0, and to
-    # convert kW to W, divide by 1000. This leaves us with an enegy price
+    # convert kW to W, divide by 1000. This leaves us with an energy price
     # in USD /W /s and carbon rate of kg /W /s.
     self._energy_price = usd_per_kwh / 3600.0 / 1000.0
     self._carbon_rate = kg_per_kwh / 3600.0 / 1000.0

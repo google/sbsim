@@ -1,22 +1,6 @@
-"""Tests for rejection_simulator_building.
-
-Copyright 2023 Google LLC
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    https://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-"""
-
 from absl.testing import absltest
 from absl.testing import parameterized
+
 from smart_buildings.smart_control.proto import smart_control_building_pb2
 from smart_buildings.smart_control.simulator import rejection_simulator_building as rj_sb_py
 from smart_buildings.smart_control.simulator import simulator_building as sb_py
@@ -27,11 +11,20 @@ class RejectionSimulatorBuildingTest(
     simulator_building_test_lib.SimulatorBuildingTestBase
 ):
 
+  def setUp(self):
+    super().setUp()
+    self.expected_devices = {
+        "zone_id_(0, 0)": ["vav_0_0"],
+        "zone_id_(1, 0)": ["vav_1_0"],
+    }
+
   def get_sim_building(
-      self, initial_rejection_count: int = 0
+      self, initial_rejection_count: int = 0, zones=None, simulator=None
   ) -> rj_sb_py.RejectionSimulatorBuilding:
-    simulator = self._create_small_simulator()
-    simulator_building = sb_py.SimulatorBuilding(simulator, self.occupancy)
+    sim = simulator or self._create_small_simulator()
+    simulator_building = sb_py.SimulatorBuilding(
+        simulator=sim, occupancy=self.occupancy, zones=zones
+    )
     return rj_sb_py.RejectionSimulatorBuilding(
         simulator_building, initial_rejection_count
     )
@@ -46,7 +39,7 @@ class RejectionSimulatorBuildingTest(
 
     single_field_request_1 = smart_control_building_pb2.SingleActionRequest(
         device_id="boiler_id",
-        setpoint_name="supply_water_setpoint",
+        setpoint_name="supply_water_temperature_setpoint",
         continuous_value=300,
     )
     action_request.single_action_requests.append(single_field_request_1)
@@ -84,7 +77,7 @@ class RejectionSimulatorBuildingTest(
 
     single_field_request_1 = smart_control_building_pb2.SingleActionRequest(
         device_id="boiler_id",
-        setpoint_name="supply_water_setpoint",
+        setpoint_name="supply_water_temperature_setpoint",
         continuous_value=300,
     )
     action_request.single_action_requests.append(single_field_request_1)

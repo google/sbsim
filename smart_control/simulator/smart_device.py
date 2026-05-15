@@ -7,26 +7,31 @@ simulator to produce observations and actions for an RL environment.
 Any device that wants to expose observable or action fields should extend
 the SmartDevice class, supplying the appropriate information to the SmartDevice
 constructor.
-
-Copyright 2023 Google LLC
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    https://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
 """
 
 import abc
-from typing import Any, Mapping, NamedTuple, Optional, Sequence, Type
+import enum
+from typing import Any, Final, Mapping, NamedTuple, Optional, Sequence, Type
+
 import pandas as pd
 from smart_buildings.smart_control.proto import smart_control_building_pb2
+
+SUPPLY_WATER_TEMPERATURE_SETPOINT: Final[str] = (
+    'supply_water_temperature_setpoint'
+)
+SUPPLY_WATER_TEMPERATURE_SENSOR: Final[str] = 'supply_water_temperature_sensor'
+HEATING_REQUEST_COUNT: Final[str] = 'heating_request_count'
+SUPERVISOR_RUN_COMMAND: Final[str] = 'supervisor_run_command'
+RUN_STATUS: Final[str] = 'run_status'
+RUN_COMMAND: Final[str] = 'run_command'
+DIFFERENTIAL_PRESSURE_SENSOR: Final[str] = 'differential_pressure_sensor'
+DIFFERENTIAL_PRESSURE_SETPOINT: Final[str] = 'differential_pressure_setpoint'
+
+
+class RunStatus(enum.IntEnum):
+  """Run status of a device (ON or OFF)."""
+  ON = 1
+  OFF = 0
 
 
 class AttributeInfo(NamedTuple):

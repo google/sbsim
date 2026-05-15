@@ -1,26 +1,12 @@
-"""Tests for rejection_simulator_building.
-
-Copyright 2023 Google LLC
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    https://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-"""
+"""Provides a base class for testing variants of Simulator Building."""
 
 from absl.testing import parameterized
 import pandas as pd
+
 from smart_buildings.smart_control.proto import smart_control_building_pb2
 from smart_buildings.smart_control.simulator import air_handler as air_handler_py
-from smart_buildings.smart_control.simulator import boiler as boiler_py
 from smart_buildings.smart_control.simulator import building as building_py
+from smart_buildings.smart_control.simulator import hot_water_system as hot_water_system_py
 from smart_buildings.smart_control.simulator import hvac as hvac_py
 from smart_buildings.smart_control.simulator import setpoint_schedule
 from smart_buildings.smart_control.simulator import simulator as simulator_py
@@ -37,8 +23,15 @@ class SimulatorBuildingTestBase(parameterized.TestCase):
   """Base class for testing variants of Simulator Building."""
 
   occupancy = step_function_occupancy.StepFunctionOccupancy(
-      pd.Timedelta(9, unit='h'), pd.Timedelta(17, unit='h'), 10, 0.1
+      work_start_time=pd.Timedelta(9, unit='h'),
+      work_end_time=pd.Timedelta(17, unit='h'),
+      work_occupancy=10,
+      nonwork_occupancy=0.1,
   )
+
+  def setUp(self):
+    super().setUp()
+    self.building = self.get_sim_building()
 
   def _create_small_building(self, initial_temp):
     """Returns building with specified initial temperature.
@@ -78,27 +71,27 @@ class SimulatorBuildingTestBase(parameterized.TestCase):
 
   def _create_small_hvac(self):
     """Returns hvac matching zones for small test building."""
-    reheat_water_setpoint = 260
+    supply_water_temperature_setpoint = 260
     water_pump_differential_head = 3
     water_pump_efficiency = 0.6
-    boiler = boiler_py.Boiler(
-        reheat_water_setpoint,
-        water_pump_differential_head,
-        water_pump_efficiency,
-        device_id='boiler_id',
+    hot_water_system = hot_water_system_py.construct_hot_water_system(
+        supply_water_temperature_setpoint=supply_water_temperature_setpoint,
+        water_pump_differential_head=water_pump_differential_head,
+        water_pump_efficiency=water_pump_efficiency,
+        device_id='hws_id',
     )
 
     recirculation = 0.3
     heating_air_temp_setpoint = 270
     cooling_air_temp_setpoint = 288
-    fan_differential_pressure = 20000.0
+    fan_static_pressure = 20000.0
     fan_efficiency = 0.8
 
     air_handler = air_handler_py.AirHandler(
         recirculation,
         heating_air_temp_setpoint,
         cooling_air_temp_setpoint,
-        fan_differential_pressure,
+        fan_static_pressure,
         fan_efficiency,
         device_id='air_handler_id',
     )
@@ -120,7 +113,7 @@ class SimulatorBuildingTestBase(parameterized.TestCase):
     zone_coordinates = [(0, 0), (1, 0)]
 
     hvac = hvac_py.Hvac(
-        zone_coordinates, air_handler, boiler, schedule, 0.45, 0.02
+        zone_coordinates, air_handler, hot_water_system, schedule, 0.45, 0.02
     )
     return hvac
 
@@ -150,19 +143,28 @@ class SimulatorBuildingTestBase(parameterized.TestCase):
     )
 
   def get_sim_building(
-      self, initial_rejection_count: int = 0
+      self,
+      initial_rejection_count: int = 0,
+      zones=None,
+      simulator=None,
   ) -> sb_py.SimulatorBuilding:
     raise NotImplementedError()  # pragma: nocover
 
   def test_devices(self):
-    simulator_building = self.get_sim_building()
+    simulator_building = self.building
 
     devices = simulator_building.devices
 
     self.assertLen(devices, 4)
 
+  # OBSERVATIONS
+
   @parameterized.named_parameters(
-      ('obs_supply_water_setpoint', 'supply_water_setpoint', 260),
+      (
+          'obs_supply_water_temperature_setpoint',
+          'supply_water_temperature_setpoint',
+          260,
+      ),
       (
           'obs_supply_water_temperature_sensor',
           'supply_water_temperature_sensor',
@@ -174,11 +176,11 @@ class SimulatorBuildingTestBase(parameterized.TestCase):
       self, measurement_name, expected_value
   ):
     """Tests request observations."""
-    simulator_building = self.get_sim_building()
+    simulator_building = self.building
 
     observation_request = smart_control_building_pb2.ObservationRequest()
     single_field_request = smart_control_building_pb2.SingleObservationRequest(
-        device_id='boiler_id', measurement_name=measurement_name
+        device_id='hws_id', measurement_name=measurement_name
     )
 
     observation_request.single_observation_requests.append(single_field_request)
@@ -204,13 +206,14 @@ class SimulatorBuildingTestBase(parameterized.TestCase):
 
   def test_request_observation_multiple_success(self):
     """Tests request multiple observations."""
-    simulator_building = self.get_sim_building()
+    simulator_building = self.building
 
     observation_request = smart_control_building_pb2.ObservationRequest()
 
     single_field_request_1 = (
         smart_control_building_pb2.SingleObservationRequest(
-            device_id='boiler_id', measurement_name='supply_water_setpoint'
+            device_id='hws_id',
+            measurement_name='supply_water_temperature_setpoint',
         )
     )
     observation_request.single_observation_requests.append(
@@ -219,7 +222,7 @@ class SimulatorBuildingTestBase(parameterized.TestCase):
 
     single_field_request_2 = (
         smart_control_building_pb2.SingleObservationRequest(
-            device_id='boiler_id', measurement_name='heating_request_count'
+            device_id='hws_id', measurement_name='heating_request_count'
         )
     )
     observation_request.single_observation_requests.append(
@@ -255,7 +258,7 @@ class SimulatorBuildingTestBase(parameterized.TestCase):
 
   def test_request_observation_incorrect_device(self):
     """Tests when an observation is requested on a nonexistent device."""
-    simulator_building = self.get_sim_building()
+    simulator_building = self.building
 
     observation_request = smart_control_building_pb2.ObservationRequest()
     single_field_request = smart_control_building_pb2.SingleObservationRequest(
@@ -274,11 +277,11 @@ class SimulatorBuildingTestBase(parameterized.TestCase):
 
   def test_request_observation_incorrect_measurement(self):
     """Tests when an observation is requested for a nonexistnt measurement."""
-    simulator_building = self.get_sim_building()
+    simulator_building = self.building
 
     observation_request = smart_control_building_pb2.ObservationRequest()
     single_field_request = smart_control_building_pb2.SingleObservationRequest(
-        device_id='boiler_id', measurement_name='incorrect_measurement'
+        device_id='hws_id', measurement_name='incorrect_measurement'
     )
 
     observation_request.single_observation_requests.append(single_field_request)
@@ -291,16 +294,18 @@ class SimulatorBuildingTestBase(parameterized.TestCase):
         observation_response.single_observation_responses[0].observation_valid
     )
 
+  # ACTIONS
+
   @parameterized.named_parameters(
-      ('act_supply_water_setpoint', 'supply_water_setpoint', 301),
+      ('act_supply_water_setpoint', 'supply_water_temperature_setpoint', 260),
   )
   def test_request_action_single_success(self, setpoint_name, set_value):
     """Tests request single action with success."""
-    simulator_building = self.get_sim_building()
+    simulator_building = self.building
 
     action_request = smart_control_building_pb2.ActionRequest()
     single_field_request = smart_control_building_pb2.SingleActionRequest(
-        device_id='boiler_id',
+        device_id='hws_id',
         setpoint_name=setpoint_name,
         continuous_value=set_value,
     )
@@ -321,7 +326,7 @@ class SimulatorBuildingTestBase(parameterized.TestCase):
 
   def test_request_action_incorrect_device(self):
     """Tests when an action is sent to a nonexistent device."""
-    simulator_building = self.get_sim_building()
+    simulator_building = self.building
 
     action_request = smart_control_building_pb2.ActionRequest()
     single_field_request = smart_control_building_pb2.SingleActionRequest(
@@ -339,11 +344,11 @@ class SimulatorBuildingTestBase(parameterized.TestCase):
 
   def test_request_action_incorrect_setpoint(self):
     """Tests when an action is sent to a nonexistent setpoint."""
-    simulator_building = self.get_sim_building()
+    simulator_building = self.building
 
     action_request = smart_control_building_pb2.ActionRequest()
     single_field_request = smart_control_building_pb2.SingleActionRequest(
-        device_id='boiler_id', setpoint_name='incorrect_setpoint'
+        device_id='hws_id', setpoint_name='incorrect_setpoint'
     )
 
     action_request.single_action_requests.append(single_field_request)
@@ -354,3 +359,13 @@ class SimulatorBuildingTestBase(parameterized.TestCase):
         action_response.single_action_responses[0].response_type,
         _ACTION_RESPONSE_TYPE.REJECTED_NOT_ENABLED_OR_AVAILABLE,
     )
+
+  # ZONES
+
+  def test_init_uses_hvac_zones_by_default(self):
+    self.assertEqual(
+        list(self.building.zones),
+        list(self.building.simulator.hvac.zone_infos.values()),
+    )
+
+

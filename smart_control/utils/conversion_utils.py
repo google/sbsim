@@ -1,19 +1,4 @@
-"""General-purpose conversion utilities for smart control.
-
-Copyright 2022 Google LLC
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    https://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-"""
+"""General-purpose conversion utilities for smart control."""
 
 import collections
 import datetime
@@ -23,17 +8,28 @@ import re
 import types
 from typing import Mapping, Tuple
 
+from google3.google.protobuf import timestamp_pb2
 import holidays
 import numpy as np
 import pandas as pd
-from smart_buildings.smart_control.proto import smart_control_reward_pb2
 
-from google3.google.protobuf import timestamp_pb2
+from smart_buildings.smart_control.proto import smart_control_reward_pb2
+from smart_buildings.smart_control.utils import temperature_conversion
+
+# TODO: b/505380216 - Refactor time related logic into "time_utils.py", and
+# change external references to this file's temperature conversion function to
+# reference the new temperature_conversion module / "thermal_utils.py" instead.
+
 
 _COUNTRY = 'US'
 _SECONDS_IN_DAY = 24 * 3600
 _WATT_SECONDS_KWH = 1.0 / 3600.0 / 1000.0
 _DAYS_IN_WEEK = 7.0
+
+
+# Aliases temporarily kept here for backwards compatibility:
+kelvin_to_fahrenheit = temperature_conversion.kelvin_to_fahrenheit
+fahrenheit_to_kelvin = temperature_conversion.fahrenheit_to_kelvin
 
 
 def pandas_to_proto_timestamp(
@@ -134,46 +130,33 @@ def get_radian_time(
   return 2.0 * np.pi * interval_frac
 
 
-def kelvin_to_fahrenheit(kelvin: float) -> float:
-  """Converts Kelvin to °F.
-
-  Args:
-    kelvin: Temperature in Kelvin, where 273K = 32°F.
-
-  Returns:
-    The temperature in °F.
-
-  Raises:
-    A ValueError if the input value is negative.
-  """
-  if kelvin <= 0.0:
-    raise ValueError('Temperature must be greater than absolute zero.')
-  celsius = kelvin - 273.15
-  return celsius * 9.0 / 5.0 + 32.0
-
-
-def fahrenheit_to_kelvin(fahrenheit: float) -> float:
-  """Converts °F to Kelvin.
-
-  Args:
-    fahrenheit: Temperature in Kelvin, where 273K = 32°F.
-
-  Returns:
-    The temperature in K.
-
-  Raises:
-    A ValueError if the input value <= absolute 0, −459.67°F.
-  """
-  if fahrenheit <= -495.67:
-    raise ValueError('Temperature must be greater than absolute zero.')
-  celsius = (fahrenheit - 32.0) * 5.0 / 9.0
-  return celsius + 273.15
-
-
+# TODO(mjrossetti): Remove this function once all references are switched.
 def get_reward_info_energy_use(
     reward_info: smart_control_reward_pb2.RewardInfo,
 ) -> Mapping[str, float]:
-  """Converts to energy use in kWh for ac, blower, pump, and nat gas heating."""
+  # pylint: disable=line-too-long
+  """Converts to energy use in kWh for ac, blower, pump, and nat gas heating.
+
+  NOTE: This function is now deprecated. Migration guide:
+
+  ```py
+  # OLD:
+  from smart_buildings.smart_control.utils import conversion_utils
+  conversion_utils.get_reward_info_energy_use(reward_info)
+
+  # NEW:
+  from smart_buildings.smart_control.utils.proto_parsers import reward_info_parser
+  parser = reward_info_parser.RewardInfoParser(reward_info)
+  parser.get_energy_consumption()
+  ```
+
+  Args:
+    reward_info: The reward info to convert to energy use.
+
+  Returns:
+    A dictionary mapping energy type to energy use in kWh.
+  """
+  # pylint: enable=line-too-long
   start_timestamp = proto_to_pandas_timestamp(reward_info.start_timestamp)
   end_timestamp = proto_to_pandas_timestamp(reward_info.end_timestamp)
   dt = (end_timestamp - start_timestamp).total_seconds()

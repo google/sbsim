@@ -2,32 +2,20 @@
 
 This file is used to build an RL environment with a simulator controlling the
 thermodynamics and observation/action space.
-
-Copyright 2023 Google LLC
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    https://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
 """
 
-from typing import Sequence, Type, Union
+from collections.abc import Sequence
 import uuid
 
 from absl import logging
 import gin
 import pandas as pd
-from smart_buildings.smart_control.models.base_building import BaseBuilding
-from smart_buildings.smart_control.models.base_occupancy import BaseOccupancy
+from smart_buildings.smart_control.models import base_building
+from smart_buildings.smart_control.models import base_occupancy
 from smart_buildings.smart_control.proto import smart_control_building_pb2
 from smart_buildings.smart_control.proto import smart_control_reward_pb2
+from smart_buildings.smart_control.simulator import hvac as hvac_py
+from smart_buildings.smart_control.simulator import hvac_floorplan_based
 from smart_buildings.smart_control.simulator import simulator as simulator_py
 from smart_buildings.smart_control.simulator import simulator_flexible_floor_plan
 from smart_buildings.smart_control.simulator import smart_device
@@ -40,44 +28,63 @@ _ActionResponseType = (
 )
 
 
+def _synchronize_zones(
+    hvac: hvac_py.Hvac | hvac_floorplan_based.FloorPlanBasedHvac,
+    zones: Sequence[smart_control_building_pb2.ZoneInfo] | None,
+) -> Sequence[smart_control_building_pb2.ZoneInfo]:
+  """Synchronizes the zones in the HVAC system and the building."""
+
+  if zones is None:
+    # Use HVAC zones by default.
+    return list(hvac.zone_infos.values())
+
+  # Overwrite HVAC zones to match the provided building zones.
+  if isinstance(hvac, hvac_floorplan_based.FloorPlanBasedHvac):
+    hvac.set_override_zones(zones)
+
+  return zones
+
+
 @gin.configurable
-class SimulatorBuilding(BaseBuilding):
+class SimulatorBuilding(base_building.BaseBuilding):
   """Base class for a controllable building for reinforcement learning."""
 
   def __init__(
       self,
-      simulator: Union[
-          simulator_flexible_floor_plan.SimulatorFlexibleGeometries,
-          simulator_py.Simulator,
-          tf_simulator.TFSimulator,
-      ],
-      occupancy: BaseOccupancy,
+      simulator: (
+          simulator_flexible_floor_plan.SimulatorFlexibleGeometries
+          | simulator_py.Simulator
+          | tf_simulator.TFSimulator
+      ),
+      occupancy: base_occupancy.BaseOccupancy,
+      zones: Sequence[smart_control_building_pb2.ZoneInfo] | None = None,
   ):
     """Creates SimulatorBuilding.
 
     Args:
-      simulator: Simulator to run for the RL environment. This can take in
-        either the floor_plan based simulator or the rectangular sim
-        (deprecated).
-      occupancy: a function to determine building occupancy by zone.
+      simulator: Simulator to run for the RL environment.
+      occupancy: A function to determine building occupancy by zone.
+      zones: A list of the thermal zones in the building.
     """
-
-    self._simulator = simulator
-
+    self.simulator = simulator
     self._occupancy = occupancy
-    hvac = self._simulator.hvac
+    hvac = self.simulator.hvac
+
+    synchronized_zones = _synchronize_zones(hvac, zones)
+    super().__init__(zones=synchronized_zones)
 
     # List of tuple (device, device_info)
     all_devices = [
-        (hvac.boiler, self._create_device_info(hvac.boiler)),
+        (
+            hvac.hot_water_system,
+            self._create_device_info(hvac.hot_water_system),
+        ),
         (hvac.air_handler, self._create_device_info(hvac.air_handler)),
     ]
-    all_devices.extend(
-        [
-            (vav, self._create_device_info(vav, vav.zone_id()))
-            for vav in hvac.vavs.values()
-        ]
-    )
+    all_devices.extend([
+        (vav, self._create_device_info(vav, vav.zone_id()))
+        for vav in hvac.vavs.values()
+    ])
 
     # List of device infos to return in devices().
     self._device_infos = [device_info for _, device_info in all_devices]
@@ -88,7 +95,7 @@ class SimulatorBuilding(BaseBuilding):
         for smart_device, device_info in all_devices
     }
 
-  def _class_to_value_type(self, clazz: Type[object]) -> _ValueType:
+  def _class_to_value_type(self, clazz: type[object]) -> _ValueType:
     """Returns a ValueType that corresponds to a given class/type.
 
     Args:
@@ -135,15 +142,19 @@ class SimulatorBuilding(BaseBuilding):
     return device_info
 
   @property
+  def occupancy(self) -> base_occupancy.BaseOccupancy:
+    return self._occupancy
+
+  @property
   def reward_info(self) -> smart_control_reward_pb2.RewardInfo:
     """Returns a message with data to compute the instantaneous reward."""
-    return self._simulator.reward_info(self._occupancy)
+    return self.simulator.reward_info(self._occupancy)
 
   def request_observations_within_time_interval(
       self,
       observation_request: smart_control_building_pb2.ObservationRequest,
       start_timestamp: pd.Timestamp,
-      end_time: pd.Timestamp,
+      end_timestamp: pd.Timestamp,
   ) -> Sequence[smart_control_building_pb2.ObservationResponse]:
     """Queries the building for observations between start and end times."""
     raise NotImplementedError()
@@ -156,7 +167,7 @@ class SimulatorBuilding(BaseBuilding):
     observation_response.request.CopyFrom(observation_request)
     observation_response.timestamp.CopyFrom(
         conversion_utils.pandas_to_proto_timestamp(
-            self._simulator.current_timestamp
+            self.simulator.current_timestamp
         )
     )
     for single_request in observation_request.single_observation_requests:
@@ -165,7 +176,7 @@ class SimulatorBuilding(BaseBuilding):
       single_response.single_observation_request.CopyFrom(single_request)
       single_response.timestamp.CopyFrom(
           conversion_utils.pandas_to_proto_timestamp(
-              self._simulator.current_timestamp
+              self.simulator.current_timestamp
           )
       )
       single_response.observation_valid = True
@@ -184,7 +195,7 @@ class SimulatorBuilding(BaseBuilding):
       device = self._device_map[single_request.device_id]
       try:
         observed_value = device.get_observation(
-            single_request.measurement_name, self._simulator.current_timestamp
+            single_request.measurement_name, self.simulator.current_timestamp
         )
         # TODO(gusatb): Extend this to handle non-continuous types.
         single_response.continuous_value = observed_value
@@ -206,13 +217,13 @@ class SimulatorBuilding(BaseBuilding):
   ) -> smart_control_building_pb2.ActionResponse:
     """Issues a command to the building to change one or more setpoints."""
     # Set up default building behavior
-    self._simulator.setup_step_sim()
+    self.simulator.setup_step_sim()
 
     action_response = smart_control_building_pb2.ActionResponse()
     action_response.request.CopyFrom(action_request)
     action_response.timestamp.CopyFrom(
         conversion_utils.pandas_to_proto_timestamp(
-            self._simulator.current_timestamp
+            self.simulator.current_timestamp
         )
     )
     for single_request in action_request.single_action_requests:
@@ -245,7 +256,7 @@ class SimulatorBuilding(BaseBuilding):
         device.set_action(
             single_request.setpoint_name,
             set_value,
-            self._simulator.current_timestamp,
+            self.simulator.current_timestamp,
         )
       except (AttributeError, ValueError) as e:
         single_response.response_type = (
@@ -265,11 +276,11 @@ class SimulatorBuilding(BaseBuilding):
   def wait_time(self) -> None:
     """Returns after a certain amount of time."""
     # Update the building state.
-    self._simulator.execute_step_sim()
+    self.simulator.execute_step_sim()
 
   def reset(self) -> None:
     """Resets the building, throwing a RuntimeError if this is impossible."""
-    self._simulator.reset()
+    self.simulator.reset()
 
   @property
   def devices(self) -> Sequence[smart_control_building_pb2.DeviceInfo]:
@@ -277,20 +288,14 @@ class SimulatorBuilding(BaseBuilding):
     return self._device_infos
 
   @property
-  def zones(self) -> Sequence[smart_control_building_pb2.ZoneInfo]:
-    """Lists the zones in the building managed by the RL agent."""
-
-    return list(self._simulator.hvac.zone_infos.values())
-
-  @property
   def time_step_sec(self) -> float:
     """Returns the amount of time between time steps."""
-    return self._simulator.time_step_sec
+    return self.simulator.time_step_sec
 
   @property
   def current_timestamp(self) -> pd.Timestamp:
     """Lists the current local time of the building."""
-    return self._simulator.current_timestamp
+    return self.simulator.current_timestamp
 
   def render(self, path: str) -> None:
     """Renders the current state of the building."""
@@ -300,7 +305,7 @@ class SimulatorBuilding(BaseBuilding):
 
   def is_comfort_mode(self, current_time: pd.Timestamp) -> bool:
     """Returns True if building is in comfort mode."""
-    return self._simulator.hvac.is_comfort_mode(current_time)
+    return self.simulator.hvac.is_comfort_mode(current_time)
 
   @property
   def num_occupants(self) -> int:

@@ -15,9 +15,9 @@
 // Defines messages for computing the RL reward for each timestep.
 //
 // This message structure assumes a building with:
-//   (a) multiple zones that have ventiation and air temperature setpoints,
+//   (a) multiple zones that have ventilation and air temperature setpoints,
 //   (b) one or more air handlers with fans and air conditioners, and
-//   (c) one or more natural gas boilers with heating water recirculaion.
+//   (c) one or more natural gas boilers with heating water recirculation.
 //
 // All units are in fundamental metric units: Kelvin, Watts (Joules/sec),
 // and meters.
@@ -30,7 +30,7 @@
 //     r = s(setpoint) - u x f(energy_cost) - w x g(carbon_emission)
 // where:
 //   r: the total reward for the timestep,
-//   s(setpoint): reward function for maintiaining setpoint,
+//   s(setpoint): reward function for maintaining setpoint,
 //   f(energy_cost): total cost in energy for the period,
 //   g(carbon_emission): total cost associated with carbon emissions, and
 //   u, w are importance weights defined by the energy policy.
@@ -74,10 +74,10 @@ message RewardInfo {
     // Cumulative electrical power in W applied to blowers.
     float blower_electrical_energy_rate = 1;
 
-    // Cumulative electrical energy rate applied in W for air condioning. This
+    // Cumulative electrical energy rate applied in W for air conditioning. This
     // represents the total power applied for running a refrigeration or
     // heat pump cycles (includes running a compressor and pumps to
-    // recirculate refrgerant.).
+    // recirculate refrigerant.).
     float air_conditioning_electrical_energy_rate = 2;
   }
 
@@ -85,7 +85,15 @@ message RewardInfo {
   message BoilerRewardInfo {
     // Energy rate consumed in W by natural gas for heating water.
     float natural_gas_heating_energy_rate = 1;
-    // Cumularive electrical power in W for water recirculation pumps.
+    // Cumulative electrical power in W for water recirculation pumps.
+    float pump_electrical_energy_rate = 2;
+  }
+
+  // Information about a heat pump that provides heated water for VAVs.
+  message HeatPumpRewardInfo {
+    // Energy rate consumed in W by electricity for heating water.
+    float electricity_heating_energy_rate = 1;
+    // Cumulative electrical power in W for water recirculation pumps.
     float pump_electrical_energy_rate = 2;
   }
 
@@ -115,6 +123,10 @@ message RewardInfo {
   // Information about the boilers' energy consumption required to compute the
   // reward.
   map<string, BoilerRewardInfo> boiler_reward_infos = 7;
+
+  // Information about the heat pumps' energy consumption required to compute
+  // the reward.
+  map<string, HeatPumpRewardInfo> heat_pump_reward_infos = 8;
 }
 
 // The return reward signal from the reward function. While the principal

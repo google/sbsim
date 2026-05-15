@@ -1,23 +1,10 @@
-"""Defines constants for use in simulation code suite.
-
-Copyright 2023 Google LLC
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    https://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-"""
+"""Constants for use in the simulation code suite."""
 
 # Here we use a specific placeholder value that helps us pick out interior walls
 # and will not be used by connectedComponents() function (which only counts
 # upwards positively) or the FileInputFloorPlan, which has 0, 1, and 2.
+# It is intentionally set to -3 so that the connectedComponent function can have
+# access to all nonzero integers to count upwards in an unbounded way.
 INTERIOR_WALL_VALUE_IN_FUNCTION = -3
 
 # Here we use a specific placeholder value that helps us pick out interior walls
@@ -81,21 +68,9 @@ GENERIC_SPACE_VALUE_IN_CONNECTION_INPUT = 0
 # returning expanded exterior walls when calling enlarge_component()
 WALLS_AND_EXPANDED_BOOLS = 2
 
-# Here we wish to specifically set exterior space as indistinguishable
-# from exterior walls, as we wish to perform connectedComponents only on
-# connected groups of interior space. Thus, we set exterior space to a generic
-# space value, i.e. 0.
-GENERIC_SPACE_VALUE_IN_CONNECTION_INPUT = 0
-
 # Here we use a specific placeholder value, matching with the file input schema,
 # that designates interior space in the file input.
 INTERIOR_WALL_VALUE_IN_FILE_INPUT = 1
-
-# Here we designate a specific placeholder to help use demarcate which CVs
-# are for interior walls once processed in the function. It is intentionally
-# set to -3 so that the connectedComponent function can have access to all
-# nonzero integers to count upwards in an unbounded way.
-INTERIOR_WALL_VALUE_IN_FUNCTION = -3
 
 # Here we set a specific string for exterior space to be labelled as in
 # constructing a room dictionary.
@@ -126,3 +101,31 @@ VIDEO_PATH_ROOT = "/cns/oz-d/home/smart-buildings-control-team/smart-buildings/g
 
 # The limit above which we do not want thermal diffusers to be dispensing energy
 WATT_LIMIT = 500
+
+# Physical constants for air.
+AIR_DENSITY = 1.2  # kg/m3
+AIR_HEAT_CAPACITY = 1006.0  # J/kg/K, standard atmosphere
+
+WATER_DENSITY = 1000.0  # kg/m3
+WATER_HEAT_CAPACITY = 4180.0  # J/kg/K
+GRAVITY = 9.8  # m/s2
+
+
+def is_non_physical_space(zone_id: str) -> bool:
+  """Checks if a given zone_id represents a non-physical space.
+
+  Non-physical spaces include exterior spaces and interior walls, which are
+  not considered occupiable or thermally controlled zones within the
+  simulation.
+
+  Args:
+    zone_id: The identifier string for the zone.
+
+  Returns:
+    True if the zone_id corresponds to a non-physical space (e.g., exterior
+    space or an interior wall), False otherwise.
+  """
+  return zone_id in [
+      EXTERIOR_SPACE_NAME_IN_ROOM_DICT,
+      INTERIOR_WALL_NAME_IN_ROOM_DICT,
+  ]

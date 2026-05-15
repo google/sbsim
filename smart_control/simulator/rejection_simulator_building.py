@@ -1,28 +1,16 @@
-"""A simulator building that initially throws RPC exceptions before start.
-
-Copyright 2023 Google LLC
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    https://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-"""
+"""A simulator building that initially throws RPC exceptions before start."""
 
 from typing import Sequence
 
 import gin
 import pandas as pd
+
 from smart_buildings.smart_control.models.base_building import BaseBuilding
 from smart_buildings.smart_control.proto import smart_control_building_pb2
 from smart_buildings.smart_control.proto import smart_control_reward_pb2
-
+from smart_buildings.smart_control.simulator import simulator as simulator_py
+from smart_buildings.smart_control.simulator import simulator_flexible_floor_plan
+from smart_buildings.smart_control.simulator import tf_simulator
 
 _ValueType = smart_control_building_pb2.DeviceInfo.ValueType
 _ActionResponseType = (
@@ -80,11 +68,11 @@ class RejectionSimulatorBuilding(BaseBuilding):
       self,
       observation_request: smart_control_building_pb2.ObservationRequest,
       start_timestamp: pd.Timestamp,
-      end_time: pd.Timestamp,
+      end_timestamp: pd.Timestamp,
   ) -> Sequence[smart_control_building_pb2.ObservationResponse]:
     """Queries the building for observations between start and end times."""
     return self._base_building.request_observations_within_time_interval(
-        observation_request, start_timestamp, end_time
+        observation_request, start_timestamp, end_timestamp
     )
 
   def wait_time(self) -> None:
@@ -99,6 +87,20 @@ class RejectionSimulatorBuilding(BaseBuilding):
   def zones(self) -> Sequence[smart_control_building_pb2.ZoneInfo]:
     """Lists the zones in the building managed by the RL agent."""
     return self._base_building.zones
+
+  @property
+  def simulator(
+      self,
+  ) -> (
+      simulator_py.Simulator
+      | simulator_flexible_floor_plan.SimulatorFlexibleGeometries
+      | tf_simulator.TFSimulator
+  ):
+    """The simulator instance."""
+    # Instead of using getattr, we could check the type of the building, and
+    # only conditionally return the simulator if it is a simulator building,
+    # however that requires a messy casting approach to make type checks work.
+    return getattr(self._base_building, 'simulator')
 
   @property
   def current_timestamp(self) -> pd.Timestamp:

@@ -1,20 +1,26 @@
 """Simulator of a simplified thermodynamic system for flexible geometries.
 
-Copyright 2023 Google LLC
+This simulator uses finite differences method (FDM) to approximate the
+temperature changes in each Control Volume (CV) in a building.
 
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
+The `execute_step_sim` method is responsible for calculating the supply air
+temperature from the air handler(s) for the current simulation time step.
 
-    https://www.apache.org/licenses/LICENSE-2.0
+First, it calculates the recirculation air temperature for each air handler
+unit (AHU). This is the area-weighted average temperature of all zones serviced
+by that AHU.
 
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
+It iterates through each Variable Air Volume (VAV) unit to find the average
+temperature of the zones it serves (v_sensing_temp), weighted by the area of
+each zone. It then calculates the recirculation temperature for each AHU by
+taking an area-weighted average of the v_sensing_temp of all VAVs connected
+to it. Finally, it uses this per-AHU recirculation temperature and the outside
+ambient temperature to calculate the temperature of the air that will be
+supplied by each AHU. This logic handles both single and multiple AHU
+configurations.
 """
 
+import collections
 from typing import Mapping, Optional, Tuple
 
 from absl import logging
@@ -22,7 +28,9 @@ import gin
 import numpy as np
 import pandas as pd
 from smart_buildings.smart_control.models.base_occupancy import BaseOccupancy
+from smart_buildings.smart_control.proto import smart_control_building_pb2
 from smart_buildings.smart_control.proto import smart_control_reward_pb2
+from smart_buildings.smart_control.simulator import air_handler as air_handler_py
 from smart_buildings.smart_control.simulator import building as building_py
 from smart_buildings.smart_control.simulator import constants
 from smart_buildings.smart_control.simulator import hvac_floorplan_based
@@ -32,6 +40,7 @@ from smart_buildings.smart_control.utils import building_renderer
 from smart_buildings.smart_control.utils import conversion_utils
 from smart_buildings.smart_control.utils import visual_logger
 
+RewardInfo = smart_control_reward_pb2.RewardInfo
 
 CVCoordinates = Tuple[int, int]
 ZoneId = Tuple[int, int]
@@ -39,7 +48,9 @@ ZoneId = Tuple[int, int]
 
 @gin.configurable
 class SimulatorFlexibleGeometries(simulator.Simulator):
-  """Simulates thermodynamics of a building post refactor with flexible geometries.
+  """Simulates thermodynamics of a building with flexible geometries.
+
+  NOTE: post-refector
 
   This simulator uses finite differences method (FDM) to approximate the
   temperature changes in each Control Volume (CV) in a building. This happens
@@ -73,17 +84,20 @@ class SimulatorFlexibleGeometries(simulator.Simulator):
         be logged.
       start_timestamp: Pandas timestamp representing start time for simulation.
     """
-    self._building = building
+    self.building = building
     self._hvac = hvac
 
-    logging.info("Constructing the floorplan based simulation.")
-
-    if self._hvac.fill_zone_identifier_exogenously:
-      logging.info("Filling zones exogenously")
-      self._hvac.initialize_zone_identifier(self._building._room_dict.keys())
+    zone_identifiers = [
+        z
+        for z in self.building.room_dict.keys()
+        if not constants.is_non_physical_space(z)
+    ]
+    self._hvac.initialize_zone_identifier(
+        zone_identifiers, self.building.custom_zone_to_vavs
+    )
 
     super().__init__(
-        self._building,
+        self.building,
         self._hvac,
         weather_controller,
         time_step_sec,
@@ -93,9 +107,7 @@ class SimulatorFlexibleGeometries(simulator.Simulator):
         start_timestamp,
     )
 
-    logging.info("Constructing the floorplan based simulation.")
-
-    render_zones = np.copy(self._building._floor_plan)
+    render_zones = np.copy(self.building.floor_plan)
     render_zones[render_zones == 2] = 0
 
     renderer = building_renderer.BuildingRenderer(render_zones, 1)
@@ -105,7 +117,7 @@ class SimulatorFlexibleGeometries(simulator.Simulator):
 
   def reset(self):
     """Resets the simulation to its initial configuration."""
-    self._building.reset()
+    self.building.reset()
     self._hvac.reset()
     self._current_timestamp = self._start_timestamp
 
@@ -121,6 +133,21 @@ class SimulatorFlexibleGeometries(simulator.Simulator):
   def current_timestamp(self) -> pd.Timestamp:
     return self._current_timestamp
 
+  def setup_step_sim(self) -> None:
+    """Disables the base Simulator setup step.
+
+    This method is overridden with a `pass` because SimulatorFlexibleGeometries
+    handles VAV updates more robustly in `execute_step_sim` using weighted
+    averages for shared zones and custom VAV IDs. The base class's
+    `setup_step_sim` assumes a 1:1 mapping between room names and VAV IDs,
+    which causes a KeyError when custom mappings are used.
+    """
+    pass
+
+  def step_sim(self, video_filename: Optional[str] = "sample.mp4") -> None:
+    """Steps simulation, executing one time step."""
+    self.execute_step_sim(video_filename)
+
   def execute_step_sim(
       self, video_filename: Optional[str] = "sample.mp4"
   ) -> None:
@@ -128,19 +155,65 @@ class SimulatorFlexibleGeometries(simulator.Simulator):
 
     current_ts = self._current_timestamp
     hvac = self._hvac
-
-    # Get the average temps in each zone. Assumes that the thermostat reads
-    # the average room temperatures.
-    avg_temps = self._building.get_zone_average_temps()
-
-    # Recirculation temperature at the air handler is the global average.
-    recirculation_temp = self._building.temp.mean()
-
+    room_dict = self.building.room_dict
+    room_areas = {z: len(coords) for z, coords in room_dict.items()}
+    avg_temps = self.building.get_zone_average_temps()
     ambient_temperature = self._weather_controller.get_current_temp(current_ts)
 
-    supply_air_temp = hvac.air_handler.get_supply_air_temp(
-        recirculation_temp, ambient_temperature
-    )
+    ahu_temp_weighted_sum = collections.defaultdict(float)
+    ahu_area_total = collections.defaultdict(float)
+    vav_cached_data = {}
+    vav_sensing_temp_map = {}
+    vav_supply_temp_map = {}
+
+    for v_id, vav in hvac.vavs.items():
+      ahu_id = vav.air_handler.device_id()
+      assigned_zones = [
+          z for z in hvac.get_zones_for_vav(v_id) if z in avg_temps
+      ]
+      if not assigned_zones:
+        continue
+
+      v_area = sum(room_areas[z] for z in assigned_zones)
+      v_sensing_temp = (
+          sum(avg_temps[z] * room_areas[z] for z in assigned_zones) / v_area
+      )
+      vav.update_settings(v_sensing_temp, current_ts)
+
+      vav_cached_data[v_id] = {
+          "assigned_zones": assigned_zones,
+          "v_area": v_area,
+          "v_sensing_temp": v_sensing_temp,
+      }
+      vav_sensing_temp_map[v_id] = v_sensing_temp
+
+      ahu_temp_weighted_sum[ahu_id] += v_sensing_temp * v_area
+      ahu_area_total[ahu_id] += v_area
+
+    if isinstance(hvac.air_handler, air_handler_py.AirHandlerSystem):
+      ahus = hvac.air_handler.ahus
+    else:
+      ahus = [hvac.air_handler]
+
+    recirculation_temps = {}
+    for ahu in ahus:
+      ahu_id = ahu.device_id()
+      if ahu_area_total.get(ahu_id, 0) > 0:
+        recirculation_temps[ahu_id] = (
+            ahu_temp_weighted_sum[ahu_id] / ahu_area_total[ahu_id]
+        )
+      else:
+        recirculation_temps[ahu_id] = self.building.temp.mean()
+
+    if isinstance(hvac.air_handler, air_handler_py.AirHandlerSystem):
+      supply_air_temp = hvac.air_handler.get_supply_air_temp(
+          recirculation_temps, ambient_temperature
+      )
+    else:
+      # Single AHU case
+      supply_air_temp = hvac.air_handler.get_supply_air_temp(
+          recirculation_temps[hvac.air_handler.device_id()], ambient_temperature
+      )
 
     convection_coefficient = (
         self._weather_controller.get_air_convection_coefficient(current_ts)
@@ -153,41 +226,98 @@ class SimulatorFlexibleGeometries(simulator.Simulator):
     )
 
     # Simulate airflow
-    self._building.apply_convection()
+    self.building.apply_convection()
 
-    # Reset the air handler and boiler flow rate demand before accumulating.
+    # Reset the air handler and hws flow rate demand before accumulating.
     hvac.air_handler.reset_demand()
-    hvac.boiler.reset_demand()
+    hvac.hot_water_system.reset_demand()
 
-    zone_supply_temp_map = {}
+    # sum up all the VAV hot waterdemands for the current timestep
+    # this needs to be calculated first before the output function is called,
+    # since the flow rate of the entire system can only be determined if we know
+    # the total demand from all VAVs
+    for vav in hvac.vavs.values():
+      hvac.hot_water_system.add_demand(vav.reheat_flow_factor)
 
-    # Iterate through each zone.
-    for zone, zone_temp in avg_temps.items():
-      vav = hvac.vavs[zone]
+    # Stores the total thermal energy to be applied to each physical zone
+    zone_q_aggregate = collections.defaultdict(float)
 
-      q_zone, zone_supply_temp = vav.output(zone_temp, supply_air_temp)
-      zone_supply_temp_map[zone] = zone_supply_temp
+    for v_id, vav in hvac.vavs.items():
+      if v_id not in vav_cached_data:
+        continue
+      cached_data = vav_cached_data[v_id]
+      assigned_zones = cached_data["assigned_zones"]
+      total_vav_area = cached_data["v_area"]
+      weighted_sensing_temp = cached_data["v_sensing_temp"]
+
+      # 2) thermal computation
+      if isinstance(supply_air_temp, dict):
+        current_supply_temp = supply_air_temp[vav.air_handler.device_id()]
+      else:
+        current_supply_temp = supply_air_temp
+      q_vav, temp_vav_supply = vav.output(
+          weighted_sensing_temp, current_supply_temp
+      )
+
+      vav_supply_temp_map[v_id] = temp_vav_supply
+
+      # 3) virtual vav distribution to zones proportional to area
+      for z in assigned_zones:
+        area_share = room_areas[z] / total_vav_area
+        zone_q_aggregate[z] += q_vav * area_share
+
       # Update the air handler airflow demand by summing from all VAVs.
       if vav.flow_rate_demand > 0:
-        hvac.air_handler.add_demand(vav.flow_rate_demand)
+        vav.air_handler.add_demand(vav.flow_rate_demand)
 
-      # Update the boiler demand for hot water as the sum of each VAV"s demand.
-      if vav.reheat_demand > 0:
-        hvac.boiler.add_demand(vav.reheat_demand)
+      # apply aggregated power to building
+    for z, q_total in zone_q_aggregate.items():
+      self.building.apply_thermal_power_zone(z, q_total)
 
-      # Apply the thermal energy to the zone.
-      self._building.apply_thermal_power_zone(zone, q_zone)
+    hvac.hot_water_system.return_water_temperature_sensor = (
+        self._calculate_return_water_temperature(vav_supply_temp_map)
+    )
 
-    hvac.boiler.return_water_temperature_sensor = (
-        self._calculate_return_water_temperature(zone_supply_temp_map)
+    # stabilize
+    self.building.temp = np.clip(
+        self.building.temp,
+        250,
+        450,
     )
 
     # Increment the timestamp.
     self._current_timestamp += pd.Timedelta(self._time_step_sec, unit="s")
-    self._log_and_plotter.log(self._building.temp)
+    self._log_and_plotter.log(self.building.temp)
 
     if self.current_timestamp == self._start_timestamp + pd.Timedelta(days=4):
       self.get_video(path=constants.VIDEO_PATH_ROOT + video_filename)
+
+  def _calculate_return_water_temperature(
+      self, vav_supply_temps: Mapping[str, float]
+  ) -> float:
+    """Calculates return water temperature based on VAV supply air temperatures.
+
+    This assumes that the water returning from each VAV is at the same
+    temperature as the VAV supply air it provides.
+
+    Args:
+      vav_supply_temps: A mapping from VAV id to its supply air temperature.
+
+    Returns:
+      The calculated return water temperature.
+    """
+    numerator = 0.0
+    denominator = 0.0
+    for v_id, vav in self._hvac.vavs.items():
+      if v_id in vav_supply_temps:
+        numerator += vav.reheat_flow_factor * vav_supply_temps[v_id]
+        denominator += vav.reheat_flow_factor
+    if denominator > 1e-6:
+      return numerator / denominator
+    else:
+      # If there is no reheat flow, the return water temperature does not
+      # change. Return the current sensor value.
+      return self._hvac.hot_water_system.return_water_temperature_sensor
 
   def _get_zone_reward_info(
       self,
@@ -195,41 +325,76 @@ class SimulatorFlexibleGeometries(simulator.Simulator):
       zone_coords: str,
       zone_id: str,
       zone_air_temperature: float,
-  ) -> smart_control_reward_pb2.RewardInfo.ZoneRewardInfo:
-    """Returns a messagde with zone data to compute the instantaneous reward."""
-    schedule = self._hvac.vavs[zone_coords].thermostat.get_setpoint_schedule()
+  ) -> RewardInfo.ZoneRewardInfo:
+    """Returns a message with zone data to compute the instantaneous reward.
+
+    This assumes all VAVs for a zone share the same setpoint schedule,
+    so the schedule is taken from the first VAV. If this assumption
+    changes with local control, this method will need updating. Airflow from all
+    VAVs feeding the zone is aggregated into a single virtual VAV to compute
+    the correct airflow setpoint and actual airflow.
+
+    Args:
+      occupancy_function: The occupancy function to use for the zone.
+      zone_coords: The coordinates of the zone.
+      zone_id: The identifier of the zone.
+      zone_air_temperature: The air temperature in the zone.
+
+    Returns:
+      A ZoneRewardInfo message.
+    """
+    room_dict = self.building.room_dict
+    room_areas = {z: len(coords) for z, coords in room_dict.items()}
+    vav_ids = self._hvac.get_vav_ids_for_zone(zone_coords)
+    vavs = [self._hvac.vavs[v_id] for v_id in vav_ids]
+    if not vavs:
+      logging.warning("Zone %s has no servicing VAVs.", zone_id)
+      return RewardInfo.ZoneRewardInfo()
+    schedule = vavs[0].thermostat.get_setpoint_schedule()
     heating_setpoint_temperature, cooling_setpoint_temperature = (
         schedule.get_temperature_window(self._current_timestamp)
     )
-    air_flow_rate_setpoint = self._hvac.vavs[zone_coords].max_air_flow_rate
-    air_flow_rate = self._hvac.air_handler.air_flow_rate
+    # Aggregate Capacity and Demand with Area Weighting
+    zone_total_flow_setpoint = 0.0
+    zone_total_flow_actual = 0.0
+    for v in vavs:
+      # How much of this specific VAV's total footprint belongs to this room?
+      serviced_zones = self._hvac.get_zones_for_vav(v.device_id())
+      total_vav_area = sum(room_areas[z] for z in serviced_zones)
+      area_share = room_areas[zone_coords] / total_vav_area
+      zone_total_flow_setpoint += v.max_air_flow_rate * area_share
+      zone_total_flow_actual += v.flow_rate_demand * area_share
+
     average_occupancy = occupancy_function.average_zone_occupancy(
         zone_id,
         self._current_timestamp,
         self._current_timestamp + pd.Timedelta(self._time_step_sec, unit="s"),
     )
-    zone_info = smart_control_reward_pb2.RewardInfo.ZoneRewardInfo(
+    return RewardInfo.ZoneRewardInfo(
         heating_setpoint_temperature=heating_setpoint_temperature,
         cooling_setpoint_temperature=cooling_setpoint_temperature,
         zone_air_temperature=zone_air_temperature,
-        air_flow_rate_setpoint=air_flow_rate_setpoint,
-        air_flow_rate=air_flow_rate,
+        air_flow_rate_setpoint=zone_total_flow_setpoint,
+        air_flow_rate=zone_total_flow_actual,
         average_occupancy=average_occupancy,
     )
-    return zone_info
 
   def _get_zone_reward_infos(
       self, occupancy_function: BaseOccupancy
-  ) -> Mapping[str, smart_control_reward_pb2.RewardInfo.ZoneRewardInfo]:
-    """Returns a map of messages with zone data to compute the instantaneous reward."""
+  ) -> Mapping[str, RewardInfo.ZoneRewardInfo]:
+    """Returns a map of messages with zone data.
+
+    This data is used to compute the instantaneous reward.
+
+    Args:
+      occupancy_function: An occupancy function.
+    """
     zone_reward_infos = {}
     for (
         zone_coords,
         zone_air_temperature,
-    ) in self._building.get_zone_average_temps().items():
-      zone_id = conversion_utils.floor_plan_based_zone_identifier_to_id(
-          zone_coords
-      )
+    ) in self.building.get_zone_average_temps().items():
+      zone_id = zone_coords
       zone_reward_infos[zone_id] = self._get_zone_reward_info(
           occupancy_function, zone_coords, zone_id, zone_air_temperature
       )
@@ -237,54 +402,123 @@ class SimulatorFlexibleGeometries(simulator.Simulator):
 
   def _get_air_handler_reward_infos(
       self,
-  ) -> Mapping[str, smart_control_reward_pb2.RewardInfo.AirHandlerRewardInfo]:
-    """Returns a map of messages with air handler data to compute the instantaneous reward."""
+  ) -> Mapping[str, RewardInfo.AirHandlerRewardInfo]:
+    """Returns a map of messages with air handler data.
+
+    This data is used to compute the instantaneous reward.
+    """
     air_handler_reward_infos = {}
     air_handler_id = self._hvac.air_handler.device_id()
     blower_electrical_energy_rate = (
         self._hvac.air_handler.compute_intake_fan_energy_rate()
         + self._hvac.air_handler.compute_exhaust_fan_energy_rate()
     )
-    recirculation_temp = self._building.temp.mean()
     ambient_temp = self._weather_controller.get_current_temp(
         self._current_timestamp
     )
+    avg_temps = self.building.get_zone_average_temps()
+    room_dict = self.building.room_dict
+    room_areas = {z: len(coords) for z, coords in room_dict.items()}
+
+    ahu_temp_weighted_sum = collections.defaultdict(float)
+    ahu_area_total = collections.defaultdict(float)
+
+    for v_id, vav in self._hvac.vavs.items():
+      ahu_id = vav.air_handler.device_id()
+      assigned_zones = [
+          z for z in self._hvac.get_zones_for_vav(v_id) if z in avg_temps
+      ]
+      if not assigned_zones:
+        continue
+
+      v_area = sum(room_areas[z] for z in assigned_zones)
+      if v_area > 0:
+        v_sensing_temp = (
+            sum(avg_temps[z] * room_areas[z] for z in assigned_zones) / v_area
+        )
+        ahu_temp_weighted_sum[ahu_id] += v_sensing_temp * v_area
+        ahu_area_total[ahu_id] += v_area
+
+    if isinstance(self._hvac.air_handler, air_handler_py.AirHandlerSystem):
+      ahus = self._hvac.air_handler.ahus
+    else:
+      ahus = [self._hvac.air_handler]
+
+    recirculation_temps = {}
+    for ahu in ahus:
+      ahu_id = ahu.device_id()
+      if ahu_area_total.get(ahu_id, 0) > 0:
+        recirculation_temps[ahu_id] = (
+            ahu_temp_weighted_sum[ahu_id] / ahu_area_total[ahu_id]
+        )
+      else:
+        recirculation_temps[ahu_id] = self.building.temp.mean()
+
+    if isinstance(self._hvac.air_handler, air_handler_py.AirHandlerSystem):
+      recirculation_input = recirculation_temps
+    else:
+      # Single AHU case
+      recirculation_input = recirculation_temps[
+          self._hvac.air_handler.device_id()
+      ]
+
     air_conditioning_electrical_energy_rate = (
         self._hvac.air_handler.compute_thermal_energy_rate(
-            recirculation_temp, ambient_temp
+            recirculation_input, ambient_temp
         )
     )
-    air_handler_reward_info = smart_control_reward_pb2.RewardInfo.AirHandlerRewardInfo(
+    air_handler_reward_info = RewardInfo.AirHandlerRewardInfo(
         blower_electrical_energy_rate=blower_electrical_energy_rate,
-        air_conditioning_electrical_energy_rate=air_conditioning_electrical_energy_rate,
+        air_conditioning_electrical_energy_rate=air_conditioning_electrical_energy_rate,  # pylint: disable=line-too-long
     )
     air_handler_reward_infos[air_handler_id] = air_handler_reward_info
     return air_handler_reward_infos
 
-  def _get_boiler_reward_infos(
+  def _get_hws_reward_infos(
       self,
-  ) -> Mapping[str, smart_control_reward_pb2.RewardInfo.BoilerRewardInfo]:
-    """Returns a map of messages with boiler data to compute the instantaneous reward."""
-    boiler_reward_infos = {}
-    boiler_id = self._hvac.boiler.device_id()
-    return_water_temp = self._hvac.boiler.return_water_temperature_sensor
-    natural_gas_heating_energy_rate = (
-        self._hvac.boiler.compute_thermal_energy_rate(
+  ) -> tuple[
+      Mapping[str, RewardInfo.BoilerRewardInfo | RewardInfo.HeatPumpRewardInfo],
+      smart_control_building_pb2.DeviceInfo.DeviceType,
+  ]:
+    """Returns a map of messages with hot water system data.
+
+    This data is used to compute the instantaneous reward.
+    """
+    hws_reward_infos = {}
+    hws_id = self._hvac.hot_water_system.device_id()
+    return_water_temp = (
+        self._hvac.hot_water_system.return_water_temperature_sensor
+    )
+    heating_energy_rate = (
+        self._hvac.hot_water_system.compute_thermal_energy_rate(
             return_water_temp,
             self._weather_controller.get_current_temp(self._current_timestamp),
         )
     )
-    pump_electrical_energy_rate = self._hvac.boiler.compute_pump_power()
-    boiler_reward_info = smart_control_reward_pb2.RewardInfo.BoilerRewardInfo(
-        natural_gas_heating_energy_rate=natural_gas_heating_energy_rate,
-        pump_electrical_energy_rate=pump_electrical_energy_rate,
+    pump_electrical_energy_rate = (
+        self._hvac.hot_water_system.compute_pump_power()
     )
-    boiler_reward_infos[boiler_id] = boiler_reward_info
-    return boiler_reward_infos
+    hws_device_type = self._hvac.hot_water_system.heat_source_device_type
+    device_type = smart_control_building_pb2.DeviceInfo.DeviceType
+    if hws_device_type == device_type.BLR:
+      hws_reward_info = RewardInfo.BoilerRewardInfo(
+          natural_gas_heating_energy_rate=heating_energy_rate,
+          pump_electrical_energy_rate=pump_electrical_energy_rate,
+      )
+    elif hws_device_type == device_type.ASHP:
+      hws_reward_info = RewardInfo.HeatPumpRewardInfo(
+          electricity_heating_energy_rate=heating_energy_rate,
+          pump_electrical_energy_rate=pump_electrical_energy_rate,
+      )
+    else:
+      raise ValueError(
+          f"Unsupported heat source device type: {hws_device_type}"
+      )
 
-  def reward_info(
-      self, occupancy_function: BaseOccupancy
-  ) -> smart_control_reward_pb2.RewardInfo:
+    hws_reward_infos[hws_id] = hws_reward_info
+    return hws_reward_infos, hws_device_type
+
+  def reward_info(self, occupancy_function: BaseOccupancy) -> RewardInfo:
     """Returns a message with data to compute the instantaneous reward."""
     start_time_stamp = self._current_timestamp
     end_time_stamp = start_time_stamp + pd.Timedelta(
@@ -297,20 +531,31 @@ class SimulatorFlexibleGeometries(simulator.Simulator):
     # get air handler info
     air_handler_reward_infos = self._get_air_handler_reward_infos()
 
-    # get boiler info
-    boiler_reward_infos = self._get_boiler_reward_infos()
+    # get hot water system info
+    hws_reward_infos, hws_device_type = self._get_hws_reward_infos()
 
-    return smart_control_reward_pb2.RewardInfo(
-        start_timestamp=conversion_utils.pandas_to_proto_timestamp(
+    reward_info_args = {
+        "start_timestamp": conversion_utils.pandas_to_proto_timestamp(
             start_time_stamp
         ),
-        end_timestamp=conversion_utils.pandas_to_proto_timestamp(
+        "end_timestamp": conversion_utils.pandas_to_proto_timestamp(
             end_time_stamp
         ),
-        zone_reward_infos=zone_reward_infos,
-        air_handler_reward_infos=air_handler_reward_infos,
-        boiler_reward_infos=boiler_reward_infos,
-    )
+        "zone_reward_infos": zone_reward_infos,
+        "air_handler_reward_infos": air_handler_reward_infos,
+    }
+
+    if hws_device_type == smart_control_building_pb2.DeviceInfo.DeviceType.BLR:
+      reward_info_args["boiler_reward_infos"] = hws_reward_infos
+    elif (
+        hws_device_type == smart_control_building_pb2.DeviceInfo.DeviceType.ASHP
+    ):
+      reward_info_args["heat_pump_reward_infos"] = hws_reward_infos
+    else:
+      raise ValueError(
+          f"Unsupported heat source device type: {hws_device_type}"
+      )
+    return RewardInfo(**reward_info_args)
 
   def get_video(self, path: str) -> None:
     """Wraps the get_video function from the visual_logger.

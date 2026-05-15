@@ -14,25 +14,12 @@ In Eco mode, there is an additional state, Passive Cool mode. Upon entering
 Eco mode, the thermostate is initially placed in this state, and remains that
 way until the temperature cools beyond the eco heating setpoint, upon which the
 thermostat operates as it did in Comfort mode
-
-Copyright 2023 Google LLC
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    https://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
 """
 
 import enum
 
 import pandas as pd
+
 from smart_buildings.smart_control.simulator import setpoint_schedule
 
 
@@ -140,6 +127,7 @@ class Thermostat:
       if (
           self._current_mode == self.Mode.PASSIVE_COOL
           and zone_temp > temperature_window[0]
+          and zone_temp < temperature_window[1]
       ):
         self._current_mode = self.Mode.PASSIVE_COOL
       else:

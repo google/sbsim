@@ -1,24 +1,10 @@
-"""Tests for vav.
-
-Copyright 2023 Google LLC
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    https://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-"""
+import math
 
 from absl.testing import absltest
 from absl.testing import parameterized
 import pandas as pd
-from smart_buildings.smart_control.simulator import boiler
+from smart_buildings.smart_control.simulator import air_handler
+from smart_buildings.smart_control.simulator import hot_water_system as hot_water_system_py
 from smart_buildings.smart_control.simulator import setpoint_schedule
 from smart_buildings.smart_control.simulator import thermostat
 from smart_buildings.smart_control.simulator import vav
@@ -41,28 +27,52 @@ def _get_default_thermostat():
   return t
 
 
-def _get_default_boiler():
+def _get_default_hws():
   reheat_water_setpoint = 260
   water_pump_differential_head = 3
   water_pump_efficiency = 0.6
-  b = boiler.Boiler(
+  hws = hot_water_system_py.construct_hot_water_system(
       reheat_water_setpoint,
       water_pump_differential_head,
       water_pump_efficiency,
-      'boiler_id',
+      'hws_id',
   )
-  return b
+  return hws
+
+
+def _get_default_air_handler():
+  recirculation = 0.65
+
+  supply_air_temperature_setpoint = 290
+  fan_static_pressure = 20000.0
+  fan_efficiency = 0.8
+  return air_handler.AirHandler(
+      recirculation=recirculation,
+      supply_air_temperature_setpoint=supply_air_temperature_setpoint,
+      fan_static_pressure=fan_static_pressure,
+      fan_efficiency=fan_efficiency,
+  )
 
 
 def compute_zone_supply_temp(
     reheat_valve_setting,
-    reheat_max_water_flow_rate,
+    reheat_max_water_flow_factor,
     damper_setting,
     max_air_flow_rate,
     supply_air_temp,
     input_water_temp,
+    differential_pressure,
+    header_resistance=0.0,
 ):
-  reheat_flow_rate = reheat_valve_setting * reheat_max_water_flow_rate
+  reheat_flow_factor = reheat_valve_setting * reheat_max_water_flow_factor
+
+  if reheat_flow_factor == 0:
+    reheat_flow_rate = 0.0
+  else:
+    reheat_flow_rate = reheat_flow_factor * math.sqrt(
+        differential_pressure / (1 + reheat_flow_factor**2 * header_resistance)
+    )
+
   air_flow_rate = damper_setting * max_air_flow_rate
   return (
       (
@@ -82,44 +92,56 @@ class VavTest(parameterized.TestCase):
 
   def test_init(self):
     max_air_flow_rate = 0.6
-    reheat_max_water_flow_rate = 0.4
+    reheat_max_water_flow_factor = 0.4
     t = _get_default_thermostat()
-    b = _get_default_boiler()
+    b = _get_default_hws()
+    a = _get_default_air_handler()
     v = vav.Vav(
         max_air_flow_rate,
-        reheat_max_water_flow_rate,
+        reheat_max_water_flow_factor,
         t,
         b,
-        'device_id',
-        'zone_id',
+        a,
+        device_id='device_id',
+        zone_id='zone_id',
+        initial_zone_air_heating_temperature_setpoint=290.0,
+        initial_zone_air_cooling_temperature_setpoint=300.0,
     )
 
     self.assertEqual(v.max_air_flow_rate, max_air_flow_rate)
-    self.assertEqual(v._reheat_max_water_flow_rate, reheat_max_water_flow_rate)
+    self.assertEqual(
+        v._reheat_max_water_flow_factor, reheat_max_water_flow_factor
+    )
     self.assertEqual(v.thermostat, t)
-    self.assertEqual(v.boiler, b)
+    self.assertEqual(v.hot_water_system, b)
     self.assertEqual(v.reheat_valve_setting, 0)
     self.assertEqual(v.damper_setting, 0.1)
     self.assertEqual(v.zone_air_temperature, 0)
     self.assertEqual(v._device_id, 'device_id')
     self.assertEqual(v._zone_id, 'zone_id')
+    self.assertEqual(v.zone_air_heating_temperature_setpoint, 290.0)
+    self.assertEqual(v.zone_air_cooling_temperature_setpoint, 300.0)
 
   def test_init_default(self):
     max_air_flow_rate = 0.6
-    reheat_max_water_flow_rate = 0.4
+    reheat_max_water_flow_factor = 0.4
     t = _get_default_thermostat()
-    b = _get_default_boiler()
-    v = vav.Vav(max_air_flow_rate, reheat_max_water_flow_rate, t, b)
+    b = _get_default_hws()
+    a = _get_default_air_handler()
+    v = vav.Vav(max_air_flow_rate, reheat_max_water_flow_factor, t, b, a)
 
     self.assertIsNotNone(v._device_id)
     self.assertIsNotNone(v._zone_id)
+    self.assertEqual(v.zone_air_heating_temperature_setpoint, 294.0)
+    self.assertEqual(v.zone_air_cooling_temperature_setpoint, 297.0)
 
   def test_setters(self):
     max_air_flow_rate = 0.6
-    reheat_max_water_flow_rate = 0.4
+    reheat_max_water_flow_factor = 0.4
     t = _get_default_thermostat()
-    b = _get_default_boiler()
-    v = vav.Vav(max_air_flow_rate, reheat_max_water_flow_rate, t, b)
+    b = _get_default_hws()
+    a = _get_default_air_handler()
+    v = vav.Vav(max_air_flow_rate, reheat_max_water_flow_factor, t, b, a)
 
     v.reheat_valve_setting += 0.1
     v.max_air_flow_rate += 0.1
@@ -131,10 +153,11 @@ class VavTest(parameterized.TestCase):
 
   def test_setters_raise_error(self):
     max_air_flow_rate = 0.6
-    reheat_max_water_flow_rate = 0.4
+    reheat_max_water_flow_factor = 0.4
     t = _get_default_thermostat()
-    b = _get_default_boiler()
-    v = vav.Vav(max_air_flow_rate, reheat_max_water_flow_rate, t, b)
+    b = _get_default_hws()
+    a = _get_default_air_handler()
+    v = vav.Vav(max_air_flow_rate, reheat_max_water_flow_factor, t, b, a)
 
     with self.assertRaises(ValueError):
       v.reheat_valve_setting = 1.1
@@ -146,14 +169,14 @@ class VavTest(parameterized.TestCase):
       v.damper_setting = -0.1
 
   @parameterized.parameters(
-      (pd.Timestamp('2021-05-09 14:00'), 293, 0.1, 0.0),
-      (pd.Timestamp('2021-05-10 09:00'), 296, 1.0, 0.0),
-      (pd.Timestamp('2021-05-12 09:00'), 291, 1.0, 1.0),
-      (pd.Timestamp('2021-05-12 17:59'), 291, 1.0, 1.0),
-      (pd.Timestamp('2021-05-11 03:00'), 288, 1.0, 1.0),
-      (pd.Timestamp('2021-05-11 03:00'), 291, 0.1, 0.0),
-      (pd.Timestamp('2021-05-11 22:00'), 298, 1.0, 0.0),
-      (pd.Timestamp('2021-05-11 22:00'), 297, 0.1, 0.0),
+      (pd.Timestamp('2021-05-09 14:00'), 293, 0.1, 0.0, 290, 297),
+      (pd.Timestamp('2021-05-10 09:00'), 296, 1.0, 0.0, 292, 295),
+      (pd.Timestamp('2021-05-12 09:00'), 291, 1.0, 1.0, 292, 295),
+      (pd.Timestamp('2021-05-12 17:59'), 291, 1.0, 1.0, 292, 295),
+      (pd.Timestamp('2021-05-11 03:00'), 288, 1.0, 1.0, 290, 297),
+      (pd.Timestamp('2021-05-11 03:00'), 291, 0.1, 0.0, 290, 297),
+      (pd.Timestamp('2021-05-11 22:00'), 298, 1.0, 0.0, 290, 297),
+      (pd.Timestamp('2021-05-11 22:00'), 297, 0.1, 0.0, 290, 297),
   )
   def test_update_settings(
       self,
@@ -161,18 +184,27 @@ class VavTest(parameterized.TestCase):
       zone_temp,
       expected_damper_setting,
       expected_reheat_valve_setting,
+      expected_heating_setpoint,
+      expected_cooling_setpoint,
   ):
     max_air_flow_rate = 0.6
-    reheat_max_water_flow_rate = 0.4
+    reheat_max_water_flow_factor = 0.4
     t = _get_default_thermostat()
     t._previous_timestamp = current_timestamp - pd.Timedelta(
         60.0, unit='minute'
     )
-    b = _get_default_boiler()
-    v = vav.Vav(max_air_flow_rate, reheat_max_water_flow_rate, t, b)
+    b = _get_default_hws()
+    a = _get_default_air_handler()
+    v = vav.Vav(max_air_flow_rate, reheat_max_water_flow_factor, t, b, a)
     v.update_settings(zone_temp, current_timestamp)
     self.assertEqual(expected_damper_setting, v._damper_setting)
     self.assertEqual(expected_reheat_valve_setting, v._reheat_valve_setting)
+    self.assertEqual(
+        expected_heating_setpoint, v.zone_air_heating_temperature_setpoint
+    )
+    self.assertEqual(
+        expected_cooling_setpoint, v.zone_air_cooling_temperature_setpoint
+    )
 
   @parameterized.parameters(
       (0.5, 0.4, 270, 260),
@@ -183,19 +215,21 @@ class VavTest(parameterized.TestCase):
   def test_compute_reheat_energy_rate(
       self,
       reheat_valve_setting,
-      reheat_max_water_flow_rate,
+      reheat_max_water_flow_factor,
       input_water_temp,
       supply_air_temp,
   ):
     max_air_flow_rate = 0.6
     t = _get_default_thermostat()
-    b = _get_default_boiler()
-    v = vav.Vav(max_air_flow_rate, reheat_max_water_flow_rate, t, b)
+    b = _get_default_hws()
+    a = _get_default_air_handler()
+    v = vav.Vav(max_air_flow_rate, reheat_max_water_flow_factor, t, b, a)
     v.reheat_valve_setting = reheat_valve_setting
 
+    v._hot_water_system.add_demand(v.reheat_flow_factor)
+    total_flow_rate = v._hot_water_system.total_flow_rate
     expected = (
-        reheat_valve_setting
-        * reheat_max_water_flow_rate
+        total_flow_rate
         * constants.WATER_HEAT_CAPACITY
         * (input_water_temp - supply_air_temp)
     )
@@ -216,23 +250,27 @@ class VavTest(parameterized.TestCase):
       reheat_valve_setting,
       damper_setting,
       max_air_flow_rate,
-      reheat_max_water_flow_rate,
+      reheat_max_water_flow_factor,
       input_water_temp,
       supply_air_temp,
   ):
     t = _get_default_thermostat()
-    b = _get_default_boiler()
-    v = vav.Vav(max_air_flow_rate, reheat_max_water_flow_rate, t, b)
+    b = _get_default_hws()
+    a = _get_default_air_handler()
+    v = vav.Vav(max_air_flow_rate, reheat_max_water_flow_factor, t, b, a)
     v.reheat_valve_setting = reheat_valve_setting
     v.damper_setting = damper_setting
+    v._hot_water_system.add_demand(v.reheat_flow_factor)
 
     expected = compute_zone_supply_temp(
         reheat_valve_setting,
-        reheat_max_water_flow_rate,
+        reheat_max_water_flow_factor,
         damper_setting,
         max_air_flow_rate,
         supply_air_temp,
         input_water_temp,
+        v._hot_water_system.differential_pressure_setpoint,
+        v._hot_water_system._header_resistance,
     )
 
     self.assertEqual(
@@ -242,12 +280,13 @@ class VavTest(parameterized.TestCase):
   def test_compute_zone_supply_temp_asserts_error(self):
     reheat_valve_setting = 0.5
     max_air_flow_rate = 0.3
-    reheat_max_water_flow_rate = 0.4
+    reheat_max_water_flow_factor = 0.4
     input_water_temp = 270
     supply_air_temp = 260
     t = _get_default_thermostat()
-    b = _get_default_boiler()
-    v = vav.Vav(max_air_flow_rate, reheat_max_water_flow_rate, t, b)
+    b = _get_default_hws()
+    a = _get_default_air_handler()
+    v = vav.Vav(max_air_flow_rate, reheat_max_water_flow_factor, t, b, a)
     v.reheat_valve_setting = reheat_valve_setting
     v.damper_setting = 0
 
@@ -273,10 +312,11 @@ class VavTest(parameterized.TestCase):
       damper_setting,
       max_air_flow_rate,
   ):
-    reheat_max_water_flow_rate = 0.4
+    reheat_max_water_flow_factor = 0.4
     t = _get_default_thermostat()
-    b = _get_default_boiler()
-    v = vav.Vav(max_air_flow_rate, reheat_max_water_flow_rate, t, b)
+    b = _get_default_hws()
+    a = _get_default_air_handler()
+    v = vav.Vav(max_air_flow_rate, reheat_max_water_flow_factor, t, b, a)
     v.damper_setting = damper_setting
 
     expected = 0
@@ -312,24 +352,28 @@ class VavTest(parameterized.TestCase):
     # This should produce a different result depending on the mode the
     # thermostat is in.
     max_air_flow_rate = 0.6
-    reheat_max_water_flow_rate = 0.4
+    reheat_max_water_flow_factor = 0.4
     t = _get_default_thermostat()
-    b = _get_default_boiler()
-    v = vav.Vav(max_air_flow_rate, reheat_max_water_flow_rate, t, b)
+    b = _get_default_hws()
+    a = _get_default_air_handler()
+    v = vav.Vav(max_air_flow_rate, reheat_max_water_flow_factor, t, b, a)
 
     time = pd.Timestamp(year=2021, month=5, day=5, hour=11)
-
+    v.update_settings(zone_temp, time)
+    v._hot_water_system.add_demand(v.reheat_flow_factor)
     self.assertEqual(t.update(zone_temp, time), thermostat.Thermostat.Mode.HEAT)
     damper_setting = 1.0
     reheat_valve_setting = 1.0
 
     zone_supply_temp = compute_zone_supply_temp(
         reheat_valve_setting,
-        reheat_max_water_flow_rate,
+        reheat_max_water_flow_factor,
         damper_setting,
         max_air_flow_rate,
         supply_air_temp,
-        b.reheat_water_setpoint,
+        b.supply_water_temperature_setpoint,
+        v._hot_water_system.differential_pressure_setpoint,
+        v._hot_water_system._header_resistance,
     )
 
     q_zone = (
@@ -355,10 +399,11 @@ class VavTest(parameterized.TestCase):
     # This should produce a different result depending on the mode the
     # thermostat is in.
     max_air_flow_rate = 0.6
-    reheat_max_water_flow_rate = 0.4
+    reheat_max_water_flow_factor = 0.4
     t = _get_default_thermostat()
-    b = _get_default_boiler()
-    v = vav.Vav(max_air_flow_rate, reheat_max_water_flow_rate, t, b)
+    b = _get_default_hws()
+    a = _get_default_air_handler()
+    v = vav.Vav(max_air_flow_rate, reheat_max_water_flow_factor, t, b, a)
 
     time = pd.Timestamp(year=2021, month=5, day=5, hour=11)
 
@@ -368,11 +413,13 @@ class VavTest(parameterized.TestCase):
 
     zone_supply_temp = compute_zone_supply_temp(
         reheat_valve_setting,
-        reheat_max_water_flow_rate,
+        reheat_max_water_flow_factor,
         damper_setting,
         max_air_flow_rate,
         supply_air_temp,
-        b.reheat_water_setpoint,
+        b.supply_water_temperature_setpoint,
+        v._hot_water_system.differential_pressure_setpoint,
+        v._hot_water_system._header_resistance,
     )
 
     q_zone = (
@@ -398,10 +445,11 @@ class VavTest(parameterized.TestCase):
     # This should produce a different result depending on the mode the
     # thermostat is in.
     max_air_flow_rate = 0.6
-    reheat_max_water_flow_rate = 0.4
+    reheat_max_water_flow_factor = 0.4
     t = _get_default_thermostat()
-    b = _get_default_boiler()
-    v = vav.Vav(max_air_flow_rate, reheat_max_water_flow_rate, t, b)
+    b = _get_default_hws()
+    a = _get_default_air_handler()
+    v = vav.Vav(max_air_flow_rate, reheat_max_water_flow_factor, t, b, a)
 
     time = pd.Timestamp(year=2021, month=5, day=5, hour=11)
 
@@ -414,11 +462,13 @@ class VavTest(parameterized.TestCase):
     v.damper_setting = 0.6
     zone_supply_temp = compute_zone_supply_temp(
         reheat_valve_setting,
-        reheat_max_water_flow_rate,
+        reheat_max_water_flow_factor,
         damper_setting,
         max_air_flow_rate,
         supply_air_temp,
-        b.reheat_water_setpoint,
+        b.supply_water_temperature_setpoint,
+        v._hot_water_system.differential_pressure_sensor,
+        v._hot_water_system._header_resistance,
     )
 
     q_zone = (
@@ -433,10 +483,11 @@ class VavTest(parameterized.TestCase):
 
   def test_observable_field_names(self):
     max_air_flow_rate = 0.6
-    reheat_max_water_flow_rate = 0.4
+    reheat_max_water_flow_factor = 0.4
     t = _get_default_thermostat()
-    b = _get_default_boiler()
-    v = vav.Vav(max_air_flow_rate, reheat_max_water_flow_rate, t, b)
+    b = _get_default_hws()
+    a = _get_default_air_handler()
+    v = vav.Vav(max_air_flow_rate, reheat_max_water_flow_factor, t, b, a)
 
     self.assertSameElements(
         v.observable_field_names(),
@@ -444,19 +495,30 @@ class VavTest(parameterized.TestCase):
             'supply_air_damper_percentage_command',
             'supply_air_flowrate_setpoint',
             'zone_air_temperature_sensor',
+            'zone_air_heating_temperature_setpoint_sensor',
+            'zone_air_cooling_temperature_setpoint_sensor',
         ],
     )
 
   @parameterized.parameters(
       ('supply_air_damper_percentage_command', 'damper_setting'),
       ('supply_air_flowrate_setpoint', 'max_air_flow_rate'),
+      (
+          'zone_air_heating_temperature_setpoint_sensor',
+          'zone_air_heating_temperature_setpoint',
+      ),
+      (
+          'zone_air_cooling_temperature_setpoint_sensor',
+          'zone_air_cooling_temperature_setpoint',
+      ),
   )
   def test_observations(self, observation_name, attribute_name):
     max_air_flow_rate = 0.6
-    reheat_max_water_flow_rate = 0.4
+    reheat_max_water_flow_factor = 0.4
     t = _get_default_thermostat()
-    b = _get_default_boiler()
-    v = vav.Vav(max_air_flow_rate, reheat_max_water_flow_rate, t, b)
+    b = _get_default_hws()
+    a = _get_default_air_handler()
+    v = vav.Vav(max_air_flow_rate, reheat_max_water_flow_factor, t, b, a)
 
     observed_value = v.get_observation(
         observation_name, pd.Timestamp('2021-09-01 10:10:00')
@@ -465,10 +527,11 @@ class VavTest(parameterized.TestCase):
 
   def test_zone_air_temperature_sensor(self):
     max_air_flow_rate = 0.6
-    reheat_max_water_flow_rate = 0.4
+    reheat_max_water_flow_factor = 0.4
     t = _get_default_thermostat()
-    b = _get_default_boiler()
-    v = vav.Vav(max_air_flow_rate, reheat_max_water_flow_rate, t, b)
+    b = _get_default_hws()
+    a = _get_default_air_handler()
+    v = vav.Vav(max_air_flow_rate, reheat_max_water_flow_factor, t, b, a)
 
     observed_value = v.get_observation(
         'zone_air_temperature_sensor', pd.Timestamp('2021-09-01 10:10:00')
@@ -485,10 +548,11 @@ class VavTest(parameterized.TestCase):
 
   def test_action_field_names(self):
     max_air_flow_rate = 0.6
-    reheat_max_water_flow_rate = 0.4
+    reheat_max_water_flow_factor = 0.4
     t = _get_default_thermostat()
-    b = _get_default_boiler()
-    v = vav.Vav(max_air_flow_rate, reheat_max_water_flow_rate, t, b)
+    b = _get_default_hws()
+    a = _get_default_air_handler()
+    v = vav.Vav(max_air_flow_rate, reheat_max_water_flow_factor, t, b, a)
 
     self.assertSameElements(
         v.action_field_names(), ['supply_air_damper_percentage_command']
@@ -496,10 +560,11 @@ class VavTest(parameterized.TestCase):
 
   def test_action_supply_air_flowrate_setpoint(self):
     max_air_flow_rate = 0.6
-    reheat_max_water_flow_rate = 0.4
+    reheat_max_water_flow_factor = 0.4
     t = _get_default_thermostat()
-    b = _get_default_boiler()
-    v = vav.Vav(max_air_flow_rate, reheat_max_water_flow_rate, t, b)
+    b = _get_default_hws()
+    a = _get_default_air_handler()
+    v = vav.Vav(max_air_flow_rate, reheat_max_water_flow_factor, t, b, a)
 
     new_value = 0.8
     v.set_action(
@@ -512,10 +577,11 @@ class VavTest(parameterized.TestCase):
 
   def test_output_does_not_change_settings(self):
     max_air_flow_rate = 0.6
-    reheat_max_water_flow_rate = 0.4
+    reheat_max_water_flow_factor = 0.4
     t = _get_default_thermostat()
-    b = _get_default_boiler()
-    v = vav.Vav(max_air_flow_rate, reheat_max_water_flow_rate, t, b)
+    b = _get_default_hws()
+    a = _get_default_air_handler()
+    v = vav.Vav(max_air_flow_rate, reheat_max_water_flow_factor, t, b, a)
 
     v.damper_setting = 0.6
     v.reheat_valve_setting = 0.7
@@ -524,6 +590,31 @@ class VavTest(parameterized.TestCase):
 
     self.assertEqual(v.damper_setting, 0.6)
     self.assertEqual(v.reheat_valve_setting, 0.7)
+
+  def test_flow_rate_demand(self):
+    max_air_flow_rate = 0.6
+    reheat_max_water_flow_rate = 0.4
+    t = _get_default_thermostat()
+    hws = _get_default_hws()
+    a = _get_default_air_handler()
+    v = vav.Vav(
+        max_air_flow_rate=max_air_flow_rate,
+        reheat_max_water_flow_factor=reheat_max_water_flow_rate,
+        therm=t,
+        hot_water_system=hws,
+        air_handler=a,
+    )
+    v.damper_setting = 0.6
+    v._max_air_flow_rate = 0.6
+    v._max_air_flow_static_pressure = 20000.0
+    a.supply_air_static_pressure_setpoint = 20000.0
+    self.assertEqual(v.flow_rate_demand, 0.36)
+
+    a.supply_air_static_pressure_setpoint = 10000.0
+    self.assertEqual(v.flow_rate_demand, 0.36 * math.sqrt(0.5))
+
+    a.supply_air_static_pressure_setpoint = 0.0
+    self.assertEqual(v.flow_rate_demand, 0.00001)
 
 
 if __name__ == '__main__':

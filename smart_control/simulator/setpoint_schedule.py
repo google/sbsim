@@ -1,25 +1,11 @@
-"""Stores and maintains setpoint schedule of HVAC in simulator.
-
-Copyright 2023 Google LLC
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    https://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-"""
+"""Stores and maintains setpoint schedule of HVAC in simulator."""
 
 import datetime
 from typing import Optional, Set, Tuple
 
 import gin
 import pandas as pd
+from pandas.tseries import holiday
 import pytz
 
 TemperatureWindow = Tuple[int, int]
@@ -45,6 +31,7 @@ class SetpointSchedule:
     eco_temp_window: 2-Tuple containing heating and cooling setpoints in K for
       eco mode.
     holidays: Set of days of year (1-365) to set as eco mode.
+    time_zone: Time zone of the schedule.
   """
 
   # TODO(judahg): make holidays a set of Timestamps
@@ -82,6 +69,11 @@ class SetpointSchedule:
       self.holidays = holidays
     else:
       self.holidays = set()
+
+  @property
+  def time_zone(self) -> datetime.tzinfo:
+    """Returns the schedule's time zone."""
+    return self._time_zone
 
   def is_comfort_mode(self, current_timestamp: pd.Timestamp) -> bool:
     """Returns whether setpoint schedule dictates comfort mode.
@@ -130,7 +122,9 @@ class SetpointSchedule:
   def get_plot_data(
       self, start_timestamp: pd.Timestamp, end_timestamp: pd.Timestamp
   ) -> pd.DataFrame:
-    """Returns DataFrame that can be plotted of all transition events in the time window.
+    """Returns DataFrame of all transition events in the time window.
+
+    Can be used for plotting purposes.
 
     Columns: comfort_mode (True/False), start time, end time, heating,
       cooling setpoints.
@@ -215,3 +209,68 @@ class SetpointSchedule:
         'heating_setpoint': heating_setpoints,
         'cooling_setpoint': cooling_setpoints,
     })
+
+
+class HolidaySchedule(SetpointSchedule):
+  """Holiday-aware building operational schedule.
+
+  Implements reasonable default values for holidays, operational hours, and
+  temperatures, to improve usability.
+
+  Currently requires a year, due to limitations of the parent class (which
+  require the holidays to be represented as day numbers in the current year,
+  instead of timestamps. However if we update the parent class to be more
+  flexible and accept timestamps instead, this class should be able to handle
+  multiple years worth of holidays, and therefore will be able to be used in
+  trials that span multiple years (e.g. a trial that covers the last week of one
+  year and continues onto the first week of the next year).
+
+  Attributes:
+    year: Designates the year to get holidays for.
+    calendar_class: The holiday calendar class from `pandas.tseries.holiday`.
+      Default is `USFederalHolidayCalendar` for US holidays.
+    cal: An instance of the holiday calendar class, used to get the holidays.
+    holidays_df: Pandas DataFrame with columns "date", "holiday", and
+      "day_of_year". The "holiday" column references the holiday name (e.g.
+      "New Year's Day"). The "day_of_year" column provides the day number of the
+      holiday within the given year (1-365), which is used to interface with the
+      parent class.
+  """
+
+  def __init__(
+      self,
+      year: int,  # required param for now, due to limitations of parent class
+      morning_start_hour=6,
+      evening_start_hour=19,
+      comfort_temp_window=(294, 297),  # 'ON' mode
+      eco_temp_window=(289, 298),  # 'OFF' mode
+      calendar_class: type[
+          holiday.AbstractHolidayCalendar
+      ] = holiday.USFederalHolidayCalendar,
+      time_zone=pytz.UTC,
+  ):
+    self.cal = calendar_class()
+
+    self.year = year
+
+    # holidays for a specific year:
+    holidays_df = self.cal.holidays(
+        start=pd.Timestamp(f'{year}-01-01 00:00:00'),
+        end=pd.Timestamp(f'{year}-12-31 23:59:59'),
+        return_name=True
+    ).reset_index()
+
+    holidays_df.columns = ['date', 'holiday']
+    # shim for current setpoint schedule interface, add day of year (1-365):
+    holidays_df['day_of_year'] = holidays_df['date'].dt.dayofyear
+
+    holiday_numbers_this_year = set(holidays_df['day_of_year'])
+    super().__init__(
+        morning_start_hour=morning_start_hour,
+        evening_start_hour=evening_start_hour,
+        comfort_temp_window=comfort_temp_window,
+        eco_temp_window=eco_temp_window,
+        holidays=holiday_numbers_this_year,
+        time_zone=time_zone,
+    )
+    self.holidays_df = holidays_df

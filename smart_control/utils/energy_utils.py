@@ -1,21 +1,8 @@
-"""A collection of utility functions for Smart Building energy problems.
+"""A collection of utility functions for Smart Building energy problems."""
 
-Copyright 2022 Google LLC
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    https://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-"""
-
+import dataclasses
 from typing import Optional, Sequence
+
 import numpy as np
 from smart_buildings.smart_control.utils import constants
 
@@ -40,6 +27,14 @@ _WATER_SATURATION_PRESSURES_REF = [
 _FAN_SPEED_PERCENTAGE_OPERATIONAL_THRESH = 5.0
 _SUPPLY_STATIC_PRESSURE_OPERATIONAL_THRESH = 0.2
 _DEFAULT_EER = 12.0
+
+# Physical and Conversion Constants
+_WATTS_PER_BHP = 745.7  # BHP = Brake Horsepower
+_BTU_H_TO_WATTS_FACTOR = 0.293071
+
+# Water Properties Factor (Density * Specific Heat * 60 min/hr)
+# Standard value for pure water at typical HW temperatures.
+_WATER_HEAT_TRANSFER_FACTOR = 500.0
 
 
 def get_water_vapor_partial_pressure(temps: Sequence[float]) -> Sequence[float]:
@@ -586,3 +581,158 @@ def get_water_heating_energy_rate_primary_secondary(
       supply_water_temperature=boiler_outlet_temperature,
       return_water_temperature=blended_return_temperature,
   )
+
+
+def _validate_speed_percent(speed_percent: float | np.ndarray):
+  """Validates that the speed percentage is within the range (*, 100].
+
+  Args:
+      speed_percent (float or np.ndarray): Current VFD speed as a percentage.
+
+  Raises:
+      ValueError if speed_percent is outside the range [0, 100].
+  """
+  if np.any(speed_percent > 100.0):
+    raise ValueError('Speed percentage must be less than or equal to 100.')
+
+
+def calculate_pump_power(bhp: float, speed_percent: float):
+  """Estimates pump electrical power using the Third Pump Affinity Law.
+
+  The third affinity law states that power is proportional to the
+  cube of the speed (P1/P2 = (N1/N2)^3).
+
+  Args:
+      bhp (float): The Brake Horse Power required by the pump at 100% speed.
+      speed_percent (float): Current VFD speed as a percentage can be negative
+        but less than 100..
+
+  Returns:
+      float or np.ndarray: Estimated power consumption in Watts.
+
+  Raises:
+      ValueError if speed_percent is outside the range [0, 100].
+  """
+  _validate_speed_percent(speed_percent)
+
+  rated_watts = bhp * _WATTS_PER_BHP
+  speed_ratio = np.maximum(speed_percent, 0.0) / 100.0
+  return rated_watts * (speed_ratio**3)
+
+
+def estimate_flow_gpm(rated_gpm: float, speed_percent: float) -> float:
+  """Estimates fluid flow using the First Pump Affinity Law.
+
+  The first affinity law states that flow is directly proportional
+  to the pump rotational speed (Q1/Q2 = N1/N2).
+
+  Args:
+      rated_gpm (float): The design flow rate of the pump at 100% speed.
+      speed_percent (float): Current VFD speed as a percentage (0-100).
+
+  Returns:
+      float: Estimated flow in Gallons Per Minute (GPM).
+
+  Raises:
+      ValueError if speed_percent if greater than 100.
+  """
+  _validate_speed_percent(speed_percent)
+
+  speed_ratio = np.maximum(speed_percent, 0.0) / 100.0
+  return rated_gpm * speed_ratio
+
+
+@dataclasses.dataclass
+class ASHPEstimates:
+  """Represents the estimated power consumption and flow for an ASHP system.
+
+  Attributes:
+      flow_gpm: Total estimated system flow in Gallons Per Minute.
+      hp_watts: Electrical power used by ASHP consumers in Watts.
+      pump_watts: Combined power used by hydronic pumps in Watts.
+      total_watts: Sum of all electrical consumers in Watts.
+  """
+
+  flow_gpm: float | np.ndarray
+  hp_watts: float | np.ndarray
+  pump_watts: float | np.ndarray
+  total_watts: float | np.ndarray
+
+
+class ASHPSystemEstimator:
+  """Estimator for electrical use of an Air Source Heat Pump (ASHP) system.
+
+  This library calculates the power consumption of both hydronic pumps and
+  heat pump units using thermodynamic principles and centrifugal pump
+  affinity laws. It is designed to handle both scalar inputs and NumPy
+  arrays for time-series analysis.
+
+  Attributes:
+    cop (float): The Coefficient of Performance (COP) of the heat pump.
+  """
+
+  def __init__(self, hp_cop: float = 3.4):
+    """Initializes the estimator with specific equipment performance metrics.
+
+    Args:
+        hp_cop (float): The Coefficient of Performance (COP) of the heat pump.
+          Default is 3.4, based on Aermec NRK technical data.
+    """
+    self.cop = hp_cop
+
+  def estimate_interval_power(
+      self,
+      hws_f: float | np.ndarray,
+      hwr_f: float | np.ndarray,
+      p1_speed: float | np.ndarray,
+      p2_speed: float | np.ndarray,
+      p1_bhp: float,
+      p2_bhp: float,
+      p1_rated_gpm: float,
+      p2_rated_gpm: float,
+  ):
+    """Calculates total system power consumption for a specific interval.
+
+    Calculates the heat pump's electrical draw by deriving thermal load from
+    the temperature delta and estimated flow, then adds the individual
+    draw of the hydronic pumps.
+
+    Args:
+        hws_f (float or np.ndarray): Hot Water Supply temperature in Fahrenheit.
+        hwr_f (float or np.ndarray): Hot Water Return temperature in Fahrenheit.
+        p1_speed (float or np.ndarray): VFD speed percentage for Pump 1.
+        p2_speed (float or np.ndarray): VFD speed percentage for Pump 2.
+        p1_bhp (float): Rated Brake Horse Power for Pump 1.
+        p2_bhp (float): Rated Brake Horse Power for Pump 2.
+        p1_rated_gpm (float): Rated GPM for Pump 1.
+        p2_rated_gpm (float): Rated GPM for Pump 2.
+
+    Returns:
+        ASHPEstimates: An object containing the estimated flow and power.
+    """
+    # 1. Estimate Flow
+    flow_p1 = estimate_flow_gpm(p1_rated_gpm, p1_speed)
+    flow_p2 = estimate_flow_gpm(p2_rated_gpm, p2_speed)
+    total_gpm = flow_p1 + flow_p2
+
+    # 2. Calculate Thermal Load (BTU/h)
+    # Formula: Q = GPM * FluidFactor * DeltaT
+    delta_t = np.maximum(hws_f - hwr_f, 0.0)
+    thermal_btu_h = total_gpm * _WATER_HEAT_TRANSFER_FACTOR * delta_t
+
+    # 3. Convert Thermal to Electrical Watts
+    hp_watts = (thermal_btu_h * _BTU_H_TO_WATTS_FACTOR) / self.cop
+
+    # 4. Calculate Pump Electrical Draw
+    p1_w = calculate_pump_power(p1_bhp, p1_speed)
+    p2_w = calculate_pump_power(p2_bhp, p2_speed)
+
+    pump_watts = p1_w + p2_w
+    total_watts = hp_watts + pump_watts
+
+    return ASHPEstimates(
+        flow_gpm=total_gpm,
+        hp_watts=hp_watts,
+        pump_watts=pump_watts,
+        total_watts=total_watts,
+    )

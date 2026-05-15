@@ -1,20 +1,3 @@
-"""Tests for environment.
-
-Copyright 2023 Google LLC
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    https://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-"""
-
 from unittest import mock
 
 from absl.testing import absltest
@@ -22,6 +5,12 @@ from absl.testing import parameterized
 import bidict
 import numpy as np
 import pandas as pd
+import tensorflow as tf
+from tf_agents.environments import utils
+from tf_agents.specs import array_spec
+from tf_agents.trajectories import time_step as ts
+
+# pylint: disable=g-bad-import-order we prefer local imports below packages
 from smart_buildings.smart_control.environment import environment
 from smart_buildings.smart_control.environment import environment_test_utils
 from smart_buildings.smart_control.models import base_building
@@ -32,15 +21,12 @@ from smart_buildings.smart_control.utils import bounded_action_normalizer
 from smart_buildings.smart_control.utils import conversion_utils
 from smart_buildings.smart_control.utils import histogram_reducer
 from smart_buildings.smart_control.utils import observation_normalizer
+from smart_buildings.smart_control.utils import reader_lib as base_reader
 from smart_buildings.smart_control.utils import test_utils
-import tensorflow as tf
-from tf_agents.environments import utils
-from tf_agents.specs import array_spec
-from tf_agents.trajectories import time_step as ts
 
 
 def _get_histogram_reducer():
-  reader = mock.create_autospec(test_utils.BaseReader, instance=True)
+  reader = mock.create_autospec(base_reader.BaseReader, instance=True)
   reader.read_action_responses.return_value = [
       test_utils.get_test_action_response(
           pd.Timestamp("2022-03-13 00:00:00"),
@@ -63,6 +49,47 @@ def _get_histogram_reducer():
   )
 
 
+class SetpointLabelsTest(parameterized.TestCase):
+
+  @parameterized.parameters(
+      ("supervisor_run_command", True),
+      ("ahu_1_supervisor_run_command", True),
+      ("setpoint_1", False),
+  )
+  def test_is_discrete_setpoint(self, setpoint_name, expected):
+    self.assertEqual(environment.is_discrete_setpoint(setpoint_name), expected)
+
+  @parameterized.parameters(
+      ("supervisor_run_command", environment.DISCRETE_ACTION),
+      ("ahu_1_supervisor_run_command", environment.DISCRETE_ACTION),
+      ("setpoint_1", environment.CONTINUOUS_ACTION),
+  )
+  def test_get_setpoint_type(self, setpoint_name, expected):
+    self.assertEqual(environment.get_setpoint_type(setpoint_name), expected)
+
+  @parameterized.parameters(
+      ("supervisor_run_command", "DISCRETE"),
+      ("ahu_1_supervisor_run_command", "DISCRETE"),
+      ("temperature_setpoint", "CONTINUOUS"),
+      ("pressure_setpoint", "CONTINUOUS"),
+  )
+  def test_get_setpoint_type_label(self, setpoint_name, expected_label):
+    label = environment.get_setpoint_type_label(setpoint_name)
+    self.assertEqual(label, expected_label)
+
+  @parameterized.parameters(
+      ("supervisor_run_command", "On/Off"),
+      ("ahu_1_supervisor_run_command", "On/Off"),
+      ("supply_water_temperature_setpoint", "Kelvin"),
+      ("pressure_setpoint", "Pascal"),
+      ("other_setpoint", "N/A"),
+  )
+  def test_get_setpoint_units(self, setpoint_name, expected_units):
+    self.assertEqual(
+        environment.get_setpoint_units(setpoint_name), expected_units
+    )
+
+
 class EnvironmentTest(parameterized.TestCase, tf.test.TestCase):
 
   @parameterized.parameters(
@@ -80,13 +107,13 @@ class EnvironmentTest(parameterized.TestCase, tf.test.TestCase):
           2.236067,
       ),
   )
-  def test_comput_actions_regularization_cost_valid(
+  def test_compute_actions_regularization_cost_valid(
       self, action_history, expected
   ):
     cost = environment.compute_action_regularization_cost(action_history)
     self.assertAlmostEqual(expected, cost, places=3)
 
-  def test_comput_actions_regularization_cost_invalid(self):
+  def test_compute_actions_regularization_cost_invalid(self):
     action_history = [np.array([1, 0]), np.array([1, 0, 1])]
     with self.assertRaises(ValueError):
       _ = environment.compute_action_regularization_cost(action_history)
@@ -348,7 +375,7 @@ class EnvironmentTest(parameterized.TestCase, tf.test.TestCase):
     for i in range(len(env._action_names)):
       field_id = env._action_names[i]
       device, setpoint = env._id_map.inv[field_id]
-      action_normalizer = action_config._action_normalizers[setpoint]
+      action_normalizer = action_config.action_normalizers[setpoint]
       normalized_value = action_normalizer.setpoint_value(action[i])
       expected_request.single_action_requests.append(
           smart_control_building_pb2.SingleActionRequest(
@@ -393,7 +420,7 @@ class EnvironmentTest(parameterized.TestCase, tf.test.TestCase):
       ) -> smart_control_building_pb2.ActionResponse:
         action_response = super().request_action(action_request)
         action_response.single_action_responses[0].response_type = (
-            smart_control_building_pb2.SingleActionResponse.REJECTED_INVALID_DEVICE
+            smart_control_building_pb2.SingleActionResponse.REJECTED_INVALID_DEVICE  # pylint: disable=line-too-long
         )
         return action_response
 
@@ -590,6 +617,7 @@ class EnvironmentTest(parameterized.TestCase, tf.test.TestCase):
 
   def test_get_observation_invalid(self):
     class BadObservationBuilding(environment_test_utils.SimpleBuilding):
+      """A building that has a bad observation. Used for testing purposes."""
 
       def request_observations(
           self,
@@ -600,12 +628,10 @@ class EnvironmentTest(parameterized.TestCase, tf.test.TestCase):
                 self, observation_request
             )
         )
-        bad_observation_response = smart_control_building_pb2.ObservationResponse(
+        bad_observation_response = smart_control_building_pb2.ObservationResponse(  # pylint: disable=line-too-long
             timestamp=observation_response.timestamp,
             request=observation_response.request,
-            single_observation_responses=observation_response.single_observation_responses[
-                :3
-            ],
+            single_observation_responses=observation_response.single_observation_responses[:3],  # pylint: disable=line-too-long
         )
         return bad_observation_response
 
@@ -722,6 +748,10 @@ class EnvironmentTest(parameterized.TestCase, tf.test.TestCase):
   )
   def test_validate_environment(self, step_interval):
     class TerminatingEnv(environment.Environment):
+      """Environment that terminates after a fixed number of steps.
+
+      Used for testing purposes.
+      """
 
       def __init__(
           self,
@@ -875,6 +905,119 @@ class EnvironmentTest(parameterized.TestCase, tf.test.TestCase):
         request=request,
         single_observation_responses=single_responses,
     )
+
+
+class DefaultActionsTest(parameterized.TestCase):
+
+  def setUp(self):
+    super().setUp()
+    self.building = environment_test_utils.SimpleBuilding()
+    self.reward_function = environment_test_utils.SimpleRewardFunction()
+    self.observation_normalizer = observation_normalizer.StandardScoreObservationNormalizer(  # pylint: disable=line-too-long
+        {
+            "temperature": (
+                smart_control_normalization_pb2.ContinuousVariableInfo(
+                    id="temperature",
+                    sample_mean=310.0,
+                    sample_variance=2500.0,
+                )
+            )
+        }
+    )
+    normalizer = bounded_action_normalizer.BoundedActionNormalizer(200, 300)
+    self.action_config = environment.ActionConfig({
+        "setpoint_1": normalizer,
+        "setpoint_2": normalizer,
+    })
+
+  @parameterized.named_parameters(
+      dict(
+          testcase_name="action_names_only",
+          default_actions={
+              "air_handler_1_setpoint_1": 250.0,
+              "air_handler_2_setpoint_1": 260.0,
+              "air_handler_1_setpoint_2": 250.0,
+              "air_handler_2_setpoint_2": 250.0,
+          },
+          expected_action_values=[0.0, 0.2, 0.0, 0.0],
+      ),
+      dict(
+          testcase_name="setpoint_names_only",
+          default_actions={
+              "setpoint_1": 250.0,
+              "setpoint_2": 250.0,
+          },
+          expected_action_values=[0.0, 0.0, 0.0, 0.0],
+      ),
+      dict(
+          testcase_name="mixed_names",
+          default_actions={
+              "air_handler_1_setpoint_1": 250.0,
+              "air_handler_2_setpoint_1": 260.0,
+              "setpoint_2": 250.0,
+          },
+          expected_action_values=[0.0, 0.2, 0.0, 0.0],
+      ),
+  )
+  def test_default_actions(
+      self, default_actions, expected_action_values
+  ):
+    env = environment.Environment(
+        building=self.building,
+        reward_function=self.reward_function,
+        observation_normalizer=self.observation_normalizer,
+        action_config=self.action_config,
+        device_action_tuples=[
+            ("air_handler_1", "setpoint_1"),
+            ("air_handler_2", "setpoint_1"),
+            ("air_handler_1", "setpoint_2"),
+            ("air_handler_2", "setpoint_2"),
+        ],
+        default_actions=default_actions,
+    )
+    self.assertSequenceAlmostEqual(
+        env.default_action_values, expected_action_values, delta=0.001
+    )
+
+  def test_normalize_default_actions_missing_normalizer_raises(self):
+    env = environment.Environment(
+        building=self.building,
+        reward_function=self.reward_function,
+        observation_normalizer=self.observation_normalizer,
+        action_config=self.action_config,
+    )
+    # Clear out normalizers to simulate a missing entry
+    env.action_normalizers.clear()
+    env._action_names = ["example_field"]
+    env.id_map[("example_device", "example_setpoint")] = "example_field"
+
+    with self.assertRaisesRegex(
+        ValueError, "No normalizer found for setpoint: .*example_setpoint.*"
+    ):
+      env._normalize_default_actions({"example_field": 250.0})
+
+  def test_normalize_default_actions_with_empty_dict_raises(self):
+    env = environment.Environment(
+        building=self.building,
+        reward_function=self.reward_function,
+        observation_normalizer=self.observation_normalizer,
+        action_config=self.action_config,
+    )
+    env._action_names = ["example_field"]
+    env.id_map[("example_device", "example_setpoint")] = "example_field"
+    with self.assertRaisesRegex(
+        ValueError, "Missing default action for action: .*example_field.*"
+    ):
+      env._normalize_default_actions({})
+
+  def test_environment_init_without_default_actions_sets_empty_tensor(self):
+    env = environment.Environment(
+        building=self.building,
+        reward_function=self.reward_function,
+        observation_normalizer=self.observation_normalizer,
+        action_config=self.action_config,
+    )
+    self.assertEqual(env.default_policy_values.numpy().tolist(), [])
 
 
 if __name__ == "__main__":

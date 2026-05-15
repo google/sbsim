@@ -1,21 +1,8 @@
-"""Single location for all constants related to the simulation and RL environment.
+"""Constants related to the simulation and RL environment."""
 
-Copyright 2022 Google LLC
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    https://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-"""
-
+import os
 from typing import Final
+
 # --------- Thermal Constants ---------------
 
 AIR_HEAT_CAPACITY = 1006.0  # J/kg/K, standard atmosphere
@@ -29,6 +16,9 @@ JOULES_PER_BTU: float = 1055.06
 W_PER_KW: float = 1000.0  # Number of Watts in a kW.
 WATTS_PER_BTU_HR: float = 0.29307107  # Number of Watts in a BTU/hr
 HZ_PERCENT: float = 100.0 / 60.0  # Converts blower/pump Hz to Percentage Power
+
+# --------- Pressure Constants ---------------
+PASCALS_PER_BAR: float = 100000.0  # Number of Pascals in a bar.
 
 # https://www.rapidtables.com/convert/power/hp-to-watt.html
 WATTS_PER_HORSEPOWER = 746.0
@@ -56,3 +46,22 @@ REWARD_INFO_PREFIX = 'reward_info'
 REWARD_RESPONSE_PREFIX = 'reward_response'
 DEVICE_INFO_PREFIX = 'device_info'
 ZONE_INFO_PREFIX = 'zone_info'
+
+
+# ------------ File Paths -----------------
+
+# Reference file paths in a way that works both internally and externally.
+# Look for environment variable used by blaze / bazel internally.
+# See: https://bazel.build/concepts/dependencies#data-dependencies
+TEST_SRCDIR = os.environ.get('TEST_SRCDIR')
+if TEST_SRCDIR:
+  REPO_DIRPATH = os.path.join(
+      TEST_SRCDIR,
+      'google3',
+      'third_party',
+      'py',
+      'smart_buildings',
+      'smart_control',
+  )
+else:
+  REPO_DIRPATH = os.path.join(os.path.dirname(__file__), '..')

@@ -1,30 +1,20 @@
-"""Normalizes observations by standardized shifting and scaling.
-
-Copyright 2023 Google LLC
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    https://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-
-"""
+"""Normalizes observations by standardized shifting and scaling."""
 
 import math
 from typing import Callable, Mapping, NewType
+
 import gin
+
 from smart_buildings.smart_control.models import base_normalizer
 from smart_buildings.smart_control.proto import smart_control_building_pb2
 from smart_buildings.smart_control.proto import smart_control_normalization_pb2
 
+ContinuousVariableInfo = smart_control_normalization_pb2.ContinuousVariableInfo
+
 FieldNameKeyword = NewType('FieldNameKeyword', str)
 FieldName = NewType('FieldName', str)
+
+NormalizationConstants = Mapping[FieldNameKeyword, ContinuousVariableInfo]
 
 
 @gin.configurable
@@ -45,25 +35,21 @@ class StandardScoreObservationNormalizer(
     ValueError if the field name is not matched in the normalization_constants.
   """
 
-  def __init__(
-      self,
-      normalization_constants: Mapping[
-          FieldNameKeyword,
-          smart_control_normalization_pb2.ContinuousVariableInfo,
-      ],
-  ):
+  def __init__(self, normalization_constants: NormalizationConstants):
     self._normalization_constants = normalization_constants
+
+  @property
+  def normalization_constants(self) -> NormalizationConstants:
+    return self._normalization_constants
 
   def _get_normalization_constants(
       self, field_name: FieldName
-  ) -> smart_control_normalization_pb2.ContinuousVariableInfo:
+  ) -> ContinuousVariableInfo:
     """Returns normalization data for exact match or keyword-contain match."""
     if field_name in self._normalization_constants:
       return self._normalization_constants[field_name]
     else:
-      return smart_control_normalization_pb2.ContinuousVariableInfo(
-          sample_mean=0.0, sample_variance=1.0
-      )
+      return ContinuousVariableInfo(sample_mean=0.0, sample_variance=1.0)
 
   def _normalize_one(self, field_name: FieldName, value: float) -> float:
     """Shifts and scales a native value based on its field name.
@@ -131,7 +117,7 @@ class StandardScoreObservationNormalizer(
 
     for single_observation_response in obs_out.single_observation_responses:
       field_name = (
-          single_observation_response.single_observation_request.measurement_name
+          single_observation_response.single_observation_request.measurement_name  # pylint: disable=line-too-long
       )
       value = single_observation_response.continuous_value
       single_observation_response.continuous_value = transform_func(

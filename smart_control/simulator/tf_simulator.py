@@ -1,19 +1,5 @@
 """Tensorflow-enabled Finite Difference calculator.
 
-Copyright 2024 Google LLC
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    https://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-
 Iterative methods that loop through each control volume sequentially
 are very slow with geometries that have many control volumes (CV). The
 TFSimulator, instead, processe the finite differences as a set of
@@ -23,15 +9,17 @@ tensor operations.
 import enum
 import functools
 from typing import Mapping, Optional, Sequence
+
 from absl import logging
 import gin
 import numpy as np
 import pandas as pd
+import tensorflow as tf
+
 from smart_buildings.smart_control.simulator import building as building_py
 from smart_buildings.smart_control.simulator import hvac_floorplan_based as hvac_py
 from smart_buildings.smart_control.simulator import simulator_flexible_floor_plan as simulator
 from smart_buildings.smart_control.simulator import weather_controller as weather_controller_py
-import tensorflow as tf
 
 # List of neighbors for a specific CV.
 NeighborCoordinates = Sequence[simulator.CVCoordinates]
@@ -217,7 +205,7 @@ def classify_cv(
           corner=CVCornerOrientationType.BOTTOM_RIGHT
       )
     raise ValueError(
-        f"wasn't able to determine which corner the CV {(i,j)} is."
+        f"Wasn't able to determine which corner the CV {(i, j)} is."
     )
 
   def _cv_type_edge_factory(
@@ -240,7 +228,7 @@ def classify_cv(
       return edge(CVEdgeOrientationType.LEFT)
     if set([(i - 1, j), (i, j - 1), (i + 1, j)]) == set(cv_neighbors):
       return edge(CVEdgeOrientationType.RIGHT)
-    raise ValueError(f"wasn't able to determine which edge the CV {(i,j)} is.")
+    raise ValueError(f"Wasn't able to determine which edge the CV {(i, j)} is.")
 
   i, j = coords
 
@@ -258,7 +246,7 @@ def classify_cv(
       return CVType(position=CVPositionType.INTERIOR)
     case _:
       raise ValueError(
-          f"wasn't able to determine which CV type the CV {(i,j)} is."
+          f"Wasn't able to determine which CV type the CV {(i, j)} is."
       )
 
 
@@ -539,14 +527,14 @@ class TFSimulator(simulator.SimulatorFlexibleGeometries):
     n_exterior_elements = tf.math.count_nonzero(self._t_exerior_temps_mask)
     logging.info('Number of exterior CVs: %d', n_exterior_elements)
 
-    n_elements = self._building.temp.shape[0] * self._building.temp.shape[1]
+    n_elements = self.building.temp.shape[0] * self.building.temp.shape[1]
     n_interior_elements = n_elements - n_boundary_elements - n_exterior_elements
     logging.info('Number of interior CVs: %d', n_interior_elements)
 
     self._t_u, self._t_v = get_cv_dimension_tensors(
-        self._building.cv_size_cm / 100.0,
+        self.building.cv_size_cm / 100.0,
         self._boundary_cv_mapping,
-        self._building.temp.shape,
+        self.building.temp.shape,
     )
 
     (
@@ -555,7 +543,7 @@ class TFSimulator(simulator.SimulatorFlexibleGeometries):
         self._t_conductivity_top_edge,
         self._t_conductivity_bottom_edge,
     ) = get_oriented_conductivity_tensors(
-        self._building.conductivity, self._boundary_cv_mapping
+        self.building.conductivity, self._boundary_cv_mapping
     )
 
   def _get_tensor_exterior_mask(
@@ -682,7 +670,6 @@ class TFSimulator(simulator.SimulatorFlexibleGeometries):
       dt3 = tf.math.multiply(dt3, self._t_v)
       dt3 = tf.math.multiply(dt3, t_heat_capacity)
       dt3 = tf.scalar_mul(t_z, dt3)
-      dt3 = tf.math.multiply(dt3, t_heat_capacity)
       dt3 = tf.math.divide(dt3, t_delta_t)
 
       # Sum up u-z, u-v surface transfer and absorption terms.
@@ -744,7 +731,6 @@ class TFSimulator(simulator.SimulatorFlexibleGeometries):
       nt3 = tf.math.multiply(nt3, self._t_v)
       nt3 = tf.math.multiply(nt3, t_heat_capacity)
       nt3 = tf.scalar_mul(t_z, nt3)
-      nt3 = tf.math.multiply(nt3, t_heat_capacity)
       nt3 = tf.math.multiply(nt3, t_temp_minus)
       nt3 = tf.math.divide(nt3, t_delta_t)
 
@@ -763,7 +749,7 @@ class TFSimulator(simulator.SimulatorFlexibleGeometries):
         t_density,
         t_heat_capacity,
         t_z,
-    ) = _get_input_tensors(self._building)
+    ) = _get_input_tensors(self.building)
 
     (
         t_convection_left_edge,
@@ -772,7 +758,7 @@ class TFSimulator(simulator.SimulatorFlexibleGeometries):
         t_convection_bottom_edge,
     ) = get_oriented_convection_coefficient_tensors(
         convection_coefficient,
-        self._building.temp.shape,
+        self.building.temp.shape,
         self._boundary_cv_mapping,
     )
 
