@@ -69,28 +69,87 @@ class BaseBuildingTest(absltest.TestCase):
         code='c1',
         zone_id='z1',
         device_type=smart_control_building_pb2.DeviceInfo.DeviceType.VAV,
-    )
-    device.observable_fields['obs1'] = (
-        smart_control_building_pb2.DeviceInfo.ValueType.VALUE_CONTINUOUS
-    )
-    device.action_fields['act1'] = (
-        smart_control_building_pb2.DeviceInfo.ValueType.VALUE_BINARY
+        observable_fields={
+            'obs1': (
+                smart_control_building_pb2.DeviceInfo.ValueType.VALUE_CONTINUOUS
+            )
+        },
+        action_fields={
+            'act1': smart_control_building_pb2.DeviceInfo.ValueType.VALUE_BINARY
+        },
     )
     building = _MockBuilding(devices=[device], zones=[])
 
-    expected_df = pd.DataFrame([{
+    expected_records = [{
         'device_id': 'd1',
         'namespace': 'ns1',
         'code': 'c1',
         'zone_id': 'z1',
+        'device_type_id': 4,
         'device_type': 'VAV',
-        'observable_fields': ['obs1'],
-        'action_fields': ['act1'],
-        'observable_field_types': {'obs1': 'VALUE_CONTINUOUS'},
-        'action_field_types': {'act1': 'VALUE_BINARY'},
-    }])
+    }]
 
-    pd.testing.assert_frame_equal(building.devices_df, expected_df)
+    self.assertEqual(building.devices_df.to_dict('records'), expected_records)
+
+  def test_device_fields_dfs(self):
+    device = smart_control_building_pb2.DeviceInfo(
+        device_id='d1',
+        namespace='ns1',
+        code='c1',
+        zone_id='z1',
+        device_type=smart_control_building_pb2.DeviceInfo.DeviceType.VAV,
+        observable_fields={
+            'obs1': (
+                smart_control_building_pb2.DeviceInfo.ValueType.VALUE_CONTINUOUS
+            )
+        },
+        action_fields={
+            'act1': smart_control_building_pb2.DeviceInfo.ValueType.VALUE_BINARY
+        },
+    )
+    building = _MockBuilding(devices=[device], zones=[])
+
+    expected_observable_fields = [{
+        'device_id': 'd1',
+        'field_name': 'obs1',
+        'field_type_id': 1,
+        'field_type': 'VALUE_CONTINUOUS',
+    }]
+    expected_action_fields = [{
+        'device_id': 'd1',
+        'field_name': 'act1',
+        'field_type_id': 4,
+        'field_type': 'VALUE_BINARY',
+    }]
+    expected_fields = [
+        {
+            'device_id': 'd1',
+            'field_name': 'act1',
+            'field_type_id': 4,
+            'field_type': 'VALUE_BINARY',
+            'is_observable': False,
+            'is_actionable': True,
+        },
+        {
+            'device_id': 'd1',
+            'field_name': 'obs1',
+            'field_type_id': 1,
+            'field_type': 'VALUE_CONTINUOUS',
+            'is_observable': True,
+            'is_actionable': False,
+        },
+    ]
+
+    self.assertEqual(
+        building.observable_fields_df.to_dict('records'),
+        expected_observable_fields
+    )
+    self.assertEqual(
+        building.action_fields_df.to_dict('records'), expected_action_fields
+    )
+    self.assertEqual(
+        building.fields_df.to_dict('records'), expected_fields
+    )
 
   def test_zones_df(self):
     zone = smart_control_building_pb2.ZoneInfo(
@@ -104,17 +163,18 @@ class BaseBuildingTest(absltest.TestCase):
     )
     building = _MockBuilding(devices=[], zones=[zone])
 
-    expected_df = pd.DataFrame([{
-        'zone_id': 'z1',
+    expected_records = [{
         'building_id': 'b1',
-        'zone_description': 'desc1',
-        'area': 100.0,
-        'devices': ['d1', 'd2'],
+        'zone_id': 'z1',
+        'zone_type_id': 1,
         'zone_type': 'ROOM',
+        'description': 'desc1',
+        'area': 100.0,
         'floor': 1,
-    }])
+        'device_ids': ['d1', 'd2'],
+    }]
 
-    pd.testing.assert_frame_equal(building.zones_df, expected_df)
+    self.assertEqual(building.zones_df.to_dict('records'), expected_records)
 
   def test_zone_floor_mappings(self):
     building = _MockBuilding(

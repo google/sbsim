@@ -12,12 +12,11 @@ from smart_buildings.smart_control.environment import environment
 from smart_buildings.smart_control.environment import hybrid_action_environment
 from smart_buildings.smart_control.models import base_building
 from smart_buildings.smart_control.models import base_reward_function
+from smart_buildings.smart_control.proto import smart_control_building_pb2
 from smart_buildings.smart_control.utils import bounded_action_normalizer
 from smart_buildings.smart_control.utils import building_image_generator
 from smart_buildings.smart_control.utils import controller_writer
 from smart_buildings.smart_control.utils import observation_normalizer
-
-HybridActionEnvironment = hybrid_action_environment.HybridActionEnvironment
 
 
 class LLMEnvironmentTest(parameterized.TestCase):
@@ -127,70 +126,32 @@ class LLMEnvironmentTest(parameterized.TestCase):
             "namespace": "",
             "code": "",
             "zone_id": "zone_1",
+            "device_type_id": smart_control_building_pb2.DeviceInfo.AHU,
             "device_type": "AHU",
-            "observable_fields": ["measurement_1"],
-            "action_fields": [
-                "setpoint_1",
-                "supervisor_run_command",
-                "supply_air_heating_temperature_setpoint",
-            ],
-            "observable_field_types": {"measurement_1": "VALUE_CONTINUOUS"},
-            "action_field_types": {
-                "setpoint_1": "VALUE_CONTINUOUS",
-                "supervisor_run_command": "VALUE_CONTINUOUS",
-                "supply_air_heating_temperature_setpoint": "VALUE_CONTINUOUS",
-            },
         },
         {
             "device_id": "boiler_1",
             "namespace": "",
             "code": "",
             "zone_id": "zone_1",
+            "device_type_id": smart_control_building_pb2.DeviceInfo.BLR,
             "device_type": "BLR",
-            "observable_fields": ["measurement_2"],
-            "action_fields": [
-                "setpoint_2",
-                "setpoint_3",
-                "setpoint_4",
-                "supervisor_run_command",
-                "supply_water_setpoint",
-            ],
-            "observable_field_types": {"measurement_2": "VALUE_CONTINUOUS"},
-            "action_field_types": {
-                "setpoint_2": "VALUE_CONTINUOUS",
-                "setpoint_3": "VALUE_CONTINUOUS",
-                "setpoint_4": "VALUE_CONTINUOUS",
-                "supervisor_run_command": "VALUE_CONTINUOUS",
-                "supply_water_setpoint": "VALUE_CONTINUOUS",
-            },
         },
         {
             "device_id": "air_handler_2",
             "namespace": "",
             "code": "",
             "zone_id": "zone_2",
+            "device_type_id": smart_control_building_pb2.DeviceInfo.AHU,
             "device_type": "AHU",
-            "observable_fields": ["measurement_3"],
-            "action_fields": [
-                "supervisor_run_command",
-                "supply_air_heating_temperature_setpoint",
-            ],
-            "observable_field_types": {"measurement_3": "VALUE_CONTINUOUS"},
-            "action_field_types": {
-                "supervisor_run_command": "VALUE_CONTINUOUS",
-                "supply_air_heating_temperature_setpoint": "VALUE_CONTINUOUS",
-            },
         },
         {
             "device_id": "vav_1",
             "namespace": "",
             "code": "",
             "zone_id": "zone_2",
+            "device_type_id": smart_control_building_pb2.DeviceInfo.VAV,
             "device_type": "VAV",
-            "observable_fields": ["measurement_4"],
-            "action_fields": ["setpoint_5"],
-            "observable_field_types": {"measurement_4": "VALUE_CONTINUOUS"},
-            "action_field_types": {"setpoint_5": "VALUE_CONTINUOUS"},
         },
     ]
     self.assertEqual(df.to_dict("records"), expected_records)
@@ -201,22 +162,24 @@ class LLMEnvironmentTest(parameterized.TestCase):
 
     expected_records = [
         {
-            "zone_id": "zone_1",
             "building_id": "SimpleBuilding",
-            "zone_description": "zone_1",
-            "area": 0.0,
-            "devices": ["air_handler_1", "boiler_1"],
+            "zone_id": "zone_1",
+            "zone_type_id": smart_control_building_pb2.ZoneInfo.UNDEFINED,
             "zone_type": "UNDEFINED",
+            "description": "zone_1",
+            "area": 0.0,
             "floor": 0,
+            "device_ids": ["air_handler_1", "boiler_1"],
         },
         {
-            "zone_id": "zone_2",
             "building_id": "SimpleBuilding",
-            "zone_description": "zone_2",
-            "area": 0.0,
-            "devices": ["air_handler_2", "vav_1"],
+            "zone_id": "zone_2",
+            "zone_type_id": smart_control_building_pb2.ZoneInfo.UNDEFINED,
             "zone_type": "UNDEFINED",
+            "description": "zone_2",
+            "area": 0.0,
             "floor": 0,
+            "device_ids": ["air_handler_2", "vav_1"],
         },
     ]
     self.assertEqual(df.to_dict("records"), expected_records)
@@ -354,7 +317,10 @@ class LLMHybridActionEnvironmentTest(parameterized.TestCase):
     )
 
   def test_initialization(self):
-    self.assertIsInstance(self.env, HybridActionEnvironment)
+    self.assertIsInstance(
+        self.env, hybrid_action_environment.HybridActionEnvironment
+    )
+
     with self.subTest(name="building"):
       self.assertIsInstance(self.env.building, base_building.BaseBuilding)
 
@@ -395,64 +361,32 @@ class LLMHybridActionEnvironmentTest(parameterized.TestCase):
             "namespace": "",
             "code": "",
             "zone_id": "zone_1",
+            "device_type_id": smart_control_building_pb2.DeviceInfo.AHU,
             "device_type": "AHU",
-            "observable_fields": [],
-            "action_fields": [
-                "supervisor_run_command",
-                "supply_air_heating_temperature_setpoint",
-            ],
-            "observable_field_types": {},
-            "action_field_types": {
-                "supervisor_run_command": "VALUE_CONTINUOUS",
-                "supply_air_heating_temperature_setpoint": "VALUE_CONTINUOUS",
-            },
         },
         {
             "device_id": "boiler_1",
             "namespace": "",
             "code": "",
             "zone_id": "zone_1",
+            "device_type_id": smart_control_building_pb2.DeviceInfo.BLR,
             "device_type": "BLR",
-            "observable_fields": [],
-            "action_fields": [
-                "supervisor_run_command",
-                "supply_water_setpoint",
-            ],
-            "observable_field_types": {},
-            "action_field_types": {
-                "supervisor_run_command": "VALUE_CONTINUOUS",
-                "supply_water_setpoint": "VALUE_CONTINUOUS",
-            },
         },
         {
             "device_id": "air_handler_2",
             "namespace": "",
             "code": "",
             "zone_id": "zone_2",
+            "device_type_id": smart_control_building_pb2.DeviceInfo.AHU,
             "device_type": "AHU",
-            "observable_fields": [],
-            "action_fields": [
-                "supervisor_run_command",
-                "supply_air_heating_temperature_setpoint",
-            ],
-            "observable_field_types": {},
-            "action_field_types": {
-                "supervisor_run_command": "VALUE_CONTINUOUS",
-                "supply_air_heating_temperature_setpoint": "VALUE_CONTINUOUS",
-            },
         },
         {
             "device_id": "outside_air_sensor",
             "namespace": "",
             "code": "",
             "zone_id": "zone_2",
+            "device_type_id": smart_control_building_pb2.DeviceInfo.UNDEFINED,
             "device_type": "UNDEFINED",
-            "observable_fields": ["outside_air_temperature_sensor"],
-            "action_fields": [],
-            "observable_field_types": {
-                "outside_air_temperature_sensor": "VALUE_CONTINUOUS"
-            },
-            "action_field_types": {},
         },
     ]
     self.assertEqual(df.to_dict("records"), expected_records)
@@ -463,22 +397,24 @@ class LLMHybridActionEnvironmentTest(parameterized.TestCase):
 
     expected_records = [
         {
-            "zone_id": "zone_1",
             "building_id": "SimpleBuilding",
-            "zone_description": "zone_1",
-            "area": 0.0,
-            "devices": ["air_handler_1", "boiler_1"],
+            "zone_id": "zone_1",
+            "zone_type_id": smart_control_building_pb2.ZoneInfo.UNDEFINED,
             "zone_type": "UNDEFINED",
+            "description": "zone_1",
+            "area": 0.0,
             "floor": 0,
+            "device_ids": ["air_handler_1", "boiler_1"],
         },
         {
-            "zone_id": "zone_2",
             "building_id": "SimpleBuilding",
-            "zone_description": "zone_2",
-            "area": 0.0,
-            "devices": ["air_handler_2", "outside_air_sensor"],
+            "zone_id": "zone_2",
+            "zone_type_id": smart_control_building_pb2.ZoneInfo.UNDEFINED,
             "zone_type": "UNDEFINED",
+            "description": "zone_2",
+            "area": 0.0,
             "floor": 0,
+            "device_ids": ["air_handler_2", "outside_air_sensor"],
         },
     ]
     self.assertEqual(df.to_dict("records"), expected_records)

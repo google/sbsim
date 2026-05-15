@@ -87,19 +87,19 @@ class DeviceInfoParserTest(absltest.TestCase):
   def test_zone_id(self):
     self.assertEqual(self.parser.zone_id, 'z1')
 
-  def test_device_type(self):
+  def test_device_type_id(self):
     self.assertEqual(
-        self.parser.device_type, int(building_pb2.DeviceInfo.DeviceType.VAV)
+        self.parser.device_type_id, int(building_pb2.DeviceInfo.DeviceType.VAV)
     )
 
-  def test_device_type_name(self):
-    self.assertEqual(self.parser.device_type_name, 'VAV')
+  def test_device_type(self):
+    self.assertEqual(self.parser.device_type, 'VAV')
 
   def test_as_dict(self):
     expected_dict = {
         'device_id': 'd1',
-        'device_type': building_pb2.DeviceInfo.DeviceType.VAV,
-        'device_type_name': 'VAV',
+        'device_type_id': building_pb2.DeviceInfo.DeviceType.VAV,
+        'device_type': 'VAV',
         'namespace': 'ns1',
         'code': 'c1',
         'zone_id': 'z1',

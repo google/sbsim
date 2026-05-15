@@ -93,14 +93,14 @@ class DeviceInfoParser:
     return self._device_info.device_id
 
   @property
-  def device_type(self) -> int:
+  def device_type_id(self) -> int:
     """Integer representation of the device type enum."""
     return self._device_info.device_type
 
   @property
-  def device_type_name(self) -> str:
+  def device_type(self) -> str:
     """String representation of the device type enum."""
-    return building_pb2.DeviceInfo.DeviceType.Name(self.device_type)
+    return building_pb2.DeviceInfo.DeviceType.Name(self.device_type_id)
 
   @property
   def zone_id(self) -> str:
@@ -127,8 +127,8 @@ class DeviceInfoParser:
     """Dictionary representation of the device info, suitable for a DataFrame."""
     return {
         'device_id': self.device_id,
+        'device_type_id': self.device_type_id,
         'device_type': self.device_type,
-        'device_type_name': self.device_type_name,
         'namespace': self.namespace,
         'code': self.code,
         'zone_id': self.zone_id,
