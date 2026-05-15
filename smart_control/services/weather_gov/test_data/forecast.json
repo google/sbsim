@@ -1,0 +1,319 @@
+{
+    "@context": [
+        "https://geojson.org/geojson-ld/geojson-context.jsonld",
+        {
+            "@version": "1.1",
+            "wx": "https://api.weather.gov/ontology#",
+            "geo": "http://www.opengis.net/ont/geosparql#",
+            "unit": "http://codes.wmo.int/common/unit/",
+            "@vocab": "https://api.weather.gov/ontology#"
+        }
+    ],
+    "type": "Feature",
+    "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+            [
+                [
+                    -122.0169,
+                    37.4155
+                ],
+                [
+                    -122.0224,
+                    37.4373
+                ],
+                [
+                    -122.0499,
+                    37.4329
+                ],
+                [
+                    -122.0444,
+                    37.4111
+                ],
+                [
+                    -122.0169,
+                    37.4155
+                ]
+            ]
+        ]
+    },
+    "properties": {
+        "units": "us",
+        "forecastGenerator": "BaselineForecastGenerator",
+        "generatedAt": "2026-02-06T17:36:07+00:00",
+        "updateTime": "2026-02-06T16:14:10+00:00",
+        "validTimes": "2026-02-06T10:00:00+00:00/P7DT15H",
+        "elevation": {
+            "unitCode": "wmoUnit:m",
+            "value": 3.048
+        },
+        "periods": [
+            {
+                "number": 1,
+                "name": "Today",
+                "startTime": "2026-02-06T09:00:00-08:00",
+                "endTime": "2026-02-06T18:00:00-08:00",
+                "isDaytime": true,
+                "temperature": 67,
+                "temperatureUnit": "F",
+                "temperatureTrend": null,
+                "probabilityOfPrecipitation": {
+                    "unitCode": "wmoUnit:percent",
+                    "value": 6
+                },
+                "windSpeed": "2 to 7 mph",
+                "windDirection": "NNW",
+                "icon": "https://api.weather.gov/icons/land/day/few?size=medium",
+                "shortForecast": "Sunny",
+                "detailedForecast": "Sunny. High near 67, with temperatures falling to around 64 in the afternoon. North northwest wind 2 to 7 mph."
+            },
+            {
+                "number": 2,
+                "name": "Tonight",
+                "startTime": "2026-02-06T18:00:00-08:00",
+                "endTime": "2026-02-07T06:00:00-08:00",
+                "isDaytime": false,
+                "temperature": 46,
+                "temperatureUnit": "F",
+                "temperatureTrend": null,
+                "probabilityOfPrecipitation": {
+                    "unitCode": "wmoUnit:percent",
+                    "value": 1
+                },
+                "windSpeed": "1 to 6 mph",
+                "windDirection": "NW",
+                "icon": "https://api.weather.gov/icons/land/night/sct/fog?size=medium",
+                "shortForecast": "Partly Cloudy then Areas Of Fog",
+                "detailedForecast": "Areas of fog after 1am. Partly cloudy. Low around 46, with temperatures rising to around 48 overnight. Northwest wind 1 to 6 mph."
+            },
+            {
+                "number": 3,
+                "name": "Saturday",
+                "startTime": "2026-02-07T06:00:00-08:00",
+                "endTime": "2026-02-07T18:00:00-08:00",
+                "isDaytime": true,
+                "temperature": 63,
+                "temperatureUnit": "F",
+                "temperatureTrend": null,
+                "probabilityOfPrecipitation": {
+                    "unitCode": "wmoUnit:percent",
+                    "value": 1
+                },
+                "windSpeed": "2 to 8 mph",
+                "windDirection": "WNW",
+                "icon": "https://api.weather.gov/icons/land/day/fog/sct?size=medium",
+                "shortForecast": "Areas Of Fog then Mostly Sunny",
+                "detailedForecast": "Areas of fog before 9am. Mostly sunny. High near 63, with temperatures falling to around 61 in the afternoon. West northwest wind 2 to 8 mph."
+            },
+            {
+                "number": 4,
+                "name": "Saturday Night",
+                "startTime": "2026-02-07T18:00:00-08:00",
+                "endTime": "2026-02-08T06:00:00-08:00",
+                "isDaytime": false,
+                "temperature": 46,
+                "temperatureUnit": "F",
+                "temperatureTrend": null,
+                "probabilityOfPrecipitation": {
+                    "unitCode": "wmoUnit:percent",
+                    "value": 1
+                },
+                "windSpeed": "0 to 7 mph",
+                "windDirection": "W",
+                "icon": "https://api.weather.gov/icons/land/night/fog?size=medium",
+                "shortForecast": "Patchy Fog",
+                "detailedForecast": "Patchy fog after 10pm. Partly cloudy, with a low around 46. West wind 0 to 7 mph."
+            },
+            {
+                "number": 5,
+                "name": "Sunday",
+                "startTime": "2026-02-08T06:00:00-08:00",
+                "endTime": "2026-02-08T18:00:00-08:00",
+                "isDaytime": true,
+                "temperature": 63,
+                "temperatureUnit": "F",
+                "temperatureTrend": null,
+                "probabilityOfPrecipitation": {
+                    "unitCode": "wmoUnit:percent",
+                    "value": 10
+                },
+                "windSpeed": "2 to 8 mph",
+                "windDirection": "WSW",
+                "icon": "https://api.weather.gov/icons/land/day/fog/bkn?size=medium",
+                "shortForecast": "Areas Of Fog then Partly Sunny",
+                "detailedForecast": "Areas of fog before 9am. Partly sunny, with a high near 63. West southwest wind 2 to 8 mph."
+            },
+            {
+                "number": 6,
+                "name": "Sunday Night",
+                "startTime": "2026-02-08T18:00:00-08:00",
+                "endTime": "2026-02-09T06:00:00-08:00",
+                "isDaytime": false,
+                "temperature": 48,
+                "temperatureUnit": "F",
+                "temperatureTrend": null,
+                "probabilityOfPrecipitation": {
+                    "unitCode": "wmoUnit:percent",
+                    "value": 10
+                },
+                "windSpeed": "3 to 8 mph",
+                "windDirection": "WNW",
+                "icon": "https://api.weather.gov/icons/land/night/fog?size=medium",
+                "shortForecast": "Areas Of Fog",
+                "detailedForecast": "Areas of fog after 9pm. Mostly cloudy, with a low around 48."
+            },
+            {
+                "number": 7,
+                "name": "Monday",
+                "startTime": "2026-02-09T06:00:00-08:00",
+                "endTime": "2026-02-09T18:00:00-08:00",
+                "isDaytime": true,
+                "temperature": 61,
+                "temperatureUnit": "F",
+                "temperatureTrend": null,
+                "probabilityOfPrecipitation": {
+                    "unitCode": "wmoUnit:percent",
+                    "value": 7
+                },
+                "windSpeed": "3 to 9 mph",
+                "windDirection": "NW",
+                "icon": "https://api.weather.gov/icons/land/day/fog/bkn?size=medium",
+                "shortForecast": "Areas Of Fog then Mostly Cloudy",
+                "detailedForecast": "Areas of fog before 11am. Mostly cloudy, with a high near 61."
+            },
+            {
+                "number": 8,
+                "name": "Monday Night",
+                "startTime": "2026-02-09T18:00:00-08:00",
+                "endTime": "2026-02-10T06:00:00-08:00",
+                "isDaytime": false,
+                "temperature": 46,
+                "temperatureUnit": "F",
+                "temperatureTrend": null,
+                "probabilityOfPrecipitation": {
+                    "unitCode": "wmoUnit:percent",
+                    "value": 21
+                },
+                "windSpeed": "5 to 9 mph",
+                "windDirection": "WNW",
+                "icon": "https://api.weather.gov/icons/land/night/rain,20?size=medium",
+                "shortForecast": "Slight Chance Light Rain",
+                "detailedForecast": "A slight chance of rain between 10pm and 1am, then patchy fog and a slight chance of rain. Mostly cloudy, with a low around 46."
+            },
+            {
+                "number": 9,
+                "name": "Tuesday",
+                "startTime": "2026-02-10T06:00:00-08:00",
+                "endTime": "2026-02-10T18:00:00-08:00",
+                "isDaytime": true,
+                "temperature": 57,
+                "temperatureUnit": "F",
+                "temperatureTrend": null,
+                "probabilityOfPrecipitation": {
+                    "unitCode": "wmoUnit:percent",
+                    "value": 35
+                },
+                "windSpeed": "5 to 10 mph",
+                "windDirection": "WSW",
+                "icon": "https://api.weather.gov/icons/land/day/rain,30/rain,40?size=medium",
+                "shortForecast": "Chance Light Rain",
+                "detailedForecast": "A chance of rain and patchy fog. Mostly cloudy, with a high near 57."
+            },
+            {
+                "number": 10,
+                "name": "Tuesday Night",
+                "startTime": "2026-02-10T18:00:00-08:00",
+                "endTime": "2026-02-11T06:00:00-08:00",
+                "isDaytime": false,
+                "temperature": 43,
+                "temperatureUnit": "F",
+                "temperatureTrend": null,
+                "probabilityOfPrecipitation": {
+                    "unitCode": "wmoUnit:percent",
+                    "value": 36
+                },
+                "windSpeed": "5 to 10 mph",
+                "windDirection": "SSW",
+                "icon": "https://api.weather.gov/icons/land/night/rain,40?size=medium",
+                "shortForecast": "Chance Light Rain then Areas Of Fog",
+                "detailedForecast": "A chance of rain before 10pm, then a chance of rain and patchy fog between 10pm and midnight, then areas of fog and a chance of rain. Mostly cloudy, with a low around 43."
+            },
+            {
+                "number": 11,
+                "name": "Wednesday",
+                "startTime": "2026-02-11T06:00:00-08:00",
+                "endTime": "2026-02-11T18:00:00-08:00",
+                "isDaytime": true,
+                "temperature": 58,
+                "temperatureUnit": "F",
+                "temperatureTrend": null,
+                "probabilityOfPrecipitation": {
+                    "unitCode": "wmoUnit:percent",
+                    "value": 31
+                },
+                "windSpeed": "3 to 9 mph",
+                "windDirection": "ENE",
+                "icon": "https://api.weather.gov/icons/land/day/rain,30?size=medium",
+                "shortForecast": "Areas Of Fog then Chance Light Rain",
+                "detailedForecast": "Areas of fog and a chance of rain before 9am, then a chance of rain and patchy fog. Mostly sunny, with a high near 58."
+            },
+            {
+                "number": 12,
+                "name": "Wednesday Night",
+                "startTime": "2026-02-11T18:00:00-08:00",
+                "endTime": "2026-02-12T06:00:00-08:00",
+                "isDaytime": false,
+                "temperature": 42,
+                "temperatureUnit": "F",
+                "temperatureTrend": null,
+                "probabilityOfPrecipitation": {
+                    "unitCode": "wmoUnit:percent",
+                    "value": 22
+                },
+                "windSpeed": "2 to 9 mph",
+                "windDirection": "NNW",
+                "icon": "https://api.weather.gov/icons/land/night/rain,20?size=medium",
+                "shortForecast": "Slight Chance Light Rain then Areas Of Fog",
+                "detailedForecast": "A slight chance of rain before 10pm, then areas of fog and a slight chance of rain. Partly cloudy, with a low around 42."
+            },
+            {
+                "number": 13,
+                "name": "Thursday",
+                "startTime": "2026-02-12T06:00:00-08:00",
+                "endTime": "2026-02-12T18:00:00-08:00",
+                "isDaytime": true,
+                "temperature": 60,
+                "temperatureUnit": "F",
+                "temperatureTrend": null,
+                "probabilityOfPrecipitation": {
+                    "unitCode": "wmoUnit:percent",
+                    "value": 12
+                },
+                "windSpeed": "2 to 9 mph",
+                "windDirection": "NNW",
+                "icon": "https://api.weather.gov/icons/land/day/fog/few?size=medium",
+                "shortForecast": "Areas Of Fog then Sunny",
+                "detailedForecast": "Areas of fog before 8am. Sunny, with a high near 60."
+            },
+            {
+                "number": 14,
+                "name": "Thursday Night",
+                "startTime": "2026-02-12T18:00:00-08:00",
+                "endTime": "2026-02-13T06:00:00-08:00",
+                "isDaytime": false,
+                "temperature": 44,
+                "temperatureUnit": "F",
+                "temperatureTrend": null,
+                "probabilityOfPrecipitation": {
+                    "unitCode": "wmoUnit:percent",
+                    "value": 11
+                },
+                "windSpeed": "2 to 9 mph",
+                "windDirection": "W",
+                "icon": "https://api.weather.gov/icons/land/night/sct/fog?size=medium",
+                "shortForecast": "Partly Cloudy then Patchy Fog",
+                "detailedForecast": "Patchy fog after 5am. Partly cloudy, with a low around 44."
+            }
+        ]
+    }
+}

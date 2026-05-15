@@ -1,6 +1,6 @@
 """Models a thermostat in the simulation.
 
-The thermostat is given a SetpointSchedule, which defines for any given time
+The theromstat is given a SetpointSchedule, which defines for any given time
 the deadband. The SetpointSchedule also determines when the thermostat should
 operate in Comfort mode or Eco mode.
 
@@ -8,19 +8,19 @@ In Comfort mode, the thermostat can be in one of 3 states.  If the temperature
 goes beneath the heating setpoint, Heat mode is activated until the temperature
 reaches midway between the 2 setpoints. Similarly, if the temperature is higher
 than the cooling setpoint, the thermostat enters Cool mode until the mid-point.
-Otherwise, it enters Off mode.
+Otherways, it enters Off mode.
 
 In Eco mode, there is an additional state, Passive Cool mode. Upon entering
-Eco mode, the thermostat is initially placed in this state, and remains that
+Eco mode, the thermostate is initially placed in this state, and remains that
 way until the temperature cools beyond the eco heating setpoint, upon which the
-thermostat operates as it did in Comfort mode.
+thermostat operates as it did in Comfort mode
 """
 
 import enum
 
 import pandas as pd
 
-from smart_control.simulator import setpoint_schedule
+from smart_buildings.smart_control.simulator import setpoint_schedule
 
 
 class Thermostat:
@@ -127,6 +127,7 @@ class Thermostat:
       if (
           self._current_mode == self.Mode.PASSIVE_COOL
           and zone_temp > temperature_window[0]
+          and zone_temp < temperature_window[1]
       ):
         self._current_mode = self.Mode.PASSIVE_COOL
       else:

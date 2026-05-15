@@ -9,11 +9,11 @@ import gin
 from google.protobuf import message
 import pandas as pd
 
-from smart_control.proto import smart_control_building_pb2
-from smart_control.proto import smart_control_normalization_pb2
-from smart_control.proto import smart_control_reward_pb2
-from smart_control.utils import constants
-from smart_control.utils import writer_lib
+from smart_buildings.smart_control.proto import smart_control_building_pb2
+from smart_buildings.smart_control.proto import smart_control_normalization_pb2
+from smart_buildings.smart_control.proto import smart_control_reward_pb2
+from smart_buildings.smart_control.utils import constants
+from smart_buildings.smart_control.utils import writer_lib
 
 
 @gin.configurable
@@ -34,6 +34,10 @@ class ProtoWriter(writer_lib.BaseWriter):
     self._output_dir = output_dir
     os.makedirs(output_dir, exist_ok=True)
     logging.info('Writer lib output directory %s', self._output_dir)
+
+  @property
+  def output_dir(self) -> writer_lib.PathLocation:
+    return self._output_dir
 
   def write_observation_response(
       self,

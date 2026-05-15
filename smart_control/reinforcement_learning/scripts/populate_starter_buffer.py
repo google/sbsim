@@ -15,13 +15,13 @@ from tf_agents.train import actor
 from tf_agents.train.utils import spec_utils
 from tf_agents.trajectories import trajectory
 
-from smart_control.reinforcement_learning.observers.composite_observer import CompositeObserver
-from smart_control.reinforcement_learning.observers.print_status_observer import PrintStatusObserver
-from smart_control.reinforcement_learning.policies.schedule_policy import create_baseline_schedule_policy
-from smart_control.reinforcement_learning.replay_buffer.replay_buffer import ReplayBufferManager
-from smart_control.reinforcement_learning.utils.config import CONFIG_PATH
-from smart_control.reinforcement_learning.utils.config import OUTPUT_DATA_PATH
-from smart_control.reinforcement_learning.utils.environment import create_and_setup_environment
+from smart_buildings.smart_control.reinforcement_learning.observers.composite_observer import CompositeObserver
+from smart_buildings.smart_control.reinforcement_learning.observers.print_status_observer import PrintStatusObserver
+from smart_buildings.smart_control.reinforcement_learning.policies.schedule_policy import create_baseline_schedule_policy
+from smart_buildings.smart_control.reinforcement_learning.replay_buffer.replay_buffer import ReplayBufferManager
+from smart_buildings.smart_control.reinforcement_learning.utils.config import CONFIG_PATH
+from smart_buildings.smart_control.reinforcement_learning.utils.config import OUTPUT_DATA_PATH
+from smart_buildings.smart_control.reinforcement_learning.utils.environment import create_and_setup_environment
 
 # Configure logging
 logging.basicConfig(

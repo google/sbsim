@@ -1,33 +1,33 @@
 """Models HVAC for simulation.
 
-The model assumes a single boiler and air handler, with one VAV per zone in the
-building.
+The model assumes a hot water system with a single boiler, and a single air
+handler, with one VAV per zone in the building.
 """
 
 from typing import List, Mapping, Tuple
 
 import gin
 import pandas as pd
-
-from smart_control.proto import smart_control_building_pb2
-from smart_control.simulator import air_handler as air_handler_py
-from smart_control.simulator import boiler as boiler_py
-from smart_control.simulator import setpoint_schedule
-from smart_control.simulator import thermostat
-from smart_control.simulator import vav
-from smart_control.utils import conversion_utils
+from smart_buildings.smart_control.proto import smart_control_building_pb2
+from smart_buildings.smart_control.simulator import air_handler as air_handler_py
+from smart_buildings.smart_control.simulator import hot_water_system as hot_water_system_py
+from smart_buildings.smart_control.simulator import setpoint_schedule
+from smart_buildings.smart_control.simulator import thermostat
+from smart_buildings.smart_control.simulator import vav
+from smart_buildings.smart_control.utils import conversion_utils
 
 
 @gin.configurable
 class Hvac:
   """Model for the HVAC components of the building.
 
-  Creates a single boiler and air handler, along with one vav for each zone.
+  Creates a single hot water system and air handler, along with one vav for each
+  zone.
 
   Attributes:
     vavs: Mapping from zone_coordinates to VAV.
     air_handler: AirHandler
-    boiler: Boiler
+    hot_water_system: HotWaterSystem
     zone_infos: information about each zone in the building.
   """
 
@@ -35,23 +35,26 @@ class Hvac:
       self,
       zone_coordinates: List[Tuple[int, int]],
       air_handler: air_handler_py.AirHandler,
-      boiler: boiler_py.Boiler,
+      hot_water_system: hot_water_system_py.HotWaterSystem,
       schedule: setpoint_schedule.SetpointSchedule,
       vav_max_air_flow_rate: float,
       vav_reheat_max_water_flow_rate: float,
+      vav_max_air_flow_static_pressure: float = 20000.0,
   ):
     """Initialize HVAC.
 
     Args:
       zone_coordinates: List of 2-tuple containing zone coordinates to service.
       air_handler: the air handler for hte HVAC
-      boiler: the boiler for the HVAC
+      hot_water_system: the hot water system for the HVAC
       schedule: the setpoint_schedule for the thermostats
       vav_max_air_flow_rate: the max airflow rate for the vavs
       vav_reheat_max_water_flow_rate: the max water reheat flowrate for the vavs
+      vav_max_air_flow_static_pressure: the  air flow static pressure for the
+        vavs at which the max air flow rate can be reached.
     """
     self._air_handler = air_handler
-    self._boiler = boiler
+    self._hot_water_system = hot_water_system
     self._vav_max_air_flow_rate = vav_max_air_flow_rate
     self._vav_reheat_max_water_flow_rate = vav_reheat_max_water_flow_rate
     self._zone_coordinates = zone_coordinates
@@ -67,9 +70,11 @@ class Hvac:
           self._vav_max_air_flow_rate,
           self._vav_reheat_max_water_flow_rate,
           therm,
-          self._boiler,
+          self._hot_water_system,
+          self._air_handler,
           device_id=device_id,
           zone_id=zone_id,
+          max_air_flow_static_pressure=vav_max_air_flow_static_pressure,
       )
       self._zone_infos[z] = smart_control_building_pb2.ZoneInfo(
           zone_id=zone_id,
@@ -83,7 +88,7 @@ class Hvac:
 
   def reset(self):
     self.air_handler.reset()
-    self.boiler.reset()
+    self.hot_water_system.reset()
     for z in self._zone_coordinates:
       self._vavs[z].reset()
 
@@ -96,8 +101,8 @@ class Hvac:
     return self._air_handler
 
   @property
-  def boiler(self) -> boiler_py.Boiler:
-    return self._boiler
+  def hot_water_system(self) -> hot_water_system_py.HotWaterSystem:
+    return self._hot_water_system
 
   def is_comfort_mode(self, current_time: pd.Timestamp) -> bool:
     """Returns True if building is in comfort mode."""

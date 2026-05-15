@@ -1,10 +1,8 @@
-"""Tests for thermal_diffuser_utils."""
-
 from absl.testing import absltest
 from absl.testing import parameterized
 import numpy as np
 
-from smart_control.simulator import thermal_diffuser_utils
+from smart_buildings.smart_control.simulator import thermal_diffuser_utils
 
 
 def _create_small_room():
@@ -106,7 +104,9 @@ class ThermalDiffuserUtilsTest(parameterized.TestCase):
       self, room_generating_func, expected_output
   ):
     room_inds = room_generating_func()
-    output = thermal_diffuser_utils.diffuser_allocation_switch(room_inds)
+    output = thermal_diffuser_utils.diffuser_allocation_switch(
+        room_inds, min_room_size=1
+    )
     np.testing.assert_array_equal(output, expected_output)
 
 

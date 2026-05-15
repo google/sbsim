@@ -1,13 +1,11 @@
-"""Tests for stochastic_occupancy."""
-
 from absl.testing import absltest
 from absl.testing import parameterized
 import numpy as np
 import pandas as pd
 
-from smart_control.simulator.stochastic_occupancy import LIGHTSWITCHOccupancy
-from smart_control.simulator.stochastic_occupancy import OccupancyStateEnum
-from smart_control.simulator.stochastic_occupancy import ZoneOccupant
+from smart_buildings.smart_control.simulator.stochastic_occupancy import LIGHTSWITCHOccupancy
+from smart_buildings.smart_control.simulator.stochastic_occupancy import OccupancyStateEnum
+from smart_buildings.smart_control.simulator.stochastic_occupancy import ZoneOccupant
 
 # fmt: off
 # pylint: disable=line-too-long
@@ -97,42 +95,6 @@ class LIGHTSWITCHOccupancyTest(parameterized.TestCase):
       else:
         self.assertEqual(OccupancyStateEnum.WORK, state)
       current_time += STEP_SIZE
-
-  def test_zone_occupant_invalid_hour_order(self):
-    """ValueError when arrival/departure hours are not strictly increasing."""
-    random_state = np.random.RandomState(seed=SEED)
-
-    with self.assertRaisesRegex(
-        ValueError, 'Arrival and departure hours must be strictly increasing'
-    ):
-      ZoneOccupant(
-          earliest_expected_arrival_hour=8,
-          latest_expected_arrival_hour=17,  # > earliest_departure (16)
-          earliest_expected_departure_hour=16,
-          latest_expected_departure_hour=18,
-          lunch_start_hour=12,
-          lunch_end_hour=14,
-          step_size=STEP_SIZE,
-          random_state=random_state,
-      )
-
-  def test_zone_occupant_invalid_lunch_hours(self):
-    """ValueError when lunch_start_hour >= lunch_end_hour."""
-    random_state = np.random.RandomState(seed=SEED)
-
-    with self.assertRaisesRegex(
-        ValueError, 'lunch_start_hour must be before lunch_end_hour'
-    ):
-      ZoneOccupant(
-          earliest_expected_arrival_hour=8,
-          latest_expected_arrival_hour=10,
-          earliest_expected_departure_hour=16,
-          latest_expected_departure_hour=18,
-          lunch_start_hour=14,  # >= lunch_end_hour
-          lunch_end_hour=12,
-          step_size=STEP_SIZE,
-          random_state=random_state,
-      )
 
 
 if __name__ == '__main__':

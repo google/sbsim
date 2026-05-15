@@ -7,7 +7,7 @@ simply need to know that some zones are below of above setpoints. As such,
 representing each zone as a separate timeseries is rather inefficient.
 
 Reduce function converts a feature from individual timeseries into a histogram.
-For example, devices d1, d2 have a zone_air_temperature timeseries,
+For exammple, devices d1, d2 have a zone_air_temperature timeseries,
 the histogram reducer converts the timeseries into a counts on temperature
 bins, like 70, 71, 72, etc. and assigns a count to the bin. This reduces
 the dimensionality into a more compressed format if the number of the devices
@@ -34,10 +34,10 @@ import gin
 import numpy as np
 import pandas as pd
 
-from smart_control.proto import smart_control_building_pb2
-from smart_control.utils import reader_lib
-from smart_control.utils.reducer import BaseReducedSequence
-from smart_control.utils.reducer import BaseReducer
+from smart_buildings.smart_control.proto import smart_control_building_pb2
+from smart_buildings.smart_control.utils import reader_lib
+from smart_buildings.smart_control.utils.reducer import BaseReducedSequence
+from smart_buildings.smart_control.utils.reducer import BaseReducer
 
 Feature = str  # Measurement name
 Device = str  # Device Identity

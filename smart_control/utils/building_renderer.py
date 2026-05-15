@@ -13,8 +13,8 @@ import PIL
 from PIL import ImageDraw
 import seaborn as sn
 
-from smart_control.simulator import building_utils
-from smart_control.simulator import constants
+from smart_buildings.smart_control.simulator import building_utils
+from smart_buildings.smart_control.simulator import constants
 
 
 class BuildingRenderer:

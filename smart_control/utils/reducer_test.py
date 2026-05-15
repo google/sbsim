@@ -1,10 +1,8 @@
-"""Tests for reducer."""
-
 from absl.testing import absltest
 import numpy as np
 import pandas as pd
 
-from smart_control.utils import reducer
+from smart_buildings.smart_control.utils import reducer
 
 
 class ReducerTest(absltest.TestCase):

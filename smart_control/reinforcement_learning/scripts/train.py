@@ -25,13 +25,13 @@ from tf_agents.train import learner
 from tf_agents.train import triggers
 from tf_agents.train.utils import spec_utils
 
-from smart_control.reinforcement_learning.agents.sac_agent import create_sac_agent
-from smart_control.reinforcement_learning.observers.composite_observer import CompositeObserver
-from smart_control.reinforcement_learning.observers.print_status_observer import PrintStatusObserver
-from smart_control.reinforcement_learning.replay_buffer.replay_buffer import ReplayBufferManager
-from smart_control.reinforcement_learning.utils.config import CONFIG_PATH
-from smart_control.reinforcement_learning.utils.config import EXPERIMENT_RESULTS_PATH
-from smart_control.reinforcement_learning.utils.environment import create_and_setup_environment
+from smart_buildings.smart_control.reinforcement_learning.agents.sac_agent import create_sac_agent
+from smart_buildings.smart_control.reinforcement_learning.observers.composite_observer import CompositeObserver
+from smart_buildings.smart_control.reinforcement_learning.observers.print_status_observer import PrintStatusObserver
+from smart_buildings.smart_control.reinforcement_learning.replay_buffer.replay_buffer import ReplayBufferManager
+from smart_buildings.smart_control.reinforcement_learning.utils.config import CONFIG_PATH
+from smart_buildings.smart_control.reinforcement_learning.utils.config import EXPERIMENT_RESULTS_PATH
+from smart_buildings.smart_control.reinforcement_learning.utils.environment import create_and_setup_environment
 
 # pylint: enable=g-import-not-at-top, wrong-import-position
 

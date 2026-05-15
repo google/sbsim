@@ -8,17 +8,28 @@ import re
 import types
 from typing import Mapping, Tuple
 
-from google.protobuf import timestamp_pb2
+from google3.google.protobuf import timestamp_pb2
 import holidays
 import numpy as np
 import pandas as pd
 
-from smart_control.proto import smart_control_reward_pb2
+from smart_buildings.smart_control.proto import smart_control_reward_pb2
+from smart_buildings.smart_control.utils import temperature_conversion
+
+# TODO: b/505380216 - Refactor time related logic into "time_utils.py", and
+# change external references to this file's temperature conversion function to
+# reference the new temperature_conversion module / "thermal_utils.py" instead.
+
 
 _COUNTRY = 'US'
 _SECONDS_IN_DAY = 24 * 3600
 _WATT_SECONDS_KWH = 1.0 / 3600.0 / 1000.0
 _DAYS_IN_WEEK = 7.0
+
+
+# Aliases temporarily kept here for backwards compatibility:
+kelvin_to_fahrenheit = temperature_conversion.kelvin_to_fahrenheit
+fahrenheit_to_kelvin = temperature_conversion.fahrenheit_to_kelvin
 
 
 def pandas_to_proto_timestamp(
@@ -64,30 +75,22 @@ def floor_plan_based_zone_identifier_to_id(identifier: str) -> str:
 
 
 def zone_id_to_coordinates(zone_id: str) -> Tuple[int, int]:
-  # Expect exactly "zone_id_(<row>,<col>)" (optional spaces after comma)
-  m = re.match(r'^zone_id_\((\d+),\s*(\d+)\)$', zone_id)
-  if not m:
-    raise ValueError(
-        f"Invalid zone_id format: {zone_id!r}. Expected 'zone_id_(<row>,<col>)'"
-    )
-  return int(m.group(1)), int(m.group(2))
+  p = r'^zone_id_[(](\d+), (\d+)[)]'
+  m = re.match(p, zone_id)
+  if m:
+    return int(m.group(1)), int(m.group(2))
+  raise ValueError('Could not convert zone_id to coordinates!')
 
 
 def normalize_dow(dow: int) -> float:
   """Returns a normalized day of week, mapping [0, 6] to [-1., 1.]."""
-  if dow < 0 or dow > 6:
-    raise ValueError(
-        f'Day of week (dow) must be within the range [0, 6] (got {dow}).'
-    )
+  assert dow <= 6 and dow >= 0
   return (float(dow) - 3.0) / 3.0
 
 
 def normalize_hod(hod: int) -> float:
   """Returns a normlized hour of day, mapping  [0,23] to [-1., 1.]."""
-  if hod < 0 or hod > 23:
-    raise ValueError(
-        f'Hour of day (hod) must be within the range [0, 23] (got {hod}).'
-    )
+  assert hod <= 23 and hod >= 0
   return (float(hod) - 11.5) / 11.5
 
 
@@ -127,77 +130,33 @@ def get_radian_time(
   return 2.0 * np.pi * interval_frac
 
 
-def kelvin_to_celsius(kelvin: float) -> float:
-  """Converts Kelvin to Celsius.
-  Args:
-    kelvin: Temperature in Kelvin.
-
-  Returns:
-    The temperature in Celsius.
-  Raises:
-    A ValueError if the input value is negative.
-  """
-  if kelvin <= 0.0:
-    raise ValueError('Temperature must be greater than absolute zero.')
-  return kelvin - 273.15
-
-
-def celsius_to_kelvin(celsius: float) -> float:
-  """Converts Celsius to Kelvin.
-  Args:
-    celsius: Temperature in Celsius.
-
-  Returns:
-    The temperature in Kelvin.
-
-  Raises:
-    A ValueError if the input value is less than absolute zero, -273.15°C.
-  """
-  if celsius <= -273.15:
-    raise ValueError('Temperature must be greater than absolute zero.')
-  return celsius + 273.15
-
-
-def kelvin_to_fahrenheit(kelvin: float) -> float:
-  """Converts Kelvin to °F.
-
-  Args:
-    kelvin: Temperature in Kelvin, where 273K = 32°F.
-
-  Returns:
-    The temperature in °F.
-
-  Raises:
-    A ValueError if the input value is negative.
-  """
-  if kelvin <= 0.0:
-    raise ValueError('Temperature must be greater than absolute zero.')
-  celsius = kelvin - 273.15
-  return celsius * 9.0 / 5.0 + 32.0
-
-
-def fahrenheit_to_kelvin(fahrenheit: float) -> float:
-  """Converts °F to Kelvin.
-
-  Args:
-    fahrenheit: Temperature in Kelvin, where 273K = 32°F.
-
-  Returns:
-    The temperature in K.
-
-  Raises:
-    A ValueError if the input value <= absolute 0, −459.67°F.
-  """
-  if fahrenheit <= -495.67:
-    raise ValueError('Temperature must be greater than absolute zero.')
-  celsius = (fahrenheit - 32.0) * 5.0 / 9.0
-  return celsius + 273.15
-
-
+# TODO(mjrossetti): Remove this function once all references are switched.
 def get_reward_info_energy_use(
     reward_info: smart_control_reward_pb2.RewardInfo,
 ) -> Mapping[str, float]:
-  """Converts to energy use in kWh for ac, blower, pump, and nat gas heating."""
+  # pylint: disable=line-too-long
+  """Converts to energy use in kWh for ac, blower, pump, and nat gas heating.
+
+  NOTE: This function is now deprecated. Migration guide:
+
+  ```py
+  # OLD:
+  from smart_buildings.smart_control.utils import conversion_utils
+  conversion_utils.get_reward_info_energy_use(reward_info)
+
+  # NEW:
+  from smart_buildings.smart_control.utils.proto_parsers import reward_info_parser
+  parser = reward_info_parser.RewardInfoParser(reward_info)
+  parser.get_energy_consumption()
+  ```
+
+  Args:
+    reward_info: The reward info to convert to energy use.
+
+  Returns:
+    A dictionary mapping energy type to energy use in kWh.
+  """
+  # pylint: enable=line-too-long
   start_timestamp = proto_to_pandas_timestamp(reward_info.start_timestamp)
   end_timestamp = proto_to_pandas_timestamp(reward_info.end_timestamp)
   dt = (end_timestamp - start_timestamp).total_seconds()

@@ -1,23 +1,30 @@
-"""Tests for rejection_simulator_building."""
-
 from absl.testing import absltest
 from absl.testing import parameterized
 
-from smart_control.proto import smart_control_building_pb2
-from smart_control.simulator import rejection_simulator_building as rj_sb_py
-from smart_control.simulator import simulator_building as sb_py
-from smart_control.simulator import simulator_building_test_lib
+from smart_buildings.smart_control.proto import smart_control_building_pb2
+from smart_buildings.smart_control.simulator import rejection_simulator_building as rj_sb_py
+from smart_buildings.smart_control.simulator import simulator_building as sb_py
+from smart_buildings.smart_control.simulator import simulator_building_test_lib
 
 
 class RejectionSimulatorBuildingTest(
     simulator_building_test_lib.SimulatorBuildingTestBase
 ):
 
+  def setUp(self):
+    super().setUp()
+    self.expected_devices = {
+        "zone_id_(0, 0)": ["vav_0_0"],
+        "zone_id_(1, 0)": ["vav_1_0"],
+    }
+
   def get_sim_building(
-      self, initial_rejection_count: int = 0
+      self, initial_rejection_count: int = 0, zones=None, simulator=None
   ) -> rj_sb_py.RejectionSimulatorBuilding:
-    simulator = self._create_small_simulator()
-    simulator_building = sb_py.SimulatorBuilding(simulator, self.occupancy)
+    sim = simulator or self._create_small_simulator()
+    simulator_building = sb_py.SimulatorBuilding(
+        simulator=sim, occupancy=self.occupancy, zones=zones
+    )
     return rj_sb_py.RejectionSimulatorBuilding(
         simulator_building, initial_rejection_count
     )
@@ -32,7 +39,7 @@ class RejectionSimulatorBuildingTest(
 
     single_field_request_1 = smart_control_building_pb2.SingleActionRequest(
         device_id="boiler_id",
-        setpoint_name="supply_water_setpoint",
+        setpoint_name="supply_water_temperature_setpoint",
         continuous_value=300,
     )
     action_request.single_action_requests.append(single_field_request_1)
@@ -70,7 +77,7 @@ class RejectionSimulatorBuildingTest(
 
     single_field_request_1 = smart_control_building_pb2.SingleActionRequest(
         device_id="boiler_id",
-        setpoint_name="supply_water_setpoint",
+        setpoint_name="supply_water_temperature_setpoint",
         continuous_value=300,
     )
     action_request.single_action_requests.append(single_field_request_1)

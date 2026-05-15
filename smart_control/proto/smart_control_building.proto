@@ -79,6 +79,7 @@ message DeviceInfo {
     GAS = 21;
     AC = 22;
     OTHER = 23;
+    ASHP = 24;
   }
 
   enum ValueType {

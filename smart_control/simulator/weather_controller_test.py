@@ -1,5 +1,3 @@
-"""Tests for weather_controller."""
-
 import math
 import os
 
@@ -7,7 +5,7 @@ from absl.testing import absltest
 from absl.testing import parameterized
 import pandas as pd
 
-from smart_control.simulator import weather_controller
+from smart_buildings.smart_control.simulator import weather_controller
 
 
 # pylint: disable=g-long-lambda, unnecessary-lambda-assignment # TODO: consider using named functions instead
@@ -123,33 +121,42 @@ class WeatherControllerTest(parameterized.TestCase):
 
 
 class ReplayWeatherControllerTest(parameterized.TestCase):
-
   def setUp(self):
     super().setUp()
     data_path = os.path.join(
         os.path.dirname(__file__), 'local_weather_test_data.csv'
     )
+    self.convection_coefficient = 10.0
     self.controller = weather_controller.ReplayWeatherController(
-        local_weather_path=data_path, convection_coefficient=10.0
+        local_weather_path=data_path,
+        convection_coefficient=self.convection_coefficient,
     )
 
-  def test_replay_weather_controller(self):
+  def test_get_current_temp(self):
     temp = self.controller.get_current_temp(
         pd.Timestamp('2023-07-01 03:00:01+00:00')
     )
     self.assertAlmostEqual(temp, 298.1500, places=5)
 
-  def test_replay_weather_controller_raises_error_before_range(self):
+  def test_get_current_temp_raises_error_before_range(self):
     weather_fn = lambda: self.controller.get_current_temp(
         pd.Timestamp('2023-05-01 03:00:01+00:00')
     )
     self.assertRaises(ValueError, weather_fn)
 
-  def test_replay_weather_controller_raises_error_after_range(self):
+  def test_get_current_temp_raises_error_after_range(self):
     weather_fn = lambda: self.controller.get_current_temp(
         pd.Timestamp('2023-12-01 03:00:01+00:00')
     )
     self.assertRaises(ValueError, weather_fn)
+
+  def test_get_air_convection_coefficient(self):
+    self.assertEqual(
+        self.controller.get_air_convection_coefficient(
+            pd.Timestamp('2023-07-01 03:00:01+00:00')
+        ),
+        self.convection_coefficient,
+    )
 
 
 class MoffettReplayWeatherControllerTest(parameterized.TestCase):
@@ -164,21 +171,9 @@ class MoffettReplayWeatherControllerTest(parameterized.TestCase):
     self.assertEqual(self.controller.weather_df.shape, (3462, 15))
 
     expected_columns = [
-        'Time',
-        'StationName',
-        'StationId',
-        'Location',
-        'TempC',
-        'DewPointC',
-        'BarometerMbar',
-        'Rain',
-        'RainTotal',
-        'WindspeedKmph',
-        'WindDirection',
-        'SkyCoverage',
-        'VisibilityKm',
-        'Humidity',
-        'TempF',
+        'Time', 'StationName', 'StationId', 'Location', 'TempC', 'DewPointC',
+        'BarometerMbar', 'Rain', 'RainTotal', 'WindspeedKmph',
+        'WindDirection', 'SkyCoverage', 'VisibilityKm', 'Humidity', 'TempF'
     ]
     self.assertCountEqual(
         self.controller.weather_df.columns.tolist(),
@@ -189,8 +184,12 @@ class MoffettReplayWeatherControllerTest(parameterized.TestCase):
     min_time = pd.Timestamp('2023-06-30 17:00:00+00:00')
     max_time = pd.Timestamp('2023-11-22 16:00:00+00:00')
 
-    self.assertEqual(self.controller.min_time, min_time)
-    self.assertEqual(self.controller.max_time, max_time)
+    with self.subTest('min_and_max'):
+      self.assertEqual(self.controller.min_time, min_time)
+      self.assertEqual(self.controller.max_time, max_time)
+
+    with self.subTest('timestamp_range'):
+      self.assertEqual(self.controller.timestamp_range, (min_time, max_time))
 
   def test_times_in_seconds(self):
     self.assertIsInstance(self.controller.times_in_seconds, pd.Index)

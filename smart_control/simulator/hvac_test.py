@@ -1,40 +1,38 @@
-"""Tests for hvac."""
-
 from absl.testing import absltest
 import pandas as pd
 
-from smart_control.simulator import air_handler
-from smart_control.simulator import boiler
-from smart_control.simulator import hvac
-from smart_control.simulator import setpoint_schedule
-from smart_control.utils import conversion_utils
+from smart_buildings.smart_control.simulator import air_handler
+from smart_buildings.smart_control.simulator import hot_water_system as hot_water_system_py
+from smart_buildings.smart_control.simulator import hvac
+from smart_buildings.smart_control.simulator import setpoint_schedule
+from smart_buildings.smart_control.utils import conversion_utils
 
 
-def _get_default_boiler():
+def _get_default_hot_water_system():
   reheat_water_setpoint = 260
   water_pump_differential_head = 3
   water_pump_efficiency = 0.6
-  b = boiler.Boiler(
+  hot_water_system = hot_water_system_py.construct_hot_water_system(
       reheat_water_setpoint,
       water_pump_differential_head,
       water_pump_efficiency,
-      'boiler_id',
+      'hws_id',
   )
-  return b
+  return hot_water_system
 
 
 def _get_default_air_handler():
   recirculation = 0.3
   heating_air_temp_setpoint = 270
   cooling_air_temp_setpoint = 288
-  fan_differential_pressure = 20000.0
+  fan_static_pressure = 20000.0
   fan_efficiency = 0.8
 
   handler = air_handler.AirHandler(
       recirculation,
       heating_air_temp_setpoint,
       cooling_air_temp_setpoint,
-      fan_differential_pressure,
+      fan_static_pressure,
       fan_efficiency,
   )
   return handler
@@ -62,30 +60,30 @@ class HvacTest(absltest.TestCase):
   def test_init(self):
     zone_coordinates = [(0, 0), (1, 0), (1, 1), (0, 1)]
     handler = _get_default_air_handler()
-    b = _get_default_boiler()
+    b = _get_default_hot_water_system()
     schedule = _get_default_setpoint_schedule()
     vav_max_air_flow_rate = 0.2
-    vav_reheat_max_water_flow_rate = 0.4
+    vav_reheat_max_water_flow_factor = 0.4
     h = hvac.Hvac(
         zone_coordinates,
         handler,
         b,
         schedule,
         vav_max_air_flow_rate,
-        vav_reheat_max_water_flow_rate,
+        vav_reheat_max_water_flow_factor,
     )
     self.assertEqual(h.air_handler, handler)
-    self.assertEqual(h.boiler, b)
+    self.assertEqual(h.hot_water_system, b)
 
     self.assertCountEqual(h.vavs.keys(), zone_coordinates)
 
     for coord in zone_coordinates:
       vav = h.vavs[coord]
       self.assertEqual(vav.thermostat._setpoint_schedule, schedule)
-      self.assertEqual(vav.boiler, b)
+      self.assertEqual(vav.hot_water_system, b)
       self.assertEqual(vav.max_air_flow_rate, vav_max_air_flow_rate)
       self.assertEqual(
-          vav._reheat_max_water_flow_rate, vav_reheat_max_water_flow_rate
+          vav._reheat_max_water_flow_factor, vav_reheat_max_water_flow_factor
       )
       self.assertEqual(
           vav._zone_id, conversion_utils.zone_coordinates_to_id(coord)
@@ -94,25 +92,24 @@ class HvacTest(absltest.TestCase):
   def test_reset(self):
     zone_coordinates = [(0, 0), (1, 0), (1, 1), (0, 1)]
     handler = _get_default_air_handler()
-    b = _get_default_boiler()
+    b = _get_default_hot_water_system()
     schedule = _get_default_setpoint_schedule()
     vav_max_air_flow_rate = 0.2
-    vav_reheat_max_water_flow_rate = 0.4
+    vav_reheat_max_water_flow_factor = 0.4
     h = hvac.Hvac(
         zone_coordinates,
         handler,
         b,
         schedule,
         vav_max_air_flow_rate,
-        vav_reheat_max_water_flow_rate,
+        vav_reheat_max_water_flow_factor,
     )
 
-    h.boiler._return_water_temperature_sensor += 10.0
-    h.boiler._water_pump_differential_head += 100.0
-    h.boiler._reheat_water_setpoint += 2.0
+    h.hot_water_system.water_pump_differential_head += 100.0
+    h.hot_water_system.supply_water_temperature_setpoint += 2.0
 
     h.air_handler._air_flow_rate += 0.1
-    h.air_handler._fan_differential_pressure = 0.1
+    h.air_handler.supply_air_static_pressure_setpoint = 0.1
 
     for coord in zone_coordinates:
       vav = h.vavs[coord]
@@ -120,7 +117,6 @@ class HvacTest(absltest.TestCase):
       vav.thermostat._setpoint_schedule.comfort_temp_window = (280, 310)
 
       vav.max_air_flow_rate += 0.1
-      vav._reheat_max_water_flow_rate += 0.1
 
     h.reset()
 
@@ -128,42 +124,41 @@ class HvacTest(absltest.TestCase):
     self.assertEqual(
         h.air_handler.recirculation, expected_air_handler.recirculation
     )
+
     self.assertEqual(
-        h.air_handler.heating_air_temp_setpoint,
-        expected_air_handler.heating_air_temp_setpoint,
+        h.air_handler.supply_air_temperature_setpoint,
+        expected_air_handler.supply_air_temperature_setpoint,
     )
     self.assertEqual(
-        h.air_handler.cooling_air_temp_setpoint,
-        expected_air_handler.cooling_air_temp_setpoint,
-    )
-    self.assertEqual(
-        h.air_handler.fan_differential_pressure,
-        expected_air_handler.fan_differential_pressure,
+        h.air_handler.supply_air_static_pressure_setpoint,
+        expected_air_handler.supply_air_static_pressure_setpoint,
     )
     self.assertEqual(
         h.air_handler.fan_efficiency, expected_air_handler.fan_efficiency
     )
 
-    expected_boiler = _get_default_boiler()
+    expected_hot_water_system = _get_default_hot_water_system()
     self.assertEqual(
-        h.boiler.reheat_water_setpoint, expected_boiler._reheat_water_setpoint
+        h.hot_water_system.supply_water_temperature_setpoint,
+        expected_hot_water_system.supply_water_temperature_setpoint,
     )
     self.assertEqual(
-        h.boiler._water_pump_differential_head,
-        expected_boiler._water_pump_differential_head,
+        h.hot_water_system.water_pump_differential_head,
+        expected_hot_water_system.water_pump_differential_head,
     )
     self.assertEqual(
-        h.boiler._water_pump_efficiency, expected_boiler._water_pump_efficiency
+        h.hot_water_system._pump._water_pump_efficiency,
+        expected_hot_water_system._pump._water_pump_efficiency,
     )
-    self.assertEqual(h.boiler._total_flow_rate, 0)
+    self.assertEqual(h.hot_water_system.total_flow_rate, 0)
 
     for coord in zone_coordinates:
       vav = h.vavs[coord]
       self.assertEqual(vav.thermostat._setpoint_schedule, schedule)
-      self.assertEqual(vav.boiler, b)
+      self.assertEqual(vav.hot_water_system, b)
       self.assertEqual(vav.max_air_flow_rate, vav_max_air_flow_rate)
       self.assertEqual(
-          vav._reheat_max_water_flow_rate, vav_reheat_max_water_flow_rate
+          vav._reheat_max_water_flow_factor, vav_reheat_max_water_flow_factor
       )
       self.assertEqual(
           vav._zone_id, conversion_utils.zone_coordinates_to_id(coord)
@@ -179,17 +174,17 @@ class HvacTest(absltest.TestCase):
 
     zone_coordinates = [(0, 0), (1, 0), (1, 1), (0, 1)]
     handler = _get_default_air_handler()
-    b = _get_default_boiler()
+    b = _get_default_hot_water_system()
     schedule = _get_default_setpoint_schedule()
     vav_max_air_flow_rate = 0.2
-    vav_reheat_max_water_flow_rate = 0.4
+    vav_reheat_max_water_flow_factor = 0.4
     h = hvac.Hvac(
         zone_coordinates,
         handler,
         b,
         schedule,
         vav_max_air_flow_rate,
-        vav_reheat_max_water_flow_rate,
+        vav_reheat_max_water_flow_factor,
     )
 
     vav_ids = []
@@ -202,17 +197,17 @@ class HvacTest(absltest.TestCase):
   def test_id_comfort_mode(self):
     zone_coordinates = [(0, 0), (1, 0), (1, 1), (0, 1)]
     handler = _get_default_air_handler()
-    b = _get_default_boiler()
+    b = _get_default_hot_water_system()
     schedule = _get_default_setpoint_schedule()
     vav_max_air_flow_rate = 0.2
-    vav_reheat_max_water_flow_rate = 0.4
+    vav_reheat_max_water_flow_factor = 0.4
     h = hvac.Hvac(
         zone_coordinates,
         handler,
         b,
         schedule,
         vav_max_air_flow_rate,
-        vav_reheat_max_water_flow_rate,
+        vav_reheat_max_water_flow_factor,
     )
     self.assertFalse(h.is_comfort_mode(pd.Timestamp('2021-10-31 10:00')))
     self.assertFalse(h.is_comfort_mode(pd.Timestamp('2021-11-01 03:00')))

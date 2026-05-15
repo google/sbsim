@@ -14,9 +14,9 @@ from tf_agents.train.utils import spec_utils
 from tf_agents.trajectories import policy_step
 from tf_agents.typing import types
 
-from smart_control.reinforcement_learning.utils.constants import DEFAULT_TIME_ZONE
-from smart_control.reinforcement_learning.utils.time_utils import to_dow
-from smart_control.reinforcement_learning.utils.time_utils import to_hod
+from smart_buildings.smart_control.reinforcement_learning.utils.constants import DEFAULT_TIME_ZONE
+from smart_buildings.smart_control.reinforcement_learning.utils.time_utils import to_dow
+from smart_buildings.smart_control.reinforcement_learning.utils.time_utils import to_hod
 
 logger = logging.getLogger(__name__)
 

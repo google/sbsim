@@ -7,8 +7,8 @@ import gin
 import numpy as np
 import pandas as pd
 
-from smart_control.models.base_energy_cost import BaseEnergyCost
-from smart_control.utils import constants
+from smart_buildings.smart_control.models.base_energy_cost import BaseEnergyCost
+from smart_buildings.smart_control.utils import constants
 
 # Source: https://www.eia.gov/dnav/ng/hist/n3035ca3m.htm
 # For 2020, units: Dollars per Thousand Cubic Feet
@@ -39,9 +39,9 @@ class NaturalGasEnergyCost(BaseEnergyCost):
   def __init__(
       self, gas_price_by_month: Sequence[float] = GAS_PRICE_BY_MONTH_SOURCE
   ):
-    if len(gas_price_by_month) != 12:
-      raise ValueError('Gas price per month must have exactly 12 values.')
-
+    assert (
+        len(gas_price_by_month) == 12
+    ), 'Gas price per month must have exactly 12 values.'
     # Convert the month-by-month gas price from $/1000 cubic feet to $/Joule.
     self._month_gas_price = (
         np.array(gas_price_by_month)

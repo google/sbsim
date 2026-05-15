@@ -8,9 +8,8 @@ from typing import Final, Mapping, Optional, Sequence, Tuple
 import gin
 import numpy as np
 import pandas as pd
-
-from smart_control.proto import smart_control_building_pb2
-from smart_control.utils import conversion_utils as utils
+from smart_buildings.smart_control.proto import smart_control_building_pb2
+from smart_buildings.smart_control.utils import conversion_utils as utils
 
 TemperatureBounds = Tuple[float, float]
 
@@ -173,11 +172,11 @@ class ReplayWeatherController(BaseWeatherController):
 
   def __init__(
       self,
-      local_weather_path: str = WEATHER_CSV_FILEPATH,
+      local_weather_path: str | None = WEATHER_CSV_FILEPATH,
       convection_coefficient: float = 12.0,
       humidity_column: str = 'Humidity',
   ):
-    self.local_weather_path = local_weather_path
+    self.local_weather_path = local_weather_path or WEATHER_CSV_FILEPATH
     self.weather_df = self.read_weather_csv(self.local_weather_path)
     self.convection_coefficient = convection_coefficient
     self.humidity_column = humidity_column
@@ -225,6 +224,11 @@ class ReplayWeatherController(BaseWeatherController):
   def max_time(self) -> pd.Timestamp:
     """Latest timestamp in the weather data."""
     return max(self.weather_df['Time'])
+
+  @property
+  def timestamp_range(self) -> tuple[pd.Timestamp, pd.Timestamp]:
+    """Range of timestamps available in the weather data."""
+    return (self.min_time, self.max_time)
 
   @property
   def times_in_seconds(self) -> pd.Index:
@@ -294,6 +298,6 @@ class ReplayWeatherController(BaseWeatherController):
     """For a given timestamp, returns the current humidity level in percent."""
     return self._get_interpolated_value(timestamp, self.humidities)
 
-  # pylint: disable=unused-argument
   def get_air_convection_coefficient(self, timestamp: pd.Timestamp) -> float:
+    del timestamp  # unused by this implementation
     return self.convection_coefficient

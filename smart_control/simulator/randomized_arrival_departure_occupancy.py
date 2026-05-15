@@ -9,14 +9,16 @@ p = E[X] / n / 2, where E[X] is the expected number of arrivals, which equals 1.
 
 import datetime
 import enum
-from typing import Optional, Union
+from typing import Any, Optional, Union
 
 import gin
 import numpy as np
 import pandas as pd
 
-from smart_control.models.base_occupancy import BaseOccupancy
-from smart_control.utils import conversion_utils
+from smart_buildings.smart_control.models import base_occupancy
+from smart_buildings.smart_control.utils import conversion_utils
+
+SerializableData = dict[str, Any]
 
 
 class OccupancyStateEnum(enum.Enum):
@@ -43,24 +45,14 @@ class ZoneOccupant:
       latest_expected_departure_hour: int,
       step_size: pd.Timedelta,
       random_state: np.random.RandomState,
-      time_zone: Union[datetime.tzinfo, str] = "UTC",
+      time_zone: Union[datetime.tzinfo, str] = 'UTC',
   ):
-
-    if not (
+    assert (
         earliest_expected_arrival_hour
         < latest_expected_arrival_hour
         < earliest_expected_departure_hour
         < latest_expected_departure_hour
-    ):
-      raise ValueError(
-          "Arrival and departure hours must be strictly increasing: "
-          "earliest_arrival < latest_arrival < earliest_departure < "
-          "latest_departure. "
-          f"Got: {earliest_expected_arrival_hour}, "
-          f"{latest_expected_arrival_hour}, "
-          f"{earliest_expected_departure_hour}, "
-          f"{latest_expected_departure_hour}."
-      )
+    )
 
     self._earliest_expected_arrival_hour = earliest_expected_arrival_hour
     self._latest_expected_arrival_hour = latest_expected_arrival_hour
@@ -80,21 +72,15 @@ class ZoneOccupant:
   def _to_local_time(self, timestamp: pd.Timestamp) -> pd.Timestamp:
     """Converts timestamp to local time."""
     if timestamp.tz is None:
-      return timestamp
+      return timestamp.tz_localize(self._time_zone)
     else:
       return timestamp.tz_convert(self._time_zone)
 
   def _get_event_probability(self, start_hour, end_hour):
     """Returns the probability of an event based on the number of time steps."""
-
-    if start_hour >= end_hour:
-      raise ValueError(
-          "Start hour must be less than end hour to calculate event "
-          f"probability: start_hour={start_hour}, end_hour={end_hour}"
-      )
-
+    assert start_hour < end_hour
     # The window is the number of Bernoulli trials (i.e. tests for arrival).
-    window = pd.Timedelta(end_hour - start_hour, unit="hour")
+    window = pd.Timedelta(end_hour - start_hour, unit='hour')
     # The halfway point is the firts half of the trials.
     n_halfway = window / self._step_size / 2.0
     # We'd like to return the probability of event happening in a single time-
@@ -149,7 +135,7 @@ class ZoneOccupant:
 
 
 @gin.configurable
-class RandomizedArrivalDepartureOccupancy(BaseOccupancy):
+class RandomizedArrivalDepartureOccupancy(base_occupancy.BaseOccupancy):
   """Provides the RL agent information about how many people are in a zone.
 
   Attributes:
@@ -170,17 +156,60 @@ class RandomizedArrivalDepartureOccupancy(BaseOccupancy):
       latest_expected_departure_hour: int,
       time_step_sec: int,
       seed: Optional[int] = 17321,
-      time_zone: str = "UTC",
+      time_zone: str = 'UTC',
   ):
     self._zone_assignment = zone_assignment
     self._zone_occupants = {}
-    self._step_size = pd.Timedelta(time_step_sec, unit="second")
+    self._step_size = pd.Timedelta(time_step_sec, unit='second')
     self._earliest_expected_arrival_hour = earliest_expected_arrival_hour
     self._latest_expected_arrival_hour = latest_expected_arrival_hour
     self._earliest_expected_departure_hour = earliest_expected_departure_hour
     self._latest_expected_departure_hour = latest_expected_departure_hour
     self._random_state = np.random.RandomState(seed)
     self._time_zone = time_zone
+
+  @property
+  def json_metadata(self) -> SerializableData:
+    """Returns JSON-serializable data about the occupancy."""
+    metadata = super().json_metadata
+    metadata.update({
+        'zone_assignment': self._zone_assignment,
+        'earliest_arrival': self.earliest_expected_arrival_hour,
+        'latest_arrival': self.latest_expected_arrival_hour,
+        'earliest_departure': self.earliest_expected_departure_hour,
+        'latest_departure': self.latest_expected_departure_hour,
+        'time_step_sec': self.step_size.total_seconds(),
+        'time_zone': self.time_zone,
+    })
+    return metadata
+
+  @property
+  def zone_assignment(self) -> int:
+    return self._zone_assignment
+
+  @property
+  def time_zone(self) -> datetime.tzinfo | str:
+    return self._time_zone
+
+  @property
+  def step_size(self) -> pd.Timedelta:
+    return self._step_size
+
+  @property
+  def earliest_expected_arrival_hour(self) -> int:
+    return self._earliest_expected_arrival_hour
+
+  @property
+  def latest_expected_arrival_hour(self) -> int:
+    return self._latest_expected_arrival_hour
+
+  @property
+  def earliest_expected_departure_hour(self) -> int:
+    return self._earliest_expected_departure_hour
+
+  @property
+  def latest_expected_departure_hour(self) -> int:
+    return self._latest_expected_departure_hour
 
   def average_zone_occupancy(
       self, zone_id: str, start_time: pd.Timestamp, end_time: pd.Timestamp
@@ -213,15 +242,8 @@ class RandomizedArrivalDepartureOccupancy(BaseOccupancy):
             )
         )
 
-    current_time = start_time
-    total_occupants = 0.0
-    steps = 0
-    while current_time < end_time:
-      num_occupants = 0.0
-      for occupant in self._zone_occupants[zone_id]:
-        if occupant.peek(current_time) == OccupancyStateEnum.WORK:
-          num_occupants += 1.0
-      total_occupants += num_occupants
-      steps += 1
-      current_time += self._step_size
-    return total_occupants / steps if steps > 0 else 0.0
+    num_occupants = 0.0
+    for occupant in self._zone_occupants[zone_id]:
+      if occupant.peek(start_time) == OccupancyStateEnum.WORK:
+        num_occupants += 1.0
+    return num_occupants

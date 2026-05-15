@@ -9,28 +9,28 @@ import numpy as np
 # pylint: disable=unused-import
 # these imports are necessary for proper gin setup, even if not referenced
 # do not remove
-from smart_control.reward.electricity_energy_cost import ElectricityEnergyCost
-from smart_control.reward.natural_gas_energy_cost import NaturalGasEnergyCost
-from smart_control.reward.setpoint_energy_carbon_regret import SetpointEnergyCarbonRegretFunction
-from smart_control.simulator.air_handler import AirHandler
-from smart_control.simulator.boiler import Boiler
-from smart_control.simulator.building import MaterialProperties
-from smart_control.simulator.hvac_floorplan_based import FloorPlanBasedHvac
-from smart_control.simulator.randomized_arrival_departure_occupancy import RandomizedArrivalDepartureOccupancy
-from smart_control.simulator.simulator_building import SimulatorBuilding
-from smart_control.simulator.stochastic_convection_simulator import StochasticConvectionSimulator
-from smart_control.simulator.tf_simulator import TFSimulator
-from smart_control.simulator.weather_controller import ReplayWeatherController
-from smart_control.utils import controller_reader
-from smart_control.utils import histogram_reducer
-from smart_control.utils.constants import ROOT_DIR
-from smart_control.utils.controller_writer import ProtoWriterFactory
-from smart_control.utils.environment_utils import to_timestamp
-from smart_control.utils.observation_normalizer import StandardScoreObservationNormalizer
+from smart_buildings.smart_control.reward.electricity_energy_cost import ElectricityEnergyCost
+from smart_buildings.smart_control.reward.natural_gas_energy_cost import NaturalGasEnergyCost
+from smart_buildings.smart_control.reward.setpoint_energy_carbon_regret import SetpointEnergyCarbonRegretFunction
+from smart_buildings.smart_control.simulator.air_handler import AirHandler
+from smart_buildings.smart_control.simulator.boiler import Boiler
+from smart_buildings.smart_control.simulator.building import MaterialProperties
+from smart_buildings.smart_control.simulator.hvac_floorplan_based import FloorPlanBasedHvac
+from smart_buildings.smart_control.simulator.randomized_arrival_departure_occupancy import RandomizedArrivalDepartureOccupancy
+from smart_buildings.smart_control.simulator.simulator_building import SimulatorBuilding
+from smart_buildings.smart_control.simulator.stochastic_convection_simulator import StochasticConvectionSimulator
+from smart_buildings.smart_control.simulator.tf_simulator import TFSimulator
+from smart_buildings.smart_control.simulator.weather_controller import ReplayWeatherController
+from smart_buildings.smart_control.utils import controller_reader
+from smart_buildings.smart_control.utils import histogram_reducer
+from smart_buildings.smart_control.utils.controller_writer import ProtoWriterFactory
+from smart_buildings.smart_control.utils.environment_utils import to_timestamp
+from smart_buildings.smart_control.utils.observation_normalizer import StandardScoreObservationNormalizer
 
 # pylint: enable=unused-import
 
-# Relative filepaths. Consider moving to reinforcement_learning/constants.py
+# Path to the root directory of the project:
+ROOT_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "..")
 # fmt: off
 # pylint: disable=line-too-long
 DATA_PATH = os.path.join(ROOT_DIR, "smart_control", "configs", "resources", "sb1")

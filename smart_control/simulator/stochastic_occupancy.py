@@ -19,7 +19,6 @@ Debugging features are included to provide insights into sampling and state
 transition processes when `debug_print` is enabled.
 """
 
-# Modify the code to include debug prints
 import datetime
 import enum
 from typing import Optional, Union
@@ -28,8 +27,8 @@ import gin
 import numpy as np
 import pandas as pd
 
-from smart_control.models.base_occupancy import BaseOccupancy
-from smart_control.utils import conversion_utils
+from smart_buildings.smart_control.models.base_occupancy import BaseOccupancy
+from smart_buildings.smart_control.utils import conversion_utils
 
 debug_print = False  # Set to False to disable debugging
 
@@ -54,26 +53,13 @@ class ZoneOccupant:
       random_state: np.random.RandomState,
       time_zone: Union[datetime.tzinfo, str] = "UTC",
   ):
-    # Validate that the time bounds are in chronological order
-    if not (
+    assert (
         earliest_expected_arrival_hour
         < latest_expected_arrival_hour
         < earliest_expected_departure_hour
         < latest_expected_departure_hour
-    ):
-      raise ValueError(
-          "Arrival and departure hours must be strictly increasing: "
-          "earliest_arrival < latest_arrival < earliest_departure < "
-          "latest_departure. "
-          f"Got: {earliest_expected_arrival_hour}, "
-          f"{latest_expected_arrival_hour}, "
-          f"{earliest_expected_departure_hour}, "
-          f"{latest_expected_departure_hour}."
-      )
-
-    # Validate lunch time bounds
-    if lunch_start_hour >= lunch_end_hour:
-      raise ValueError("lunch_start_hour must be before lunch_end_hour.")
+    )
+    assert lunch_start_hour < lunch_end_hour
 
     self._earliest_expected_arrival_hour = earliest_expected_arrival_hour
     self._latest_expected_arrival_hour = latest_expected_arrival_hour

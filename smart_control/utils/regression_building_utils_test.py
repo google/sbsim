@@ -1,14 +1,12 @@
-"""Tests for regression_building_utils."""
-
 from absl.testing import absltest
 import pandas as pd
 
-from smart_control.models.base_occupancy import BaseOccupancy
-from smart_control.proto import smart_control_building_pb2
-from smart_control.proto import smart_control_reward_pb2
-from smart_control.simulator.setpoint_schedule import SetpointSchedule
-from smart_control.utils import conversion_utils
-from smart_control.utils import regression_building_utils
+from smart_buildings.smart_control.models.base_occupancy import BaseOccupancy
+from smart_buildings.smart_control.proto import smart_control_building_pb2
+from smart_buildings.smart_control.proto import smart_control_reward_pb2
+from smart_buildings.smart_control.simulator.setpoint_schedule import SetpointSchedule
+from smart_buildings.smart_control.utils import conversion_utils
+from smart_buildings.smart_control.utils import regression_building_utils
 
 
 class RegressionBuildingUtilsTest(absltest.TestCase):
@@ -132,25 +130,7 @@ class RegressionBuildingUtilsTest(absltest.TestCase):
         ('dow', 'sin_000'): 0.7818314824680298,
         ('d0', 's0'): 294.5,
     }
-
-    # this assertion passes on Linux, but fails on intel-based Macs,
-    # due to floating point math differences:
-    # self.assertDictEqual(expected_feature_map, feature_map)
-
-    # ... equality assertions when applicable:
-    for key in ['timestamp', ('d0', 's0')]:
-      self.assertEqual(feature_map[key], expected_feature_map[key])
-
-    # ... almost-equal assertions for the sin and cos values:
-    for key in [
-        ('hod', 'cos_000'),
-        ('hod', 'sin_000'),
-        ('dow', 'cos_000'),
-        ('dow', 'sin_000'),
-    ]:
-      self.assertAlmostEqual(
-          feature_map[key], expected_feature_map[key], places=7
-      )
+    self.assertDictEqual(expected_feature_map, feature_map)
 
   def test_get_observation_sequence(self):
     req_ts = pd.Timestamp('2021-01-12 00:00')
@@ -569,7 +549,7 @@ class RegressionBuildingUtilsTest(absltest.TestCase):
     zone_infos, device_infos = self._get_test_zone_device_infos()
     current_observation_mapping = {
         ('d0', 'zone_air_temperature_sensor'): 295.0,
-        ('d1', 'zone_air_temperature_sensor'): 293.0,
+        ('d1', 'zone_air_temperature_sensor'): 293.0
     }
     zone_reward_infos = regression_building_utils.get_zone_reward_infos(
         current_timestamp=current_timestamp,

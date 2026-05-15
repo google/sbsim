@@ -1,11 +1,9 @@
-"""Tests for natural_gas_energy_cost."""
-
 from absl.testing import absltest
 from absl.testing import parameterized
 import pandas as pd
 
-from smart_control.reward import natural_gas_energy_cost
-from smart_control.utils import constants
+from smart_buildings.smart_control.reward import natural_gas_energy_cost
+from smart_buildings.smart_control.utils import constants
 
 
 class NaturalGasEnergyCostTest(parameterized.TestCase):
@@ -68,15 +66,6 @@ class NaturalGasEnergyCostTest(parameterized.TestCase):
     cost = natural_gas_energy_cost.NaturalGasEnergyCost()
     energy_rate = -1.0
     self.assertEqual(0.0, cost.cost(start_time, end_time, energy_rate))
-
-  def test_invalid_gas_price_by_month_length(self):
-    """ValueError if gas_price_by_month does not have exactly 12 values."""
-    with self.assertRaisesRegex(
-        ValueError, 'Gas price per month must have exactly 12 values'
-    ):
-      natural_gas_energy_cost.NaturalGasEnergyCost(
-          gas_price_by_month=[1.0, 2.0, 3.0]  # Only 3 values instead of 12
-      )
 
 
 if __name__ == '__main__':

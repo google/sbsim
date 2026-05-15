@@ -1,24 +1,17 @@
-"""Tests for boiler."""
-
 from absl.testing import absltest
 from absl.testing import parameterized
 import pandas as pd
-
-from smart_control.proto import smart_control_building_pb2
-from smart_control.simulator import boiler
-from smart_control.utils import constants
+from smart_buildings.smart_control.proto import smart_control_building_pb2
+from smart_buildings.smart_control.simulator import boiler
+from smart_buildings.smart_control.simulator import smart_device
 
 
 class BoilerTest(parameterized.TestCase):
 
   def get_default_boiler(self):
     reheat_water_setpoint = 360
-    water_pump_differential_head = 3
-    water_pump_efficiency = 0.6
     return boiler.Boiler(
         reheat_water_setpoint,
-        water_pump_differential_head,
-        water_pump_efficiency,
         device_id='boiler_id',
         heating_rate=0.0,
         cooling_rate=0.0,
@@ -32,100 +25,58 @@ class BoilerTest(parameterized.TestCase):
 
   def test_init(self):
     reheat_water_setpoint = 260
-    water_pump_differential_head = 3
-    water_pump_efficiency = 0.6
     b = boiler.Boiler(
         reheat_water_setpoint,
-        water_pump_differential_head,
-        water_pump_efficiency,
         device_id='boiler_id',
     )
 
-    self.assertEqual(b.reheat_water_setpoint, reheat_water_setpoint)
-    self.assertEqual(
-        b._water_pump_differential_head, water_pump_differential_head
-    )
-    self.assertEqual(b._water_pump_efficiency, water_pump_efficiency)
-    self.assertEqual(b._total_flow_rate, 0)
+    self.assertEqual(b.supply_water_temperature_setpoint, reheat_water_setpoint)
 
   def test_reset(self):
     reheat_water_setpoint = 260
-    water_pump_differential_head = 3
-    water_pump_efficiency = 0.6
     b = boiler.Boiler(
         reheat_water_setpoint,
-        water_pump_differential_head,
-        water_pump_efficiency,
         device_id='boiler_id',
     )
 
-    b._reheat_water_setpoint += 1.0
-    b._water_pump_differential_head = 4.0
-    b._water_pump_efficiency = 0.1
-    b._heating_request_count = 10
+    b._supply_water_temperature_setpoint += 1.0
     b._return_water_temperature_sensor = 310.0
-    b._total_flow_rate = 10.0
+    b.run_command = smart_device.RunStatus.ON
 
     b.reset()
 
-    self.assertEqual(b.reheat_water_setpoint, reheat_water_setpoint)
-    self.assertEqual(
-        b._water_pump_differential_head, water_pump_differential_head
-    )
-    self.assertEqual(b._water_pump_efficiency, water_pump_efficiency)
-    self.assertEqual(b._total_flow_rate, 0)
+    self.assertEqual(b.supply_water_temperature_setpoint, reheat_water_setpoint)
+    self.assertEqual(b.run_command, smart_device.RunStatus.OFF)
 
   def test_init_default_id(self):
     reheat_water_setpoint = 260
-    water_pump_differential_head = 3
-    water_pump_efficiency = 0.6
     b = boiler.Boiler(
         reheat_water_setpoint,
-        water_pump_differential_head,
-        water_pump_efficiency,
     )
     self.assertIsNotNone(b._device_id)
 
   def test_setters(self):
     b = self.get_default_boiler()
 
-    b.reheat_water_setpoint = 300
-    self.assertEqual(b.reheat_water_setpoint, 300)
-
-  def test_reset_demand(self):
-    b = self.get_default_boiler()
-
-    b.add_demand(5)
-    b.reset_demand()
-
-    self.assertEqual(b._total_flow_rate, 0)
-    self.assertEqual(b.heating_request_count, 0)
-
-  def test_add_demand(self):
-    b = self.get_default_boiler()
-
-    b.add_demand(5)
-    self.assertEqual(b._total_flow_rate, 5)
-    self.assertEqual(b.heating_request_count, 1)
-
-  def test_add_demand_raises_value_error(self):
-    b = self.get_default_boiler()
-
-    with self.assertRaises(ValueError):
-      b.add_demand(0.0)
+    b.supply_water_temperature_setpoint = 300
+    self.assertEqual(b.supply_water_temperature_setpoint, 300)
 
   def test_compute_thermal_energy_rate_heating(self):
     b = self.get_default_boiler()
     setpoint_temperature = 370
     return_water_temp = 300
     outside_temp = 280
-    q0 = b.compute_thermal_energy_rate(return_water_temp, outside_temp)
-    b.reheat_water_setpoint = setpoint_temperature
+    q0 = b.compute_thermal_energy_rate(
+        return_water_temp, outside_temp, total_flow_rate=0
+    )
+    b.supply_water_temperature_setpoint = setpoint_temperature
     _ = b._adjust_temperature(
         setpoint_temperature, outside_temp, pd.Timedelta(5, unit='minute')
     )
     b._last_step_duration = pd.Timedelta(5, unit='minute')
-    q1 = b.compute_thermal_energy_rate(return_water_temp, outside_temp)
+    q1 = b.compute_thermal_energy_rate(
+        return_water_temp, outside_temp, total_flow_rate=0
+    )
 
     self.assertAlmostEqual(500.066862, q0, places=4)
     self.assertAlmostEqual(562.57521, q1, places=4)
@@ -144,41 +95,38 @@ class BoilerTest(parameterized.TestCase):
       total_flow_rate,
       expected_energy_rate,
   ):
-    water_pump_differential_head = 3
-    water_pump_efficiency = 0.6
     b = boiler.Boiler(
         water_temp_setpoint,
-        water_pump_differential_head,
-        water_pump_efficiency,
         device_id='boiler_id',
     )
 
-    b.add_demand(total_flow_rate)
-
     self.assertAlmostEqual(
-        b.compute_thermal_energy_rate(return_water_temp, outside_temp),
+        b.compute_thermal_energy_rate(
+            return_water_temp, outside_temp, total_flow_rate
+        ),
         expected_energy_rate,
         places=3,
     )
 
-  def test_compute_thermal_energy_rate_raises_value_error(self):
+  def test_compute_thermal_energy_rate_zero(self):
     return_water_temp = 200
     total_flow_rate = 0.5
     reheat_water_setpoint = 100
-    water_pump_differential_head = 3
-    water_pump_efficiency = 0.6
     outside_temp = 293
     b = boiler.Boiler(
         reheat_water_setpoint,
-        water_pump_differential_head,
-        water_pump_efficiency,
         device_id='boiler_id',
     )
 
-    b.add_demand(total_flow_rate)
-
-    with self.assertRaises(ValueError):
-      _ = b.compute_thermal_energy_rate(return_water_temp, outside_temp)
+    # If the outside temp is higher than the return water temp,
+    # there should be no heat transfer.
+    self.assertAlmostEqual(
+        b.compute_thermal_energy_rate(
+            return_water_temp, outside_temp, total_flow_rate
+        ),
+        0.0,
+        places=3,
+    )
 
   @parameterized.parameters(
       (330.0, 290.0, pd.Timedelta(60, unit='second'), 0.0, 0.0, 290.0),
@@ -197,12 +145,8 @@ class BoilerTest(parameterized.TestCase):
       expected_temperature,
   ):
     reheat_water_setpoint = 310
-    water_pump_differential_head = 3
-    water_pump_efficiency = 0.6
     b = boiler.Boiler(
         reheat_water_setpoint,
-        water_pump_differential_head,
-        water_pump_efficiency,
         device_id='boiler_id',
         heating_rate=heating_rate,
         cooling_rate=cooling_rate,
@@ -215,43 +159,14 @@ class BoilerTest(parameterized.TestCase):
         ),
     )
 
-  @parameterized.parameters(
-      (0.5, 3, 0.9),
-      (0.2, 7, 0.5),
-      (0.5, 8, 0.23),
-      (0.5, 9, 0.7),
-  )
-  def test_compute_pump_power(
-      self, total_flow_rate, water_pump_differential_head, water_pump_efficiency
-  ):
-    reheat_water_setpoint = 100
-    b = boiler.Boiler(
-        reheat_water_setpoint,
-        water_pump_differential_head,
-        water_pump_efficiency,
-        device_id='boiler_id',
-    )
-
-    b.add_demand(total_flow_rate)
-
-    expected = (
-        total_flow_rate
-        * constants.WATER_DENSITY
-        * constants.GRAVITY
-        * water_pump_differential_head
-        / water_pump_efficiency
-    )
-    self.assertEqual(b.compute_pump_power(), expected)
-
   def test_observable_field_names(self):
     b = self.get_default_boiler()
 
     self.assertSameElements(
         b.observable_field_names(),
         [
-            'supply_water_setpoint',
+            'supply_water_temperature_setpoint',
             'supply_water_temperature_sensor',
-            'heating_request_count',
         ],
     )
 
@@ -260,21 +175,17 @@ class BoilerTest(parameterized.TestCase):
     b = self.get_default_boiler()
 
     observed_value = b.get_observation(
-        'supply_water_setpoint', pd.Timestamp('2021-09-01 10:00')
+        'supply_water_temperature_setpoint', pd.Timestamp('2021-09-01 10:00')
     )
 
     self.assertEqual(observed_value, reheat_water_setpoint)
 
   def test_observe_supply_water_temperature_sensor(self):
     reheat_water_setpoint = 360
-    water_pump_differential_head = 3
-    water_pump_efficiency = 0.6
     heating_rate = 2.0
     cooling_rate = 0.5
     b = boiler.Boiler(
         reheat_water_setpoint,
-        water_pump_differential_head,
-        water_pump_efficiency,
         device_id='boiler_id',
         heating_rate=heating_rate,
         cooling_rate=cooling_rate,
@@ -288,7 +199,9 @@ class BoilerTest(parameterized.TestCase):
 
     # Up the setpoint to 365, one minute later, the temp should go to 362.
     b.set_action(
-        'supply_water_setpoint', 365.0, pd.Timestamp('2021-09-01 10:00:00')
+        'supply_water_temperature_setpoint',
+        365.0,
+        pd.Timestamp('2021-09-01 10:00:00'),
     )
     observed_value = b.get_observation(
         'supply_water_temperature_sensor', pd.Timestamp('2021-09-01 10:01')
@@ -303,7 +216,9 @@ class BoilerTest(parameterized.TestCase):
 
     # Drop the setpoint to 350; after 20 min, should drop to 355.
     b.set_action(
-        'supply_water_setpoint', 350.0, pd.Timestamp('2021-09-01 10:10:00')
+        'supply_water_temperature_setpoint',
+        350.0,
+        pd.Timestamp('2021-09-01 10:10:00'),
     )
 
     observed_value = b.get_observation(
@@ -316,6 +231,35 @@ class BoilerTest(parameterized.TestCase):
         'supply_water_temperature_sensor', pd.Timestamp('2021-09-01 11:00')
     )
     self.assertAlmostEqual(observed_value, 350.0)
+
+  def test_observe_supply_water_temperature_sensor_no_tank(self):
+    reheat_water_setpoint = 360
+    heating_rate = 2.0
+    cooling_rate = 0.5
+    b = boiler.Boiler(
+        reheat_water_setpoint,
+        device_id='boiler_id',
+        heating_rate=heating_rate,
+        cooling_rate=cooling_rate,
+        tank_radius=0.0,
+    )
+
+    # Start with a temp & setpoint at 360.
+    observed_value = b.get_observation(
+        'supply_water_temperature_sensor', pd.Timestamp('2021-09-01 10:00')
+    )
+    self.assertEqual(observed_value, reheat_water_setpoint)
+
+    # Up the setpoint to 365, one minute later, the temp should already be 365.
+    b.set_action(
+        'supply_water_temperature_setpoint',
+        365.0,
+        pd.Timestamp('2021-09-01 10:00:00'),
+    )
+    observed_value = b.get_observation(
+        'supply_water_temperature_sensor', pd.Timestamp('2021-09-01 10:01')
+    )
+    self.assertAlmostEqual(observed_value, 365.0)
 
   @parameterized.parameters(
       (
@@ -381,38 +325,24 @@ class BoilerTest(parameterized.TestCase):
       expected_energy_rate,
   ):
     reheat_water_setpoint = current_temp
-    water_pump_differential_head = 3
-    water_pump_efficiency = 0.6
     b = boiler.Boiler(
         reheat_water_setpoint,
-        water_pump_differential_head,
-        water_pump_efficiency,
         device_id='boiler_id',
         heating_rate=heating_rate,
         cooling_rate=cooling_rate,
     )
 
-    b.set_action('supply_water_setpoint', setpoint_temp, action_timestamp)
+    b.set_action(
+        'supply_water_temperature_setpoint', setpoint_temp, action_timestamp
+    )
 
     observed_temp = b.get_observation(
         'supply_water_temperature_sensor', observation_timestamp
     )
 
     self.assertAlmostEqual(expected_temp, observed_temp)
-    energy_rate = b.compute_thermal_energy_rate(300, 288)
+    energy_rate = b.compute_thermal_energy_rate(300, 288, total_flow_rate=0)
     self.assertAlmostEqual(expected_energy_rate, energy_rate, places=3)
-
-  def test_observe_heating_request_count(self):
-    b = self.get_default_boiler()
-
-    b.add_demand(1.5)
-    b.add_demand(1.5)
-
-    observed_value = b.get_observation(
-        'heating_request_count', pd.Timestamp('2021-09-01 10:00')
-    )
-
-    self.assertEqual(observed_value, 2)
 
   def test_compute_thermal_dissipation_rate_valid(self):
     b = self.get_default_boiler()
@@ -424,25 +354,29 @@ class BoilerTest(parameterized.TestCase):
     q = b.compute_thermal_dissipation_rate(290.0, 290.0)
     self.assertAlmostEqual(q, 0.0, places=4)
 
-  def test_compute_thermal_dissipation_rate_invalid(self):
+  def test_compute_thermal_dissipation_rate_zero_low_temp(self):
     b = self.get_default_boiler()
-    with self.assertRaises(ValueError):
-      _ = b.compute_thermal_dissipation_rate(240.0, 290.0)
+    q = b.compute_thermal_dissipation_rate(240.0, 290.0)
+    self.assertAlmostEqual(q, 0.0, places=4)
 
   def test_action_field_names(self):
     b = self.get_default_boiler()
 
-    self.assertSameElements(b.action_field_names(), ['supply_water_setpoint'])
+    self.assertSameElements(
+        b.action_field_names(), ['supply_water_temperature_setpoint']
+    )
 
   def test_action_supply_water_setpoint(self):
     b = self.get_default_boiler()
 
     new_value = 280.0
     b.set_action(
-        'supply_water_setpoint', new_value, pd.Timestamp('2021-09-01 10:00')
+        'supply_water_temperature_setpoint',
+        new_value,
+        pd.Timestamp('2021-09-01 10:00'),
     )
 
-    self.assertEqual(b.reheat_water_setpoint, new_value)
+    self.assertEqual(b.supply_water_temperature_setpoint, new_value)
 
   def test_device_type(self):
     b = self.get_default_boiler()
@@ -459,6 +393,26 @@ class BoilerTest(parameterized.TestCase):
     device_id = b.device_id()
 
     self.assertEqual(device_id, 'boiler_id')
+
+  def test_run_command_setter(self):
+    b = self.get_default_boiler()
+    # Check initial status
+    self.assertEqual(b.run_command, smart_device.RunStatus.OFF)
+
+    # Set to On and verify
+    b.run_command = smart_device.RunStatus.ON
+    self.assertEqual(b.run_command, smart_device.RunStatus.ON)
+
+    # Set back to Off and verify
+    b.run_command = smart_device.RunStatus.OFF
+    self.assertEqual(b.run_command, smart_device.RunStatus.OFF)
+
+  def test_supply_water_setpoint(self):
+    b = self.get_default_boiler()
+    self.assertEqual(b.supply_water_temperature_setpoint, 360.0)
+
+    b.supply_water_temperature_setpoint = 305.0
+    self.assertEqual(b.supply_water_temperature_setpoint, 305.0)
 
 
 if __name__ == '__main__':

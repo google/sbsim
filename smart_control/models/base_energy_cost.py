@@ -1,4 +1,4 @@
-"""Base class for energy cost and carbon, for use in reward function."""
+"""A base class for energy cost and carbon for use in reward function."""
 
 import abc
 
@@ -35,7 +35,7 @@ class BaseEnergyCost(metaclass=abc.ABCMeta):
   def carbon(
       self, start_time: pd.Timestamp, end_time: pd.Timestamp, energy_rate: float
   ) -> float:
-    """Returns the mass of carbon emitted from the energy consumption.
+    """Returns the mass of carbon emitted from the enegy consumption.
 
     The energy-to-carbon emission is source specific. Assuming a constant
     rate of energy consumption (W) of the time interval bounded by

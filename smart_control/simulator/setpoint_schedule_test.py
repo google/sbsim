@@ -1,11 +1,10 @@
-"""Tests for setpoint_schedule."""
-
 from absl.testing import absltest
 from absl.testing import parameterized
 import pandas as pd
+from pandas.tseries import holiday
 import pytz
 
-from smart_control.simulator import setpoint_schedule
+from smart_buildings.smart_control.simulator import setpoint_schedule
 
 
 class SetpointScheduleTest(parameterized.TestCase):
@@ -261,6 +260,87 @@ class SetpointScheduleTest(parameterized.TestCase):
     pd.testing.assert_frame_equal(
         schedule.get_plot_data(start_time, end_time), df
     )
+
+
+class HolidayScheduleTest(parameterized.TestCase):
+  """NOTE: consider updating the SetpointScheduleTest and inheriting from it."""
+
+  def setUp(self):
+    super().setUp()
+    self.schedule = setpoint_schedule.HolidaySchedule(year=2024)
+
+  def test_calendar(self):
+    self.assertIsInstance(self.schedule.cal, holiday.USFederalHolidayCalendar)
+    self.assertEqual(self.schedule.cal.name, 'USFederalHolidayCalendar')
+
+  def test_holidays(self):
+    holiday_nums_this_year = {1, 15, 50, 148, 171, 186, 246, 288, 316, 333, 360}
+    self.assertEqual(self.schedule.holidays, holiday_nums_this_year)
+
+  def test_holidays_df(self):
+    records = self.schedule.holidays_df.to_dict('records')
+    expected_records = [
+        {
+            'date': pd.Timestamp('2024-01-01 00:00:00'),
+            'holiday': "New Year's Day",
+            'day_of_year': 1,
+        },
+        {
+            'date': pd.Timestamp('2024-01-15 00:00:00'),
+            'holiday': 'Birthday of Martin Luther King, Jr.',
+            'day_of_year': 15,
+        },
+        {
+            'date': pd.Timestamp('2024-02-19 00:00:00'),
+            'holiday': "Washington's Birthday",
+            'day_of_year': 50,
+        },
+        {
+            'date': pd.Timestamp('2024-05-27 00:00:00'),
+            'holiday': 'Memorial Day',
+            'day_of_year': 148,
+        },
+        {
+            'date': pd.Timestamp('2024-06-19 00:00:00'),
+            'holiday': 'Juneteenth National Independence Day',
+            'day_of_year': 171,
+        },
+        {
+            'date': pd.Timestamp('2024-07-04 00:00:00'),
+            'holiday': 'Independence Day',
+            'day_of_year': 186,
+        },
+        {
+            'date': pd.Timestamp('2024-09-02 00:00:00'),
+            'holiday': 'Labor Day',
+            'day_of_year': 246,
+        },
+        {
+            'date': pd.Timestamp('2024-10-14 00:00:00'),
+            'holiday': 'Columbus Day',
+            'day_of_year': 288,
+        },
+        {
+            'date': pd.Timestamp('2024-11-11 00:00:00'),
+            'holiday': 'Veterans Day',
+            'day_of_year': 316,
+        },
+        {
+            'date': pd.Timestamp('2024-11-28 00:00:00'),
+            'holiday': 'Thanksgiving Day',
+            'day_of_year': 333,
+        },
+        {
+            'date': pd.Timestamp('2024-12-25 00:00:00'),
+            'holiday': 'Christmas Day',
+            'day_of_year': 360,
+        },
+    ]
+    self.assertEqual(records, expected_records)
+
+    with self.subTest('correct holiday numbers'):
+      holiday_nums = self.schedule.holidays_df['day_of_year'].unique().tolist()
+      self.assertEqual(self.schedule.holidays, set(holiday_nums))
 
 
 if __name__ == '__main__':

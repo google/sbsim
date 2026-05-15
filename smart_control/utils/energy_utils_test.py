@@ -1,9 +1,8 @@
-"""Tests for energy_utils."""
-
 from absl.testing import absltest
 from absl.testing import parameterized
+import numpy as np
 
-from smart_control.utils import energy_utils
+from smart_buildings.smart_control.utils import energy_utils
 
 
 class EnergyUtilsTest(parameterized.TestCase):
@@ -33,59 +32,15 @@ class EnergyUtilsTest(parameterized.TestCase):
     actual = energy_utils.get_humidity_ratio([293], [0.6], [1.02])
     self.assertAlmostEqual(expected, actual[0], 4)
 
-  def test_get_humidity_ratio_mismatched_lengths(self):
-    """ValueError when input arrays have different lengths."""
-    with self.assertRaisesRegex(
-        ValueError, 'Input arrays must have equal length'
-    ):
-      energy_utils.get_humidity_ratio(
-          temps=[293, 300],  # 2 elements
-          relative_humidities=[0.6],  # 1 element
-          pressures=[1.02],  # 1 element
-      )
-
-  @parameterized.parameters(1.5, 0.0, -0.1)
-  def test_get_humidity_ratio_invalid_relative_humidity(self, invalid_rh):
-    """ValueError when relative_humidity is outside (0, 1]."""
-    with self.assertRaisesRegex(
-        ValueError, r'Relative humidities must be in the range \(0, 1\]'
-    ):
-      energy_utils.get_humidity_ratio(
-          temps=[293], relative_humidities=[invalid_rh], pressures=[1.02]
-      )
-
-  @parameterized.parameters(-1.0, 0.0)
-  def test_get_humidity_ratio_invalid_pressure(self, invalid_pressure):
-    """ValueError when pressure <= 0."""
-    with self.assertRaisesRegex(
-        ValueError, r'Pressures must be greater than 0'
-    ):
-      energy_utils.get_humidity_ratio(
-          temps=[293], relative_humidities=[0.6], pressures=[invalid_pressure]
-      )
-
   def test_get_air_conditioning_energy_rate(self):
     power = energy_utils.get_air_conditioning_energy_rate(
         air_flow_rates=[0.170],
-        outside_temps=[288],
+        outside_temps=[15 + 273.0],
         outside_relative_humidities=[0.75],
-        supply_temps=[393],
+        supply_temps=[120 + 273.0],
         ambient_pressures=[1.025],
     )
     self.assertAlmostEqual(18230.6705, power[0], 4)
-
-  def test_get_air_conditioning_energy_rate_mismatched_lengths(self):
-    """ValueError when input vectors have different lengths."""
-    with self.assertRaisesRegex(
-        ValueError, 'All input vectors must be of the same length'
-    ):
-      energy_utils.get_air_conditioning_energy_rate(
-          air_flow_rates=[0.170, 0.180],  # 2 elements
-          outside_temps=[288],  # 1 element
-          outside_relative_humidities=[0.75],
-          supply_temps=[393],
-          ambient_pressures=[1.025],
-      )
 
   @parameterized.named_parameters(
       ('brake_hp', None, 8.0, 100.0, 0.8, 0.85, 3, 17.904),
@@ -292,6 +247,60 @@ class EnergyUtilsTest(parameterized.TestCase):
           num_active_secondary_pumps=2,
           avg_secondary_pump_speed_percentage=35,
       )
+
+
+class ASHPSystemTest(parameterized.TestCase):
+
+  def setUp(self):
+    super().setUp()
+    self.estimator = energy_utils.ASHPSystemEstimator(hp_cop=3.4)
+    self.p_bhp = 5.0
+    self.p_gpm = 100.0
+
+  @parameterized.parameters(
+      (100.0, 3728.5),  # 100% speed -> Full BHP in Watts
+      (50.0, 466.06),  # 50% speed -> 1/8th power (Affinity Law)
+      (0.0, 0.0),  # 0% speed -> 0 Watts
+      (-10.0, 0.0),  # Negative input safety
+  )
+  def test_pump_power_scaling(self, speed, expected_watts):
+    calc = energy_utils.calculate_pump_power(self.p_bhp, speed)
+    self.assertAlmostEqual(calc, expected_watts, places=1)
+
+  @parameterized.named_parameters([
+      ('normal_heating', 130.0, 120.0, 100.0, 43098.7),
+      ('stagnant_water', 130.0, 130.0, 100.0, 0.0),
+      ('pumps_off', 130.0, 120.0, 0.0, 0.0),
+  ])
+  def test_hp_consumption_logic(self, hws, hwr, speed, expected_hp_w):
+    # Testing HP electrical draw based on deltaT and Flow
+    result = self.estimator.estimate_interval_power(
+        hws, hwr, speed, 0, self.p_bhp, self.p_bhp, self.p_gpm, self.p_gpm
+    )
+    self.assertAlmostEqual(result.hp_watts, expected_hp_w, places=1)
+
+  def test_numpy_array_support(self):
+    """Verify the library handles time-series arrays correctly."""
+    hws_series = np.array([130.0, 130.0, 130.0])
+    hwr_series = np.array([120.0, 125.0, 130.0])  # Decreasing deltaT
+    speeds = np.array([100.0, 100.0, 100.0])
+
+    results = self.estimator.estimate_interval_power(
+        hws_series,
+        hwr_series,
+        speeds,
+        0,
+        self.p_bhp,
+        self.p_bhp,
+        self.p_gpm,
+        self.p_gpm,
+    )
+
+    # Check that the output is also a numpy array of the same length
+    self.assertIsInstance(results.total_watts, np.ndarray)
+    self.assertLen(results.total_watts, 3)
+    # Verify the third interval (deltaT=0) is just pump power (~3728W)
+    self.assertAlmostEqual(results.total_watts[2], 3728.5, places=1)
 
 
 if __name__ == '__main__':

@@ -21,10 +21,10 @@ The three factors can be scaled and combined into a single reward function:
         r = s(setpoint) - u x f(cost) - w x g(carbon)
 where:
   r is the incremental reward at this step
-  s(setpoint) is the reward for maintaining setpoint
+  s(setpoint) is the reward for maintining setpoint
   f(cost) is the cost of consuming electrical and natural gas energy
   g(carbon) is the cost of emitting carbon,
-  and u, w are weighing factors for cost and carbon depending on the policy.
+  and u, w are weighing factors for cost and carbon dependingon the policy.
 
 The fundamental metric unit of energy is the Joule (J), and the unit of energy
 applied over a fixed time interval (energy rate) is power measured in J/sec or
@@ -61,10 +61,10 @@ deadband. Productivity decays smoothly on a logistic curve outside the deadband.
 
 import gin
 
-from smart_control.models.base_energy_cost import BaseEnergyCost
-from smart_control.proto import smart_control_reward_pb2
-from smart_control.reward.base_setpoint_energy_carbon_reward import BaseSetpointEnergyCarbonRewardFunction
-from smart_control.utils import conversion_utils
+from smart_buildings.smart_control.models.base_energy_cost import BaseEnergyCost
+from smart_buildings.smart_control.proto import smart_control_reward_pb2
+from smart_buildings.smart_control.reward.base_setpoint_energy_carbon_reward import BaseSetpointEnergyCarbonRewardFunction
+from smart_buildings.smart_control.utils import conversion_utils
 
 
 @gin.configurable()

@@ -1,9 +1,10 @@
 """Stochastic simulator of convection flow in bldg.
 
 A convection simulator that randomly shuffles control volumes as a stochastic
-imitation of convection.
+imitation of convection
 We specify probability of a control volume getting shuffled, as well as maximum
-distance that any given control volume can be moved.
+distance that any given
+control volume can be moved.
 """
 
 import collections
@@ -14,7 +15,7 @@ from typing import MutableSequence, Optional
 import gin
 import numpy as np
 
-from smart_control.simulator import base_convection_simulator
+from smart_buildings.smart_control.simulator import base_convection_simulator
 
 
 @gin.configurable
@@ -44,6 +45,16 @@ class StochasticConvectionSimulator(
 
     if seed is not None:
       random.seed(seed)
+
+  @property
+  def p(self) -> float:
+    """The shuffling probability."""
+    return self._p
+
+  @property
+  def distance(self) -> int:
+    """The max distance a CV can move."""
+    return self._distance
 
   def apply_convection(
       self,

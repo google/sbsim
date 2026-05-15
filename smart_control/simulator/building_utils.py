@@ -2,16 +2,19 @@
 
 import collections
 import datetime
+import json
+import gin
 import pathlib
-from typing import Any, NewType, Tuple, Union
+from typing import Any, Dict, NewType, Tuple, Union
 import warnings
 
 import cv2
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy import ndimage
+from smart_buildings.smart_control.simulator import constants
 
-from smart_control.simulator import constants
+from google3.pyglib import gfile
 
 Coordinates2D = Tuple[int, int]
 RoomIndicesDict = collections.defaultdict[str, Any]
@@ -59,7 +62,7 @@ InteriorWalls = NewType("InteriorWalls", np.ndarray)
 def read_floor_plan_from_filepath(
     filepath: str,
     save_debugging_image: bool = False,
-) -> FileInputFloorPlan:
+) -> tuple[FileInputFloorPlan, tuple[int, int]]:
   """Reads a file from a disk (including CNS) and returns it.
 
   Args:
@@ -70,7 +73,11 @@ def read_floor_plan_from_filepath(
       to cns.
 
   Returns:
-    a FileInputFloorPlan
+    A tuple containing:
+      - floor_plan: The floor plan read from the file as a FileInputFloorPlan.
+      - offset: A tuple of (row_offset, col_offset) that indicates
+        the number of rows and columns of padding added to the floor plan
+        by prepending rows/columns of air.
   """
 
   # function to return the file extension
@@ -92,7 +99,7 @@ def read_floor_plan_from_filepath(
         FileInputFloorPlan(floor_plan), "file_from_input"
     )
 
-  return FileInputFloorPlan(floor_plan)
+  return FileInputFloorPlan(floor_plan), (0, 0)
 
 
 def save_images_to_cns_for_debugging(
@@ -128,7 +135,7 @@ def save_images_to_cns_for_debugging(
 
 def guarantee_air_padding_in_frame(
     floor_plan: FileInputFloorPlan,
-) -> FileInputFloorPlan:
+) -> tuple[FileInputFloorPlan, tuple[int, int]]:
   """Adds a row or column of air if a building is abuts its frame edge.
 
   Future computation relies on buildings being surrounded by at least one
@@ -150,8 +157,9 @@ def guarantee_air_padding_in_frame(
     floor_plan: a FileInputFloorPlan
 
   Returns:
-    an FileInputFloorPlan that has 2's padded along whichever array edge was
-      missing them.
+    A tuple (padded_floor_plan, offset), where:
+      padded_floor_plan: A FileInputFloorPlan that has 2's padded.
+      offset: A tuple of (row_offset, col_offset).
   """
 
   # handle the case of a floor_plan that is trivial in its dimensions (i.e. has
@@ -185,6 +193,9 @@ def guarantee_air_padding_in_frame(
         (1, floor_plan.shape[1]), constants.EXTERIOR_SPACE_VALUE_IN_FILE_INPUT
     )
 
+  row_offset = 1 if np.any(floor_plan[0, :] == 1) else 0
+  col_offset = 1 if np.any(floor_plan[:, 0] == 1) else 0
+
   if np.any(floor_plan[0, :] == 1):
     xs_to_concat = determine_column_size_of_exterior_space_to_add()
     floor_plan = np.concatenate((xs_to_concat, floor_plan), axis=0)
@@ -201,7 +212,7 @@ def guarantee_air_padding_in_frame(
     ys_to_concat = determine_row_size_of_exterior_space_to_add()
     floor_plan = np.concatenate((floor_plan, ys_to_concat), axis=1)
 
-  return floor_plan
+  return floor_plan, (row_offset, col_offset)
 
 
 def _determine_exterior_space(
@@ -423,7 +434,13 @@ def construct_building_data_types(
     floor_plan: FileInputFloorPlan,
     zone_map: FileInputFloorPlan,
     save_debugging_image: bool = False,
-) -> Tuple[RoomIndicesDict, ExteriorWalls, InteriorWalls, ExteriorSpace]:
+) -> Tuple[
+    RoomIndicesDict,
+    ExteriorWalls,
+    InteriorWalls,
+    ExteriorSpace,
+    Tuple[int, int],
+]:
   """Sequentially calls all preprocessing functions in building_utils.py.
 
   This function links together the necessary helper functions in
@@ -442,11 +459,22 @@ def construct_building_data_types(
       to CNS.
 
   Returns:
-    connections output with exterior space set negative.
+    A tuple (room_dict, exterior_walls, interior_walls, exterior_space, offset),
+    where:
+      room_dict: A dictionary mapping of room names to coordinates.
+      exterior_walls: An array marking exterior walls.
+      interior_walls: An array marking interior walls.
+      exterior_space: An array marking exterior space.
+      offset: A tuple of (row_offset, col_offset).
   """
 
-  padded_floor_plan = guarantee_air_padding_in_frame(floor_plan)
-  padded_zone_map = guarantee_air_padding_in_frame(zone_map)
+  if floor_plan.shape != zone_map.shape:
+    raise ValueError(
+        f"floor_plan and zone_map shapes must match. "
+        f"Received {floor_plan.shape} and {zone_map.shape}."
+    )
+  padded_floor_plan, offset = guarantee_air_padding_in_frame(floor_plan)
+  padded_zone_map, _ = guarantee_air_padding_in_frame(zone_map)
 
   merged_floor_zone = padded_floor_plan.copy()
   merged_floor_zone = np.where(padded_zone_map == 1, 1, merged_floor_zone)
@@ -464,7 +492,7 @@ def construct_building_data_types(
   )
   room_dict = _construct_room_dict(connected_components_neg)
 
-  return room_dict, exterior_walls, interior_walls, exterior_space
+  return room_dict, exterior_walls, interior_walls, exterior_space, offset
 
 
 def enlarge_component(
@@ -490,5 +518,18 @@ def enlarge_component(
       cv2.distanceTransform(array_with_component_zero, cv2.DIST_L2, 3),
       decimals=2,
   )
-
   return np.uint8(distances <= distance_to_augment)
+
+
+@gin.configurable
+def load_json_to_dict(filepath: str) -> Dict[str, Any]:
+  """Loads a JSON file from the specified filepath and returns it as a dict.
+
+  Args:
+    filepath: The path to the JSON file.
+
+  Returns:
+    A dictionary containing the JSON data.
+  """
+  with gfile.Open(filepath, mode="r") as f:
+    return json.load(f)

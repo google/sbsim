@@ -1,13 +1,14 @@
-"""Tests for randomized_arrival_departure_occupancy."""
-
 from absl.testing import absltest
 from absl.testing import parameterized
 import numpy as np
 import pandas as pd
 
-from smart_control.simulator import randomized_arrival_departure_occupancy
-from smart_control.simulator.randomized_arrival_departure_occupancy import OccupancyStateEnum
-from smart_control.simulator.randomized_arrival_departure_occupancy import RandomizedArrivalDepartureOccupancy
+from smart_buildings.smart_control.simulator import randomized_arrival_departure_occupancy
+
+OccupancyStateEnum = randomized_arrival_departure_occupancy.OccupancyStateEnum
+RandomizedArrivalDepartureOccupancy = randomized_arrival_departure_occupancy.RandomizedArrivalDepartureOccupancy  # pylint: disable=line-too-long
+ZoneOccupant = randomized_arrival_departure_occupancy.ZoneOccupant
+
 
 # fmt: off
 # pylint: disable=bad-continuation
@@ -80,6 +81,48 @@ _EXPECTED_ZONE_OCCUPANCIES_UTC = [
 # fmt: off
 
 
+def create_zone_occupant(
+    time_zone='US/Pacific',
+    step_size=pd.Timedelta(5, unit='minute'),
+    arrival_earliest=6,
+    arrival_latest=11,
+    departure_earliest=15,
+    departure_latest=20,
+):
+  return ZoneOccupant(
+      time_zone=time_zone,
+      step_size=step_size,
+      random_state=np.random.RandomState(seed=99),
+      earliest_expected_arrival_hour=arrival_earliest,
+      latest_expected_arrival_hour=arrival_latest,
+      earliest_expected_departure_hour=departure_earliest,
+      latest_expected_departure_hour=departure_latest,
+  )
+
+
+def create_occupancy(
+    zone_assignment=1,
+    earliest_arrival=6,
+    latest_arrival=11,
+    earliest_departure=15,
+    latest_departure=20,
+    time_step_sec=300,
+    time_zone='US/Pacific',
+    seed=99,
+):
+  """Creates an occupancy object, using default parameters, for use in tests."""
+  return RandomizedArrivalDepartureOccupancy(
+      zone_assignment=zone_assignment,
+      earliest_expected_arrival_hour=earliest_arrival,
+      latest_expected_arrival_hour=latest_arrival,
+      earliest_expected_departure_hour=earliest_departure,
+      latest_expected_departure_hour=latest_departure,
+      time_step_sec=time_step_sec,
+      time_zone=time_zone,
+      seed=seed,
+  )
+
+
 class RandomizedArrivalDepartureOccupancyTest(parameterized.TestCase):
 
   @parameterized.parameters(
@@ -91,7 +134,7 @@ class RandomizedArrivalDepartureOccupancyTest(parameterized.TestCase):
   def test_average_zone_occupancy_weekday(self, tz, expected_zone_occupancies):
     step_size = pd.Timedelta(5, unit='minute')
 
-    occupancy = randomized_arrival_departure_occupancy.RandomizedArrivalDepartureOccupancy(  # pylint: disable=line-too-long
+    occupancy = RandomizedArrivalDepartureOccupancy(
         10, 7, 11, 15, 20, step_size.total_seconds(), 511211, tz
     )
     current_time = pd.Timestamp('2021-09-01 00:00', tz='UTC')
@@ -106,7 +149,7 @@ class RandomizedArrivalDepartureOccupancyTest(parameterized.TestCase):
     self.assertSequenceEqual(expected_zone_occupancies, actual_occupancies)
 
   def test_get_event_probability(self):
-    occupant = randomized_arrival_departure_occupancy.ZoneOccupant(
+    occupant = ZoneOccupant(
         8,
         12,
         13,
@@ -120,96 +163,66 @@ class RandomizedArrivalDepartureOccupancyTest(parameterized.TestCase):
   @parameterized.parameters((None), 'UTC', 'US/Eastern', 'US/Pacific')
   def test_peek(self, tz):
     random_state = np.random.RandomState(seed=55213)
-    occupant = randomized_arrival_departure_occupancy.ZoneOccupant(
+    occupant = ZoneOccupant(
         8, 12, 13, 18, pd.Timedelta(5, unit='minute'), random_state, tz
     )
     current_time = pd.Timestamp('2021-09-01 00:00', tz=tz)
     while current_time < pd.Timestamp('2021-09-01 23:00', tz=tz):
       state = occupant.peek(current_time=current_time)
 
-      if current_time < pd.Timestamp(
-          '2021-09-01 11:10', tz=tz
-      ) or current_time >= pd.Timestamp('2021-09-01 17:00', tz=tz):
-        self.assertEqual(
-            randomized_arrival_departure_occupancy.OccupancyStateEnum.AWAY,
-            state,
-        )
+      work_begin = pd.Timestamp('2021-09-01 11:10', tz=tz)
+      work_end = pd.Timestamp('2021-09-01 17:00', tz=tz)
+      if current_time < work_begin or current_time >= work_end:
+        self.assertEqual(OccupancyStateEnum.AWAY, state)
       else:
-        self.assertEqual(
-            randomized_arrival_departure_occupancy.OccupancyStateEnum.WORK,
-            state,
-        )
+        self.assertEqual(OccupancyStateEnum.WORK, state)
+
       current_time += pd.Timedelta(5, unit='minute')
 
-  def test_zone_occupant_invalid_hour_order(self):
-    """ValueError when arrival/departure hours are not strictly increasing."""
-    random_state = np.random.RandomState(seed=55213)
-    step_size = pd.Timedelta(5, unit='minute')
+  @parameterized.named_parameters(
+      dict(
+          testcase_name='naive',
+          time_zone=None,
+          expected_timestamp='2026-01-01 19:30:00-08:00',
+      ),
+      dict(
+          testcase_name='utc',
+          time_zone='UTC',
+          expected_timestamp='2026-01-01 11:30:00-08:00',
+      ),
+      dict(
+          testcase_name='eastern',
+          time_zone='US/Eastern',
+          expected_timestamp='2026-01-01 16:30:00-08:00',
+      ),
+      dict(
+          testcase_name='pacific',
+          time_zone='US/Pacific',
+          expected_timestamp='2026-01-01 19:30:00-08:00',
+      ),
+  )
+  def test_time_zone_conversion(self, time_zone, expected_timestamp):
+    occupant = create_zone_occupant(time_zone='US/Pacific')
 
-    # latest_arrival >= earliest_departure is invalid
-    with self.assertRaisesRegex(
-        ValueError, 'Arrival and departure hours must be strictly increasing'
-    ):
-      randomized_arrival_departure_occupancy.ZoneOccupant(
-          earliest_expected_arrival_hour=8,
-          latest_expected_arrival_hour=14,  # > earliest_departure (13)
-          earliest_expected_departure_hour=13,
-          latest_expected_departure_hour=18,
-          step_size=step_size,
-          random_state=random_state,
-      )
+    timestamp = pd.Timestamp('2026-01-01 19:30', tz=time_zone)
+    local_time = occupant._to_local_time(timestamp)
 
-  def test_get_event_probability_invalid_hours(self):
-    """ValueError when start_hour >= end_hour."""
-    random_state = np.random.RandomState(seed=55213)
-    step_size = pd.Timedelta(5, unit='minute')
-    occupant = randomized_arrival_departure_occupancy.ZoneOccupant(
-        earliest_expected_arrival_hour=8,
-        latest_expected_arrival_hour=12,
-        earliest_expected_departure_hour=13,
-        latest_expected_departure_hour=18,
-        step_size=step_size,
-        random_state=random_state,
-    )
+    self.assertEqual(str(local_time.tz), 'US/Pacific')
+    self.assertEqual(str(local_time), expected_timestamp)
 
-    with self.assertRaisesRegex(
-        ValueError, 'Start hour must be less than end hour'
-    ):
-      occupant._get_event_probability(start_hour=12, end_hour=8)
-
-  def test_average_zone_occupancy_matches_manual_two_steps(self):
-    """average_zone_occupancy should equal the mean of per-step counts."""
-    step = pd.Timedelta(minutes=5)
-    tz = 'UTC'
-
-    occ = RandomizedArrivalDepartureOccupancy(
-        zone_assignment=7,
-        earliest_expected_arrival_hour=8,
-        latest_expected_arrival_hour=12,
-        earliest_expected_departure_hour=16,
-        latest_expected_departure_hour=20,
-        time_step_sec=step.total_seconds(),
-        seed=55213,
-        time_zone=tz,
-    )
-
-    t0 = pd.Timestamp('2021-09-01 10:00', tz=tz)
-    t1 = t0 + 2 * step
-
-    # initialise the zone
-    _ = occ.average_zone_occupancy('zone_0', t0, t0 + step)
-
-    manual_counts = []
-    for cur in (t0, t0 + step):
-      c = 0.0
-      for zocc in occ._zone_occupants['zone_0']:
-        if zocc.peek(cur) == OccupancyStateEnum.WORK:
-          c += 1.0
-      manual_counts.append(c)
-    manual_avg = sum(manual_counts) / 2.0
-
-    result = occ.average_zone_occupancy('zone_0', t0, t1)
-    self.assertEqual(result, manual_avg)
+  def test_json_metadata(self):
+    occupancy = create_occupancy()
+    expected_metadata = {
+        'type': 'RandomizedArrivalDepartureOccupancy',
+        'zone_assignment': 1,
+        'earliest_arrival': 6,
+        'latest_arrival': 11,
+        'earliest_departure': 15,
+        'latest_departure': 20,
+        'time_step_sec': 300.0,
+        'time_zone': 'US/Pacific',
+    }
+    self.assertDictEqual(expected_metadata, occupancy.json_metadata)
 
 
 if __name__ == '__main__':

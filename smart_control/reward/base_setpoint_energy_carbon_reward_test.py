@@ -1,13 +1,11 @@
-"""Tests for setpoint_energy_carbon_reward."""
-
 from absl.testing import absltest
 from absl.testing import parameterized
 import pandas as pd
 
-from smart_control.models.base_energy_cost import BaseEnergyCost
-from smart_control.proto import smart_control_reward_pb2
-from smart_control.reward import base_setpoint_energy_carbon_reward
-from smart_control.utils import conversion_utils
+from smart_buildings.smart_control.models.base_energy_cost import BaseEnergyCost
+from smart_buildings.smart_control.proto import smart_control_reward_pb2
+from smart_buildings.smart_control.reward import base_setpoint_energy_carbon_reward
+from smart_buildings.smart_control.utils import conversion_utils
 
 
 class BaseSetpointEnergyCarbonRewardTest(parameterized.TestCase):
@@ -45,12 +43,36 @@ class BaseSetpointEnergyCarbonRewardTest(parameterized.TestCase):
     self.assertEqual(10.0, occupancy)
     self.assertAlmostEqual(5000.0 / 12.0, productivity_reward, delta=0.001)
 
-  def test_sum_electricity_energy_rate(self):
-    info = self._get_test_reward_info()
+  @parameterized.named_parameters([
+      ('boiler', 5000.0, 250.0, 0.0, 0.0),
+      ('heat_pump', 0.0, 0.0, 5000.0, 250.0),
+  ])
+  def test_sum_electricity_energy_rate(
+      self,
+      natural_gas_heating_energy_rate,
+      boiler_pump_electrical_energy_rate,
+      heat_pump_electricity_heating_energy_rate,
+      heat_pump_pump_electrical_energy_rate,
+  ):
+    info = self._get_test_reward_info(
+        natural_gas_heating_energy_rate=natural_gas_heating_energy_rate,
+        boiler_pump_electrical_energy_rate=boiler_pump_electrical_energy_rate,
+        heat_pump_electricity_heating_energy_rate=heat_pump_electricity_heating_energy_rate,
+        heat_pump_pump_electrical_energy_rate=heat_pump_pump_electrical_energy_rate,
+    )
     reward_fn = self._get_test_reward_function()
     energy_rate = reward_fn._sum_electricity_energy_rate(info)
     # Expected = 1 units x (pump + a/c + blower)
-    self.assertAlmostEqual((250.0 + 4500.0 + 800.0), energy_rate, delta=0.001)
+    sum_heating_electricity_energy_rate = (
+        + boiler_pump_electrical_energy_rate
+        + heat_pump_electricity_heating_energy_rate
+        + heat_pump_pump_electrical_energy_rate
+    )
+    self.assertAlmostEqual(
+        (sum_heating_electricity_energy_rate + 4500.0 + 800.0),
+        energy_rate,
+        delta=0.001,
+    )
 
   def test_sum_natural_gas_energy_rate(self):
     info = self._get_test_reward_info()
@@ -84,7 +106,9 @@ class BaseSetpointEnergyCarbonRewardTest(parameterized.TestCase):
       blower_electrical_energy_rate=800.0,
       air_conditioning_electrical_energy_rate=4500.0,
       natural_gas_heating_energy_rate=5000.0,
-      pump_electrical_energy_rate=250.0,
+      boiler_pump_electrical_energy_rate=250.0,
+      heat_pump_electricity_heating_energy_rate=0,
+      heat_pump_pump_electrical_energy_rate=0.0,
   ):
     heating_setpoint_temperature = 293.0
     cooling_setpoint_temperature = 297.0
@@ -128,8 +152,17 @@ class BaseSetpointEnergyCarbonRewardTest(parameterized.TestCase):
     boiler_info.natural_gas_heating_energy_rate = (
         natural_gas_heating_energy_rate
     )
-    boiler_info.pump_electrical_energy_rate = pump_electrical_energy_rate
+    boiler_info.pump_electrical_energy_rate = boiler_pump_electrical_energy_rate
     info.boiler_reward_infos['boiler_0'].CopyFrom(boiler_info)
+
+    heat_pump_info = smart_control_reward_pb2.RewardInfo.HeatPumpRewardInfo()
+    heat_pump_info.electricity_heating_energy_rate = (
+        heat_pump_electricity_heating_energy_rate
+    )
+    heat_pump_info.pump_electrical_energy_rate = (
+        heat_pump_pump_electrical_energy_rate
+    )
+    info.heat_pump_reward_infos['heat_pump_0'].CopyFrom(heat_pump_info)
     return info
 
 

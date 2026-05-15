@@ -1,10 +1,15 @@
-"""Reinforcement learning environment utility functions."""
+"""Utility functions for use in gin configuration files.
+
+TODO(mjrossetti): Let's consider renaming this file to "gin_utils.py" or
+"config_utils.py", because the functionality is more related to gin configs than
+it is about the environment.
+"""
 
 import gin
 import pandas as pd
 
-from smart_control.proto import smart_control_normalization_pb2
-from smart_control.utils import bounded_action_normalizer
+from smart_buildings.smart_control.proto import smart_control_normalization_pb2
+from smart_buildings.smart_control.utils import bounded_action_normalizer
 
 
 @gin.configurable

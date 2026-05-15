@@ -1,10 +1,8 @@
-"""Tests for smart_device."""
-
 from absl.testing import absltest
 import pandas as pd
 
-from smart_control.proto import smart_control_building_pb2
-from smart_control.simulator import smart_device
+from smart_buildings.smart_control.proto import smart_control_building_pb2
+from smart_buildings.smart_control.simulator import smart_device
 
 
 class SmartDeviceTest(absltest.TestCase):

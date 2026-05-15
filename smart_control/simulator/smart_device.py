@@ -10,11 +10,28 @@ constructor.
 """
 
 import abc
-from typing import Any, Mapping, NamedTuple, Optional, Sequence, Type
+import enum
+from typing import Any, Final, Mapping, NamedTuple, Optional, Sequence, Type
 
 import pandas as pd
+from smart_buildings.smart_control.proto import smart_control_building_pb2
 
-from smart_control.proto import smart_control_building_pb2
+SUPPLY_WATER_TEMPERATURE_SETPOINT: Final[str] = (
+    'supply_water_temperature_setpoint'
+)
+SUPPLY_WATER_TEMPERATURE_SENSOR: Final[str] = 'supply_water_temperature_sensor'
+HEATING_REQUEST_COUNT: Final[str] = 'heating_request_count'
+SUPERVISOR_RUN_COMMAND: Final[str] = 'supervisor_run_command'
+RUN_STATUS: Final[str] = 'run_status'
+RUN_COMMAND: Final[str] = 'run_command'
+DIFFERENTIAL_PRESSURE_SENSOR: Final[str] = 'differential_pressure_sensor'
+DIFFERENTIAL_PRESSURE_SETPOINT: Final[str] = 'differential_pressure_setpoint'
+
+
+class RunStatus(enum.IntEnum):
+  """Run status of a device (ON or OFF)."""
+  ON = 1
+  OFF = 0
 
 
 class AttributeInfo(NamedTuple):

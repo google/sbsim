@@ -1,12 +1,10 @@
-"""Tests for conversion_utils."""
-
 from absl.testing import absltest
 from absl.testing import parameterized
 import numpy as np
 import pandas as pd
 
-from smart_control.proto import smart_control_reward_pb2
-from smart_control.utils import conversion_utils
+from smart_buildings.smart_control.proto import smart_control_reward_pb2
+from smart_buildings.smart_control.utils import conversion_utils
 
 
 class ConversionUtilsTest(parameterized.TestCase):
@@ -46,25 +44,9 @@ class ConversionUtilsTest(parameterized.TestCase):
     self.assertEqual(conversion_utils.normalize_hod(0), -1.0)
     self.assertEqual(conversion_utils.normalize_hod(23), 1.0)
 
-  @parameterized.parameters(24, -1)
-  def test_normalize_hod_invalid_raises_error(self, invalid_hod):
-    """ValueError when hour of day is outside [0, 23]."""
-    with self.assertRaisesRegex(
-        ValueError, r'Hour of day \(hod\) must be within the range \[0, 23\]'
-    ):
-      conversion_utils.normalize_hod(invalid_hod)
-
   def test_normalize_dow(self):
     self.assertEqual(conversion_utils.normalize_dow(0), -1.0)
     self.assertEqual(conversion_utils.normalize_dow(6), 1.0)
-
-  @parameterized.parameters(7, -1)
-  def test_normalize_dow_invalid_raises_error(self, invalid_dow):
-    """ValueError when day of week is outside [0, 6]."""
-    with self.assertRaisesRegex(
-        ValueError, r'Day of week \(dow\) must be within the range \[0, 6\]'
-    ):
-      conversion_utils.normalize_dow(invalid_dow)
 
   @parameterized.parameters(
       (pd.Timestamp('2021-09-27 10:00:00-08:00'), 0),
@@ -78,30 +60,6 @@ class ConversionUtilsTest(parameterized.TestCase):
         ),
         expected_radian,
     )
-
-  @parameterized.parameters(
-      (32.0, 273.15), (-10.0, 249.817), (70.0, 294.261), (110.0, 316.483)
-  )
-  def test_kelvin_to_fahrenheit(self, fahrenheit, kelvin):
-    self.assertAlmostEqual(
-        fahrenheit, conversion_utils.kelvin_to_fahrenheit(kelvin), places=2
-    )
-
-  def test_kelvin_to_fahrenheit_invalid(self):
-    with self.assertRaises(ValueError):
-      _ = conversion_utils.kelvin_to_fahrenheit(0.0)
-
-  @parameterized.parameters(
-      (32.0, 273.15), (-10.0, 249.817), (70.0, 294.261), (110.0, 316.483)
-  )
-  def test_fahrenheit_to_kelvin(self, fahrenheit, kelvin):
-    self.assertAlmostEqual(
-        kelvin, conversion_utils.fahrenheit_to_kelvin(fahrenheit), places=2
-    )
-
-  def test_fahrenheit_to_kelvin_invalid(self):
-    with self.assertRaises(ValueError):
-      _ = conversion_utils.fahrenheit_to_kelvin(-495.67)
 
   @parameterized.parameters(
       (pd.Timestamp('2021-09-27 00:00:00+01'), 0),

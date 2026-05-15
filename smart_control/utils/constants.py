@@ -3,11 +3,6 @@
 import os
 from typing import Final
 
-# --------- Relative Filepaths ---------------
-
-# Path to the root directory of the project (where the main README is):
-ROOT_DIR = os.path.join(os.path.dirname(__file__), '..', '..')
-
 # --------- Thermal Constants ---------------
 
 AIR_HEAT_CAPACITY = 1006.0  # J/kg/K, standard atmosphere
@@ -21,6 +16,9 @@ JOULES_PER_BTU: float = 1055.06
 W_PER_KW: float = 1000.0  # Number of Watts in a kW.
 WATTS_PER_BTU_HR: float = 0.29307107  # Number of Watts in a BTU/hr
 HZ_PERCENT: float = 100.0 / 60.0  # Converts blower/pump Hz to Percentage Power
+
+# --------- Pressure Constants ---------------
+PASCALS_PER_BAR: float = 100000.0  # Number of Pascals in a bar.
 
 # https://www.rapidtables.com/convert/power/hp-to-watt.html
 WATTS_PER_HORSEPOWER = 746.0
@@ -48,3 +46,22 @@ REWARD_INFO_PREFIX = 'reward_info'
 REWARD_RESPONSE_PREFIX = 'reward_response'
 DEVICE_INFO_PREFIX = 'device_info'
 ZONE_INFO_PREFIX = 'zone_info'
+
+
+# ------------ File Paths -----------------
+
+# Reference file paths in a way that works both internally and externally.
+# Look for environment variable used by blaze / bazel internally.
+# See: https://bazel.build/concepts/dependencies#data-dependencies
+TEST_SRCDIR = os.environ.get('TEST_SRCDIR')
+if TEST_SRCDIR:
+  REPO_DIRPATH = os.path.join(
+      TEST_SRCDIR,
+      'google3',
+      'third_party',
+      'py',
+      'smart_buildings',
+      'smart_control',
+  )
+else:
+  REPO_DIRPATH = os.path.join(os.path.dirname(__file__), '..')

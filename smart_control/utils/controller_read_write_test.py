@@ -1,17 +1,15 @@
-"""Tests for controller_reader and controller_writer."""
-
 import operator
 import os
 
 from absl.testing import absltest
 import pandas as pd
 
-from smart_control.proto import smart_control_building_pb2
-from smart_control.proto import smart_control_normalization_pb2
-from smart_control.proto import smart_control_reward_pb2
-from smart_control.utils import controller_reader
-from smart_control.utils import controller_writer
-from smart_control.utils import conversion_utils
+from smart_buildings.smart_control.proto import smart_control_building_pb2
+from smart_buildings.smart_control.proto import smart_control_normalization_pb2
+from smart_buildings.smart_control.proto import smart_control_reward_pb2
+from smart_buildings.smart_control.utils import controller_reader
+from smart_buildings.smart_control.utils import controller_writer
+from smart_buildings.smart_control.utils import conversion_utils
 
 DeviceInfo = smart_control_building_pb2.DeviceInfo
 ZoneInfo = smart_control_building_pb2.ZoneInfo

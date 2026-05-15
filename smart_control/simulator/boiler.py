@@ -6,25 +6,21 @@ import uuid
 import gin
 import numpy as np
 import pandas as pd
-
-from smart_control.proto import smart_control_building_pb2
-from smart_control.simulator import smart_device
-from smart_control.utils import constants
+from smart_buildings.smart_control.proto import smart_control_building_pb2
+from smart_buildings.smart_control.simulator import hot_water_heat_source
+from smart_buildings.smart_control.simulator import smart_device
+from smart_buildings.smart_control.utils import constants
 
 
 @gin.configurable
-class Boiler(smart_device.SmartDevice):
-  """Models a central boiler with water pump.
+class Boiler(hot_water_heat_source.HotWaterHeatSource):
+  """Models a boiler that is part of a hot water system.
 
   Attributes:
-    _total_flow_rate: Flow rate of water in m3/s.
-    reheat_water_setpoint: Temperature in K that the boiler will maintain.
-    _water_pump_differential_head: Length in meters of pump head.
-    _water_pump_efficiency: Electrical efficiency of water pump [0,1].
-    device_code: unique name of the device.
-    heating_request_count: count of VAVs that have requested heat in this cycle.
+    supply_water_temperature_setpoint: Temperature in K that the boiler will
+      maintain.
+    device_id: unique name of the device.
     supply_water_temperature_sensor: temp [K] of water being supplied to VAVs.
-    supply_water_setpoint: setpoint [K] of the supply water.
     return_water_temperature_sensor: temp [K] of return water
     heating_rate: degrees C / minute a boiler can heat
     cooling_rate: degrees C / minute the boiler temp will drop
@@ -39,9 +35,7 @@ class Boiler(smart_device.SmartDevice):
 
   def __init__(
       self,
-      reheat_water_setpoint: float,
-      water_pump_differential_head: float,
-      water_pump_efficiency: float,
+      supply_water_temperature_setpoint: float,
       device_id: Optional[str] = None,
       heating_rate: Optional[float] = 0,
       cooling_rate: Optional[float] = 0,
@@ -51,23 +45,21 @@ class Boiler(smart_device.SmartDevice):
       water_capacity: Optional[float] = 1.5,
       insulation_conductivity: Optional[float] = 0.067,
       insulation_thickness: Optional[float] = 0.06,
+      init_return_water_temperature_sensor: float = 295.0,
   ):
     observable_fields = {
-        'supply_water_setpoint': smart_device.AttributeInfo(
-            'reheat_water_setpoint', float
+        'supply_water_temperature_setpoint': smart_device.AttributeInfo(
+            'supply_water_temperature_setpoint', float
         ),
         'supply_water_temperature_sensor': smart_device.AttributeInfo(
             'supply_water_temperature_sensor', float
         ),
-        'heating_request_count': smart_device.AttributeInfo(
-            'heating_request_count', int
-        ),
     }
 
     action_fields = {
-        'supply_water_setpoint': smart_device.AttributeInfo(
-            'reheat_water_setpoint', float
-        )
+        'supply_water_temperature_setpoint': smart_device.AttributeInfo(
+            'supply_water_temperature_setpoint', float
+        ),
     }
 
     if device_id is None:
@@ -80,11 +72,16 @@ class Boiler(smart_device.SmartDevice):
         device_id=device_id,
     )
 
-    self._init_reheat_water_setpoint = reheat_water_setpoint
-    self._init_water_pump_differential_head = water_pump_differential_head
-    self._init_water_pump_efficiency = water_pump_efficiency
-    self._init_heating_request_count = 0
-    self._init_return_water_temperature_sensor = 0.0
+    self._init_supply_water_temperature_setpoint = (
+        supply_water_temperature_setpoint
+    )
+    self._init_return_water_temperature_sensor = (
+        init_return_water_temperature_sensor
+    )
+
+    self._has_tank = tank_radius > 0.0
+
+    # these values are only relevant for a boiler with a tank
     self._heating_rate = heating_rate
     self._cooling_rate = cooling_rate
     self._convection_coefficient = convection_coefficient
@@ -93,20 +90,20 @@ class Boiler(smart_device.SmartDevice):
     self._water_capacity = water_capacity
     self._insulation_conductivity = insulation_conductivity
     self._insulation_thickness = insulation_thickness
+
     self.reset()
 
   def reset(self):
-    self.reset_demand()
-    self._reheat_water_setpoint = self._init_reheat_water_setpoint
-    self._water_pump_differential_head = self._init_water_pump_differential_head
-    self._water_pump_efficiency = self._init_water_pump_efficiency
-    self._heating_request_count = self._init_heating_request_count
+    self._supply_water_temperature_setpoint = (
+        self._init_supply_water_temperature_setpoint
+    )
     self._return_water_temperature_sensor = (
         self._init_return_water_temperature_sensor
     )
-    self._current_temperature = self._init_reheat_water_setpoint
+    self._current_temperature = self._init_supply_water_temperature_setpoint
     self._step_tank_temperature_change = 0.0
     self._last_step_duration = pd.Timedelta(0, unit='second')
+    self._run_command = smart_device.RunStatus.OFF
 
   @property
   def return_water_temperature_sensor(self) -> float:
@@ -117,16 +114,12 @@ class Boiler(smart_device.SmartDevice):
     self._return_water_temperature_sensor = value
 
   @property
-  def reheat_water_setpoint(self) -> float:
-    return self._reheat_water_setpoint
+  def supply_water_temperature_setpoint(self) -> float:
+    return self._supply_water_temperature_setpoint
 
-  @reheat_water_setpoint.setter
-  def reheat_water_setpoint(self, value: float) -> None:
-    self._reheat_water_setpoint = value
-
-  @property
-  def heating_request_count(self) -> int:
-    return self._heating_request_count
+  @supply_water_temperature_setpoint.setter
+  def supply_water_temperature_setpoint(self, value: float) -> None:
+    self._supply_water_temperature_setpoint = value
 
   @property
   def supply_water_temperature_sensor(self) -> float:
@@ -134,17 +127,17 @@ class Boiler(smart_device.SmartDevice):
     return self._current_temperature
 
   @property
-  def supply_water_setpoint(self) -> float:
-    return self._reheat_water_setpoint
+  def run_command(self) -> smart_device.RunStatus:
+    return self._run_command
 
-  def reset_demand(self) -> None:
-    self._total_flow_rate = 0.0
-    self._heating_request_count = 0
+  @run_command.setter
+  def run_command(self, value: smart_device.RunStatus) -> None:
+    self._run_command = value
 
   def _set_current_temperature(self):
     """Adjusts the temperature based on time elapsed after setpoint change."""
 
-    # Retain instantaneous behavior if rates aren't set.
+    # Retain instantaneous behavior if rates aren't set, or if there is no tank.
     # If no action has been applied, setpoint and measured temps are equal.
     if self._action_timestamp:
       self._last_step_duration = (
@@ -156,17 +149,20 @@ class Boiler(smart_device.SmartDevice):
         self._action_timestamp
         and self._cooling_rate > 0.0
         and self._heating_rate > 0.0
+        and self._has_tank
     ):
       begin_step_temp = self._current_temperature
       self._current_temperature = self._adjust_temperature(
-          self._reheat_water_setpoint, begin_step_temp, self._last_step_duration
+          self._supply_water_temperature_setpoint,
+          begin_step_temp,
+          self._last_step_duration,
       )
 
       self._step_tank_temperature_change = (
           self._current_temperature - begin_step_temp
       )
     else:
-      self._current_temperature = self._reheat_water_setpoint
+      self._current_temperature = self._supply_water_temperature_setpoint
 
   def _adjust_temperature(
       self,
@@ -202,46 +198,35 @@ class Boiler(smart_device.SmartDevice):
     else:
       return setpoint_temperature
 
-  def add_demand(self, flow_rate: float):
-    """Adds to current flow rate demand.
-
-    Args:
-      flow_rate: Flow rate to add.
-
-    Raises:
-      ValueError: If flow_rate is not positive.
-    """
-    if flow_rate <= 0:
-      raise ValueError('Flow rate must be positive')
-    self._total_flow_rate += flow_rate
-    self._heating_request_count += 1
-
   def compute_thermal_energy_rate(
-      self, return_water_temp: float, outside_temp: float
+      self,
+      return_water_temp: float,
+      outside_temp: float,
+      total_flow_rate: float,
   ) -> float:
     """Returns energy rate in W consumed by boiler to heat water.
 
     Args:
       return_water_temp: Temperature in K that water is received at.
       outside_temp: Temperature in K that the water tank is in.
+      total_flow_rate: The total flow rate of water through the HWS in m3/s.
     """
     # If return_water_temp is greater than the setpoint,
     # the boiler should not be cooling.
-    if self._reheat_water_setpoint > return_water_temp:
-      supply_water_temp = self._reheat_water_setpoint
+    if self._supply_water_temperature_setpoint > return_water_temp:
+      supply_water_temp = self._supply_water_temperature_setpoint
     else:
       supply_water_temp = return_water_temp
 
     flow_heating_energy_rate = (
         constants.WATER_HEAT_CAPACITY
-        * self._total_flow_rate
+        * total_flow_rate
         * (supply_water_temp - return_water_temp)
     )
 
     dissipation_energy_rate = self.compute_thermal_dissipation_rate(
         supply_water_temp, outside_temp
     )
-
     if self._last_step_duration.total_seconds() > 0:
       tank_heating_energy_rate = (
           constants.WATER_HEAT_CAPACITY
@@ -292,12 +277,11 @@ class Boiler(smart_device.SmartDevice):
     Returns:
       thermal loss rate of the tank in Watts
     """
-
+    # If the water temperature is less than the outside temperature,
+    # there should be no heat transfer.
     if water_temp < outside_temp:
-      raise ValueError(
-          'Water temperature must be >= outside temperature. '
-          f'Got water_temp={water_temp}, outside_temp={outside_temp}.'
-      )
+      return 0.0
+
     delta_temp = water_temp - outside_temp
     numerator = self._tank_length * 2.0 * np.pi * delta_temp
     interior_radius = self._tank_radius
@@ -308,16 +292,3 @@ class Boiler(smart_device.SmartDevice):
     )
     convection_factor = 1.0 / self._convection_coefficient / exterior_radius
     return numerator / (conduction_factor + convection_factor)
-
-  def compute_pump_power(self) -> float:
-    """Returns power consumed by pump in W to move water to VAVs.
-
-    derived from: https://www.engineeringtoolbox.com/pumps-power-d_505.html
-    """
-    return (
-        self._total_flow_rate
-        * constants.WATER_DENSITY
-        * constants.GRAVITY
-        * self._water_pump_differential_head
-        / self._water_pump_efficiency
-    )

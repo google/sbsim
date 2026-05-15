@@ -1,13 +1,14 @@
-"""Tests for building_utils."""
-
+import json
 import os
+
+from google3.pyglib import gfile
 
 from absl import flags
 from absl.testing import absltest
 from absl.testing import parameterized
 import numpy as np
 
-from smart_control.simulator import building_utils
+from smart_buildings.smart_control.simulator import building_utils
 
 flags.FLAGS([""])  # Required to avoid error with create_tempdir
 
@@ -27,7 +28,7 @@ class BuildingUtilsTest(parameterized.TestCase):
         [[2.0, 2.0, 2.0], [2.0, 1.0, 2.0], [2.0, 2.0, 2.0]]
     )
     np.savetxt(filename, sample_floorplan, delimiter=",")
-    f = building_utils.read_floor_plan_from_filepath(
+    f, _ = building_utils.read_floor_plan_from_filepath(
         filename, save_debugging_image=False
     )
     np.testing.assert_array_equal(f, sample_floorplan)
@@ -39,7 +40,7 @@ class BuildingUtilsTest(parameterized.TestCase):
         [[2.0, 2.0, 2.0], [2.0, 1.0, 2.0], [2.0, 2.0, 2.0]]
     )
     np.save(filename, sample_floorplan)
-    f = building_utils.read_floor_plan_from_filepath(
+    f, _ = building_utils.read_floor_plan_from_filepath(
         filename, save_debugging_image=False
     )
     np.testing.assert_array_equal(f, sample_floorplan)
@@ -51,11 +52,13 @@ class BuildingUtilsTest(parameterized.TestCase):
           np.array(
               [[2, 2, 2, 2, 2, 2], [2, 1, 1, 1, 1, 2], [2, 2, 2, 2, 2, 2]]
           ),
+          (0, 0),
       ),
       (
           "placebo",
           np.array([[2, 2, 2, 2, 2], [2, 1, 1, 1, 2], [2, 2, 2, 2, 2]]),
           np.array([[2, 2, 2, 2, 2], [2, 1, 1, 1, 2], [2, 2, 2, 2, 2]]),
+          (0, 0),
       ),
       (
           "no_air_at_all",
@@ -67,13 +70,15 @@ class BuildingUtilsTest(parameterized.TestCase):
               [2, 1, 1, 1, 2],
               [2, 2, 2, 2, 2],
           ]),
+          (1, 1),
       ),
   )
-  def test_guarantee_air_padding_in_frame(self, floor_plan, expected_output):
-    np.testing.assert_array_equal(
-        building_utils.guarantee_air_padding_in_frame(floor_plan),
-        expected_output,
-    )
+  def test_guarantee_air_padding_in_frame(
+      self, floor_plan, expected_output, expected_offset
+  ):
+    outcome, offset = building_utils.guarantee_air_padding_in_frame(floor_plan)
+    np.testing.assert_array_equal(outcome, expected_output)
+    self.assertEqual(offset, expected_offset)
 
   @parameterized.named_parameters(
       (
@@ -462,6 +467,29 @@ class BuildingUtilsTest(parameterized.TestCase):
         ),
         expected_enlargement_1,
     )
+
+  def test_load_json_to_dict(self):
+    tempdir = self.create_tempdir()
+    filename = os.path.join(tempdir, "test.json")
+    json_content = {"key1": "value1", "key2": 123, "key3": [1, 2, 3]}
+    with open(filename, "w") as f:
+      json.dump(json_content, f)
+
+    loaded_dict = building_utils.load_json_to_dict(filename)
+    self.assertEqual(loaded_dict, json_content)
+
+  def test_load_json_to_dict_invalid_json(self):
+    tempdir = self.create_tempdir()
+    filename = os.path.join(tempdir, "invalid.json")
+    with open(filename, "w") as f:
+      f.write("this is not valid json")
+
+    with self.assertRaises(json.JSONDecodeError):
+      building_utils.load_json_to_dict(filename)
+
+  def test_load_json_to_dict_file_not_found(self):
+    with self.assertRaises(gfile.FileError):
+      building_utils.load_json_to_dict("non_existent_file.json")
 
 
 if __name__ == "__main__":

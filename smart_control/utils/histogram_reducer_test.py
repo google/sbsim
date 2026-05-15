@@ -1,5 +1,3 @@
-"""Unit Tests for HistogramReducer."""
-
 from typing import Sequence
 
 from absl import logging
@@ -8,10 +6,10 @@ from absl.testing import parameterized
 import numpy as np
 import pandas as pd
 
-from smart_control.proto import smart_control_building_pb2
-from smart_control.proto import smart_control_reward_pb2
-from smart_control.utils import histogram_reducer
-from smart_control.utils import reader_lib
+from smart_buildings.smart_control.proto import smart_control_building_pb2
+from smart_buildings.smart_control.proto import smart_control_reward_pb2
+from smart_buildings.smart_control.utils import histogram_reducer
+from smart_buildings.smart_control.utils import reader_lib
 
 
 class TestReader(reader_lib.BaseReader):

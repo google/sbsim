@@ -6,9 +6,11 @@ setpoints with the goal of making the HVAC system more efficient.
 
 import collections
 import copy
+import dataclasses
+import functools
 import os
 import time
-from typing import Final, Mapping, NewType, Optional, Sequence, Tuple
+from typing import Any, Final, NewType, Optional, Tuple
 
 from absl import logging
 import bidict
@@ -21,56 +23,100 @@ from tf_agents.specs import array_spec
 from tf_agents.trajectories import time_step as ts
 from tf_agents.typing import types
 
-from smart_control.models import base_building
-from smart_control.models import base_normalizer
-from smart_control.models import base_reward_function
-from smart_control.proto import smart_control_building_pb2
-from smart_control.proto import smart_control_reward_pb2
-from smart_control.utils import building_image_generator
-from smart_control.utils import constants
-from smart_control.utils import conversion_utils
-from smart_control.utils import histogram_reducer
-from smart_control.utils import plot_utils
-from smart_control.utils import regression_building_utils
-from smart_control.utils import run_command_predictor
-from smart_control.utils import writer_lib
+# pylint: disable=g-bad-import-order we prefer local imports below packages
+from smart_buildings.smart_control.models import base_building
+from smart_buildings.smart_control.models import base_normalizer
+from smart_buildings.smart_control.models import base_reward_function
+from smart_buildings.smart_control.proto import smart_control_building_pb2
+from smart_buildings.smart_control.proto import smart_control_reward_pb2
+from smart_buildings.smart_control.utils import building_image_generator
+from smart_buildings.smart_control.utils import constants
+from smart_buildings.smart_control.utils import conversion_utils
+from smart_buildings.smart_control.utils import histogram_reducer
+from smart_buildings.smart_control.utils import plot_utils
+from smart_buildings.smart_control.utils import regression_building_utils
+from smart_buildings.smart_control.utils import run_command_predictor
+from smart_buildings.smart_control.utils import writer_lib
+from smart_buildings.smart_control.utils.proto_parsers import reward_info_parser
 
-ACTION_REJECTION_REWARD: Final[float] = -np.inf
-
-DeviceInfo = smart_control_building_pb2.DeviceInfo
-ValueType = smart_control_building_pb2.DeviceInfo.ValueType
+Mapping = collections.abc.Mapping
+Sequence = collections.abc.Sequence
 
 ActionRequest = smart_control_building_pb2.ActionRequest
 ActionResponse = smart_control_building_pb2.ActionResponse
+DeviceInfo = smart_control_building_pb2.DeviceInfo
+DeviceType = smart_control_building_pb2.DeviceInfo.DeviceType
 ObservationRequest = smart_control_building_pb2.ObservationRequest
 ObservationResponse = smart_control_building_pb2.ObservationResponse
+RewardInfo = smart_control_reward_pb2.RewardInfo
+RewardResponse = smart_control_reward_pb2.RewardResponse
 SingleActionRequest = smart_control_building_pb2.SingleActionRequest
 SingleActionResponse = smart_control_building_pb2.SingleActionResponse
 SingleObservationResponse = smart_control_building_pb2.SingleObservationResponse
+ValueType = smart_control_building_pb2.DeviceInfo.ValueType
 
-DeviceFieldId = NewType("DeviceFieldId", str)
+
 DeviceId = NewType("DeviceId", str)
-FieldName = NewType("FieldName", str)
+DeviceFieldId = NewType("DeviceFieldId", str)  # i.e. the Action Name
+FieldName = NewType("FieldName", str)  # i.e. the Setpoint Name
+DeviceCode = str
+MeasurementName = str
+Setpoint = str
 
+ActionNormalizerMap = Mapping[FieldName, base_normalizer.BaseActionNormalizer]
+DefaultActions = Mapping[DeviceFieldId | FieldName, float]
+DeviceActionTuple = Tuple[DeviceCode, Setpoint]
+DeviceMeasurementTuple = Tuple[DeviceCode, MeasurementName]
+NativeActionValues = Sequence[float]
+NormalizedActionValues = Sequence[float]
+
+ACTION_REJECTION_REWARD: Final[float] = -np.inf
 COMFORT_MODE_NOW: Final[str] = "comfort_mode_now"
 COMFORT_MODE_SOON: Final[str] = "comfort_mode_soon"
 NUM_OCCUPANTS: Final[str] = "num_occupants"
 DOW_LABEL: Final[str] = "dow"
 HOD_LABEL: Final[str] = "hod"
 
-DeviceFieldId = NewType("DeviceFieldId", str)
-FieldName = NewType("FieldName", str)
-ActionNormalizerMap = Mapping[
-    DeviceFieldId, base_normalizer.BaseActionNormalizer
-]
+DISCRETE_ACTION: Final[str] = "discrete_action"
+CONTINUOUS_ACTION: Final[str] = "continuous_action"
+DISCRETE_ACTION_COMMAND: Final[str] = "supervisor_run_command"
 
-DefaultActions = Mapping[DeviceFieldId, float]
+ACTION_TYPE_LABELS_MAP: Final[Mapping[str, str]] = {
+    DISCRETE_ACTION: "DISCRETE",
+    CONTINUOUS_ACTION: "CONTINUOUS",
+}  # Labels, for display purposes.
 
-DeviceCode = str
-Setpoint = str
-MeasurementName = str
-DeviceActionTuple = Tuple[DeviceCode, Setpoint]
-DeviceMeasurementTuple = Tuple[DeviceCode, MeasurementName]
+
+def is_discrete_setpoint(setpoint_name: str) -> bool:
+  """Checks if a setpoint name corresponds with a discrete action."""
+  return DISCRETE_ACTION_COMMAND in setpoint_name
+
+
+def get_setpoint_type(setpoint_name: str) -> str:
+  """Returns the type of the setpoint."""
+  if is_discrete_setpoint(setpoint_name):
+    return DISCRETE_ACTION
+  return CONTINUOUS_ACTION
+
+
+def get_setpoint_type_label(setpoint_name: str) -> str:
+  """Returns the type of the setpoint, as a label, for display purposes."""
+  return ACTION_TYPE_LABELS_MAP[get_setpoint_type(setpoint_name)]
+
+
+def get_setpoint_units(setpoint_name: str) -> str:
+  """Returns the units for the given setpoint name, for display purposes."""
+  # TODO(mjrossetti): formalize unit specification for each setpoint.
+  if is_discrete_setpoint(setpoint_name):
+    return "On/Off"
+  elif (
+      "temperature" in setpoint_name
+      or "supply_water_setpoint" in setpoint_name
+  ):
+    return "Kelvin"
+  elif "pressure" in setpoint_name:
+    return "Pascal"
+  return "N/A"
 
 
 def all_actions_accepted(action_response: ActionResponse) -> bool:
@@ -289,6 +335,74 @@ class ActionConfig:
     return self.action_normalizers.get(DeviceFieldId(setpoint_name))
 
 
+@dataclasses.dataclass(frozen=True)
+class SetpointRecord:
+  """Represents a flattened record for an action field, for display purposes.
+
+  Attributes:
+    device_id: Unique identifier for the device.
+    device_type: Type of the device.
+    zone_id: Zone identifier.
+    setpoint_type: Type of the setpoint (e.g., 'CONTINUOUS', 'DISCRETE').
+    action_name: Unique identifier for the action.
+    setpoint_name: Name of the setpoint.
+    value_type: Value type of the setpoint.
+    units: Units of the setpoint.
+    min_native_value: Minimum value in native units.
+    max_native_value: Maximum value in native units.
+    min_normalized_value: Minimum value in normalized units.
+    max_normalized_value: Maximum value in normalized units.
+  """
+  device_id: str
+  device_type: str
+  zone_id: str
+  setpoint_type: str
+  action_name: str
+  setpoint_name: str
+  value_type: str
+  units: str
+  min_native_value: float
+  max_native_value: float
+  min_normalized_value: float
+  max_normalized_value: float
+
+
+@dataclasses.dataclass(frozen=True, kw_only=True)
+class ActionRecord:
+  """An action for a specific setpoint, for display purposes.
+
+  Provides a mapping between normalized and native values.
+
+  Attributes:
+    idx: Index of the action, corresponding with the order of the action names.
+    action_name: Unique identifier for the action. Includes the device id and
+      setpoint name.
+    device_id: Unique identifier for the device.
+    setpoint_name: Name of the setpoint.
+    setpoint_type: Type of the setpoint (either 'CONTINUOUS' or 'DISCRETE').
+    normalized_value: The value expressed in the normalized setpoint range.
+    native_value: The value expressed in the native setpoint units.
+    action_value: The value used to step the environment.
+  """
+
+  idx: int
+  action_name: str
+  device_id: DeviceId
+  setpoint_name: FieldName
+  setpoint_type: str
+  normalized_value: float
+  native_value: float
+  action_value: float
+
+  def __post_init__(self) -> None:
+    labels = ACTION_TYPE_LABELS_MAP.values()
+    if self.setpoint_type not in labels:
+      raise ValueError(
+          f"Invalid setpoint_type: {self.setpoint_type}. "
+          f"Setpoint type must be one of {labels}."
+      )
+
+
 def generate_field_id(
     device: DeviceId, field: FieldName, id_map: bidict.bidict
 ) -> DeviceFieldId:
@@ -301,14 +415,14 @@ def generate_field_id(
   If a unique device/field generates the same id as a different device/field,
   the id will be concatenated with an integer if the id already exists.
 
-  Examples:
-      >>> generate_field_id(device='a_b', field='c') -> a_b_c
-      >>> generate_field_id(device='a_b', field='c') -> a_b_c
-      >>> generate_field_id(device='a', field='b_c') -> a_b_c_1
+  Examples for clarity:
+    generate_field_id(device='a_b', field='c') -> a_b_c
+    generate_field_id(device='a_b', field='c') -> a_b_c
+    generate_field_id(device='a', field='b_c') -> a_b_c_1
 
-  The first id is `a_b_c`. The second call is an exact duplicate of the first,
-  so the same id is returned. When the third call is made, because `a_b_c` is
-  already taken, an int is concatenated and the returned id is `a_b_c_1`.
+  The first id is a_b_c. The second call is an exact duplicate of the first,
+  so the same id is returned. When the third call is made, because a_b_c is
+  already taken, an int is concatenated and the returned id is a_b_c_1.
 
   Args:
     device: Device id.
@@ -410,8 +524,9 @@ class Environment(py_environment.PyEnvironment):
     )
     self._start_timestamp: pd.Timestamp = self.building.current_timestamp
     self._action_history = []
+    self.num_days_in_episode = num_days_in_episode
     self._end_timestamp: pd.Timestamp = self._start_timestamp + pd.Timedelta(
-        num_days_in_episode, unit="days"
+        self.num_days_in_episode, unit="days"
     )
     self._step_interval = step_interval
     self._num_timesteps_in_episode = int(
@@ -442,9 +557,7 @@ class Environment(py_environment.PyEnvironment):
     # Retain the last observation to fill in missing or invalid values.
     self._last_observation_response: Optional[ObservationResponse] = None
 
-    if self.discount_factor <= 0 or self.discount_factor > 1:
-      raise ValueError("Discount factor must be in (0,1]")
-
+    self.action_normalizers = action_config.action_normalizers
     if device_action_tuples is not None:
       self._action_spec, self.action_normalizers, self._action_names = (
           self._get_action_spec_and_normalizers_from_device_action_tuples(
@@ -501,10 +614,40 @@ class Environment(py_environment.PyEnvironment):
     )
 
   @property
+  def id_map(self) -> bidict.bidict:
+    return self._id_map
+
+  @property
+  def action_names(self) -> Sequence[str]:
+    return self._action_names
+
+  @property
+  def time_zone(self) -> str:
+    return self._time_zone
+
+  @property
+  def observation_normalizer(self) -> base_normalizer.BaseObservationNormalizer:
+    return self._observation_normalizer
+
+  @property
+  def step_count(self) -> int:
+    return self._step_count
+
+  @property
   def steps_per_episode(self) -> int:
     return (
         self._end_timestamp - self._start_timestamp
     ).total_seconds() // self.building.time_step_sec
+
+  @property
+  def time_step_sec(self) -> float:
+    """Returns the time step interval in seconds."""
+    return self.building.time_step_sec
+
+  @property
+  def time_step_mins(self) -> int:
+    """Returns the time step interval in minutes (floored)."""
+    return int(self.time_step_sec // 60)  # floor division
 
   @property
   def start_timestamp(self) -> pd.Timestamp:
@@ -521,6 +664,219 @@ class Environment(py_environment.PyEnvironment):
   @property
   def default_policy_values(self):
     return self._default_policy_values
+
+  @property
+  def label(self) -> str:
+    return self._label
+
+  @property
+  def metrics_writer(self) -> writer_lib.BaseWriter | None:
+    return self._metrics_writer
+
+  @property
+  def metrics_output_dir(self) -> writer_lib.PathLocation | None:
+    writer = self.metrics_writer
+    if writer is not None:
+      return writer.output_dir
+    else:
+      return None
+
+  @property
+  def json_metadata(self) -> dict[str, Any]:
+    """Info to write into a JSON file. Needs to be serializable."""
+    # Occupancy is only relevant in simulation (not for the real building):
+    if hasattr(self.building, "occupancy"):
+      occupancy_metadata = self.building.occupancy.json_metadata
+    else:
+      occupancy_metadata = None
+
+    return {
+        "type": self.__class__.__name__,
+        "time_step_sec": self.time_step_sec,
+        "start_timestamp": str(self.start_timestamp),
+        "end_timestamp": str(self.end_timestamp),
+        "metrics_output_dir": self.metrics_output_dir,
+        "action_names": self.action_names,
+        "default_action_values": self.default_action_values,
+        "reward_function": self.reward_function.json_metadata,
+        "building": self.building.json_metadata,
+        "occupancy": occupancy_metadata,
+    }
+
+  @functools.cached_property
+  def action_fields_map(self) -> dict[str, dict[str, Any]]:
+    mapping = {}
+    for device in self.building.devices:
+      for setpoint_name, value_type in device.action_fields.items():
+
+        normalizer = self.action_normalizers.get(setpoint_name)
+        if normalizer:
+          if device.device_id not in mapping:
+            mapping[device.device_id] = {
+                "device_id": device.device_id,
+                "device_type": DeviceType.Name(device.device_type),
+                "zone_id": device.zone_id,
+                "setpoints": [],
+            }
+
+          mapping[device.device_id]["setpoints"].append({
+              "action_name": self._id_map.get(
+                  (device.device_id, setpoint_name)
+              ),
+              "setpoint_name": setpoint_name,
+              "value_type": ValueType.Name(value_type),
+              "units": get_setpoint_units(setpoint_name),
+              "min_native_value": normalizer.setpoint_min,
+              "max_native_value": normalizer.setpoint_max,
+              # The BaseActionNormalizer does not have min/max normalized values
+              # but the BoundedActionNormalizer does. Get them if available.
+              "min_normalized_value": getattr(
+                  normalizer, "min_normalized_value", None
+              ),
+              "max_normalized_value": getattr(
+                  normalizer, "max_normalized_value", None
+              ),
+          })
+
+    return mapping
+
+  @functools.cached_property
+  def action_fields_flattened(self) -> Tuple[SetpointRecord, ...]:
+    """A tuple of immutable SetpointRecord dataclasses, for display purposes."""
+    records = []
+    for device_id, device_info in self.action_fields_map.items():
+      for setpoint_info in device_info["setpoints"]:
+        setpoint_name = setpoint_info["setpoint_name"]
+        records.append(
+            SetpointRecord(
+                device_id=device_id,
+                device_type=device_info["device_type"],
+                zone_id=device_info["zone_id"],
+                setpoint_type=get_setpoint_type_label(setpoint_name),
+                action_name=setpoint_info["action_name"],
+                setpoint_name=setpoint_info["setpoint_name"],
+                value_type=setpoint_info["value_type"],
+                units=setpoint_info["units"],
+                min_native_value=setpoint_info["min_native_value"],
+                max_native_value=setpoint_info["max_native_value"],
+                min_normalized_value=setpoint_info["min_normalized_value"],
+                max_normalized_value=setpoint_info["max_normalized_value"],
+            )
+        )
+    return tuple(records)
+
+  @functools.cached_property
+  def action_fields_df(self) -> pd.DataFrame:
+    """A DataFrame of setpoint records, for display purposes."""
+    return pd.DataFrame(self.action_fields_flattened)
+
+  @property
+  def default_action_values(self) -> NormalizedActionValues:
+    """The default action used to step the environment."""
+    return self.default_policy_values.numpy().tolist()
+
+  def get_action_records_from_normalized_values(
+      self, normalized_values: NormalizedActionValues,
+  ) -> Sequence[ActionRecord]:
+    """Converts normalized action values into action records.
+
+    Args:
+      normalized_values: A list of normalized action values, assumed to be in
+        the same order as the action_names.
+
+    Returns:
+      A list of action records.
+    """
+    if len(normalized_values) != len(self.action_names):
+      raise ValueError(
+          f"Number of normalized values ({len(normalized_values)}) does not"
+          f" match number of action names ({len(self.action_names)})."
+      )
+
+    records = []
+    for i, (action_name, normalized_value) in enumerate(
+        zip(self.action_names, normalized_values)
+    ):
+      device_id, setpoint_name = self.id_map.inv[action_name]
+      normalizer = self.action_normalizers.get(setpoint_name)
+      if normalizer is None:
+        raise ValueError(f"No normalizer found for setpoint: {setpoint_name}")
+
+      native_value = normalizer.setpoint_value(np.array(normalized_value))
+
+      records.append(
+          ActionRecord(
+              idx=i,
+              action_name=action_name,
+              device_id=device_id,
+              setpoint_name=setpoint_name,
+              setpoint_type=get_setpoint_type_label(setpoint_name),
+              normalized_value=normalized_value,
+              native_value=native_value,
+              action_value=normalized_value,
+          )
+      )
+    return records
+
+  def get_action_df_from_normalized_values(
+      self, normalized_values: NormalizedActionValues
+  ) -> pd.DataFrame:
+    """Returns a DataFrame of action records from normalized values."""
+    return pd.DataFrame(
+        self.get_action_records_from_normalized_values(normalized_values)
+    )
+
+  def get_action_records_from_native_values(
+      self, native_values: NativeActionValues
+  ) -> Sequence[ActionRecord]:
+    """Converts native action values into action records.
+
+    Args:
+      native_values: A list of native action values, assumed to be in the same
+        order as the action_names.
+
+    Returns:
+      A list of action records.
+    """
+    if len(native_values) != len(self.action_names):
+      raise ValueError(
+          f"Number of native values ({len(native_values)}) does not"
+          f" match number of action names ({len(self.action_names)})."
+      )
+
+    records = []
+    for i, (action_name, native_value) in enumerate(
+        zip(self.action_names, native_values)
+    ):
+      device_id, setpoint_name = self.id_map.inv[action_name]
+
+      normalizer = self.action_normalizers.get(setpoint_name)
+      if normalizer is None:
+        raise ValueError(f"No normalizer found for setpoint: {setpoint_name}")
+
+      normalized_value = normalizer.agent_value(native_value)
+
+      records.append(
+          ActionRecord(
+              idx=i,
+              action_name=action_name,
+              device_id=device_id,
+              setpoint_name=setpoint_name,
+              setpoint_type=get_setpoint_type_label(setpoint_name),
+              normalized_value=normalized_value,
+              native_value=native_value,
+              action_value=normalized_value,
+          )
+      )
+    return records
+
+  def get_action_df_from_native_values(
+      self, native_values: NativeActionValues
+  ) -> pd.DataFrame:
+    """Returns a DataFrame of action records from native values."""
+    return pd.DataFrame(
+        self.get_action_records_from_native_values(native_values)
+    )
 
   def _get_observation_request(
       self, devices: Sequence[DeviceInfo]
@@ -559,13 +915,23 @@ class Environment(py_environment.PyEnvironment):
 
     fixed_actions = []
     for field_id in self._action_names:
-      # assert action_name in default_actions
+      _, setpoint_name = self.id_map.inv[field_id]
 
-      _, setpoint_name = self._id_map.inv[field_id]
-      native_setpoint_value = default_actions[setpoint_name]
-      normalized_agent_value = self.action_normalizers[field_id].agent_value(
-          native_setpoint_value
+      native_setpoint_value = default_actions.get(
+          field_id,
+          default_actions.get(setpoint_name)
       )
+      if native_setpoint_value is None:
+        raise ValueError(
+            f"Missing default action for action: {field_id} (setpoint:"
+            f" {setpoint_name!r})"
+        )
+
+      normalizer = self.action_normalizers.get(setpoint_name)
+      if normalizer is None:
+        raise ValueError(f"No normalizer found for setpoint: {setpoint_name!r}")
+
+      normalized_agent_value = normalizer.agent_value(native_setpoint_value)
       fixed_actions.append(normalized_agent_value)
 
     return tf.constant(fixed_actions)
@@ -610,7 +976,7 @@ class Environment(py_environment.PyEnvironment):
         setpoint_name = FieldName(setpoint_name)
 
         # Get BaseActionNormalizer based on device and setpoint_name
-        action_normalizer = action_config.get_action_normalizer(setpoint_name)
+        action_normalizer = self.action_normalizers.get(setpoint_name)
 
         # Do not add to action_spec without an action_normalizer.
         if not action_normalizer:
@@ -624,7 +990,7 @@ class Environment(py_environment.PyEnvironment):
         field_array_spec = action_normalizer.get_array_spec(field_id)
 
         action_spec[field_id] = field_array_spec
-        action_normalizers[field_id] = action_normalizer
+        action_normalizers[setpoint_name] = action_normalizer
 
     action_spec = array_spec.BoundedArraySpec(
         shape=(len(action_names),),
@@ -659,7 +1025,7 @@ class Environment(py_environment.PyEnvironment):
       setpoint_name = FieldName(device_action_tuple[1])
 
       # Get BaseActionNormalizer based on device and setpoint_name
-      action_normalizer = action_config.get_action_normalizer(setpoint_name)
+      action_normalizer = self.action_normalizers.get(setpoint_name)
 
       # Do not add to action_spec without an action_normalizer.
       # TODO(sipple) Include a unit test.
@@ -672,7 +1038,7 @@ class Environment(py_environment.PyEnvironment):
 
       field_array_spec = action_normalizer.get_array_spec(field_id)
       action_spec[field_id] = field_array_spec
-      action_normalizers[field_id] = action_normalizer
+      action_normalizers[setpoint_name] = action_normalizer
 
     action_spec = array_spec.BoundedArraySpec(
         shape=(len(action_names),),
@@ -713,13 +1079,9 @@ class Environment(py_environment.PyEnvironment):
   def _get_observation_spec_histogram_reducer(
       self, devices: Sequence[DeviceInfo]
   ) -> tuple[types.ArraySpec, Sequence[str]]:
-    """Returns an observation spec and a list of field names as histogram"""
+    """Returns an observation spec and a list of field names as histogram."""
 
-    if self._observation_histogram_reducer is None:
-      raise ValueError(
-          "Observation histogram reducer must be configured before building "
-          "histogram spec."
-      )
+    assert self._observation_histogram_reducer is not None
 
     observable_fields = []
 
@@ -799,8 +1161,22 @@ class Environment(py_environment.PyEnvironment):
     return obs_spec, observable_fields
 
   @property
-  def current_simulation_timestamp(self):
+  def current_simulation_timestamp(self) -> pd.Timestamp:
+    """Returns the current simulation time.
+
+    NOTE: It is possible for this to be timezone naive, or in UTC.
+    """
     return self.building.current_timestamp
+
+  @property
+  def current_local_timestamp(self) -> pd.Timestamp:
+    """Returns the current local time in the building's time zone."""
+    if self.current_simulation_timestamp.tz is None:
+      # just apply the local time zone (and don't adjust the time):
+      return self.current_simulation_timestamp.tz_localize(self.time_zone)
+    else:
+      # convert to the local time zone (and adjust the time), as necessary:
+      return self.current_simulation_timestamp.tz_convert(self.time_zone)
 
   def _get_action_value_type(self, field_id) -> ValueType:
     if field_id in self._action_names:
@@ -838,7 +1214,7 @@ class Environment(py_environment.PyEnvironment):
 
       agent_action = action[field_id]
 
-      action_normalizer = self.action_normalizers[field_id]
+      action_normalizer = self.action_normalizers[setpoint_name]
 
       action_value = action_normalizer.setpoint_value(agent_action)
 
@@ -852,7 +1228,14 @@ class Environment(py_environment.PyEnvironment):
 
     return action_request
 
-  def _get_observation(self) -> np.ndarray:
+  def _get_observation_response(self) -> ObservationResponse:
+    """Gets the observation response from the building.
+
+    Ensures that metrics are written as applicable.
+
+    Returns:
+      The observation response from the building.
+    """
     timestamp = conversion_utils.pandas_to_proto_timestamp(
         self.building.current_timestamp
     )
@@ -881,6 +1264,14 @@ class Environment(py_environment.PyEnvironment):
         self._metrics_writer.write_building_image(
             building_image, self.current_simulation_timestamp
         )
+
+    return observation_response
+
+  def get_observation_response(self) -> ObservationResponse:
+    return self._get_observation_response()
+
+  def _get_observation(self) -> np.ndarray:
+    observation_response = self._get_observation_response()
 
     normalized_observation_response = self._observation_normalizer.normalize(
         observation_response
@@ -1023,11 +1414,7 @@ class Environment(py_environment.PyEnvironment):
       Dict of (device, field): measurement
     """
 
-    if self._observation_histogram_reducer is None:
-      raise ValueError(
-          "Observation histogram reducer must be set before reducing "
-          "observation response."
-      )
+    assert self._observation_histogram_reducer is not None
 
     feature_tuples = regression_building_utils.get_feature_tuples(
         normalized_observation_response
@@ -1052,10 +1439,14 @@ class Environment(py_environment.PyEnvironment):
     }
     return observation_map
 
-  def _get_reward(self) -> float:
-    """Computes the immediate reward for the last action taken by the agent."""
+  def get_reward_info_and_response(self) -> Tuple[RewardInfo, RewardResponse]:
+    """Gets reward info and reward response.
 
-    # Get the reward input (RewardInfo) from the building.
+    Ensures metrics are written for both, if you get either.
+
+    Returns:
+      A tuple of (RewardInfo, RewardResponse).
+    """
     reward_info = self.building.reward_info
     # Using the reward function, compute the reward value.
     reward_response = self.reward_function.compute_reward(reward_info)
@@ -1076,18 +1467,34 @@ class Environment(py_environment.PyEnvironment):
       self._write_summary_reward_response_metrics(reward_response)
       self._commit_reward_metrics()
 
+    return reward_info, reward_response
+
+  def get_reward_info(self) -> RewardInfo:
+    """Returns reward info for the last action taken by the agent."""
+    reward_info, _ = self.get_reward_info_and_response()
+    return reward_info
+
+  def _get_reward(self) -> float:
+    """Returns the reward response's agent reward value."""
+    _, reward_response = self.get_reward_info_and_response()
     return reward_response.agent_reward_value
+
+  def get_reward(self) -> float:
+    return self._get_reward()
 
   def _write_summary_reward_info_metrics(
       self, reward_info: smart_control_reward_pb2.RewardInfo
   ) -> None:
     """Writes reward input metrics into the TensorBoard logs."""
-    energy_use = conversion_utils.get_reward_info_energy_use(reward_info)
+    parser = reward_info_parser.RewardInfoParser(reward_info)
+    energy_use = parser.get_energy_consumption()
 
     self._accumulator["electrical_energy"].append(
-        energy_use["air_handler_blower_electricity"]
-        + energy_use["air_handler_air_conditioning"]
+        energy_use["air_handler_blower_electrical_energy"]
+        + energy_use["air_handler_air_conditioning_electrical_energy"]
         + energy_use["boiler_pump_electrical_energy"]
+        + energy_use["heat_pump_electricity_heating_energy"]
+        + energy_use["heat_pump_pump_electrical_energy"]
     )
     self._accumulator["natural_gas_energy"].append(
         energy_use["boiler_natural_gas_heating_energy"]
@@ -1123,10 +1530,7 @@ class Environment(py_environment.PyEnvironment):
 
   def _commit_reward_metrics(self) -> None:
     """Aggregates and writes reward metrics, and resets accumulator."""
-    if self._summary_writer is None:
-      raise ValueError(
-          "Summary writer must be initialized before committing reward metrics."
-      )
+    assert self._summary_writer is not None
 
     if self._global_step_count % self._metrics_reporting_interval == 0:
       with (  # pylint: disable=not-context-manager # TODO: consider adding comments to provide more context
@@ -1142,10 +1546,6 @@ class Environment(py_environment.PyEnvironment):
           )
 
         self._accumulator = collections.defaultdict(list)
-
-  @property
-  def label(self) -> str:
-    return self._label
 
   def _reset(self) -> ts.TimeStep:
     self.building.reset()

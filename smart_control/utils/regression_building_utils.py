@@ -10,11 +10,11 @@ import gin
 import numpy as np
 import pandas as pd
 
-from smart_control.models.base_occupancy import BaseOccupancy
-from smart_control.proto import smart_control_building_pb2
-from smart_control.proto import smart_control_reward_pb2
-from smart_control.simulator.setpoint_schedule import SetpointSchedule
-from smart_control.utils import conversion_utils
+from smart_buildings.smart_control.models.base_occupancy import BaseOccupancy
+from smart_buildings.smart_control.proto import smart_control_building_pb2
+from smart_buildings.smart_control.proto import smart_control_reward_pb2
+from smart_buildings.smart_control.simulator.setpoint_schedule import SetpointSchedule
+from smart_buildings.smart_control.utils import conversion_utils
 
 _ValueType = smart_control_building_pb2.DeviceInfo.ValueType
 _ActionResponseType = (
@@ -43,6 +43,28 @@ _DAY_OF_WEEK = 'dow'
 _HOUR_OF_DAY = 'hod'
 _SIN_RAD = 'sin'
 _COS_RAD = 'cos'
+
+
+def get_nearest_timestamp_index(
+    target_timestamp: pd.Timestamp, timestamps: list[pd.Timestamp]
+) -> int:
+  """Returns the index of the nearest timestamp in timestamps to target_timestamp."""
+  deltas = [
+      np.abs((ts - target_timestamp).total_seconds()) for ts in timestamps
+  ]
+  return np.argmin(deltas)
+
+
+def drop_tz(ts: pd.Timestamp) -> pd.Timestamp:
+  """Drops the Timezone information, but keeps local time.
+
+  Args:
+    ts: A timestamp in local time in any timezone.
+
+  Returns:
+    A timestamp in local time without timezone.
+  """
+  return ts.tz_localize(None)
 
 
 @gin.configurable
@@ -101,13 +123,7 @@ def expand_time_features(
 
   feature_names = get_time_feature_names(n, label)
 
-  if len(feature_names) != (len(sin_component) + len(cos_component)):
-    raise ValueError(
-        f'Mismatch between number of feature names ({len(feature_names)}) '
-        'and combined sine/cosine components '
-        f'({len(sin_component) + len(cos_component)}). '
-        'This indicates an internal logic error in feature expansion.'
-    )
+  assert len(feature_names) == len(sin_component) + len(cos_component)
   return {
       feature_name: value
       for feature_name, value in zip(
@@ -249,11 +265,11 @@ def get_action_map(
   action_map[_TIMESTAMP] = timestamp
 
   for single_action_response in action_response.single_action_responses:
+    request = single_action_response.request
     if (
         single_action_response.response_type
         == smart_control_building_pb2.SingleActionResponse.ACCEPTED
     ):
-      request = single_action_response.request
 
       action_map[(_ACTION_PREFIX, request.device_id, request.setpoint_name)] = (
           request.continuous_value
@@ -390,13 +406,7 @@ def get_matching_indexes(
       input_indexes.append(ts_input)
       output_indexes.append(ts_output)
 
-  if len(output_indexes) != len(input_indexes):
-    raise ValueError(
-        'Mismatch in matched input and output index lengths: '
-        f'input_indexes={len(input_indexes)}, '
-        f'output_indexes={len(output_indexes)}. '
-        'Matching logic failed to produce equal-length sequences.'
-    )
+  assert len(output_indexes) == len(input_indexes)
   return input_indexes, output_indexes
 
 
@@ -562,6 +572,8 @@ def create_action_response(
       single_response.response_type = (
           _ActionResponseType.REJECTED_INVALID_DEVICE
       )
+      logging.info('Action tuple %s not in device action tuples', action_tuple)
+      logging.info('Device action tuples: %s', device_action_tuples)
       action_response.single_action_responses.append(single_response)
       continue
 

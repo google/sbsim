@@ -8,8 +8,11 @@ The occupancy signal is an input to the agent's reward function.
 """
 
 import abc
+from typing import Any
 
 import pandas as pd
+
+SerializableData = dict[str, Any]
 
 
 class BaseOccupancy(metaclass=abc.ABCMeta):
@@ -32,3 +35,8 @@ class BaseOccupancy(metaclass=abc.ABCMeta):
       average number of people in the zone for the interval.
     """
     pass
+
+  @property
+  def json_metadata(self) -> SerializableData:
+    """A JSON-serializable dictionary of metadata about the occupancy."""
+    return {"type": self.__class__.__name__}
