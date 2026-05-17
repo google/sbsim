@@ -19,7 +19,6 @@ from pvlib import irradiance
 from pvlib import location
 
 from smart_control.proto import smart_control_building_pb2
-from smart_control.simulator import building_radiation_utils
 from smart_control.simulator import constants as sim_constants
 from smart_control.simulator import solar_radiation
 from smart_control.simulator import weather_controller
@@ -482,31 +481,6 @@ class SolarRadiationTest(IrradianceTestBase):
         solar_azimuth=180.0,
     )
     self.assertAlmostEqual(poa, float(poa_pvlib['poa_global']), places=4)
-
-  def test_calculate_poa_irradiance_building_radiation_utils(self):
-    """Backward-compat: building_radiation_utils.calculate_poa_irradiance."""
-    irrad_components = solar_radiation.IrradianceComponents(
-        ghi=800.0,
-        dni=700.0,
-        dhi=100.0,
-        solar_zenith=30.0,
-        solar_azimuth=180.0,
-    )
-    poa_sr = solar_radiation.calculate_poa_irradiance(
-        irradiance_components=irrad_components,
-        surface_tilt=30.0,
-        surface_azimuth=180.0,
-        solar_zenith=30.0,
-        solar_azimuth=180.0,
-    )
-    poa_utils = building_radiation_utils.calculate_poa_irradiance(
-        irradiance_components=irrad_components,
-        surface_tilt=30.0,
-        surface_azimuth=180.0,
-        solar_zenith=30.0,
-        solar_azimuth=180.0,
-    )
-    self.assertAlmostEqual(poa_sr, poa_utils, places=4)
 
   def test_poa_with_clearsky_irradiance(self):
     """POA from clearsky SolarRadiation output matches pvlib."""
