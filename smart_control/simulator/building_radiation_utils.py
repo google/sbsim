@@ -5,7 +5,7 @@ For computing the physical and thermal characteristics of buildings.
 
 from collections import deque
 import math
-from typing import Any, Dict, List, Mapping, Optional, Sequence, Set, Tuple, Union
+from typing import Any, Mapping, Sequence
 
 import numpy as np
 
@@ -15,36 +15,65 @@ from smart_control.simulator import solar_radiation
 TEMPORARY_MARKED_VALUE = -33
 TEMPORARY_BLOCKED_VALUE = -34
 AIR_IN_LINE_OF_SIGHT = 9  # Air nodes along line of sight between wall nodes
+FOUR_CONNECTED_DIRECTIONS = ((-1, 0), (1, 0), (0, -1), (0, 1))
 
 # pylint: disable=invalid-name
 
 
 def calculate_a_tilde_inv(epsilon: np.ndarray, F: np.ndarray) -> np.ndarray:
-  """Calculates the A-tilde matrix used in radiative heat transfer calculations.
+  r"""Calculates the inverse A-tilde matrix for radiosity calculations.
 
-  The A-tilde matrix relates the radiosity to the blackbody emissive power in a
-  radiative heat transfer system. It accounts for both emission and reflection.
+  Starting from the gray, diffuse-surface radiosity relation
+
+  $$J_i = \epsilon_i E_{b,i} + (1 - \epsilon_i) G_i,$$
+
+  and using $G_i = \sum_j F_{ij} J_j$, the equations become
+
+  $$J_i - (1 - \epsilon_i) \sum_j F_{ij} J_j = \epsilon_i E_{b,i}.$$
+
+  Dividing each row by $\epsilon_i$ gives
+
+  $$\tilde{\mathbf{A}}\,\mathbf{J} = \mathbf{E}_b,$$
+
+  where
+
+  $$\tilde{A}_{ij} =
+  \frac{\delta_{ij} - (1 - \epsilon_i) F_{ij}}{\epsilon_i}.$$
+
+  This function returns $\tilde{\mathbf{A}}^{-1}$, which maps blackbody
+  emissive power to radiosity: $\mathbf{J} =
+  \tilde{\mathbf{A}}^{-1}\mathbf{E}_b$.
 
   Args:
-      epsilon: Array of surface emissivity values (between 0 and 1)
-      F: View factor matrix
+    epsilon: Surface emissivities.
+    F: View-factor matrix in the convention used by this calculation, where
+      ``F[i, j]`` contributes radiosity from surface ``j`` to irradiation on
+      surface ``i``.
 
   Returns:
-      The A-tilde matrix relating radiosity to blackbody emissive power
+    The inverse A-tilde matrix, $\tilde{\mathbf{A}}^{-1}$.
 
   Raises:
-      AssertionError: If emissivity vector size doesn't match view factor matrix
-          or if emissivity values are outside [0,1]
+    ValueError: If inputs have incompatible dimensions, non-finite values, or
+      emissivities outside the interval $(0, 1]$.
   """
+  epsilon = np.asarray(epsilon, dtype=float)
+  F = np.asarray(F, dtype=float)
   n = epsilon.shape[0]
-  epsilon[epsilon == 0] = 1e-10
 
-  A = np.eye(n)
-  I = np.eye(n)
-  for i in range(n):
-    for j in range(n):
-      A[i, j] = (I[i, j] - (1 - epsilon[i]) * F[i, j]) / epsilon[i]
-  return np.linalg.inv(A)
+  if epsilon.ndim != 1 or F.shape != (n, n):
+    raise ValueError('epsilon and F must have compatible square dimensions.')
+  if not np.all(np.isfinite(epsilon)) or np.any((epsilon <= 0) | (epsilon > 1)):
+    raise ValueError(
+        'epsilon values must be finite and in the interval (0, 1].'
+    )
+  if not np.all(np.isfinite(F)):
+    raise ValueError('F must contain only finite values.')
+
+  a_tilde = (np.eye(n) - (1.0 - epsilon)[:, np.newaxis] * F) / epsilon[
+      :, np.newaxis
+  ]
+  return np.linalg.solve(a_tilde, np.eye(n))
 
 
 def calculate_ifa_inv(F: np.ndarray, A_inv: np.ndarray) -> np.ndarray:
@@ -107,7 +136,7 @@ def net_radiative_heatflux_function_of_t(
   $$\tilde{\mathbf{A}}\, \mathbf{J} = \mathbf{E}_b$$
 
   where $\tilde{A}_{ij} =
-    \delta_{ij} - \frac{(1-\epsilon_i) F_{ij}}{\epsilon_i}$.
+    \frac{\delta_{ij} - (1-\epsilon_i) F_{ij}}{\epsilon_i}$.
 
   Solving for $\mathbf{J}$:
 
@@ -136,7 +165,8 @@ def net_radiative_heatflux_function_of_t(
   - $A_i$        : Area of surface $i$ [$\mathrm{m^2}$]
   - $F_{ij}$     : View factor from surface $i$ to $j$ [dimensionless]
   - $\tilde{\mathbf{A}}$: Matrix with elements
-    ($\tilde{A}_{ij} = \delta_{ij} - \frac{(1-\epsilon_i) F_{ij}}{\epsilon_i}$)
+    ($\tilde{A}_{ij} =
+    \frac{\delta_{ij} - (1-\epsilon_i) F_{ij}}{\epsilon_i}$)
   - $\mathbf{I}$ : $n \times n$ identity matrix
   - $\tilde{\mathbf{F}}$: Matrix of $F_{ij}$ (view factors)
   - $\delta_{ij}$: Kronecker delta ($=1$ if $i=j$, $=0$ otherwise)
@@ -165,11 +195,11 @@ def net_radiative_heatflux_function_of_t(
 
 def mark_air_connected_interior_walls(
     indexed_floor_plan: np.ndarray,
-    start_pos: Tuple[int, int],
+    start_pos: tuple[int, int],
     interior_wall_value: int = constants.INTERIOR_WALL_VALUE_IN_FUNCTION,
     marked_value: int = TEMPORARY_MARKED_VALUE,
     air_value: int = constants.INTERIOR_SPACE_VALUE_IN_FUNCTION,
-) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
+) -> tuple[np.ndarray | None, np.ndarray | None]:
   """
   Mark all interior wall nodes that are connected to the same air space as the
       starting position (interior wall or air cell).
@@ -228,7 +258,7 @@ def mark_air_connected_interior_walls(
     return None, None
 
   # 4-connectivity for all steps
-  directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]
+  directions = FOUR_CONNECTED_DIRECTIONS
 
   # Find all air cells that are connected to the starting position
   connected_air_cells = set()
@@ -326,209 +356,110 @@ def mark_air_connected_interior_walls(
   return floor_plan, interior_space
 
 
-def fix_view_factors(F: np.ndarray, A: np.ndarray = None) -> np.ndarray:
-  """
-  Fix approximate view factors and enforce reciprocity and completeness.
+def fix_view_factors(
+    view_factors: np.ndarray,
+    surface_areas: np.ndarray | None = None,
+) -> np.ndarray:
+  r"""Return view factors corrected for reciprocity and enclosure closure.
+
+  The returned matrix uses the conventional orientation where
+  ``view_factors[i, j]`` is the fraction of radiation leaving surface ``i``
+  that reaches surface ``j``. It satisfies, within numerical tolerance:
+
+  $$\sum_j F_{ij} = 1$$
+
+  and
+
+  $$A_i F_{ij} = A_j F_{ji}.$$
+
+  The input arrays are never modified. The correction iteratively balances the
+  symmetric area-weighted exchange matrix $M_{ij} = A_i F_{ij}$ so that its row
+  sums equal the surface-area vector.
 
   Args:
-      F (np.ndarray): Approximate direct view factor matrix (N x N)
-      A (np.ndarray, optional): Area vector (N elements). Defaults to None.
+    view_factors: Approximate square view-factor matrix.
+    surface_areas: Positive surface-area vector. Equal areas are assumed when
+      omitted.
 
   Returns:
-      Fixed view factor matrix
+    A corrected view-factor matrix.
 
-  References:
-      See `FixViewFactors` function in [EnergyPlus](https://github.com/NREL/EnergyPlus/blob/develop/src/EnergyPlus/HeatBalanceIntRadExchange.cc) # pylint: disable=line-too-long
+  Raises:
+    ValueError: If inputs have invalid shapes, non-finite values, negative view
+      factors, or non-positive surface areas.
+    RuntimeError: If the matrix cannot be balanced within the iteration limit.
   """
+  convergence_tolerance = 1e-8
+  max_iterations = 400
 
-  # Parameter definitions
-  PRIMARY_CONVERGENCE = 0.001
-  DIFFERENCE_CONVERGENCE = 0.00001
-  MAX_ITERATIONS = 400
+  view_factors = np.asarray(view_factors, dtype=float)
+  if view_factors.ndim != 2 or view_factors.shape[0] != view_factors.shape[1]:
+    raise ValueError('view_factors must be a square matrix.')
+  if not np.all(np.isfinite(view_factors)):
+    raise ValueError('view_factors must contain only finite values.')
+  if np.any(view_factors < 0):
+    raise ValueError('view_factors cannot contain negative values.')
 
-  # Convert inputs to numpy arrays
-  if A is None:
-    A = np.ones(F.shape[0])
-
-  # F = np.array(F, dtype=np.float64)
-  F = F.T  # since EP calculation is based on F[j,i]
-  N = F.shape[0]
-
-  # Initialize return values
-  results = {
-      'original_check_value': 0.0,
-      'fixed_check_value': 0.0,
-      'final_check_value': 0.0,
-      'num_iterations': 0,
-      'row_sum': 0.0,
-      'enforced_reciprocity': False,
-  }
-
-  # OriginalCheckValue is the first pass at a completeness check
-  results['original_check_value'] = abs(np.sum(F) - N)
-
-  # Allocate and initialize arrays
-  FixedAF = F.copy()  # store for largest area check
-
-  ConvrgOld = 10.0
-  LargestArea = np.max(A)
-  severe_error_present = False
-  largest_surf = -1
-
-  # Check for Strange Geometry
-  # When one surface has an area that exceeds the sum of all other surface areas
-  if LargestArea > 0.99 * (np.sum(A) - LargestArea) and N > 3:
-    for i in range(N):
-      if LargestArea == A[i]:
-        largest_surf = i
-        break
-
-    if largest_surf >= 0:
-      # Give self view to big surface
-      FixedAF[largest_surf, largest_surf] = min(
-          0.9, 1.2 * LargestArea / np.sum(A)
-      )
-
-  # Set up AF matrix (AREA * DIRECT VIEW FACTOR) MATRIX
-  AF = np.zeros((N, N))
-  for i in range(N):
-    for j in range(N):
-      AF[j, i] = FixedAF[j, i] * A[i]
-
-  # Enforce reciprocity by averaging AiFij and AjFji
-  FixedAF = 0.5 * (AF + AF.T)
-
-  FixedF = np.zeros((N, N))
-  results['num_iterations'] = 0
-  results['row_sum'] = 0.0
-
-  # Check for physically unreasonable enclosures (N <= 3)
-  if N <= 3:
-    for i in range(N):
-      for j in range(N):
-        if A[i] != 0:
-          FixedF[j, i] = FixedAF[j, i] / A[i]
-
-    results['row_sum'] = np.sum(FixedF)
-
-    if results['row_sum'] > (N + 0.01):
-      # Find the largest row summation and normalize
-      sum_FixedF = np.sum(FixedF, axis=1)  # Sum along rows
-      MaxFixedFRowSum = np.max(sum_FixedF)
-
-      if MaxFixedFRowSum < 1.0:
-        raise RuntimeError(
-            'FixViewFactors: Three surface or less zone failing ViewFactorFix'
-            ' correction which should never happen.'
-        )
-      else:
-        FixedF *= 1.0 / MaxFixedFRowSum
-
-      results['row_sum'] = np.sum(FixedF)  # Recalculate
-
-    results['final_check_value'] = results['fixed_check_value'] = abs(
-        results['row_sum'] - N
-    )
-    F[:] = FixedF  # Update F in place
-    results['enforced_reciprocity'] = True
-    return results
-
-  # Regular fix cases (N > 3)
-  RowCoefficient = np.zeros(N)
-  Converged = False
-
-  while not Converged:
-    results['num_iterations'] += 1
-
-    for i in range(N):
-      # Determine row coefficients which will enforce closure
-      sum_FixedAF_i = np.sum(FixedAF[:, i])
-      if abs(sum_FixedAF_i) > 1.0e-10:
-        RowCoefficient[i] = A[i] / sum_FixedAF_i
-      else:
-        RowCoefficient[i] = 1.0
-
-      FixedAF[:, i] *= RowCoefficient[i]
-
-    # Enforce reciprocity by averaging AiFij and AjFji
-    FixedAF = 0.5 * (FixedAF + FixedAF.T)
-
-    # Form FixedF matrix
-    for i in range(N):
-      for j in range(N):
-        if A[i] != 0:
-          FixedF[j, i] = FixedAF[j, i] / A[i]
-          if abs(FixedF[j, i]) < 1.0e-10:
-            FixedF[j, i] = 0.0
-            FixedAF[j, i] = 0.0
-
-    ConvrgNew = abs(np.sum(FixedF) - N)
-
-    # Check convergence
-    if (
-        abs(ConvrgOld - ConvrgNew) < DIFFERENCE_CONVERGENCE
-        or ConvrgNew <= PRIMARY_CONVERGENCE
-    ):
-      Converged = True
-
-    ConvrgOld = ConvrgNew
-
-    # Emergency exit after too many iterations
-    if results['num_iterations'] > MAX_ITERATIONS:
-      # Enforce reciprocity by averaging AiFij and AjFji
-      FixedAF = 0.5 * (FixedAF + FixedAF.T)
-
-      # Form FixedF matrix
-      for i in range(N):
-        for j in range(N):
-          if A[i] != 0:
-            FixedF[j, i] = FixedAF[j, i] / A[i]
-
-      sum_FixedF = np.sum(FixedF)
-      results['final_check_value'] = results['fixed_check_value'] = (
-          CheckConvergeTolerance
-      ) = abs(sum_FixedF - N)
-      results['row_sum'] = sum_FixedF
-
-      # pylint:disable=line-too-long
-      if CheckConvergeTolerance > 0.005:
-        if CheckConvergeTolerance > 0.1:
-          pass
-        pass
-      # pylint:enable=line-too-long
-
-      if abs(results['fixed_check_value']) < abs(
-          results['original_check_value']
-      ):
-        F[:] = FixedF
-        results['final_check_value'] = results['fixed_check_value']
-
-      return results
-
-  # Normal completion
-  results['fixed_check_value'] = ConvrgNew
-
-  if results['fixed_check_value'] < results['original_check_value']:
-    F[:] = FixedF
-    results['final_check_value'] = results['fixed_check_value']
+  num_surfaces = view_factors.shape[0]
+  if surface_areas is None:
+    surface_areas = np.ones(num_surfaces)
   else:
-    results['final_check_value'] = results['original_check_value']
-    results['row_sum'] = np.sum(FixedF)
+    surface_areas = np.asarray(surface_areas, dtype=float)
+    if surface_areas.shape != (num_surfaces,):
+      raise ValueError('surface_areas must have one value per surface.')
+  if not np.all(np.isfinite(surface_areas)) or np.any(surface_areas <= 0):
+    raise ValueError('surface_areas must be finite and strictly positive.')
+  if num_surfaces == 0:
+    return view_factors.copy()
 
-    if abs(results['row_sum'] - N) < PRIMARY_CONVERGENCE:
-      F[:] = FixedF
-      results['final_check_value'] = results['fixed_check_value']
-    else:
-      pass
+  # M is symmetric when reciprocity holds: M[i, j] = A_i * F[i, j].
+  exchange_matrix = surface_areas[:, np.newaxis] * view_factors
+  exchange_matrix = 0.5 * (exchange_matrix + exchange_matrix.T)
 
-  if severe_error_present:
-    raise RuntimeError(
-        'FixViewFactors: View factor calculations significantly out of'
-        ' tolerance. See above messages for more information.'
-    )
+  # A zero-exchange surface has no feasible closure. Assign self-view before
+  # balancing so every row can converge to its corresponding surface area.
+  zero_exchange_rows = np.isclose(exchange_matrix.sum(axis=1), 0.0)
+  exchange_matrix[zero_exchange_rows, zero_exchange_rows] = surface_areas[
+      zero_exchange_rows
+  ]
 
-  F = F.T
-  return F
+  for _ in range(max_iterations):
+    row_sums = exchange_matrix.sum(axis=1)
+    if np.any(row_sums <= 0):
+      raise RuntimeError('Unable to balance view factors with zero row sums.')
+
+    scale = np.sqrt(surface_areas / row_sums)
+    exchange_matrix *= scale[:, np.newaxis] * scale[np.newaxis, :]
+
+    if np.allclose(
+        exchange_matrix.sum(axis=1),
+        surface_areas,
+        rtol=convergence_tolerance,
+        atol=convergence_tolerance,
+    ):
+      corrected_view_factors = exchange_matrix / surface_areas[:, np.newaxis]
+      break
+  else:
+    raise RuntimeError('View-factor correction did not converge.')
+
+  if (
+      np.any(corrected_view_factors < -convergence_tolerance)
+      or not np.allclose(
+          corrected_view_factors.sum(axis=1),
+          1.0,
+          rtol=convergence_tolerance,
+          atol=convergence_tolerance,
+      )
+      or not np.allclose(
+          surface_areas[:, np.newaxis] * corrected_view_factors,
+          (surface_areas[:, np.newaxis] * corrected_view_factors).T,
+          rtol=convergence_tolerance,
+          atol=convergence_tolerance,
+      )
+  ):
+    raise RuntimeError('Corrected view factors failed physical validation.')
+
+  return np.maximum(corrected_view_factors, 0.0)
 
 
 def get_vf(
@@ -536,7 +467,7 @@ def get_vf(
     interior_wall_mask: np.ndarray,
     view_factor_method: str = 'ScriptF',
     marked_value: int = TEMPORARY_MARKED_VALUE,
-    interior_mass_mask: Optional[np.ndarray] = None,
+    interior_mass_mask: np.ndarray | None = None,
     interior_mass_value: int = AIR_IN_LINE_OF_SIGHT,
 ) -> np.ndarray:
   """
@@ -651,8 +582,8 @@ def mark_interior_wall_adjacent_to_air(
 
 
 def get_line_points(
-    start: Tuple[float, float], end: Tuple[float, float]
-) -> list[Tuple[float, float]]:
+    start: tuple[float, float], end: tuple[float, float]
+) -> list[tuple[float, float]]:
   """Generate points where the line crosses integer grid lines.
 
   This function calculates all intersection points between a line segment and
@@ -733,8 +664,8 @@ def get_line_points(
 
 def is_line_blocked(
     floor_plan: np.ndarray,
-    start: Tuple[float, float],
-    end: Tuple[float, float],
+    start: tuple[float, float],
+    end: tuple[float, float],
     interior_wall_value: int = constants.INTERIOR_WALL_VALUE_IN_FUNCTION,
     marked_value: int = TEMPORARY_MARKED_VALUE,
     blocked_value: int = TEMPORARY_BLOCKED_VALUE,
@@ -805,7 +736,7 @@ def is_line_blocked(
   return False
 
 
-def are_neighbors(pos1: Tuple[int, int], pos2: Tuple[int, int]) -> bool:
+def are_neighbors(pos1: tuple[int, int], pos2: tuple[int, int]) -> bool:
   """Check if two positions are physically neighboring (adjacent).
 
   This function determines if two grid positions are adjacent to each other
@@ -828,7 +759,7 @@ def are_neighbors(pos1: Tuple[int, int], pos2: Tuple[int, int]) -> bool:
 
 def mark_directly_seeing_nodes(
     floor_plan: np.ndarray,
-    base_node: Tuple[int, int],
+    base_node: tuple[int, int],
     interior_wall_value: int = constants.INTERIOR_WALL_VALUE_IN_FUNCTION,
     marked_value: int = TEMPORARY_MARKED_VALUE,
     blocked_value: int = TEMPORARY_BLOCKED_VALUE,
@@ -972,12 +903,11 @@ def mark_directly_seeing_nodes(
 
 
 def _ensure_irradiance_components(
-    irradiance_components: Union[
-        solar_radiation.IrradianceComponents,
-        Mapping[str, Any],
-    ],
-    solar_zenith: Optional[float] = None,
-    solar_azimuth: Optional[float] = None,
+    irradiance_components: (
+        solar_radiation.IrradianceComponents | Mapping[str, Any]
+    ),
+    solar_zenith: float | None = None,
+    solar_azimuth: float | None = None,
 ) -> solar_radiation.IrradianceComponents:
   """Normalizes irradiance input to an IrradianceComponents instance.
 
@@ -1005,9 +935,8 @@ def _ensure_irradiance_components(
       key for key in required_keys if key not in irradiance_components
   ]
   if missing_keys:
-    raise KeyError(
-        f'Missing irradiance component keys: {", ".join(sorted(missing_keys))}'
-    )
+    missing_key_names = ', '.join(sorted(missing_keys))
+    raise KeyError(f'Missing irradiance component keys: {missing_key_names}')
 
   # Use mapping values if available, else fall back to arguments
   sz = irradiance_components.get('solar_zenith', solar_zenith)
@@ -1019,9 +948,8 @@ def _ensure_irradiance_components(
       missing.append('solar_zenith')
     if sa is None:
       missing.append('solar_azimuth')
-    raise KeyError(
-        f'Missing irradiance component keys: {", ".join(sorted(missing))}'
-    )
+    missing_key_names = ', '.join(sorted(missing))
+    raise KeyError(f'Missing irradiance component keys: {missing_key_names}')
 
   timestamp = irradiance_components.get('timestamp')
   return solar_radiation.IrradianceComponents(
@@ -1047,15 +975,15 @@ def validate_fenestration_connectivity(
 
   fenestration_groups = _find_connected_groups(floor_plan, fenestration_value)
 
-  directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]
+  directions = FOUR_CONNECTED_DIRECTIONS
   rows, cols = floor_plan.shape
 
   for group_name, group_info in fenestration_groups.items():
-    group_indices: Sequence[Tuple[int, int]] = group_info['indices']
+    group_indices: Sequence[tuple[int, int]] = group_info['indices']
 
-    nodes_adjacent_to_air: Set[Tuple[int, int]] = set()
-    nodes_adjacent_to_exterior: Set[Tuple[int, int]] = set()
-    nodes_surrounded_by_air: List[Tuple[int, int]] = []
+    nodes_adjacent_to_air: set[tuple[int, int]] = set()
+    nodes_adjacent_to_exterior: set[tuple[int, int]] = set()
+    nodes_surrounded_by_air: list[tuple[int, int]] = []
 
     for row, col in group_indices:
       adjacent_to_air = False
@@ -1123,14 +1051,14 @@ def validate_fenestration_connectivity(
 def _validate_fenestration_chain_connectivity(
     floor_plan: np.ndarray,
     group_name: str,
-    group_indices: Sequence[Tuple[int, int]],
-    nodes_adjacent_to_air: Set[Tuple[int, int]],
-    nodes_adjacent_to_exterior: Set[Tuple[int, int]],
+    group_indices: Sequence[tuple[int, int]],
+    nodes_adjacent_to_air: set[tuple[int, int]],
+    nodes_adjacent_to_exterior: set[tuple[int, int]],
     fenestration_value: int,
     air_value: int,
 ) -> None:
   """Ensure each fenestration node can reach both exterior and interior."""
-  directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]
+  directions = FOUR_CONNECTED_DIRECTIONS
   direction_names = {
       (-1, 0): 'north',
       (1, 0): 'south',
@@ -1140,7 +1068,7 @@ def _validate_fenestration_chain_connectivity(
   rows, cols = floor_plan.shape
   group_set = set(group_indices)
 
-  reachable_from_exterior: Set[Tuple[int, int]] = set()
+  reachable_from_exterior: set[tuple[int, int]] = set()
   queue = deque(nodes_adjacent_to_exterior)
   reachable_from_exterior.update(nodes_adjacent_to_exterior)
 
@@ -1152,7 +1080,7 @@ def _validate_fenestration_chain_connectivity(
         reachable_from_exterior.add((nr, nc))
         queue.append((nr, nc))
 
-  reachable_from_air: Set[Tuple[int, int]] = set()
+  reachable_from_air: set[tuple[int, int]] = set()
   queue = deque(nodes_adjacent_to_air)
   reachable_from_air.update(nodes_adjacent_to_air)
 
@@ -1183,7 +1111,7 @@ def _validate_fenestration_chain_connectivity(
   if interior_direction is None:
     return
 
-  blocked_by_interior_wall: List[Tuple[int, int]] = []
+  blocked_by_interior_wall: list[tuple[int, int]] = []
   dr, dc = interior_direction
   for row, col in group_indices:
     nr, nc = row + dr, col + dc
@@ -1208,11 +1136,11 @@ def _validate_fenestration_chain_connectivity(
 
 
 def _determine_interior_direction(
-    nodes_adjacent_to_exterior: Set[Tuple[int, int]],
+    nodes_adjacent_to_exterior: set[tuple[int, int]],
     rows: int,
     cols: int,
     floor_plan: np.ndarray,
-) -> Optional[Tuple[int, int]]:
+) -> tuple[int, int] | None:
   """Infer the direction pointing from exterior toward interior air."""
   if not nodes_adjacent_to_exterior:
     return None
@@ -1227,7 +1155,7 @@ def _determine_interior_direction(
     if col == cols - 1:
       return (0, -1)
 
-  directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]
+  directions = FOUR_CONNECTED_DIRECTIONS
   opposite = {
       (-1, 0): (1, 0),
       (1, 0): (-1, 0),
@@ -1251,18 +1179,18 @@ def _determine_interior_direction(
 def _find_connected_groups(
     floor_plan: np.ndarray,
     target_value: int,
-) -> Dict[str, Dict[str, Any]]:
+) -> dict[str, dict[str, Any]]:
   """Find 4-connected groups of `target_value`cells and return their indices."""
   visited = np.zeros_like(floor_plan, dtype=bool)
-  groups: Dict[str, Dict[str, Any]] = {}
+  groups: dict[str, dict[str, Any]] = {}
   group_count = 0
-  directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]
+  directions = FOUR_CONNECTED_DIRECTIONS
 
   for row in range(floor_plan.shape[0]):
     for col in range(floor_plan.shape[1]):
       if floor_plan[row, col] == target_value and not visited[row, col]:
         group_count += 1
-        group_indices: List[Tuple[int, int]] = []
+        group_indices: list[tuple[int, int]] = []
         queue = deque([(row, col)])
         visited[row, col] = True
 
@@ -1301,7 +1229,7 @@ def mark_fenestration_positions(
   """Classify fenestration nodes into exterior, interior, or in-between."""
   result = floor_plan.copy()
   rows, cols = floor_plan.shape
-  directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]
+  directions = FOUR_CONNECTED_DIRECTIONS
 
   fen_rows, fen_cols = np.where(floor_plan == fenestration_value)
   for row, col in zip(fen_rows, fen_cols):
@@ -1337,7 +1265,7 @@ def group_fenestrations(
     inbetween_fenestration: int = constants.INBETWEEN_FENESTRATION_VALUE,
     exterior_space_value: int = constants.EXTERIOR_SPACE_VALUE_IN_FUNCTION,
     floor_plan_orientation: float = 0.0,
-) -> Dict[str, Dict[str, Any]]:
+) -> dict[str, dict[str, Any]]:
   """Group adjacent fenestration nodes and compute surface properties."""
   fenestration_mask = (
       (floor_plan == exterior_fenestration)
@@ -1346,15 +1274,15 @@ def group_fenestrations(
   )
 
   visited = np.zeros_like(floor_plan, dtype=bool)
-  groups: Dict[str, Dict[str, Any]] = {}
+  groups: dict[str, dict[str, Any]] = {}
   group_count = 0
-  directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]
+  directions = FOUR_CONNECTED_DIRECTIONS
 
   for row in range(floor_plan.shape[0]):
     for col in range(floor_plan.shape[1]):
       if fenestration_mask[row, col] and not visited[row, col]:
         group_count += 1
-        group_indices: List[Tuple[int, int]] = []
+        group_indices: list[tuple[int, int]] = []
         exterior_count = 0
         queue = deque([(row, col)])
         visited[row, col] = True
@@ -1423,7 +1351,7 @@ def group_fenestrations(
 
 def _determine_fenestration_azimuth(
     floor_plan: np.ndarray,
-    group_indices: Sequence[Tuple[int, int]],
+    group_indices: Sequence[tuple[int, int]],
     exterior_space_value: int = constants.EXTERIOR_SPACE_VALUE_IN_FUNCTION,
     exterior_fenestration_value: int = constants.EXTERIOR_FENESTRATION_VALUE,
     floor_plan_orientation: float = 0.0,
@@ -1463,7 +1391,7 @@ def _determine_fenestration_azimuth(
     Azimuth angle in degrees [0, 360).
   """
   rows, cols = floor_plan.shape
-  directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]
+  directions = FOUR_CONNECTED_DIRECTIONS
 
   # Accumulate direction vectors from exterior fenestration toward exterior
   # space in Cartesian coordinates (dx = col direction, dy = -row direction)
@@ -1523,8 +1451,8 @@ def group_air_nodes(
     exterior_fenestration: int = constants.EXTERIOR_FENESTRATION_VALUE,
     interior_fenestration: int = constants.INTERIOR_FENESTRATION_VALUE,
     inbetween_fenestration: int = constants.INBETWEEN_FENESTRATION_VALUE,
-    fenestration_groups: Optional[Mapping[str, Dict[str, Any]]] = None,
-) -> Dict[str, Dict[str, Any]]:
+    fenestration_groups: Mapping[str, dict[str, Any]] | None = None,
+) -> dict[str, dict[str, Any]]:
   """Group connected interior air nodes and annotate adjacent fenestrations.
 
   Finds all connected components of air nodes (using 4-connectivity) and
@@ -1545,11 +1473,11 @@ def group_air_nodes(
       'count', 'indices', 'indices_array', 'fenestration_groups'.
   """
   visited = np.zeros_like(floor_plan, dtype=bool)
-  groups: Dict[str, Dict[str, Any]] = {}
+  groups: dict[str, dict[str, Any]] = {}
   group_count = 0
-  directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]
+  directions = FOUR_CONNECTED_DIRECTIONS
 
-  fenestration_index_to_group: Dict[Tuple[int, int], str] = {}
+  fenestration_index_to_group: dict[tuple[int, int], str] = {}
   if fenestration_groups:
     for group_name, group_info in fenestration_groups.items():
       for idx in group_info['indices']:
@@ -1565,8 +1493,8 @@ def group_air_nodes(
     for col in range(floor_plan.shape[1]):
       if floor_plan[row, col] == air_value and not visited[row, col]:
         group_count += 1
-        group_indices: List[Tuple[int, int]] = []
-        adjacent_fenestrations: Set[str] = set()
+        group_indices: list[tuple[int, int]] = []
+        adjacent_fenestrations: set[str] = set()
         queue = deque([(row, col)])
         visited[row, col] = True
 
@@ -1604,10 +1532,9 @@ def group_air_nodes(
 
 def calculate_solar_absorbed_for_fenestration_group(
     fenestration_group: Mapping[str, Any],
-    irradiance_components: Union[
-        solar_radiation.IrradianceComponents,
-        Mapping[str, Any],
-    ],
+    irradiance_components: (
+        solar_radiation.IrradianceComponents | Mapping[str, Any]
+    ),
     solar_zenith: float,
     solar_azimuth: float,
     alpha: float = constants.FENESTRATION_SOLAR_ABSORPTANCE,
@@ -1639,11 +1566,10 @@ def calculate_solar_absorbed_for_fenestration_group(
 
 def net_solar_absorbed_heatflux_fenestration(
     floor_plan: np.ndarray,
-    fenestration_groups: Optional[Mapping[str, Mapping[str, Any]]],
-    irradiance_components: Union[
-        solar_radiation.IrradianceComponents,
-        Mapping[str, Any],
-    ],
+    fenestration_groups: Mapping[str, Mapping[str, Any]] | None,
+    irradiance_components: (
+        solar_radiation.IrradianceComponents | Mapping[str, Any]
+    ),
     solar_zenith: float,
     solar_azimuth: float,
     alpha: float = constants.FENESTRATION_SOLAR_ABSORPTANCE,
@@ -1670,10 +1596,9 @@ def net_solar_absorbed_heatflux_fenestration(
 
 def calculate_solar_transmitted_for_fenestration_group(
     fenestration_group: Mapping[str, Any],
-    irradiance_components: Union[
-        solar_radiation.IrradianceComponents,
-        Mapping[str, Any],
-    ],
+    irradiance_components: (
+        solar_radiation.IrradianceComponents | Mapping[str, Any]
+    ),
     solar_zenith: float,
     solar_azimuth: float,
     tau: float = constants.FENESTRATION_SOLAR_TRANSMITTANCE,
@@ -1703,12 +1628,11 @@ def calculate_solar_transmitted_for_fenestration_group(
 
 def net_solar_transmitted_heatflux_fenestration(
     floor_plan: np.ndarray,
-    fenestration_groups: Optional[Mapping[str, Mapping[str, Any]]],
-    air_groups: Optional[Mapping[str, Mapping[str, Any]]],
-    irradiance_components: Union[
-        solar_radiation.IrradianceComponents,
-        Mapping[str, Any],
-    ],
+    fenestration_groups: Mapping[str, Mapping[str, Any]] | None,
+    air_groups: Mapping[str, Mapping[str, Any]] | None,
+    irradiance_components: (
+        solar_radiation.IrradianceComponents | Mapping[str, Any]
+    ),
     solar_zenith: float,
     solar_azimuth: float,
     tau: float = constants.FENESTRATION_SOLAR_TRANSMITTANCE,
@@ -1719,7 +1643,7 @@ def net_solar_transmitted_heatflux_fenestration(
   if not fenestration_groups or not air_groups:
     return q_sol_tau_array
 
-  fenestration_q_sol_tau: Dict[str, float] = {}
+  fenestration_q_sol_tau: dict[str, float] = {}
   for group_name, group_info in fenestration_groups.items():
     fenestration_q_sol_tau[group_name] = (
         calculate_solar_transmitted_for_fenestration_group(
@@ -1863,7 +1787,7 @@ def calculate_exterior_lwr_for_fenestration_group(
 
 def net_exterior_radiative_heatflux(
     floor_plan: np.ndarray,
-    fenestration_groups: Optional[Mapping[str, Mapping[str, Any]]],
+    fenestration_groups: Mapping[str, Mapping[str, Any]] | None,
     surface_temperatures: np.ndarray,
     emissivity_array: np.ndarray,
     ambient_temperature: float,
@@ -1872,7 +1796,7 @@ def net_exterior_radiative_heatflux(
   """Compute net exterior LWR heat flux array for all fenestration nodes.
 
   For each fenestration group, calculates the net longwave radiation exchange
-  and distributes the result uniformly to all nodes in the group.
+  and assigns the result uniformly to all nodes in the group.
 
   Args:
     floor_plan: 2D indexed floor plan array.
@@ -1977,7 +1901,7 @@ def get_exterior_wall_boundary_mask(
         queue.append((r, c))
         visited_air[r, c] = True
 
-  directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]
+  directions = FOUR_CONNECTED_DIRECTIONS
   while queue:
     r, c = queue.popleft()
     for dr, dc in directions:
@@ -2080,7 +2004,7 @@ def determine_exterior_wall_azimuth_array(
   """
   rows, cols = floor_plan.shape
   azimuth_array = np.zeros((rows, cols), dtype=float)
-  directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]
+  directions = FOUR_CONNECTED_DIRECTIONS
 
   for r in range(rows):
     for c in range(cols):

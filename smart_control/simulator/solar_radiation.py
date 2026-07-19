@@ -12,7 +12,6 @@ import pandas as pd
 from pvlib import irradiance as pvlib_irradiance
 from pvlib import location as pvlib_location
 
-from smart_control.simulator import constants
 from smart_control.simulator import weather_controller as wc_module
 from smart_control.utils import conversion_utils as utils
 
@@ -106,8 +105,8 @@ class IrradianceComponents:
   ghi: float
   dni: float
   dhi: float
-  solar_zenith: float
-  solar_azimuth: float
+  solar_zenith: float | None
+  solar_azimuth: float | None
   timestamp: pd.Timestamp | None = None
 
 
@@ -369,8 +368,8 @@ class SolarRadiation:
     that the dry-bulb temperature can be obtained.
 
     Args:
-      timestamp: Pandas timestamp.  Passed as-is to the weather controller's
-        `get_current_temp` method.
+      timestamp: Pandas timestamp. It is converted to local wall-clock time
+        before querying the weather controller.
 
     Returns:
       Sky temperature in K.
@@ -383,27 +382,12 @@ class SolarRadiation:
           'A weather_controller must be provided to compute sky temperature.'
       )
 
-    sigma = constants.STEFAN_BOLTZMANN_CONSTANT
+    # WeatherController expects a naive local timestamp. This also gives replay
+    # controllers a consistent local-time input.
+    weather_timestamp = self._ensure_timestamp_tz(timestamp).tz_localize(None)
+    temp_k = self.weather_controller.get_current_temp(weather_timestamp)
 
-    # Dry-bulb temperature from the weather controller.
-    # Pass the original timestamp so the controller can apply its own
-    # timezone handling (the sinusoidal WeatherController expects naive
-    # timestamps while ReplayWeatherController handles both).
-    temp_k = self.weather_controller.get_current_temp(timestamp)
-
-    # Estimate dew-point temperature
-    dp_k = temp_k - self.dewpoint_depression
-
-    # Sky emissivity (Clark & Allen)
-    epsilon_sky = 0.787 + 0.764 * np.log(dp_k / 273.0)
-
-    # Horizontal infrared radiation
-    ir_h = epsilon_sky * sigma * (temp_k**4)
-
-    # Sky temperature
-    temp_sky_k = (ir_h / sigma) ** 0.25
-
-    return float(temp_sky_k)
+    return _calculate_sky_temperature(temp_k, temp_k - self.dewpoint_depression)
 
   # ----- combined exterior radiation state ---------------------------------
 
@@ -417,9 +401,8 @@ class SolarRadiation:
     shortwave irradiance) in a single call per timestep.
 
     Args:
-      timestamp: Pandas timestamp.  If naive, will be localised to the
-        building's timezone for irradiance and sky-temperature calculations.
-        Passed as-is to `weather_controller.get_current_temp()`.
+      timestamp: Pandas timestamp. It is normalized to the building's timezone;
+        weather-controller calls use the corresponding naive local time.
 
     Returns:
       :class:`ExteriorRadiationData` with `ambient_temp_k`,
@@ -433,21 +416,15 @@ class SolarRadiation:
           'A weather_controller must be provided to compute exterior radiation.'
       )
 
-    # Ambient temperature (naive-safe: each WC handles tz internally)
-    ambient_temp_k = float(self.weather_controller.get_current_temp(timestamp))
-
-    # Sky temperature (same tz rules as get_current_sky_temperature)
-    sky_temp_k = self.get_current_sky_temperature(timestamp)
-
-    # Irradiance components + solar position
-    irrad = self.get_current_irradiance(timestamp)
-
-    # Normalise timestamp for the return value
-    ts = (
-        self._ensure_timestamp_tz(timestamp)
-        if timestamp.tzinfo is None
-        else timestamp
+    # Normalize timestamp once. WeatherController uses naive local time, while
+    # irradiance calculations require the timezone-aware timestamp.
+    ts = self._ensure_timestamp_tz(timestamp)
+    weather_timestamp = ts.tz_localize(None)
+    ambient_temp_k = float(
+        self.weather_controller.get_current_temp(weather_timestamp)
     )
+    sky_temp_k = self.get_current_sky_temperature(weather_timestamp)
+    irrad = self.get_current_irradiance(ts)
 
     return ExteriorRadiationData(
         timestamp=ts,
@@ -488,15 +465,27 @@ def _get_observation_value(
   return default
 
 
+def _calculate_sky_temperature(dry_bulb_k: float, dew_point_k: float) -> float:
+  """Calculate Clark & Allen sky temperature from dry-bulb and dew point."""
+  if not np.isfinite(dry_bulb_k) or dry_bulb_k <= 0:
+    raise ValueError('dry_bulb_k must be finite and greater than zero.')
+  if not np.isfinite(dew_point_k) or dew_point_k <= 0:
+    raise ValueError('dew_point_k must be finite and greater than zero.')
+
+  epsilon_sky = 0.787 + 0.764 * np.log(dew_point_k / 273.0)
+  if epsilon_sky <= 0:
+    raise ValueError('dew_point_k produces a non-positive sky emissivity.')
+  return float(dry_bulb_k * epsilon_sky**0.25)
+
+
 def get_replay_irradiance(
     observation_responses: Sequence[object],
 ) -> Sequence[IrradianceComponents]:
   """Extract irradiance data from past observation protos.
 
   Iterates over *observation_responses* and reads the `ghi_sensor`,
-  `dni_sensor`, and `dhi_sensor` measurements.  Solar zenith and azimuth
-  are set to 0.0 because they are not typically recorded in observation
-  protos.
+  `dni_sensor`, and `dhi_sensor` measurements. Solar zenith and azimuth are
+  set to ``None`` because observation protos do not typically record them.
 
   Args:
     observation_responses: Sequence of `ObservationResponse` protos.
@@ -516,8 +505,8 @@ def get_replay_irradiance(
             ghi=ghi,
             dni=dni,
             dhi=dhi,
-            solar_zenith=0.0,
-            solar_azimuth=0.0,
+            solar_zenith=None,
+            solar_azimuth=None,
             timestamp=timestamp,
         )
     )
@@ -586,7 +575,6 @@ def get_replay_sky_temperature(
   Returns:
     Mapping from timestamp string to sky temperature in Kelvin.
   """
-  sigma = constants.STEFAN_BOLTZMANN_CONSTANT
   sky_temps: dict[str, float] = {}
 
   for r in observation_responses:
@@ -598,9 +586,7 @@ def get_replay_sky_temperature(
     if dp_k is None:
       dp_k = temp_k - dewpoint_depression
 
-    epsilon_sky = 0.787 + 0.764 * np.log(dp_k / 273.0)
-    ir_h = epsilon_sky * sigma * (temp_k**4)
-    temp_sky_k = (ir_h / sigma) ** 0.25
+    temp_sky_k = _calculate_sky_temperature(temp_k, dp_k)
 
     timestamp = utils.proto_to_pandas_timestamp(r.timestamp)
     sky_temps[str(timestamp)] = float(temp_sky_k)
@@ -617,8 +603,8 @@ def calculate_poa_irradiance(
     irradiance_components: IrradianceComponents,
     surface_tilt: float,
     surface_azimuth: float,
-    solar_zenith: float,
-    solar_azimuth: float,
+    solar_zenith: float | None = None,
+    solar_azimuth: float | None = None,
 ) -> float:
   """Calculate plane-of-array (POA) global irradiance.
 
@@ -633,8 +619,10 @@ def calculate_poa_irradiance(
       (0 = horizontal, 90 = vertical).
     surface_azimuth: Surface azimuth angle in degrees (180 = south-facing
       in the Northern Hemisphere).
-    solar_zenith: Solar zenith angle in degrees.
-    solar_azimuth: Solar azimuth angle in degrees.
+    solar_zenith: Optional solar zenith override in degrees. Defaults to the
+      value stored in ``irradiance_components``.
+    solar_azimuth: Optional solar azimuth override in degrees. Defaults to the
+      value stored in ``irradiance_components``.
 
   Returns:
     POA global irradiance in W/m².
@@ -649,11 +637,24 @@ def calculate_poa_irradiance(
         irrad,
         surface_tilt=30.0,
         surface_azimuth=180.0,
-        solar_zenith=30.0,
-        solar_azimuth=180.0,
     )
     ```
   """
+  solar_zenith = (
+      irradiance_components.solar_zenith
+      if solar_zenith is None
+      else solar_zenith
+  )
+  solar_azimuth = (
+      irradiance_components.solar_azimuth
+      if solar_azimuth is None
+      else solar_azimuth
+  )
+  if solar_zenith is None or solar_azimuth is None:
+    raise ValueError(
+        'Solar zenith and azimuth are required to calculate POA irradiance.'
+    )
+
   poa_irrad = pvlib_irradiance.get_total_irradiance(
       surface_tilt=surface_tilt,
       surface_azimuth=surface_azimuth,

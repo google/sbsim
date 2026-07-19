@@ -57,6 +57,41 @@ class BuildingRadiationUtilsTest(absltest.TestCase):
     with self.subTest("ifa_inv"):
       assert_array_almost_equal(ifa_inv, expected_ifa_inv, decimal=3)
 
+  def test_calculate_a_tilde_inv_rejects_zero_emissivity_without_mutation(self):
+    """Test zero emissivity is rejected without changing the input array."""
+    epsilon = np.array([0.8, 0.0])
+    original_epsilon = epsilon.copy()
+    view_factors = np.array([[0.0, 1.0], [1.0, 0.0]])
+
+    with self.assertRaises(ValueError):
+      utils.calculate_a_tilde_inv(epsilon, view_factors)
+
+    np.testing.assert_array_equal(epsilon, original_epsilon)
+
+  def test_fix_view_factors_returns_balanced_copy(self):
+    """Test correction preserves inputs and enforces physical invariants."""
+    view_factors = np.array([
+        [0.0, 0.7, 0.1],
+        [0.4, 0.0, 0.4],
+        [0.2, 0.7, 0.0],
+    ])
+    surface_areas = np.array([1.0, 2.0, 1.5])
+    original_view_factors = view_factors.copy()
+    original_surface_areas = surface_areas.copy()
+
+    corrected = utils.fix_view_factors(view_factors, surface_areas)
+
+    self.assertIsInstance(corrected, np.ndarray)
+    np.testing.assert_array_equal(view_factors, original_view_factors)
+    np.testing.assert_array_equal(surface_areas, original_surface_areas)
+    np.testing.assert_allclose(corrected.sum(axis=1), 1.0, atol=1e-8)
+    self.assertTrue(np.all(corrected >= 0.0))
+    np.testing.assert_allclose(
+        surface_areas[:, np.newaxis] * corrected,
+        (surface_areas[:, np.newaxis] * corrected).T,
+        atol=1e-8,
+    )
+
   def test_net_radiative_heatflux_function_of_t(self):
     """Test calculation of net radiative heat flux from surface temperatures.
 
@@ -1209,11 +1244,11 @@ class BuildingRadiationUtilsTest(absltest.TestCase):
     non_fenestration_mask = (floor_plan != -42) & (floor_plan != -43)
     self.assertTrue(np.all(q_lwr[non_fenestration_mask] == 0.0))
 
-    # q_lwr should be non-zero at fenestration positions
+    # All fenestration nodes in the group receive the same LWR value.
     fenestration_mask = (floor_plan == -42) | (floor_plan == -43)
-    # All fenestration nodes in a group should have the same q_lwr
     q_lwr_fenestrations = q_lwr[fenestration_mask]
     self.assertTrue(np.all(q_lwr_fenestrations == q_lwr_fenestrations[0]))
+    self.assertNotEqual(q_lwr_fenestrations[0], 0.0)
 
   def test_net_exterior_radiative_heatflux_no_fenestrations(self):
     """Test that q_lwr is zero when there are no fenestrations."""
