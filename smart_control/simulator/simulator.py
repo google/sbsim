@@ -22,12 +22,70 @@ ZoneId = Tuple[int, int]
 
 @gin.configurable
 class Simulator:
-  """Simulates thermodynamics of a building.
+  r"""Simulates thermodynamics of a building.
 
-  This simulator uses finite differences method (FDM) to approximate the
-  temperature changes in each Control Volume (CV) in a building. This happens
-  through an iterative process described in the finite_differences_timestep
-  method.
+  This simulator uses the finite differences / finite volume method (FDM/FVM)
+  to approximate the temperature changes in each Control Volume (CV) in a
+  building. This happens through an iterative process described in the
+  ``finite_differences_timestep`` method.
+
+  Key Governing Equations
+  =======================
+  The building domain is discretized into square air CVs of size
+  :math:`\delta_x` and height (floor height) :math:`z`. Each CV exchanges heat
+  by conduction with its air neighbors, and boundary CVs (corner/edge)
+  additionally exchange heat by convection with the ambient air. Interior CVs
+  may additionally be coupled to an interior thermal-mass node, receive a
+  diffuser heat source :math:`Q_x`, and exchange longwave radiation with other
+  interior surfaces (:math:`q_{\text{lwx}}`).
+
+  The per-CV transient energy balance has the general form::
+
+      (conduction to neighbors)
+      + (convection, boundary CVs only)
+      + (diffuser source Q_x, interior CVs only)
+      + (interior-mass coupling, if enabled)
+      + (interior longwave radiation q_lwx, if enabled)
+      = (energy storage)
+
+  and is solved for the CV temperature :math:`T_{i,j}` at the new time step.
+  The temporal parameter :math:`t_0` groups the storage term; its exact
+  definition differs per CV class because corner/edge CVs represent a
+  fractional CV volume (1/4 and 1/2 respectively).
+
+  The specific update formulas are documented in each estimator method:
+
+  - Corner CV (2 neighbors, 2 exposed faces):
+    :meth:`_get_corner_cv_temp_estimate`
+  - Edge CV (3 neighbors, 1 exposed face):
+    :meth:`_get_edge_cv_temp_estimate`
+  - Interior CV (4 neighbors, no exposed face):
+    :meth:`_get_interior_cv_temp_estimate`
+  - Interior mass node:
+    :meth:`update_interior_mass_temperatures`
+
+  Scope / Simplifications
+  -----------------------
+  This base simulator models conduction, ambient convection at boundary CVs,
+  the diffuser heat source, interior longwave radiation, and interior thermal
+  mass. It does NOT apply exterior longwave radiation (:math:`q_{\text{lwr}}`)
+  or shortwave solar gains (:math:`q_{\text{sol},\alpha}`,
+  :math:`q_{\text{sol},\tau}`) to the boundary CVs or the interior mass node;
+  those terms are therefore intentionally absent from the equations below.
+
+  Nomenclature
+  ------------
+  - :math:`T_{i,j}`: air temperature at CV (i, j) at the new time step [K]
+  - :math:`T_{i,j}^{(-)}`: air temperature at CV (i, j) at the previous step [K]
+  - :math:`T_{\text{amb}}`: ambient (external) air temperature [K]
+  - :math:`k`: thermal conductivity of the CV [W/(m K)]
+  - :math:`\rho`: density [kg/m^3]
+  - :math:`c`: specific heat capacity [J/(kg K)]
+  - :math:`\alpha = k / (\rho c)`: thermal diffusivity [m^2/s]
+  - :math:`h`: convection heat transfer coefficient [W/(m^2 K)]
+  - :math:`\delta_x`: spatial discretization (uniform CV size) [m]
+  - :math:`z`: CV height (floor height) [m]
+  - :math:`\Delta t`: time step [s]
   """
 
   def __init__(
@@ -101,11 +159,54 @@ class Simulator:
       ambient_temperature: float,
       convection_coefficient: float,
   ) -> float:
-    """Returns temperature estimate for corner CV in K for next time step.
+    r"""Returns temperature estimate for corner CV in K for next time step.
 
-    This function calculates the solution to an equation involving the energy
-    transfer by conduction to neighoring air CVs as well as energy transfer by
-    convection from the external ambient air.
+    A corner CV has two air neighbors and two faces exposed to the ambient
+    air. It represents one quarter of a full interior CV volume, which
+    introduces the factor of 1/4 in the storage term.
+
+    Energy Balance (corner CV):
+    ---------------------------
+    Conduction from the two neighbors, convection from the two exposed faces,
+    and transient storage over the 1/4 CV volume:
+
+    $$k \left(\frac{\delta_x z}{2}\right)
+        \frac{T_{n1} - T_{i,j}}{\delta_x}
+      + k \left(\frac{\delta_x z}{2}\right)
+        \frac{T_{n2} - T_{i,j}}{\delta_x}
+      + 2 h \left(\frac{\delta_x z}{2}\right) (T_{\text{amb}} - T_{i,j})
+      = \frac{\rho c \delta_x^2 z}{4 \Delta t}
+        \left( T_{i,j} - T_{i,j}^{(-)} \right)$$
+
+    Solving for $T_{i,j}$ (the height $z$ cancels):
+
+    $$T_{i,j} = \frac{k (T_{n1} + T_{n2})
+        + 2 h \delta_x T_{\text{amb}} + t_0 T_{i,j}^{(-)}}
+        {2 k + 2 h \delta_x + t_0}$$
+
+    where the temporal parameter is:
+
+    $$t_0 = \frac{\rho c \delta_x^2}{2 \Delta t}$$
+
+    Note:
+      Exterior longwave radiation ($q_{\text{lwr}}$) and solar gains
+      ($q_{\text{sol}}$) are not modeled by this base simulator, so those
+      terms do not appear.
+
+    Nomenclature and Units:
+    -----------------------
+    - $T_{i,j}$: corner CV air temperature at new time step [K]
+    - $T_{i,j}^{(-)}$: corner CV air temperature at previous time step [K]
+    - $T_{n1}, T_{n2}$: neighbor CV temperatures [K]
+    - $T_{\text{amb}}$: ambient (external) air temperature [K]
+    - $k$: thermal conductivity [$\mathrm{W/(m \cdot K)}$]
+    - $h$: convection coefficient [$\mathrm{W/(m^2 \cdot K)}$]
+    - $\rho$: density [$\mathrm{kg/m^3}$]
+    - $c$: specific heat capacity [$\mathrm{J/(kg \cdot K)}$]
+    - $\delta_x$: spatial discretization (uniform CV size) [$\mathrm{m}$]
+    - $z$: CV height (floor height) [$\mathrm{m}$]
+    - $\Delta t$: time step [$\mathrm{s}$]
+    - $t_0$: temporal parameter [dimensionless]
 
     Args:
       cv_coordinates: 2-Tuple representing coordinates in building of CV.
@@ -152,11 +253,61 @@ class Simulator:
       ambient_temperature: float,
       convection_coefficient: float,
   ) -> float:
-    """Returns temperature estimate for edge CV in K for next time step.
+    r"""Returns temperature estimate for edge CV in K for next time step.
 
-    This function calculates the solution to an equation involving the energy
-    transfer by conduction to neighoring air CVs as well as energy transfer by
-    convection from the external ambient air.
+    An edge CV has three air neighbors and one face exposed to the ambient
+    air. It represents one half of a full interior CV volume, which introduces
+    the factor of 1/2 in the storage term.
+
+    Energy Balance (edge CV):
+    -------------------------
+    Conduction from the three neighbors (each face weighted by a geometric
+    factor $f_n$, see below), convection from the single exposed face, and
+    transient storage over the 1/2 CV volume:
+
+    $$\sum_{n=1}^{3} f_n\, k (\delta_x z)
+        \frac{T_n - T_{i,j}}{\delta_x}
+      + h (\delta_x z) (T_{\text{amb}} - T_{i,j})
+      = \frac{\rho c \delta_x^2 z}{2 \Delta t}
+        \left( T_{i,j} - T_{i,j}^{(-)} \right)$$
+
+    Solving for $T_{i,j}$ (the height $z$ cancels):
+
+    $$T_{i,j} = \frac{k \sum_{n=1}^{3} (f_n T_n)
+        + h \delta_x T_{\text{amb}} + t_0 T_{i,j}^{(-)}}
+        {2 k + h \delta_x + t_0}$$
+
+    where the temporal parameter is:
+
+    $$t_0 = \frac{\rho c \delta_x^2}{2 \Delta t}$$
+
+    Conduction face factor $f_n$:
+      A neighbor that is itself a boundary CV (corner or edge, i.e. fewer than
+      4 neighbors) shares a half-length face with this edge CV, so its
+      conduction contribution is weighted by $f_n = 0.5$; interior neighbors
+      use $f_n = 1.0$. This is implemented as ``edge_factor`` below.
+
+    Note:
+      Exterior longwave radiation ($q_{\text{lwr}}$) and solar gains
+      ($q_{\text{sol}}$) are not modeled by this base simulator, so those
+      terms do not appear.
+
+    Nomenclature and Units:
+    -----------------------
+    - $T_{i,j}$: edge CV air temperature at new time step [K]
+    - $T_{i,j}^{(-)}$: edge CV air temperature at previous time step [K]
+    - $T_n$: neighbor CV temperatures [K]
+    - $f_n$: conduction face factor (0.5 for boundary neighbors, 1.0 for
+      interior neighbors) [dimensionless]
+    - $T_{\text{amb}}$: ambient (external) air temperature [K]
+    - $k$: thermal conductivity [$\mathrm{W/(m \cdot K)}$]
+    - $h$: convection coefficient [$\mathrm{W/(m^2 \cdot K)}$]
+    - $\rho$: density [$\mathrm{kg/m^3}$]
+    - $c$: specific heat capacity [$\mathrm{J/(kg \cdot K)}$]
+    - $\delta_x$: spatial discretization (uniform CV size) [$\mathrm{m}$]
+    - $z$: CV height (floor height) [$\mathrm{m}$]
+    - $\Delta t$: time step [$\mathrm{s}$]
+    - $t_0$: temporal parameter [dimensionless]
 
     Args:
       cv_coordinates: 2-Tuple representing coordinates in building of CV.
@@ -224,17 +375,25 @@ class Simulator:
       k_3 (v z) \frac{T_{i+1,j} - T_{i,j}}{u} +
       k_4 (u z) \frac{T_{i,j+1} - T_{i,j}}{v} \\
       + Q_x + \frac{k_{\text{mass}} u v}{z}
-      (T_{\text{mass},i,j} - T_{i,j}) + q_{\text{lwx}} =
+      (T_{\text{mass},i,j} - T_{i,j}) + q_{\text{lwx}} (u z) =
       \frac{\rho c u v z}{\Delta t} \left( T_{i,j} - T_{i,j}^{(-)} \right)
       \end{multline}$$
+
+    Here $q_{\text{lwx}}$ is a heat flux [W/m^2] and $q_{\text{lwx}} (u z)$ is
+    the corresponding power [W] entering the CV through the wall face of area
+    $u z$.
 
     Solving for $T_{i,j}$ with uniform spacing ($u = v = \delta_x$) and uniform
     conductivity ($k_1 = k_2 = k_3 = k_4 = k$):
 
     $$T_{i,j} = \frac{\sum_{\text{neighbors}} T_{\text{neighbor}} +
       \frac{Q_x}{z k} + \frac{k_{\text{mass}} \delta_x^2}{z^2 k}
-      T_{\text{mass},i,j}+\frac{q_\text{lwx}}{zk} + t_0 T_{i,j}^{(-)}}
+      T_{\text{mass},i,j}+\frac{q_\text{lwx}\, \delta_x}{k} + t_0 T_{i,j}^{(-)}}
       {4 + \frac{k_{\text{mass}} \delta_x^2}{z^2 k} + t_0}$$
+
+    The $q_{\text{lwx}}$ term matches the implementation
+    ``q_lwx_array[idx] * delta_x / conductivity``, i.e.
+    $\frac{q_{\text{lwx}}\, \delta_x}{k}$.
 
     where the temporal parameter is:
 
@@ -258,7 +417,8 @@ class Simulator:
     - $k_{\text{mass}}$: Thermal conductivity of interior mass
       [$\mathrm{W/(m \cdot K)}$]
     - $Q_x$: External heat source (e.g., diffuser) [$\mathrm{W}$]
-    - $q_{\text{lwx}}$: Longwave radiative exchange [$\mathrm{W}$]
+    - $q_{\text{lwx}}$: Interior longwave radiative heat flux
+      [$\mathrm{W/m^2}$]
     - $u, v$: CV dimensions in x and y directions [$\mathrm{m}$]
     - $\delta_x$: Spatial discretization (uniform CV size) [$\mathrm{m}$]
     - $z$: CV height (floor height) [$\mathrm{m}$]
