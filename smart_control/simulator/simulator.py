@@ -27,65 +27,67 @@ class Simulator:
   This simulator uses the finite differences / finite volume method (FDM/FVM)
   to approximate the temperature changes in each Control Volume (CV) in a
   building. This happens through an iterative process described in the
-  ``finite_differences_timestep`` method.
+  [`finite_differences_timestep`] method.
 
-  Key Governing Equations
-  =======================
+  #### Key Governing Equations
+
   The building domain is discretized into square air CVs of size
-  :math:`\delta_x` and height (floor height) :math:`z`. Each CV exchanges heat
+  $\delta_x$ and height (floor height) $z$. Each CV exchanges heat
   by conduction with its air neighbors, and boundary CVs (corner/edge)
   additionally exchange heat by convection with the ambient air. Interior CVs
   may additionally be coupled to an interior thermal-mass node, receive a
-  diffuser heat source :math:`Q_x`, and exchange longwave radiation with other
-  interior surfaces (:math:`q_{\text{lwx}}`).
+  diffuser heat source $Q_x$, and exchange longwave radiation with other
+  interior surfaces ($q_{\text{lwx}}$).
 
-  The per-CV transient energy balance has the general form::
+  The per-CV transient energy balance has the general form:
 
-      (conduction to neighbors)
-      + (convection, boundary CVs only)
-      + (diffuser source Q_x, interior CVs only)
-      + (interior-mass coupling, if enabled)
-      + (interior longwave radiation q_lwx, if enabled)
-      = (energy storage)
+  ```text
+  (conduction to neighbors)
+  + (convection, boundary CVs only)
+  + (diffuser source Q_x, interior CVs only)
+  + (interior-mass coupling, if enabled)
+  + (interior longwave radiation q_lwx, if enabled)
+  = (energy storage)
+  ```
 
-  and is solved for the CV temperature :math:`T_{i,j}` at the new time step.
-  The temporal parameter :math:`t_0` groups the storage term; its exact
+  and is solved for the CV temperature $T_{i,j}$ at the new time step.
+  The temporal parameter $t_0$ groups the storage term; its exact
   definition differs per CV class because corner/edge CVs represent a
   fractional CV volume (1/4 and 1/2 respectively).
 
   The specific update formulas are documented in each estimator method:
 
   - Corner CV (2 neighbors, 2 exposed faces):
-    :meth:`_get_corner_cv_temp_estimate`
+    `_get_corner_cv_temp_estimate`
   - Edge CV (3 neighbors, 1 exposed face):
-    :meth:`_get_edge_cv_temp_estimate`
+    `_get_edge_cv_temp_estimate`
   - Interior CV (4 neighbors, no exposed face):
-    :meth:`_get_interior_cv_temp_estimate`
+    `_get_interior_cv_temp_estimate`
   - Interior mass node:
-    :meth:`update_interior_mass_temperatures`
+    `update_interior_mass_temperatures`
 
-  Scope / Simplifications
-  -----------------------
+  #### Scope / Simplifications
+
   This base simulator models conduction, ambient convection at boundary CVs,
   the diffuser heat source, interior longwave radiation, and interior thermal
-  mass. It does NOT apply exterior longwave radiation (:math:`q_{\text{lwr}}`)
-  or shortwave solar gains (:math:`q_{\text{sol},\alpha}`,
-  :math:`q_{\text{sol},\tau}`) to the boundary CVs or the interior mass node;
+  mass. It does NOT apply exterior longwave radiation ($q_{\text{lwr}}$)
+  or shortwave solar gains ($q_{\text{sol},\alpha}$,
+  $q_{\text{sol},\tau}$) to the boundary CVs or the interior mass node;
   those terms are therefore intentionally absent from the equations below.
 
-  Nomenclature
-  ------------
-  - :math:`T_{i,j}`: air temperature at CV (i, j) at the new time step [K]
-  - :math:`T_{i,j}^{(-)}`: air temperature at CV (i, j) at the previous step [K]
-  - :math:`T_{\text{amb}}`: ambient (external) air temperature [K]
-  - :math:`k`: thermal conductivity of the CV [W/(m K)]
-  - :math:`\rho`: density [kg/m^3]
-  - :math:`c`: specific heat capacity [J/(kg K)]
-  - :math:`\alpha = k / (\rho c)`: thermal diffusivity [m^2/s]
-  - :math:`h`: convection heat transfer coefficient [W/(m^2 K)]
-  - :math:`\delta_x`: spatial discretization (uniform CV size) [m]
-  - :math:`z`: CV height (floor height) [m]
-  - :math:`\Delta t`: time step [s]
+  #### Nomenclature
+
+  - $T_{i,j}$: air temperature at CV (i, j) at the new time step [K]
+  - $T_{i,j}^{(-)}$: air temperature at CV (i, j) at the previous step [K]
+  - $T_{\text{amb}}$: ambient (external) air temperature [K]
+  - $k$: thermal conductivity of the CV [W/(m K)]
+  - $\rho$: density [kg/m^3]
+  - $c$: specific heat capacity [J/(kg K)]
+  - $\alpha = k / (\rho c)$: thermal diffusivity [m^2/s]
+  - $h$: convection heat transfer coefficient [W/(m^2 K)]
+  - $\delta_x$: spatial discretization (uniform CV size) [m]
+  - $z$: CV height (floor height) [m]
+  - $\Delta t$: time step [s]
   """
 
   def __init__(
@@ -165,8 +167,8 @@ class Simulator:
     air. It represents one quarter of a full interior CV volume, which
     introduces the factor of 1/4 in the storage term.
 
-    Energy Balance (corner CV):
-    ---------------------------
+    **Energy Balance (corner CV)**
+
     Conduction from the two neighbors, convection from the two exposed faces,
     and transient storage over the 1/4 CV volume:
 
@@ -193,8 +195,8 @@ class Simulator:
       ($q_{\text{sol}}$) are not modeled by this base simulator, so those
       terms do not appear.
 
-    Nomenclature and Units:
-    -----------------------
+    **Nomenclature and Units**
+
     - $T_{i,j}$: corner CV air temperature at new time step [K]
     - $T_{i,j}^{(-)}$: corner CV air temperature at previous time step [K]
     - $T_{n1}, T_{n2}$: neighbor CV temperatures [K]
@@ -259,8 +261,8 @@ class Simulator:
     air. It represents one half of a full interior CV volume, which introduces
     the factor of 1/2 in the storage term.
 
-    Energy Balance (edge CV):
-    -------------------------
+    **Energy Balance (edge CV)**
+
     Conduction from the three neighbors (each face weighted by a geometric
     factor $f_n$, see below), convection from the single exposed face, and
     transient storage over the 1/2 CV volume:
@@ -285,15 +287,15 @@ class Simulator:
       A neighbor that is itself a boundary CV (corner or edge, i.e. fewer than
       4 neighbors) shares a half-length face with this edge CV, so its
       conduction contribution is weighted by $f_n = 0.5$; interior neighbors
-      use $f_n = 1.0$. This is implemented as ``edge_factor`` below.
+      use $f_n = 1.0$. This is implemented as `edge_factor` below.
 
     Note:
       Exterior longwave radiation ($q_{\text{lwr}}$) and solar gains
       ($q_{\text{sol}}$) are not modeled by this base simulator, so those
       terms do not appear.
 
-    Nomenclature and Units:
-    -----------------------
+    **Nomenclature and Units**
+
     - $T_{i,j}$: edge CV air temperature at new time step [K]
     - $T_{i,j}^{(-)}$: edge CV air temperature at previous time step [K]
     - $T_n$: neighbor CV temperatures [K]
@@ -364,8 +366,8 @@ class Simulator:
     radiative exchange with interior surfaces, and heat exchange with interior
     mass nodes (if present).
 
-    Equations:
-    --------------------
+    **Equations**
+
     The energy balance for an interior control volume (CV) with interior mass
     is given by:
 
@@ -392,7 +394,7 @@ class Simulator:
       {4 + \frac{k_{\text{mass}} \delta_x^2}{z^2 k} + t_0}$$
 
     The $q_{\text{lwx}}$ term matches the implementation
-    ``q_lwx_array[idx] * delta_x / conductivity``, i.e.
+    `q_lwx_array[idx] * delta_x / conductivity`, i.e.
     $\frac{q_{\text{lwx}}\, \delta_x}{k}$.
 
     where the temporal parameter is:
@@ -404,8 +406,8 @@ class Simulator:
 
     $$\alpha = \frac{k}{\rho c}$$
 
-    Nomenclature and Units:
-    -----------------------
+    **Nomenclature and Units**
+
     - $T_{i,j}$: Air temperature at CV $(i,j)$ at new time step [K]
     - $T_{i,j}^{(-)}$: Air temperature at CV $(i,j)$ at previous time step [K]
     - $T_{\text{mass},i,j}$: Interior mass temperature at CV $(i,j)$ [K]
@@ -598,15 +600,14 @@ class Simulator:
   def update_interior_mass_temperatures(
       self, air_temperature_estimates: np.ndarray
   ) -> tuple[np.ndarray, float]:
-    r"""Updates interior mass node temperatures based on heat transfer with air
-       CVs.
+    r"""Updates interior mass node temperatures from air-CV heat transfer.
 
     Interior mass nodes are adiabatic (no interaction with each other) and only
     exchange heat with their corresponding air CV. The heat exchange occurs
     through the vertical direction (height z) of the control volume.
 
-    Equations:
-    --------------------
+    **Equations**
+
     The energy balance for the interior mass node exchanging heat only with its
     corresponding air CV through a characteristic length z is:
 
@@ -656,8 +657,8 @@ class Simulator:
     interior mass coupling term is $\frac{k_{\text{mass}} u v}{z}
     (T_{\text{mass},i,j} - T_{i,j})$.
 
-    Nomenclature and Units:
-    -----------------------
+    **Nomenclature and Units**
+
     - $T_{i,j}$: Converged air temperature at new time step [K]
     - $T_{\text{mass},i,j}$: Interior mass temperature at new time step
        (unknown) [$\mathrm{K}$]
