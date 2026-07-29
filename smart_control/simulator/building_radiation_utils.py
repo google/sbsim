@@ -356,110 +356,200 @@ def mark_air_connected_interior_walls(
   return floor_plan, interior_space
 
 
-def fix_view_factors(
-    view_factors: np.ndarray,
-    surface_areas: np.ndarray | None = None,
-) -> np.ndarray:
-  r"""Return view factors corrected for reciprocity and enclosure closure.
-
-  The returned matrix uses the conventional orientation where
-  ``view_factors[i, j]`` is the fraction of radiation leaving surface ``i``
-  that reaches surface ``j``. It satisfies, within numerical tolerance:
-
-  $$\sum_j F_{ij} = 1$$
-
-  and
-
-  $$A_i F_{ij} = A_j F_{ji}.$$
-
-  The input arrays are never modified. The correction iteratively balances the
-  symmetric area-weighted exchange matrix $M_{ij} = A_i F_{ij}$ so that its row
-  sums equal the surface-area vector.
+def fix_view_factors(F: np.ndarray, A: np.ndarray = None) -> np.ndarray:
+  """
+  Fix approximate view factors and enforce reciprocity and completeness.
 
   Args:
-    view_factors: Approximate square view-factor matrix.
-    surface_areas: Positive surface-area vector. Equal areas are assumed when
-      omitted.
+      F (np.ndarray): Approximate direct view factor matrix (N x N)
+      A (np.ndarray, optional): Area vector (N elements). Defaults to None.
 
   Returns:
-    A corrected view-factor matrix.
+      Fixed view factor matrix
 
-  Raises:
-    ValueError: If inputs have invalid shapes, non-finite values, negative view
-      factors, or non-positive surface areas.
-    RuntimeError: If the matrix cannot be balanced within the iteration limit.
+  References:
+      See `FixViewFactors` function in [EnergyPlus](https://github.com/NREL/EnergyPlus/blob/develop/src/EnergyPlus/HeatBalanceIntRadExchange.cc) # pylint: disable=line-too-long
   """
-  convergence_tolerance = 1e-8
-  max_iterations = 400
 
-  view_factors = np.asarray(view_factors, dtype=float)
-  if view_factors.ndim != 2 or view_factors.shape[0] != view_factors.shape[1]:
-    raise ValueError('view_factors must be a square matrix.')
-  if not np.all(np.isfinite(view_factors)):
-    raise ValueError('view_factors must contain only finite values.')
-  if np.any(view_factors < 0):
-    raise ValueError('view_factors cannot contain negative values.')
+  # Parameter definitions
+  PRIMARY_CONVERGENCE = 0.001
+  DIFFERENCE_CONVERGENCE = 0.00001
+  MAX_ITERATIONS = 400
 
-  num_surfaces = view_factors.shape[0]
-  if surface_areas is None:
-    surface_areas = np.ones(num_surfaces)
-  else:
-    surface_areas = np.asarray(surface_areas, dtype=float)
-    if surface_areas.shape != (num_surfaces,):
-      raise ValueError('surface_areas must have one value per surface.')
-  if not np.all(np.isfinite(surface_areas)) or np.any(surface_areas <= 0):
-    raise ValueError('surface_areas must be finite and strictly positive.')
-  if num_surfaces == 0:
-    return view_factors.copy()
+  # Convert inputs to numpy arrays
+  if A is None:
+    A = np.ones(F.shape[0])
 
-  # M is symmetric when reciprocity holds: M[i, j] = A_i * F[i, j].
-  exchange_matrix = surface_areas[:, np.newaxis] * view_factors
-  exchange_matrix = 0.5 * (exchange_matrix + exchange_matrix.T)
+  F = np.array(F, dtype=np.float64)  # copy so the input is not mutated
+  F = F.T  # since EP calculation is based on F[j,i]
+  N = F.shape[0]
 
-  # A zero-exchange surface has no feasible closure. Assign self-view before
-  # balancing so every row can converge to its corresponding surface area.
-  zero_exchange_rows = np.isclose(exchange_matrix.sum(axis=1), 0.0)
-  exchange_matrix[zero_exchange_rows, zero_exchange_rows] = surface_areas[
-      zero_exchange_rows
-  ]
+  # Initialize return values
+  results = {
+      'original_check_value': 0.0,
+      'fixed_check_value': 0.0,
+      'final_check_value': 0.0,
+      'num_iterations': 0,
+      'row_sum': 0.0,
+      'enforced_reciprocity': False,
+  }
 
-  for _ in range(max_iterations):
-    row_sums = exchange_matrix.sum(axis=1)
-    if np.any(row_sums <= 0):
-      raise RuntimeError('Unable to balance view factors with zero row sums.')
+  # OriginalCheckValue is the first pass at a completeness check
+  results['original_check_value'] = abs(np.sum(F) - N)
 
-    scale = np.sqrt(surface_areas / row_sums)
-    exchange_matrix *= scale[:, np.newaxis] * scale[np.newaxis, :]
+  # Allocate and initialize arrays
+  FixedAF = F.copy()  # store for largest area check
 
-    if np.allclose(
-        exchange_matrix.sum(axis=1),
-        surface_areas,
-        rtol=convergence_tolerance,
-        atol=convergence_tolerance,
+  ConvrgOld = 10.0
+  LargestArea = np.max(A)
+  severe_error_present = False
+  largest_surf = -1
+
+  # Check for Strange Geometry
+  # When one surface has an area that exceeds the sum of all other surface areas
+  if LargestArea > 0.99 * (np.sum(A) - LargestArea) and N > 3:
+    for i in range(N):
+      if LargestArea == A[i]:
+        largest_surf = i
+        break
+
+    if largest_surf >= 0:
+      # Give self view to big surface
+      FixedAF[largest_surf, largest_surf] = min(
+          0.9, 1.2 * LargestArea / np.sum(A)
+      )
+
+  # Set up AF matrix (AREA * DIRECT VIEW FACTOR) MATRIX
+  AF = np.zeros((N, N))
+  for i in range(N):
+    for j in range(N):
+      AF[j, i] = FixedAF[j, i] * A[i]
+
+  # Enforce reciprocity by averaging AiFij and AjFji
+  FixedAF = 0.5 * (AF + AF.T)
+
+  FixedF = np.zeros((N, N))
+  results['num_iterations'] = 0
+  results['row_sum'] = 0.0
+
+  # Check for physically unreasonable enclosures (N <= 3)
+  if N <= 3:
+    for i in range(N):
+      for j in range(N):
+        if A[i] != 0:
+          FixedF[j, i] = FixedAF[j, i] / A[i]
+
+    results['row_sum'] = np.sum(FixedF)
+
+    if results['row_sum'] > (N + 0.01):
+      # Find the largest row summation and normalize
+      sum_FixedF = np.sum(FixedF, axis=1)  # Sum along rows
+      MaxFixedFRowSum = np.max(sum_FixedF)
+
+      if MaxFixedFRowSum < 1.0:
+        raise RuntimeError(
+            'FixViewFactors: Three surface or less zone failing ViewFactorFix'
+            ' correction which should never happen.'
+        )
+      else:
+        FixedF *= 1.0 / MaxFixedFRowSum
+
+      results['row_sum'] = np.sum(FixedF)  # Recalculate
+
+    results['final_check_value'] = results['fixed_check_value'] = abs(
+        results['row_sum'] - N
+    )
+    F[:] = FixedF  # Update F in place
+    results['enforced_reciprocity'] = True
+    return F.T
+
+  # Regular fix cases (N > 3)
+  RowCoefficient = np.zeros(N)
+  Converged = False
+
+  while not Converged:
+    results['num_iterations'] += 1
+
+    for i in range(N):
+      # Determine row coefficients which will enforce closure
+      sum_FixedAF_i = np.sum(FixedAF[:, i])
+      if abs(sum_FixedAF_i) > 1.0e-10:
+        RowCoefficient[i] = A[i] / sum_FixedAF_i
+      else:
+        RowCoefficient[i] = 1.0
+
+      FixedAF[:, i] *= RowCoefficient[i]
+
+    # Enforce reciprocity by averaging AiFij and AjFji
+    FixedAF = 0.5 * (FixedAF + FixedAF.T)
+
+    # Form FixedF matrix
+    for i in range(N):
+      for j in range(N):
+        if A[i] != 0:
+          FixedF[j, i] = FixedAF[j, i] / A[i]
+          if abs(FixedF[j, i]) < 1.0e-10:
+            FixedF[j, i] = 0.0
+            FixedAF[j, i] = 0.0
+
+    ConvrgNew = abs(np.sum(FixedF) - N)
+
+    # Check convergence
+    if (
+        abs(ConvrgOld - ConvrgNew) < DIFFERENCE_CONVERGENCE
+        or ConvrgNew <= PRIMARY_CONVERGENCE
     ):
-      corrected_view_factors = exchange_matrix / surface_areas[:, np.newaxis]
-      break
+      Converged = True
+
+    ConvrgOld = ConvrgNew
+
+    # Emergency exit after too many iterations
+    if results['num_iterations'] > MAX_ITERATIONS:
+      # Enforce reciprocity by averaging AiFij and AjFji
+      FixedAF = 0.5 * (FixedAF + FixedAF.T)
+
+      # Form FixedF matrix
+      for i in range(N):
+        for j in range(N):
+          if A[i] != 0:
+            FixedF[j, i] = FixedAF[j, i] / A[i]
+
+      sum_FixedF = np.sum(FixedF)
+      results['final_check_value'] = results['fixed_check_value'] = abs(
+          sum_FixedF - N
+      )
+      results['row_sum'] = sum_FixedF
+
+      if abs(results['fixed_check_value']) < abs(
+          results['original_check_value']
+      ):
+        F[:] = FixedF
+        results['final_check_value'] = results['fixed_check_value']
+
+      return F.T
+
+  # Normal completion
+  results['fixed_check_value'] = ConvrgNew
+
+  if results['fixed_check_value'] < results['original_check_value']:
+    F[:] = FixedF
+    results['final_check_value'] = results['fixed_check_value']
   else:
-    raise RuntimeError('View-factor correction did not converge.')
+    results['final_check_value'] = results['original_check_value']
+    results['row_sum'] = np.sum(FixedF)
 
-  if (
-      np.any(corrected_view_factors < -convergence_tolerance)
-      or not np.allclose(
-          corrected_view_factors.sum(axis=1),
-          1.0,
-          rtol=convergence_tolerance,
-          atol=convergence_tolerance,
-      )
-      or not np.allclose(
-          surface_areas[:, np.newaxis] * corrected_view_factors,
-          (surface_areas[:, np.newaxis] * corrected_view_factors).T,
-          rtol=convergence_tolerance,
-          atol=convergence_tolerance,
-      )
-  ):
-    raise RuntimeError('Corrected view factors failed physical validation.')
+    if abs(results['row_sum'] - N) < PRIMARY_CONVERGENCE:
+      F[:] = FixedF
+      results['final_check_value'] = results['fixed_check_value']
 
-  return np.maximum(corrected_view_factors, 0.0)
+  if severe_error_present:
+    raise RuntimeError(
+        'FixViewFactors: View factor calculations significantly out of'
+        ' tolerance. See above messages for more information.'
+    )
+
+  F = F.T
+  return F
 
 
 def get_vf(
