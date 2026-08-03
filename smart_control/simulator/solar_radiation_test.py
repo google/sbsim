@@ -19,7 +19,6 @@ from pvlib import irradiance
 from pvlib import location
 
 from smart_control.proto import smart_control_building_pb2
-from smart_control.simulator import building_radiation_utils
 from smart_control.simulator import constants as sim_constants
 from smart_control.simulator import solar_radiation
 from smart_control.simulator import weather_controller
@@ -466,8 +465,6 @@ class SolarRadiationTest(IrradianceTestBase):
         irradiance_components=irrad_components,
         surface_tilt=30.0,
         surface_azimuth=180.0,
-        solar_zenith=30.0,
-        solar_azimuth=180.0,
     )
     self.assertGreater(poa, 0)
     self.assertLess(poa, 1500)
@@ -483,30 +480,21 @@ class SolarRadiationTest(IrradianceTestBase):
     )
     self.assertAlmostEqual(poa, float(poa_pvlib['poa_global']), places=4)
 
-  def test_calculate_poa_irradiance_building_radiation_utils(self):
-    """Backward-compat: building_radiation_utils.calculate_poa_irradiance."""
+  def test_poa_requires_solar_position_when_not_in_components(self):
     irrad_components = solar_radiation.IrradianceComponents(
         ghi=800.0,
         dni=700.0,
         dhi=100.0,
-        solar_zenith=30.0,
-        solar_azimuth=180.0,
+        solar_zenith=None,
+        solar_azimuth=None,
     )
-    poa_sr = solar_radiation.calculate_poa_irradiance(
-        irradiance_components=irrad_components,
-        surface_tilt=30.0,
-        surface_azimuth=180.0,
-        solar_zenith=30.0,
-        solar_azimuth=180.0,
-    )
-    poa_utils = building_radiation_utils.calculate_poa_irradiance(
-        irradiance_components=irrad_components,
-        surface_tilt=30.0,
-        surface_azimuth=180.0,
-        solar_zenith=30.0,
-        solar_azimuth=180.0,
-    )
-    self.assertAlmostEqual(poa_sr, poa_utils, places=4)
+
+    with self.assertRaises(ValueError):
+      solar_radiation.calculate_poa_irradiance(
+          irradiance_components=irrad_components,
+          surface_tilt=30.0,
+          surface_azimuth=180.0,
+      )
 
   def test_poa_with_clearsky_irradiance(self):
     """POA from clearsky SolarRadiation output matches pvlib."""
@@ -517,8 +505,6 @@ class SolarRadiationTest(IrradianceTestBase):
         irradiance_components=irrad,
         surface_tilt=30.0,
         surface_azimuth=180.0,
-        solar_zenith=irrad.solar_zenith,
-        solar_azimuth=irrad.solar_azimuth,
     )
     self.assertGreater(poa, 0)
     self.assertLess(poa, 1200)
@@ -588,6 +574,14 @@ class SolarRadiationTest(IrradianceTestBase):
     self.assertAlmostEqual(ext_rad.irradiance.ghi, irrad_direct.ghi, places=6)
     self.assertAlmostEqual(ext_rad.irradiance.dni, irrad_direct.dni, places=6)
     self.assertAlmostEqual(ext_rad.irradiance.dhi, irrad_direct.dhi, places=6)
+
+  def test_get_exterior_radiation_normalizes_aware_timestamp_timezone(self):
+    timestamp = pd.Timestamp('2023-07-01 19:00:00', tz='UTC')
+
+    ext_rad = self.solar_radiation.get_exterior_radiation(timestamp)
+
+    self.assertEqual(str(ext_rad.timestamp.tz), _TEST_TIMEZONE_PACIFIC)
+    self.assertEqual(ext_rad.timestamp.hour, 12)
 
 
 # ---------------------------------------------------------------------------
@@ -1177,6 +1171,15 @@ class GetReplaySkyTemperatureTest(absltest.TestCase):
     expected = (ir_h / sigma) ** 0.25
     self.assertAlmostEqual(temp_sky_k, expected, places=4)
 
+  def test_invalid_dewpoint_raises(self):
+    obs = _make_observation_response({
+        'outside_air_temperature_sensor': utils.celsius_to_kelvin(23.0),
+        'dew_point_temperature_sensor': 0.0,
+    })
+
+    with self.assertRaises(ValueError):
+      solar_radiation.get_replay_sky_temperature([obs])
+
   def test_missing_temp_skips_entry(self):
     obs_no_temp = _make_observation_response(
         {'dew_point_temperature_sensor': utils.celsius_to_kelvin(15.0)}
@@ -1205,6 +1208,8 @@ class GetReplayIrradianceTest(absltest.TestCase):
     self.assertAlmostEqual(irrad.ghi, 800.0, places=4)
     self.assertAlmostEqual(irrad.dni, 700.0, places=4)
     self.assertAlmostEqual(irrad.dhi, 100.0, places=4)
+    self.assertIsNone(irrad.solar_zenith)
+    self.assertIsNone(irrad.solar_azimuth)
     self.assertIsNotNone(irrad.timestamp)
 
   def test_sensors_absent_returns_defaults(self):
@@ -1229,6 +1234,8 @@ class GetReplayIrradianceTest(absltest.TestCase):
     self.assertLen(result, 2)
     self.assertAlmostEqual(result[0].ghi, 500.0, places=4)
     self.assertAlmostEqual(result[1].ghi, 0.0, places=4)
+    self.assertIsNone(result[0].solar_zenith)
+    self.assertIsNone(result[0].solar_azimuth)
 
 
 class GetObservationValueTest(absltest.TestCase):
