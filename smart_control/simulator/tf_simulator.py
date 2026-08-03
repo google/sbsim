@@ -902,12 +902,11 @@ class TFSimulator(simulator.SimulatorFlexibleGeometries):
       dt2 = tf.math.add(dt2, t_convection_top_edge)
       dt2 = tf.math.multiply(t_uz, dt2)
 
-      # Create the thermal absorption term.
+      # Create the thermal absorption (storage) term: C * rho * U * V * z / dt.
       dt3 = tf.math.multiply(t_density, self._t_u)
       dt3 = tf.math.multiply(dt3, self._t_v)
       dt3 = tf.math.multiply(dt3, t_heat_capacity)
       dt3 = tf.scalar_mul(t_z, dt3)
-      dt3 = tf.math.multiply(dt3, t_heat_capacity)
       dt3 = tf.math.divide(dt3, t_delta_t)
 
       # Add interior mass coupling term: K_mass * U * V / Z
@@ -975,12 +974,12 @@ class TFSimulator(simulator.SimulatorFlexibleGeometries):
       nt2 = tf.math.add(nt2, t_h_above_tinf)
       nt2 = tf.math.multiply(t_uz, nt2)
 
-      # Create the thermal absorption term.
+      # Create the thermal absorption (storage) term:
+      # C * rho * U * V * z / dt * T^(-).
       nt3 = tf.math.multiply(t_density, self._t_u)
       nt3 = tf.math.multiply(nt3, self._t_v)
       nt3 = tf.math.multiply(nt3, t_heat_capacity)
       nt3 = tf.scalar_mul(t_z, nt3)
-      nt3 = tf.math.multiply(nt3, t_heat_capacity)
       nt3 = tf.math.multiply(nt3, t_temp_minus)
       nt3 = tf.math.divide(nt3, t_delta_t)
 
