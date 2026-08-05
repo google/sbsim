@@ -1,0 +1,37 @@
+# This is a pyrefly config for the use of OSS developers at Google.
+# This configuration is intended to provide a closest configuration to the
+# current g3 pyrefly.
+python-version = "3.13"
+
+# set the directory Pyrefly will search for files to type check
+project-includes = ["smart_control"]
+
+# exclude generated protobuf code and the vendored proto directory, mirroring
+# the exclusions already used by pylint / isort for this repo
+project-excludes = ["**/*_pb2.py", "smart_control/proto/**"]
+
+# manually set the `sys.platform` Pyrefly will assume when type checking
+python-platform = "linux"
+
+# LINT.IfChange(pyrefly_oss_config)
+infer-with-first-use = false
+check-unannotated-defs = true
+infer-return-types = "never"
+
+# a table mapping error codes to an `is-enabled` boolean
+[errors]
+implicit-import = false
+unused-coroutine = false
+protocol-implicitly-defined-attribute = false
+redundant-condition = false
+unreachable = false
+unsafe-overlap = false
+redefinition = false
+bad-dunder-all = false
+bad-override-mutable-attribute = false
+bad-override-param-name = false
+abstract-method-call = false
+# LINT.ThenChange(
+# [//depot/google3/third_party/pyrefly/pyrefly/lib/commands/util.rs:pytype_non_parity_errors](https://source.corp.google.com/piper///depot/google3/third_party/pyrefly/pyrefly/lib/commands/util.rs?q=%22LINT.IfChange%28pytype_non_parity_errors%29%22+case:yes),
+# [//depot/google3/third_party/pyrefly/pyrefly/lib/commands/util.rs:pytype_non_parity_command_line_arguments](https://source.corp.google.com/piper///depot/google3/third_party/pyrefly/pyrefly/lib/commands/util.rs?q=%22LINT.IfChange%28pytype_non_parity_command_line_arguments%29%22+case:yes)
+#)
