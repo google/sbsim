@@ -280,6 +280,29 @@ class SetpointEnergyCarbonRegretTest(parameterized.TestCase):
 
     return info
 
+  def test_invalid_productivity_bounds(self):
+    """ValueError if max_productivity <= min_productivity."""
+    electricity_cost = TestEnergyCost(usd_per_kwh=0.05, kg_per_kwh=0.01)
+    natural_gas_cost = TestEnergyCost(usd_per_kwh=0.05, kg_per_kwh=0.01)
+
+    with self.assertRaisesRegex(
+        ValueError,
+        'Maximum productivity per person-hour must be greater than minimum',
+    ):
+      setpoint_energy_carbon_regret.SetpointEnergyCarbonRegretFunction(
+          max_productivity_personhour_usd=100.0,
+          min_productivity_personhour_usd=200.0,  # min > max: invalid
+          max_electricity_rate=10000.0,
+          max_natural_gas_rate=10000.0,
+          productivity_midpoint_delta=1.5,
+          productivity_decay_stiffness=4.3,
+          electricity_energy_cost=electricity_cost,
+          natural_gas_energy_cost=natural_gas_cost,
+          productivity_weight=1.0,
+          energy_cost_weight=1.0,
+          carbon_emission_weight=1.0,
+      )
+
 
 class TestEnergyCost(BaseEnergyCost):
   """Calculates energy cost and carbon emissions based on fixed rates.

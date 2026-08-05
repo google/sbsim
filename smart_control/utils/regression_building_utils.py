@@ -101,7 +101,13 @@ def expand_time_features(
 
   feature_names = get_time_feature_names(n, label)
 
-  assert len(feature_names) == len(sin_component) + len(cos_component)
+  if len(feature_names) != (len(sin_component) + len(cos_component)):
+    raise ValueError(
+        f'Mismatch between number of feature names ({len(feature_names)}) '
+        'and combined sine/cosine components '
+        f'({len(sin_component) + len(cos_component)}). '
+        'This indicates an internal logic error in feature expansion.'
+    )
   return {
       feature_name: value
       for feature_name, value in zip(
@@ -384,7 +390,13 @@ def get_matching_indexes(
       input_indexes.append(ts_input)
       output_indexes.append(ts_output)
 
-  assert len(output_indexes) == len(input_indexes)
+  if len(output_indexes) != len(input_indexes):
+    raise ValueError(
+        'Mismatch in matched input and output index lengths: '
+        f'input_indexes={len(input_indexes)}, '
+        f'output_indexes={len(output_indexes)}. '
+        'Matching logic failed to produce equal-length sequences.'
+    )
   return input_indexes, output_indexes
 
 

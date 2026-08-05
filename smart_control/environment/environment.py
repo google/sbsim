@@ -713,9 +713,13 @@ class Environment(py_environment.PyEnvironment):
   def _get_observation_spec_histogram_reducer(
       self, devices: Sequence[DeviceInfo]
   ) -> tuple[types.ArraySpec, Sequence[str]]:
-    """Returns an observation spec and a list of field names as histogram."""
+    """Returns an observation spec and a list of field names as histogram"""
 
-    assert self._observation_histogram_reducer is not None
+    if self._observation_histogram_reducer is None:
+      raise ValueError(
+          "Observation histogram reducer must be configured before building "
+          "histogram spec."
+      )
 
     observable_fields = []
 
@@ -1019,7 +1023,11 @@ class Environment(py_environment.PyEnvironment):
       Dict of (device, field): measurement
     """
 
-    assert self._observation_histogram_reducer is not None
+    if self._observation_histogram_reducer is None:
+      raise ValueError(
+          "Observation histogram reducer must be set before reducing "
+          "observation response."
+      )
 
     feature_tuples = regression_building_utils.get_feature_tuples(
         normalized_observation_response
@@ -1115,7 +1123,10 @@ class Environment(py_environment.PyEnvironment):
 
   def _commit_reward_metrics(self) -> None:
     """Aggregates and writes reward metrics, and resets accumulator."""
-    assert self._summary_writer is not None
+    if self._summary_writer is None:
+      raise ValueError(
+          "Summary writer must be initialized before committing reward metrics."
+      )
 
     if self._global_step_count % self._metrics_reporting_interval == 0:
       with (  # pylint: disable=not-context-manager # TODO: consider adding comments to provide more context

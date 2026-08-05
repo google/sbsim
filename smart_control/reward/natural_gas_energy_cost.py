@@ -39,9 +39,9 @@ class NaturalGasEnergyCost(BaseEnergyCost):
   def __init__(
       self, gas_price_by_month: Sequence[float] = GAS_PRICE_BY_MONTH_SOURCE
   ):
-    assert (
-        len(gas_price_by_month) == 12
-    ), 'Gas price per month must have exactly 12 values.'
+    if len(gas_price_by_month) != 12:
+      raise ValueError('Gas price per month must have exactly 12 values.')
+
     # Convert the month-by-month gas price from $/1000 cubic feet to $/Joule.
     self._month_gas_price = (
         np.array(gas_price_by_month)

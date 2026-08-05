@@ -64,22 +64,30 @@ def floor_plan_based_zone_identifier_to_id(identifier: str) -> str:
 
 
 def zone_id_to_coordinates(zone_id: str) -> Tuple[int, int]:
-  p = r'^zone_id_[(](\d+), (\d+)[)]'
-  m = re.match(p, zone_id)
-  if m:
-    return int(m.group(1)), int(m.group(2))
-  raise ValueError('Could not convert zone_id to coordinates!')
+  # Expect exactly "zone_id_(<row>,<col>)" (optional spaces after comma)
+  m = re.match(r'^zone_id_\((\d+),\s*(\d+)\)$', zone_id)
+  if not m:
+    raise ValueError(
+        f"Invalid zone_id format: {zone_id!r}. Expected 'zone_id_(<row>,<col>)'"
+    )
+  return int(m.group(1)), int(m.group(2))
 
 
 def normalize_dow(dow: int) -> float:
   """Returns a normalized day of week, mapping [0, 6] to [-1., 1.]."""
-  assert dow <= 6 and dow >= 0
+  if dow < 0 or dow > 6:
+    raise ValueError(
+        f'Day of week (dow) must be within the range [0, 6] (got {dow}).'
+    )
   return (float(dow) - 3.0) / 3.0
 
 
 def normalize_hod(hod: int) -> float:
   """Returns a normlized hour of day, mapping  [0,23] to [-1., 1.]."""
-  assert hod <= 23 and hod >= 0
+  if hod < 0 or hod > 23:
+    raise ValueError(
+        f'Hour of day (hod) must be within the range [0, 23] (got {hod}).'
+    )
   return (float(hod) - 11.5) / 11.5
 
 
@@ -117,6 +125,37 @@ def get_radian_time(
   else:
     raise ValueError(f'No cycle conversion for {time_interval}.')
   return 2.0 * np.pi * interval_frac
+
+
+def kelvin_to_celsius(kelvin: float) -> float:
+  """Converts Kelvin to Celsius.
+  Args:
+    kelvin: Temperature in Kelvin.
+
+  Returns:
+    The temperature in Celsius.
+  Raises:
+    A ValueError if the input value is negative.
+  """
+  if kelvin <= 0.0:
+    raise ValueError('Temperature must be greater than absolute zero.')
+  return kelvin - 273.15
+
+
+def celsius_to_kelvin(celsius: float) -> float:
+  """Converts Celsius to Kelvin.
+  Args:
+    celsius: Temperature in Celsius.
+
+  Returns:
+    The temperature in Kelvin.
+
+  Raises:
+    A ValueError if the input value is less than absolute zero, -273.15°C.
+  """
+  if celsius <= -273.15:
+    raise ValueError('Temperature must be greater than absolute zero.')
+  return celsius + 273.15
 
 
 def kelvin_to_fahrenheit(kelvin: float) -> float:

@@ -161,7 +161,7 @@ class BoilerTest(parameterized.TestCase):
         places=3,
     )
 
-  def test_compute_thermal_energy_rate_raises_assertion_error(self):
+  def test_compute_thermal_energy_rate_raises_value_error(self):
     return_water_temp = 200
     total_flow_rate = 0.5
     reheat_water_setpoint = 100
@@ -177,7 +177,7 @@ class BoilerTest(parameterized.TestCase):
 
     b.add_demand(total_flow_rate)
 
-    with self.assertRaises(AssertionError):
+    with self.assertRaises(ValueError):
       _ = b.compute_thermal_energy_rate(return_water_temp, outside_temp)
 
   @parameterized.parameters(
@@ -426,7 +426,7 @@ class BoilerTest(parameterized.TestCase):
 
   def test_compute_thermal_dissipation_rate_invalid(self):
     b = self.get_default_boiler()
-    with self.assertRaises(AssertionError):
+    with self.assertRaises(ValueError):
       _ = b.compute_thermal_dissipation_rate(240.0, 290.0)
 
   def test_action_field_names(self):

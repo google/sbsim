@@ -1,4 +1,5 @@
 
+
 .DS_Store
 
 # environment variables:
@@ -6,6 +7,9 @@
 
 # virtual environment:
 .venv/
+
+# vscode user settings:
+.vscode/launch.json
 
 # cache files:
 __pycache__/

@@ -293,7 +293,11 @@ class Boiler(smart_device.SmartDevice):
       thermal loss rate of the tank in Watts
     """
 
-    assert water_temp >= outside_temp
+    if water_temp < outside_temp:
+      raise ValueError(
+          'Water temperature must be >= outside temperature. '
+          f'Got water_temp={water_temp}, outside_temp={outside_temp}.'
+      )
     delta_temp = water_temp - outside_temp
     numerator = self._tank_length * 2.0 * np.pi * delta_temp
     interior_radius = self._tank_radius
