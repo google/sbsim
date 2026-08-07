@@ -47,7 +47,6 @@ isort = "^6.0.1"
 pylint = "^3.3.6"
 pylint-per-file-ignores = "^1.4.0"
 mdformat = "^0.7.22"
-grpcio-tools = "^1.60.0"
 
 [tool.poetry.group.docs.dependencies]
 mkdocs = "^1.6.1"

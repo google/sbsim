@@ -17,6 +17,7 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     protobuf-compiler \
+    libprotobuf-dev \
     ffmpeg \
     git \
     curl \
@@ -44,8 +45,10 @@ RUN poetry install --no-root --with dev,notebooks
 COPY . .
 
 # Install the project and regenerate protobuf files
+# Uses the apt-installed protoc (3.21.12) to match the version used on Linux
+# and Mac setups, so the generated files match the ones checked into the repo.
 RUN poetry install && \
-    poetry run python -m grpc_tools.protoc \
+    protoc \
         --proto_path=smart_control/proto \
         --python_out=smart_control/proto \
         smart_control/proto/smart_control_building.proto \
