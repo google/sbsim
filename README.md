@@ -41,7 +41,7 @@ notebook will walk you through:
 2. Visualizing the environment.
 
 3. Training an agent using the
-   [Tensorflow Agents Library](https://www.tensorflow.org/agents).
+    [Tensorflow Agents Library](https://www.tensorflow.org/agents).
 
 Alternatively, RL agents can be trained by running various scripts in the
 "smart_control/reinforcement_learning/scripts" directory.

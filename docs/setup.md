@@ -9,7 +9,7 @@ This project requires the following system dependencies:
 
 - Git
 - [Protocol Buffer Compiler](https://grpc.io/docs/protoc-installation/)
-  (`v 3.21.12`)
+    (`v 3.21.12`)
 - [FFmpeg](https://ffmpeg.org/) (`v 7.1.1`)
 - Python (`>=3.10.12 and <3.12`)
 

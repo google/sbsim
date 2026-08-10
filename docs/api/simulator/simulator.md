@@ -14,7 +14,6 @@
       # Explicitly list the specific private method you want to show
       - _get_interior_cv_temp_estimate
 
-
 ::: smart_control.simulator.simulator_flexible_floor_plan
 
 ::: smart_control.simulator.base_convection_simulator

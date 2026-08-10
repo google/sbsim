@@ -20,7 +20,7 @@ activate:
 #
 
 mdformat:
-	poetry run mdformat README.md docs/*
+	poetry run mdformat README.md docs
 
 pyink:
 	poetry run pyink .
