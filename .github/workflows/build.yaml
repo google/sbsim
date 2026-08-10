@@ -12,6 +12,9 @@ on:
       - main
       - copybara_push
 
+permissions:
+  contents: read
+
 jobs:
   test:
     strategy:
