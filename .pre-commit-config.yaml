@@ -19,14 +19,9 @@ repos:
       files: '^smart_control/'
       exclude: '^smart_control/proto/'
 
-    # NOTE: running `pylint` against all files is prohibitively slow
-    # ... so we omit passing the `smart_buildings` directory,
-    # ... which allows pre-commit to run against staged / changed files only
-    - id: pylint
-      name: pylint
-      #entry: pylint --rcfile=.pylintrc --ignore=proto smart_control
-      #entry: pylint --rcfile=.pylintrc --ignore=proto $(git diff --name-only --staged | grep -E '\.py$')
-      entry: pylint --rcfile=.pylintrc --ignore=proto
+    - id: pyrefly
+      name: pyrefly
+      entry: pyrefly check
       language: system
       types: [file, python]
       files: '^smart_control/'

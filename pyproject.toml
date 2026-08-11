@@ -46,8 +46,7 @@ pytest = "^8.3.5"
 pyink = "^24.10.1"
 pre-commit = "^4.2.0"
 isort = "^6.0.1"
-pylint = "^3.3.6"
-pylint-per-file-ignores = "^1.4.0"
+pyrefly = ">=0.20.0"
 mdformat = "^0.7.22"
 
 [tool.poetry.group.docs.dependencies]

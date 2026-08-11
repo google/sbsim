@@ -1,7 +1,7 @@
 # NOTE: you have to use tabs (not spaces) to define commands in the Makefile
 
 # these are commands to be run, not files to be created:
-.PHONY: venv-activate docs docs-build docs-quiet mdformat pyink isort pylint lint test
+.PHONY: venv-activate docs docs-build docs-quiet mdformat pyink isort pyrefly lint test
 
 #
 # ENVIRONMENT
@@ -28,11 +28,11 @@ pyink:
 isort:
 	poetry run isort .
 
-pylint:
-	poetry run pylint --rcfile=.pylintrc --ignore=proto smart_control
+pyrefly:
+	poetry run pyrefly check
 
 # mega-command for running all formatters:
-format: mdformat pyink isort pylint
+format: mdformat pyink isort pyrefly
 
 #
 # TESTING
