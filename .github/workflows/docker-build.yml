@@ -1,0 +1,38 @@
+name: Docker CI Build
+
+on:
+  push:
+    branches:
+      - master
+      - main
+      - copybara_push
+  pull_request:
+    branches:
+      - master
+      - main
+      - copybara_push
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build Docker image
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: linux/amd64
+          push: false
+          tags: sbsim:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max,ignore-error=true
