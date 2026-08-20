@@ -6,7 +6,7 @@ authors = []
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = ">=3.10.12,<3.12"
+python = ">=3.10,<3.12"
 tensorflow = "2.15.1"
 
 # The "dm-reverb" package is meant for Linux only, so we are conditionally
@@ -24,7 +24,7 @@ gin-config = "^0.5.0"
 matplotlib = "^3.9.2"
 pandas = "^2.2.2"
 bidict = "^0.23.1"
-protobuf = "3.20.3"
+protobuf = "^4.25.0"  # TF 2.15.1 supports >=3.20.3,<5.0.0 (excluding 4.21.0-4.21.5)
 pint = "^0.24.3"
 holidays = "^0.56"
 google3 = "^1.0.0"
@@ -34,9 +34,7 @@ mediapy = "^1.2.2"
 seaborn = "^0.13.2"
 tf-agents = "0.18.0"
 scikit-learn = "^1.5.1"
-ipykernel = "^6.29.5"
 typing-extensions = "^4.12.2"
-ipython = "^8.27.0"
 importlib-resources = { version = "*", python = "<3.11" }
 python-dotenv = "^1.1.0"
 pvlib = "0.13.1"
@@ -60,6 +58,8 @@ mkdocs-autorefs = "^1.4.2"
 
 [tool.poetry.group.notebooks.dependencies]
 jupyter = "^1.1.1"
+ipykernel = "^6.29.5"
+ipython = "^8.27.0"
 
 [tool.pyink]
 line-length = 80
