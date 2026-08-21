@@ -108,6 +108,8 @@ nav:
 #
 
 markdown_extensions:
+  - admonition
+
   - toc:
       permalink: "#" # adds clickable link anchors for all headings
 

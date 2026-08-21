@@ -217,8 +217,10 @@ expression, or by wrapping multiple lines of code between
 
 ### Markdown Formatting
 
-We are using [`mdformat`](https://github.com/hukkin/mdformat) to check for
-formatting errors in markdown files.
+We are using [`mdformat`](https://github.com/executablebooks/mdformat) with the
+[`mdformat-mkdocs`](https://github.com/KyleKing/mdformat-mkdocs) plugin to check
+for formatting errors in markdown files while preserving MkDocs admonitions and
+`mkdocstrings` directives.
 
 The markdown formatter will run automatically as a pre-commit hook (see
 "Pre-commit Hooks" section below for more information and setup instructions).
@@ -227,22 +229,11 @@ If you would like to run the markdown formatter manually:
 
 ```sh
 # format specific file(s):
-mdformat README.md docs/*.md
+mdformat README.md docs
 
 # check if a file would be changed:
 mdformat README.md --check
 ```
-
-> NOTE: we are ignoring markdown files in the "docs/api" directory because they
-> contain [auto-documentation](./docs-site.md) formatting directives like `:::`
-> that get improperly formatted if those directives contain additional
-> configuration options.
-
-> NOTE: it would be nice to check all markdown files, however this currently
-> includes all files in the ".venv" folder (not desired), and the functionality
-> for ignoring certain directories is only supported in Python 3.13+. When we
-> upgrade, we can consider updating the approach, but right now we are only
-> targeting specific files.
 
 The `mdformat` tool might not be able to format certain long lines containing
 code fences, so some manual review may still be required. Long lines caused by
@@ -253,8 +244,10 @@ links are OK to keep as-is.
 We are using pre-commit hooks to perform code formatting, import sorting, and
 style checking. These actions will take place on each commit.
 
-To enable the pre-commit hooks, you must perform a one-time setup by running
-`pre-commit install`. This will create or update ".git/hooks/pre-commit".
+!!! info "Important: Installing Pre-commit Hooks"
+
+    To enable the pre-commit hooks, you must perform a one-time setup by running
+    `pre-commit install`. This will create or update ".git/hooks/pre-commit".
 
 If you would like to run the pre-commit hooks without making a commit:
 

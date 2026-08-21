@@ -34,7 +34,8 @@ repos:
 
 # See: https://mdformat.readthedocs.io/en/stable/users/installation_and_usage.html#usage-as-a-pre-commit-hook
 - repo: https://github.com/hukkin/mdformat
-  rev: 0.7.22
+  rev: 1.0.0
   hooks:
   - id: mdformat
-    exclude: ^docs/api/
+    additional_dependencies:
+    - mdformat-mkdocs==5.3.0
