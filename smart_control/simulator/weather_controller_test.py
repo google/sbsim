@@ -62,21 +62,13 @@ class WeatherControllerTest(parameterized.TestCase):
 
     self.assertRaises(ValueError, create_weather_fn)
 
-  @parameterized.named_parameters(
+    @parameterized.named_parameters(
       ('min_rad', 0.0, -math.pi / 2),
       ('max_rad', 3600.0 * 24, 3 * math.pi / 2),
       ('mid_rad', 3600 * 12, math.pi / 2),
   )
   def test_seconds_to_rad(self, seconds, expected):
-    low_temp = 40.5
-    high_temp = 62.5
-    special_days = {110: (30, 70)}
-
-    weather = weather_controller.WeatherController(
-        low_temp, high_temp, special_days
-    )
-
-    rads = weather.seconds_to_rads(seconds)
+    rads = weather_controller.seconds_to_rads(seconds)
 
     self.assertEqual(rads, expected)
 
