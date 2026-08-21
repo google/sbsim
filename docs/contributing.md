@@ -215,6 +215,23 @@ for a given message (e.g. "line-too-long") by adding a trailing comment of
 expression, or by wrapping multiple lines of code between
 `# pylint: disable=line-too-long` and `# pylint: enable=line-too-long` comments.
 
+### Python Type Checking
+
+We are using [`pyrefly`](https://pyrefly.org/) to type check Python code.
+Pyrefly uses the repository's `pyrefly.toml` configuration file, which matches
+Google's recommended open source configuration as closely as possible.
+
+The type checker runs as part of the pre-commit hooks and CI build. For now,
+Pyrefly reports findings without blocking commits or CI because the repository
+has existing type-checking findings that are expected to be addressed by an
+upcoming internal code sync.
+
+If you would like to run the type checker manually:
+
+```sh
+pyrefly check --config pyrefly.toml
+```
+
 ### Markdown Formatting
 
 We are using [`mdformat`](https://github.com/executablebooks/mdformat) with the

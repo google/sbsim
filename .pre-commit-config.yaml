@@ -32,6 +32,20 @@ repos:
       files: '^smart_control/'
       exclude: '^smart_control/proto/'
 
+    # TODO(#174): Make this blocking after the upcoming internal code sync
+    # resolves existing Pyrefly findings in smart_control.
+    - id: pyrefly
+      name: pyrefly
+      entry: >-
+        python -c "import subprocess; subprocess.run(['poetry', 'run',
+        'pyrefly', 'check', '--config', 'pyrefly.toml'])"
+      language: system
+      pass_filenames: false
+      types: [file, python]
+      files: '^smart_control/'
+      exclude: '^smart_control/proto/'
+      verbose: true
+
 # See: https://mdformat.readthedocs.io/en/stable/users/installation_and_usage.html#usage-as-a-pre-commit-hook
 - repo: https://github.com/hukkin/mdformat
   rev: 1.0.0

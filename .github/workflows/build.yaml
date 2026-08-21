@@ -77,6 +77,13 @@ jobs:
         source .venv/bin/activate
         pylint --rcfile=.pylintrc --ignore=proto smart_control
 
+    - name: Run the Python type checker
+      run: |
+        source .venv/bin/activate
+        # TODO(#174): Remove "|| true" after the upcoming internal code sync
+        # resolves existing Pyrefly findings in smart_control.
+        pyrefly check --config pyrefly.toml || true
+
     - name: Run the Markdown formatter
       run: |
         source .venv/bin/activate
