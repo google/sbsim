@@ -76,13 +76,19 @@ def calculate_a_tilde_inv(epsilon: np.ndarray, F: np.ndarray) -> np.ndarray:
   return np.linalg.solve(a_tilde, np.eye(n))
 
 
+# pylint: disable=line-too-long
+# pylint: disable=line-too-long
+# pylint: disable=line-too-long
+# pylint: disable=line-too-long
+# pylint: disable=line-too-long
+# pylint: disable=line-too-long
 def calculate_ifa_inv(F: np.ndarray, A_inv: np.ndarray) -> np.ndarray:
   r"""
   Calculates the $IFA_{inv}$ matrix.
 
   $$IFA_{inv} = (I - F) \tilde{A}^{-1}$$
 
-  See [`net_radiative_heatflux_function_of_T`][smart_control.simulator.building_radiation_utils.net_radiative_heatflux_function_of_T] for more details.
+  See [`net_radiative_heatflux_function_of_T`][smart_control.simulator.building_radiation_utils.net_radiative_heatflux_function_of_t] for more details.
 
   Args:
       F (np.ndarray): The view factor matrix.
@@ -91,6 +97,12 @@ def calculate_ifa_inv(F: np.ndarray, A_inv: np.ndarray) -> np.ndarray:
   Returns:
       IFA_inv : The IFA inverse matrix.
   """
+  # pylint: enable=line-too-long
+  # pylint: enable=line-too-long
+  # pylint: enable=line-too-long
+  # pylint: enable=line-too-long
+  # pylint: enable=line-too-long
+  # pylint: enable=line-too-long
 
   n = F.shape[0]
 
