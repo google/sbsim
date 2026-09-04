@@ -77,12 +77,12 @@ class BuildingDatasetPartition:
         See corresponding documentation below for more information about each.
     """
     return np.load(self.data_filepath)
+
   @property
   def metadata_filepath(self):
     return os.path.join(self.partition_dirpath, "metadata.pickle")
 
   @cached_property
-  # pylint: disable=line-too-long
   def metadata(self) -> dict:
     """Metadata describing the partition [`data`][smart_control.dataset.partition.BuildingDatasetPartition.data].
 
@@ -99,8 +99,7 @@ class BuildingDatasetPartition:
 
         Each of these keys has a corresponding public method for convenience.
         See corresponding documentation below for more information about each.
-    """
-    # pylint: enable=line-too-long
+    """  # pylint: disable=line-too-long
     metadata = pickle.load(open(self.metadata_filepath, "rb"))
     # renaming keys:
     metadata = {
@@ -137,12 +136,12 @@ class BuildingDatasetPartition:
   def reward_info_value_matrix(self) -> np.ndarray:
     """Time series reward information data."""
     return self.data["reward_info_value_matrix"]
+
   #
   # METADATA PROPERTIES
   #
 
   @cached_property
-  # pylint: disable=line-too-long
   def action_ids_map(self) -> dict:
     """A mapping of unique action identifiers.
 
@@ -160,12 +159,10 @@ class BuildingDatasetPartition:
             '14409954889734029312@supply_air_temperature_setpoint': 2
           }
 ```
-    """
-    # pylint: enable=line-too-long
+    """  # pylint: disable=line-too-long
     return self.metadata["action_ids_map"]
 
   @cached_property
-  # pylint: disable=line-too-long
   def observation_ids_map(self) -> dict:
     """A mapping of unique observation identifiers.
 
@@ -183,12 +180,10 @@ class BuildingDatasetPartition:
             '2640423556868160@zone_air_temperature_sensor': 1197
           }
 ```
-    """
-    # pylint: enable=line-too-long
+    """  # pylint: disable=line-too-long
     return self.metadata["observation_ids_map"]
 
   @cached_property
-  # pylint: disable=line-too-long
   def reward_info_ids_map(self) -> dict:
     """A mapping of unique reward info identifiers.
 
@@ -207,12 +202,10 @@ class BuildingDatasetPartition:
             '14409954889734029312@air_conditioning_electrical_energy_rate': 3251
           }
 ```
-    """
-    # pylint: enable=line-too-long
+    """  # pylint: disable=line-too-long
     return self.metadata["reward_info_ids_map"]
 
   @cached_property
-  # pylint: disable=line-too-long
   def reward_ids_map(self) -> dict:
     """A mapping of unique reward identifiers.
 
@@ -221,8 +214,7 @@ class BuildingDatasetPartition:
     Returns:
       A dictionary where the keys are the [`reward_ids`][smart_control.dataset.partition.BuildingDatasetPartition.reward_ids]
         and the values are unique integers referencing column indices in the [`reward_value_matrix`][smart_control.dataset.partition.BuildingDatasetPartition.reward_value_matrix].
-    """
-    # pylint: enable=line-too-long
+    """  # pylint: disable=line-too-long
     return {
         "agent_reward_value": 0,
         "productivity_reward": 1,
@@ -349,7 +341,6 @@ class BuildingDatasetPartition:
 
   @cached_property
   def actions_df(self) -> pd.DataFrame:
-    # pylint: disable=line-too-long
     """A time-series dataframe of numeric action values, constructed from the
     following components:
 
@@ -368,8 +359,7 @@ class BuildingDatasetPartition:
         | 2022-01-01 00:15:00+00:00 | 288.703705                                            | ... | 291.481476                                            |
         | 2022-01-01 00:20:00+00:00 | 288.703705                                            | ... | 291.481476                                            |
 
-    """
-    # pylint: enable=line-too-long
+    """  # pylint: disable=line-too-long
     return self._construct_time_series_df(
         matrix_name="action_value_matrix",
         ids_name="action_ids_map",
@@ -378,7 +368,6 @@ class BuildingDatasetPartition:
 
   @cached_property
   def observations_df(self) -> pd.DataFrame:
-    # pylint: disable=line-too-long
     """A time-series dataframe of numeric observation values, constructed from the
     following components:
 
@@ -397,8 +386,7 @@ class BuildingDatasetPartition:
         | 2022-01-01 00:15:00+00:00 | 7.472401                                                 | ... | 68.000000                                    |
         | 2022-01-01 00:20:00+00:00 | 7.472401                                                 | ... | 68.000000                                    |
 
-    """
-    # pylint: enable=line-too-long
+    """  # pylint: disable=line-too-long
     return self._construct_time_series_df(
         matrix_name="observation_value_matrix",
         ids_name="observation_ids_map",
@@ -407,7 +395,6 @@ class BuildingDatasetPartition:
 
   @cached_property
   def rewards_df(self) -> pd.DataFrame:
-    # pylint: disable=line-too-long
     """A time-series dataframe of numeric reward values, constructed from the
     following components:
 
@@ -425,8 +412,8 @@ class BuildingDatasetPartition:
         | 2022-01-01 00:05:00+00:00 | -1.002312e-08      | ... | 1.782538e-08               |
         | 2022-01-01 00:10:00+00:00 | -1.002312e-08      | ... | 1.782538e-08               |
         | 2022-01-01 00:15:00+00:00 | -5.737567e-09      | ... | 1.020384e-08               |
-    """
-    # pylint: enable=line-too-long
+
+    """  # pylint: disable=line-too-long
     return self._construct_time_series_df(
         matrix_name="reward_value_matrix",
         ids_name="reward_ids_map",
@@ -435,7 +422,6 @@ class BuildingDatasetPartition:
 
   @cached_property
   def reward_infos_df(self) -> pd.DataFrame:
-    # pylint: disable=line-too-long
     """A time-series dataframe of numeric reward info values, constructed from
     the following components:
 
@@ -453,8 +439,8 @@ class BuildingDatasetPartition:
         | 2022-01-01 00:05:00+00:00 | 294.0                                         | ... | 0.0                                                           |
         | 2022-01-01 00:10:00+00:00 | 294.0                                         | ... | 0.0                                                           |
         | 2022-01-01 00:15:00+00:00 | 294.0                                         | ... | 0.0                                                           |
-    """
-    # pylint: enable=line-too-long
+
+    """  # pylint: disable=line-too-long
     return self._construct_time_series_df(
         matrix_name="reward_info_value_matrix",
         ids_name="reward_info_ids_map",

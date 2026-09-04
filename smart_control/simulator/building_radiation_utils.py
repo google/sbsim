@@ -76,12 +76,6 @@ def calculate_a_tilde_inv(epsilon: np.ndarray, F: np.ndarray) -> np.ndarray:
   return np.linalg.solve(a_tilde, np.eye(n))
 
 
-# pylint: disable=line-too-long
-# pylint: disable=line-too-long
-# pylint: disable=line-too-long
-# pylint: disable=line-too-long
-# pylint: disable=line-too-long
-# pylint: disable=line-too-long
 def calculate_ifa_inv(F: np.ndarray, A_inv: np.ndarray) -> np.ndarray:
   r"""
   Calculates the $IFA_{inv}$ matrix.
@@ -96,13 +90,7 @@ def calculate_ifa_inv(F: np.ndarray, A_inv: np.ndarray) -> np.ndarray:
 
   Returns:
       IFA_inv : The IFA inverse matrix.
-  """
-  # pylint: enable=line-too-long
-  # pylint: enable=line-too-long
-  # pylint: enable=line-too-long
-  # pylint: enable=line-too-long
-  # pylint: enable=line-too-long
-  # pylint: enable=line-too-long
+  """  # pylint: disable=line-too-long
 
   n = F.shape[0]
 

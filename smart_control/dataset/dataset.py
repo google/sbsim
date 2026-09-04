@@ -68,15 +68,12 @@ class BuildingDataset:
     return os.path.join(DATA_DIR, self.zip_filename)
 
   @property
-  # pylint: disable=line-too-long
   def building_dirpath(self):
     """The local directory containing the building's dataset, after it has been
     extracted from the local zip file.
-    """
-    # pylint: enable=line-too-long
+    """  # pylint: disable=line-too-long
     return os.path.join(DATA_DIR, self.dataset_id)
 
-  # pylint: disable=line-too-long
   def download(self, timeout=60):
     """Downloads the building's dataset from Google Cloud Storage.
 
@@ -85,8 +82,7 @@ class BuildingDataset:
       location. Otherwise it will load the existing local data.
 
     Download speed is fairly quick, but unzipping takes a few moments.
-    """
-    # pylint: enable=line-too-long
+    """  # pylint: disable=line-too-long
     if os.path.isdir(self.building_dirpath):
       print("Using previously-downloaded data...")
       print(os.path.abspath(self.building_dirpath))
@@ -114,7 +110,6 @@ class BuildingDataset:
     return os.path.join(self.tabular_dirpath, "floorplan.npy")
 
   @cached_property
-  # pylint: disable=line-too-long
   def floorplan(self) -> np.ndarray:
     """The building's floorplan, as a numpy array.
 
@@ -126,8 +121,7 @@ class BuildingDataset:
 
     Use the [`display_floorplan`][smart_control.dataset.dataset.BuildingDataset.display_floorplan]
       method to view an image of the floorplan.
-    """
-    # pylint: enable=line-too-long
+    """  # pylint: disable=line-too-long
     return np.load(self.floorplan_filepath)
 
   @property
@@ -136,7 +130,6 @@ class BuildingDataset:
     floorplan_image_filename = f"{self.dataset_id}_floorplan.png"
     return os.path.join(DOCS_DIR, "assets", "images", floorplan_image_filename)
 
-  # pylint: disable=line-too-long
   def display_floorplan(
       self,
       cmap="binary",
@@ -157,8 +150,7 @@ class BuildingDataset:
       save (bool): Whether or not to save the image (as a .png file).
       image_filepath (str): An optional custom filepath to use when saving the
         image. Only applies if `save=True`. By default, saves to the [`floorplan_image_filepath`][smart_control.dataset.dataset.BuildingDataset.floorplan_image_filepath]
-    """
-    # pylint: enable=line-too-long
+    """  # pylint: disable=line-too-long
     plt.imshow(self.floorplan, interpolation="nearest", cmap=cmap)
     if show:
       plt.show()
