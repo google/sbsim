@@ -8,3 +8,11 @@ efficiency, operational costs, and occupant comfort.
 
 This project is an open source collaboration between Google and partner
 organizations in academia and industry.
+
+## Code Architecture
+
+The following UML class diagram provides an overview of the relationships
+between the classes in the codebase. It is automatically generated from the
+source code.
+
+[![UML class diagram](images/class_diagram.svg)](images/class_diagram.svg)
