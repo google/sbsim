@@ -16,3 +16,7 @@ between the classes in the codebase. It is automatically generated from the
 source code.
 
 [![UML class diagram](images/class_diagram.svg)](images/class_diagram.svg)
+
+```mermaid
+--8<-- "classes_smart_control.mmd"
+```

@@ -119,8 +119,11 @@ markdown_extensions:
       #line_spans: __span
       pygments_lang_class: true
   #- pymdownx.inlinehilite # For inline code highlighting
-  #- pymdownx.snippets
-  - pymdownx.superfences
+  - pymdownx.snippets
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
 
   # MATHJAX EQUATIONS CONFIG, PART 1 OF 2
   # https://mrkeo.github.io/reference/mathjax/
