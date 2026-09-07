@@ -1,0 +1,58 @@
+name: UML Diagram
+
+on:
+  push:
+    branches:
+      - master
+      - main
+      - copybara_push
+    paths:
+      - "smart_control/**/*.py"
+      - "Makefile"
+      - "pyproject.toml"
+      - "poetry.lock"
+      - ".github/workflows/uml.yml"
+
+  pull_request:
+    branches:
+      - master
+      - main
+      - copybara_push
+    paths:
+      - "smart_control/**/*.py"
+      - "Makefile"
+      - "pyproject.toml"
+      - "poetry.lock"
+      - ".github/workflows/uml.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  uml:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Poetry
+        run: pip install poetry==2.1.2
+
+      - name: Install dependencies
+        run: poetry install --with dev,docs
+
+      - name: Generate UML diagram
+        run: poetry run make uml
+
+      - name: Check generated diagram
+        run: |
+          if ! git diff --exit-code docs/images/class_diagram.svg; then
+            echo "::error::The UML diagram is outdated. Please run 'poetry run make uml' and commit the updated SVG."
+            exit 1
+          fi
