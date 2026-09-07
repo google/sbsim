@@ -53,3 +53,14 @@ docs-quiet:
 
 docs-build:
 	poetry run mkdocs build
+
+#
+# UML Diagram
+#
+
+uml:
+	@echo "--- Generating UML class diagram ---"
+	pyreverse -o mmd -k -p smart_control smart_control/
+	sed -i '/^classDiagram/a\    direction LR' classes_smart_control.mmd
+	mermaidx -i classes_smart_control.mmd -o docs/images/class_diagram.svg
+	# rm -f classes_smart_control.mmd packages_smart_control.mmd
