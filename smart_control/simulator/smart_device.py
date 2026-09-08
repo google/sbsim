@@ -60,10 +60,12 @@ class SmartDevice(metaclass=abc.ABCMeta):
     self._action_timestamp = None
     self._observation_timestamp = None
 
+  @property
   def device_id(self) -> str:
     """Returns device id."""
     return self._device_id
 
+  @property
   def zone_id(self) -> Optional[str]:
     """Returns zone_id."""
     return self._zone_id
@@ -72,10 +74,12 @@ class SmartDevice(metaclass=abc.ABCMeta):
     """Returns device type."""
     return self._device_type
 
+  @property
   def observable_field_names(self) -> Sequence[str]:
     """Returns all observable field names."""
     return self._observable_fields.keys()  # pytype: disable=bad-return-type
 
+  @property
   def action_field_names(self) -> Sequence[str]:
     """Returns all action field names."""
     return self._action_fields.keys()  # pytype: disable=bad-return-type
