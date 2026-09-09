@@ -152,13 +152,13 @@ class BuildingDatasetPartition:
 
         For example:
 
-```py
+        ```py
           {
             '12945159110931775488@supply_air_temperature_setpoint': 0,
             '13761436543392677888@supply_water_temperature_setpoint': 1,
             '14409954889734029312@supply_air_temperature_setpoint': 2
           }
-```
+        ```
     """  # pylint: disable=line-too-long
     return self.metadata["action_ids_map"]
 
@@ -173,13 +173,13 @@ class BuildingDatasetPartition:
 
         For example:
 
-```py
+        ```py
           {
             '202194278473007104@building_air_static_pressure_setpoint', 0,
             ...
             '2640423556868160@zone_air_temperature_sensor': 1197
           }
-```
+        ```
     """  # pylint: disable=line-too-long
     return self.metadata["observation_ids_map"]
 
@@ -195,13 +195,13 @@ class BuildingDatasetPartition:
 
         For example:
 
-```py
+        ```py
           {
             'rooms/9028552126@heating_setpoint_temperature': 0
             ...
             '14409954889734029312@air_conditioning_electrical_energy_rate': 3251
           }
-```
+        ```
     """  # pylint: disable=line-too-long
     return self.metadata["reward_info_ids_map"]
 
