@@ -71,18 +71,18 @@ class BuildingDataset:
   def building_dirpath(self):
     """The local directory containing the building's dataset, after it has been
     extracted from the local zip file.
-    """
+    """  # pylint: disable=line-too-long
     return os.path.join(DATA_DIR, self.dataset_id)
 
   def download(self, timeout=60):
     """Downloads the building's dataset from Google Cloud Storage.
 
     Only downloads and unzips the dataset if it doesn't already exist at the
-      expected [`building_dirpath`](./#smart_control.dataset.dataset.BuildingDataset.building_dirpath)
+      expected [`building_dirpath`][smart_control.dataset.dataset.BuildingDataset.building_dirpath]
       location. Otherwise it will load the existing local data.
 
     Download speed is fairly quick, but unzipping takes a few moments.
-    """
+    """  # pylint: disable=line-too-long
     if os.path.isdir(self.building_dirpath):
       print("Using previously-downloaded data...")
       print(os.path.abspath(self.building_dirpath))
@@ -119,9 +119,9 @@ class BuildingDataset:
       + 1: wall / boundary
       + 2: outside / external space
 
-    Use the [`display_floorplan`](./#smart_control.dataset.dataset.BuildingDataset.display_floorplan)
+    Use the [`display_floorplan`][smart_control.dataset.dataset.BuildingDataset.display_floorplan]
       method to view an image of the floorplan.
-    """
+    """  # pylint: disable=line-too-long
     return np.load(self.floorplan_filepath)
 
   @property
@@ -149,8 +149,8 @@ class BuildingDataset:
       show (bool): Whether or not to show the image.
       save (bool): Whether or not to save the image (as a .png file).
       image_filepath (str): An optional custom filepath to use when saving the
-        image. Only applies if `save=True`. By default, saves to the [`floorplan_image_filepath`](./#smart_control.dataset.dataset.BuildingDataset.floorplan_image_filepath)
-    """
+        image. Only applies if `save=True`. By default, saves to the [`floorplan_image_filepath`][smart_control.dataset.dataset.BuildingDataset.floorplan_image_filepath]
+    """  # pylint: disable=line-too-long
     plt.imshow(self.floorplan, interpolation="nearest", cmap=cmap)
     if show:
       plt.show()
