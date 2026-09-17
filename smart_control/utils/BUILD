@@ -30,6 +30,17 @@ py_library(
 )
 
 py_library(
+    name = "energyplus_weather",
+    srcs = ["energyplus_weather.py"],
+)
+
+py_strict_test(
+    name = "energyplus_weather_test",
+    srcs = ["energyplus_weather_test.py"],
+    deps = [":energyplus_weather"],
+)
+
+py_library(
     name = "conversion_utils",
     srcs = ["conversion_utils.py"],
     deps = [

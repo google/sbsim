@@ -77,6 +77,7 @@ nav:
       - 'Linux': setup/linux.md
       - 'Mac': setup/mac.md
       - 'Docker': setup/docker.md
+    - 'Weather data': weather-data.md
     - 'Contributing': contributing.md
     - 'Documentation Site': docs-site.md
   - 'API Reference':
