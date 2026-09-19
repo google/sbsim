@@ -4,8 +4,8 @@ from absl.testing import absltest
 from absl.testing import parameterized
 import pandas as pd
 
-from smart_control.models.base_energy_cost import BaseEnergyCost
 from smart_control.proto import smart_control_reward_pb2
+from smart_control.reward import reward_test_utils
 from smart_control.reward import setpoint_energy_carbon_regret
 from smart_control.utils import conversion_utils
 
@@ -208,8 +208,8 @@ class SetpointEnergyCarbonRegretTest(parameterized.TestCase):
 
     max_electricity_rate = 10000.0
     max_natural_gas_rate = 10000.0
-    electricity_energy_cost = TestEnergyCost(0.05, 0.01)
-    natural_gas_energy_cost = TestEnergyCost(0.05, 0.01)
+    electricity_energy_cost = reward_test_utils.TestEnergyCost(0.05, 0.01)
+    natural_gas_energy_cost = reward_test_utils.TestEnergyCost(0.05, 0.01)
 
     return setpoint_energy_carbon_regret.SetpointEnergyCarbonRegretFunction(
         max_productivity_personhour_usd=max_productivity_personhour_usd,
@@ -282,8 +282,12 @@ class SetpointEnergyCarbonRegretTest(parameterized.TestCase):
 
   def test_invalid_productivity_bounds(self):
     """ValueError if max_productivity <= min_productivity."""
-    electricity_cost = TestEnergyCost(usd_per_kwh=0.05, kg_per_kwh=0.01)
-    natural_gas_cost = TestEnergyCost(usd_per_kwh=0.05, kg_per_kwh=0.01)
+    electricity_cost = reward_test_utils.TestEnergyCost(
+        usd_per_kwh=0.05, kg_per_kwh=0.01
+    )
+    natural_gas_cost = reward_test_utils.TestEnergyCost(
+        usd_per_kwh=0.05, kg_per_kwh=0.01
+    )
 
     with self.assertRaisesRegex(
         ValueError,
@@ -302,38 +306,6 @@ class SetpointEnergyCarbonRegretTest(parameterized.TestCase):
           energy_cost_weight=1.0,
           carbon_emission_weight=1.0,
       )
-
-
-class TestEnergyCost(BaseEnergyCost):
-  """Calculates energy cost and carbon emissions based on fixed rates.
-
-  Used for testing purposes.
-
-  TODO: https://github.com/google/sbsim/issues/49 - refactor identical classes:
-    smart_control/reward/base_setpoint_energy_carbon_reward_test.py
-    smart_control/reward/setpoint_energy_carbon_reward_test.py
-  """
-
-  def __init__(self, usd_per_kwh: float, kg_per_kwh: float):
-    # Energy price in USD/Watt second (fixed schedule)
-    # To convert denominator units hours to seconds, divide by 3600.0, and to
-    # convert kW to W, divide by 1000. This leaves us with an energy price
-    # in USD /W /s and carbon rate of kg /W /s.
-    self._energy_price = usd_per_kwh / 3600.0 / 1000.0
-    self._carbon_rate = kg_per_kwh / 3600.0 / 1000.0
-
-  def cost(
-      self, start_time: pd.Timestamp, end_time: pd.Timestamp, energy_rate: float
-  ) -> float:
-    dt = (end_time - start_time).total_seconds()
-
-    return self._energy_price * energy_rate * dt
-
-  def carbon(
-      self, start_time: pd.Timestamp, end_time: pd.Timestamp, energy_rate: float
-  ) -> float:
-    dt = (end_time - start_time).total_seconds()
-    return self._carbon_rate * energy_rate * dt
 
 
 if __name__ == '__main__':

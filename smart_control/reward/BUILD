@@ -23,6 +23,15 @@ package(
 )
 
 pytype_strict_library(
+    name = "reward_test_utils",
+    srcs = ["reward_test_utils.py"],
+    deps = [
+        "//third_party/py/pandas",
+        "//third_party/py/smart_buildings/smart_control/models:base_energy_cost",
+    ],
+)
+
+pytype_strict_library(
     name = "setpoint_energy_carbon_regret",
     srcs = ["setpoint_energy_carbon_regret.py"],
     deps = [
@@ -41,12 +50,12 @@ py_strict_test(
     name = "setpoint_energy_carbon_regret_test",
     srcs = ["setpoint_energy_carbon_regret_test.py"],
     deps = [
+        ":reward_test_utils",
         ":setpoint_energy_carbon_regret",
         "//third_party/py/absl/testing:absltest",
         "//third_party/py/absl/testing:parameterized",
         "//third_party/py/google/protobuf:use_fast_cpp_protos",  # Automatically added go/proto_python_upb_flip
         "//third_party/py/pandas",
-        "//third_party/py/smart_buildings/smart_control/models:base_energy_cost",
         "//third_party/py/smart_buildings/smart_control/proto:smart_control_reward_py_pb2",
         "//third_party/py/smart_buildings/smart_control/utils:conversion_utils",
     ],
@@ -76,7 +85,6 @@ py_strict_test(
         "//third_party/py/absl/testing:parameterized",
         "//third_party/py/google/protobuf:use_fast_cpp_protos",  # Automatically added go/proto_python_upb_flip
         "//third_party/py/pandas",
-        "//third_party/py/smart_buildings/smart_control/models:base_energy_cost",
         "//third_party/py/smart_buildings/smart_control/proto:smart_control_reward_py_pb2",
         "//third_party/py/smart_buildings/smart_control/utils:conversion_utils",
     ],
@@ -101,13 +109,13 @@ py_strict_test(
     name = "setpoint_energy_carbon_reward_test",
     srcs = ["setpoint_energy_carbon_reward_test.py"],
     deps = [
+        ":reward_test_utils",
         ":setpoint_energy_carbon_reward",
         "//third_party/py/absl/logging",
         "//third_party/py/absl/testing:absltest",
         "//third_party/py/absl/testing:parameterized",
         "//third_party/py/google/protobuf:use_fast_cpp_protos",  # Automatically added go/proto_python_upb_flip
         "//third_party/py/pandas",
-        "//third_party/py/smart_buildings/smart_control/models:base_energy_cost",
         "//third_party/py/smart_buildings/smart_control/proto:smart_control_reward_py_pb2",
         "//third_party/py/smart_buildings/smart_control/utils:conversion_utils",
     ],
