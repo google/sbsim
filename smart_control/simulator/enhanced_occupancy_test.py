@@ -5,6 +5,7 @@ from absl.testing import parameterized
 import numpy as np
 import pandas as pd
 
+from smart_control.simulator.enhanced_occupancy import _stable_seed
 from smart_control.simulator.enhanced_occupancy import EnhancedOccupancy
 from smart_control.simulator.enhanced_occupancy import MinuteLevelZoneOccupant
 from smart_control.simulator.enhanced_occupancy import OccupancyStateEnum
@@ -33,6 +34,9 @@ TEST_SETUP_DAILY_PROB = 0.3
 
 
 class EnhancedOccupancyTest(parameterized.TestCase):
+
+  def test_stable_seed(self):
+    self.assertEqual(_stable_seed('zone_0', 0, 'worker_type'), 562991733)
 
   @parameterized.parameters('UTC', 'US/Pacific', 'US/Eastern')
   def test_average_occupancy_weekday(self, tz):
