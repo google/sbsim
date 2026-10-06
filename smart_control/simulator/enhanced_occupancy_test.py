@@ -1,5 +1,12 @@
 """Test the enhanced occupancy model."""
 
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+import textwrap
+
 from absl.testing import absltest
 from absl.testing import parameterized
 import numpy as np
@@ -37,6 +44,47 @@ class EnhancedOccupancyTest(parameterized.TestCase):
 
   def test_stable_seed(self):
     self.assertEqual(_stable_seed('zone_0', 0, 'worker_type'), 562991733)
+
+  def test_occupancy_is_repeatable_across_python_processes(self):
+    script = textwrap.dedent("""
+        import json
+        import pandas as pd
+        from smart_control.simulator import enhanced_occupancy
+
+        occupancy = enhanced_occupancy.EnhancedOccupancy(
+            zone_assignment=20,
+            earliest_expected_arrival_hour=8,
+            latest_expected_arrival_hour=10,
+            earliest_expected_departure_hour=16,
+            latest_expected_departure_hour=18,
+            weekend_regular_pct=0.25,
+            weekend_occasional_pct=0.25,
+            occasional_daily_prob=0.5,
+        )
+        profile = []
+        for date in ('2026-09-12', '2026-09-14'):
+            for hour in (8, 9, 12, 16, 17):
+                start = pd.Timestamp(date, tz='UTC') + pd.Timedelta(hours=hour)
+                profile.append(occupancy.average_zone_occupancy(
+                    'office', start, start + pd.Timedelta(hours=1)
+                ))
+        print(json.dumps({
+            'workers': occupancy.get_worker_distribution('office'),
+            'profile': profile,
+        }))
+    """)
+    results = [
+        json.loads(
+            subprocess.check_output(
+                [sys.executable, '-c', script],
+                cwd=Path(__file__).resolve().parents[2],
+                env={**os.environ, 'PYTHONHASHSEED': str(seed)},
+                text=True,
+            )
+        )
+        for seed in (1, 2)
+    ]
+    self.assertEqual(results[0], results[1])
 
   @parameterized.parameters('UTC', 'US/Pacific', 'US/Eastern')
   def test_average_occupancy_weekday(self, tz):
