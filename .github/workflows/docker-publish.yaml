@@ -1,0 +1,93 @@
+name: Docker Publish
+
+on:
+  release:
+    types:
+      - published
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag for the published image (defaults to sha-<short sha>)'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  docker-publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    env:
+      REGISTRY: ghcr.io
+      IMAGE_NAME: ${{ github.repository }}
+      DOCKER_HUB_USERNAME: ${{ secrets.DOCKER_HUB_USERNAME }}
+      DOCKER_HUB_PASSWORD: ${{ secrets.DOCKER_HUB_PASSWORD }}
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
+
+    - name: Log in to the GitHub Container Registry
+      uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+        tags: |
+          type=semver,pattern={{version}}
+          type=semver,pattern={{major}}.{{minor}}
+          type=raw,value=latest,enable=${{ github.event_name == 'release' }}
+          type=raw,value=${{ inputs.tag }},enable=${{ github.event_name == 'workflow_dispatch' && inputs.tag != '' }}
+          type=raw,value=sha-${{ github.sha }},enable=${{ github.event_name == 'workflow_dispatch' && inputs.tag == '' }}
+
+    - name: Build and push to the GitHub Container Registry
+      uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+      with:
+        context: .
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha,scope=ghcr
+        cache-to: type=gha,mode=max,scope=ghcr
+
+    - name: Log in to Docker Hub
+      if: ${{ env.DOCKER_HUB_USERNAME != '' }}
+      uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+      with:
+        username: ${{ env.DOCKER_HUB_USERNAME }}
+        password: ${{ env.DOCKER_HUB_PASSWORD }}
+
+    - name: Extract Docker Hub metadata
+      id: meta-dockerhub
+      if: ${{ env.DOCKER_HUB_USERNAME != '' }}
+      uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+      with:
+        images: ${{ env.DOCKER_HUB_USERNAME }}/sbsim
+        tags: |
+          type=semver,pattern={{version}}
+          type=semver,pattern={{major}}.{{minor}}
+          type=raw,value=latest,enable=${{ github.event_name == 'release' }}
+          type=raw,value=${{ inputs.tag }},enable=${{ github.event_name == 'workflow_dispatch' && inputs.tag != '' }}
+          type=raw,value=sha-${{ github.sha }},enable=${{ github.event_name == 'workflow_dispatch' && inputs.tag == '' }}
+
+    - name: Build and push to Docker Hub
+      if: ${{ env.DOCKER_HUB_USERNAME != '' }}
+      uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+      with:
+        context: .
+        push: true
+        tags: ${{ steps.meta-dockerhub.outputs.tags }}
+        labels: ${{ steps.meta-dockerhub.outputs.labels }}
+        cache-from: type=gha,scope=dockerhub
+        cache-to: type=gha,mode=max,scope=dockerhub
