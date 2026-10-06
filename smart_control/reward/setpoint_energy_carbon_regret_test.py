@@ -5,7 +5,7 @@ from absl.testing import parameterized
 import pandas as pd
 
 from smart_control.proto import smart_control_reward_pb2
-from smart_control.reward import reward_test_utils
+from smart_control.reward import conftest
 from smart_control.reward import setpoint_energy_carbon_regret
 from smart_control.utils import conversion_utils
 
@@ -208,8 +208,8 @@ class SetpointEnergyCarbonRegretTest(parameterized.TestCase):
 
     max_electricity_rate = 10000.0
     max_natural_gas_rate = 10000.0
-    electricity_energy_cost = reward_test_utils.TestEnergyCost(0.05, 0.01)
-    natural_gas_energy_cost = reward_test_utils.TestEnergyCost(0.05, 0.01)
+    electricity_energy_cost = conftest.TestEnergyCost(0.05, 0.01)
+    natural_gas_energy_cost = conftest.TestEnergyCost(0.05, 0.01)
 
     return setpoint_energy_carbon_regret.SetpointEnergyCarbonRegretFunction(
         max_productivity_personhour_usd=max_productivity_personhour_usd,
@@ -282,10 +282,10 @@ class SetpointEnergyCarbonRegretTest(parameterized.TestCase):
 
   def test_invalid_productivity_bounds(self):
     """ValueError if max_productivity <= min_productivity."""
-    electricity_cost = reward_test_utils.TestEnergyCost(
+    electricity_cost = conftest.TestEnergyCost(
         usd_per_kwh=0.05, kg_per_kwh=0.01
     )
-    natural_gas_cost = reward_test_utils.TestEnergyCost(
+    natural_gas_cost = conftest.TestEnergyCost(
         usd_per_kwh=0.05, kg_per_kwh=0.01
     )
 

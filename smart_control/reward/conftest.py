@@ -2,10 +2,10 @@
 
 import pandas as pd
 
-from smart_control.models.base_energy_cost import BaseEnergyCost
+from smart_control.models import base_energy_cost
 
 
-class TestEnergyCost(BaseEnergyCost):
+class TestEnergyCost(base_energy_cost.BaseEnergyCost):
   """Calculates energy cost and carbon emissions using fixed rates."""
 
   def __init__(self, usd_per_kwh: float, kg_per_kwh: float):

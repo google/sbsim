@@ -6,7 +6,7 @@ from absl.testing import parameterized
 import pandas as pd
 
 from smart_control.proto import smart_control_reward_pb2
-from smart_control.reward import reward_test_utils
+from smart_control.reward import conftest
 from smart_control.reward import setpoint_energy_carbon_reward
 from smart_control.utils import conversion_utils
 
@@ -136,8 +136,8 @@ class SetpointEnergyCarbonRewardTest(parameterized.TestCase):
     person_productivity_hour = 500.0
     productivity_decay_stiffness = 4.3
     productivity_midpoint_delta = 1.5
-    electricity_energy_cost = reward_test_utils.TestEnergyCost(0.19, 0.01)
-    natural_gas_energy_cost = reward_test_utils.TestEnergyCost(0.03, 0.188)
+    electricity_energy_cost = conftest.TestEnergyCost(0.19, 0.01)
+    natural_gas_energy_cost = conftest.TestEnergyCost(0.03, 0.188)
 
     energy_cost_weight = 1.0
     carbon_cost_weight = 1.0
