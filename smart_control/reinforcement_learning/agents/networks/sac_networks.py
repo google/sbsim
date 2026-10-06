@@ -112,8 +112,8 @@ class _TanhNormalProjectionNetworkWrapper(
     super().__init__(sample_spec)
     self.predefined_outer_rank = predefined_outer_rank
 
-  def call(self, inputs,network_state=(), **kwargs):
-    del network_state  #  # projection layer is not recurrent
+  def call(self, inputs, network_state=(), **kwargs):
+    del network_state  #  Projection layer is not recurrent
     kwargs['outer_rank'] = self.predefined_outer_rank
     if 'step_type' in kwargs:
       del kwargs['step_type']
