@@ -77,7 +77,6 @@ nav:
       - 'Linux': setup/linux.md
       - 'Mac': setup/mac.md
       - 'Docker': setup/docker.md
-    - 'Weather data': weather-data.md
     - 'Contributing': contributing.md
     - 'Documentation Site': docs-site.md
   - 'API Reference':
@@ -95,6 +94,8 @@ nav:
       - api/reinforcement_learning/scripts.md
       - api/reinforcement_learning/utils.md
     - api/reward.md
+    - 'Utilities':
+      - api/utils/energy_plus_weather.md
     - 'Simulator':
       - 'Overview': api/simulator/simulator.md
       - api/simulator/building.md
