@@ -444,7 +444,7 @@ class AirHandlerTest(parameterized.TestCase):
     )
 
     self.assertSameElements(
-        handler.observable_field_names(),
+        handler.observable_field_names,
         [
             'differential_pressure_setpoint',
             'supply_air_flowrate_sensor',
@@ -507,7 +507,7 @@ class AirHandlerTest(parameterized.TestCase):
         self.fan_efficiency,
     )
     self.assertSameElements(
-        handler.action_field_names(),
+        handler.action_field_names,
         [
             'supply_air_heating_temperature_setpoint',
             'supply_air_cooling_temperature_setpoint',

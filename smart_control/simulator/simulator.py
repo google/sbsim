@@ -982,7 +982,7 @@ class Simulator:
     This data is used to compute the instantaneous reward.
     """
     air_handler_reward_infos = {}
-    air_handler_id = self._hvac.air_handler.device_id()
+    air_handler_id = self._hvac.air_handler.device_id
     blower_electrical_energy_rate = (
         self._hvac.air_handler.compute_intake_fan_energy_rate()
         + self._hvac.air_handler.compute_exhaust_fan_energy_rate()
@@ -1011,7 +1011,7 @@ class Simulator:
     This data is used to compute the instantaneous reward.
     """
     boiler_reward_infos = {}
-    boiler_id = self._hvac.boiler.device_id()
+    boiler_id = self._hvac.boiler.device_id
     return_water_temp = self._hvac.boiler.return_water_temperature_sensor
     natural_gas_heating_energy_rate = (
         self._hvac.boiler.compute_thermal_energy_rate(

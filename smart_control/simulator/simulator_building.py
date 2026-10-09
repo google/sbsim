@@ -60,7 +60,7 @@ class SimulatorBuilding(BaseBuilding):
         (hvac.air_handler, self._create_device_info(hvac.air_handler)),
     ]
     all_devices.extend([
-        (vav, self._create_device_info(vav, vav.zone_id()))
+        (vav, self._create_device_info(vav, vav.zone_id))
         for vav in hvac.vavs.values()
     ])
 
@@ -96,15 +96,15 @@ class SimulatorBuilding(BaseBuilding):
       device: SmartDevice to create info object for.
       zone_id: Zone Id of the device.
     """
-    observable_fields = device.observable_field_names()
-    action_fields = device.action_field_names()
+    observable_fields = device.observable_field_names
+    action_fields = device.action_field_names
 
     device_info = smart_control_building_pb2.DeviceInfo()
-    device_info.device_id = device.device_id()
+    device_info.device_id = device.device_id
     device_info.namespace = f"device_namespace_{uuid.uuid4()}"
     device_info.code = f"device_code_{uuid.uuid4()}"
     device_info.zone_id = zone_id
-    device_info.device_type = device.device_type()
+    device_info.device_type = device.device_type
     for observable_field in observable_fields:
       observable_class = device.get_observable_type(observable_field)
       device_info.observable_fields[observable_field] = (
