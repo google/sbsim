@@ -16,7 +16,7 @@ from smart_control.simulator.air_handler import AirHandler
 from smart_control.simulator.boiler import Boiler
 from smart_control.simulator.building import MaterialProperties
 from smart_control.simulator.hvac_floorplan_based import FloorPlanBasedHvac
-from smart_control.simulator.randomized_arrival_departure_occupancy import RandomizedArrivalDepartureOccupancy
+from smart_control.simulator.occupancy.randomized_arrival_departure_occupancy import RandomizedArrivalDepartureOccupancy
 from smart_control.simulator.simulator_building import SimulatorBuilding
 from smart_control.simulator.stochastic_convection_simulator import StochasticConvectionSimulator
 from smart_control.simulator.tf_simulator import TFSimulator
