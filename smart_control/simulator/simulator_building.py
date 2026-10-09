@@ -104,7 +104,7 @@ class SimulatorBuilding(BaseBuilding):
     device_info.namespace = f"device_namespace_{uuid.uuid4()}"
     device_info.code = f"device_code_{uuid.uuid4()}"
     device_info.zone_id = zone_id
-    device_info.device_type = device.device_type()
+    device_info.device_type = device.device_type
     for observable_field in observable_fields:
       observable_class = device.get_observable_type(observable_field)
       device_info.observable_fields[observable_field] = (

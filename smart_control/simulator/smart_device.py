@@ -70,6 +70,7 @@ class SmartDevice(metaclass=abc.ABCMeta):
     """Returns zone_id."""
     return self._zone_id
 
+  @property
   def device_type(self) -> smart_control_building_pb2.DeviceInfo.DeviceType:
     """Returns device type."""
     return self._device_type

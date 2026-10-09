@@ -447,7 +447,7 @@ class BoilerTest(parameterized.TestCase):
   def test_device_type(self):
     b = self.get_default_boiler()
 
-    device_type = b.device_type()
+    device_type = b.device_type
 
     self.assertEqual(
         device_type, smart_control_building_pb2.DeviceInfo.DeviceType.BLR
