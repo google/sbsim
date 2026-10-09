@@ -271,9 +271,12 @@ def create_baseline_schedule_policy(
       tz=DEFAULT_TIME_ZONE
   )
 
-  # The policy writes its action array in action_sequence order, and the environment reads that array in its own action order (devices in building order, setpoints sorted within a device;
-  # for SB1: supply water, then air heating).
-  # action_normalizers is built in that same order, so derive the sequence from it instead of hard-coding it.
+  # The policy writes its action array in action_sequence order, and the
+  # environment reads that array in its own action order (devices in
+  # building order, setpoints sorted within a device; for SB1: supply
+  # water, then air heating).
+  # action_normalizers is built in that same order, so derive the sequence
+  # from it instead of hard-coding it.
   scheduled_setpoints = [
       (DeviceType.AC, 'supply_air_heating_temperature_setpoint'),
       (DeviceType.HWS, 'supply_water_setpoint'),
