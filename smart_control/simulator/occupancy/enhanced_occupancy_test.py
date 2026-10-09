@@ -5,10 +5,10 @@ from absl.testing import parameterized
 import numpy as np
 import pandas as pd
 
-from smart_control.simulator.enhanced_occupancy import EnhancedOccupancy
-from smart_control.simulator.enhanced_occupancy import MinuteLevelZoneOccupant
-from smart_control.simulator.enhanced_occupancy import OccupancyStateEnum
-from smart_control.simulator.enhanced_occupancy import WorkerType
+from smart_control.simulator.occupancy.enhanced_occupancy import EnhancedOccupancy
+from smart_control.simulator.occupancy.enhanced_occupancy import MinuteLevelZoneOccupant
+from smart_control.simulator.occupancy.enhanced_occupancy import OccupancyStateEnum
+from smart_control.simulator.occupancy.enhanced_occupancy import WorkerType
 
 DEBUG_PRINT = False
 SEED = 511211

@@ -13,8 +13,8 @@ from smart_control.simulator import building as building_py
 from smart_control.simulator import hvac as hvac_py
 from smart_control.simulator import setpoint_schedule
 from smart_control.simulator import simulator as simulator_py
-from smart_control.simulator import step_function_occupancy
 from smart_control.simulator import weather_controller as weather_controller_py
+from smart_control.simulator.occupancy import step_function_occupancy
 from smart_control.utils import conversion_utils
 
 
