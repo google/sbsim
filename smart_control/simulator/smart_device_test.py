@@ -136,7 +136,7 @@ class SmartDeviceTest(absltest.TestCase):
   def test_device_type(self):
     heater = self.heater_class()
 
-    device_type = heater.device_type()
+    device_type = heater.device_type
 
     self.assertEqual(
         device_type, smart_control_building_pb2.DeviceInfo.DeviceType.OTHER
