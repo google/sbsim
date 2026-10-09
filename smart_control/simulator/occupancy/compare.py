@@ -1,12 +1,12 @@
 """Comparison script for occupancy models.
 
 This script generates comparison charts showing the behavior of all occupancy
-models over a 24-hour period. The charts are saved as both PNG (for documentation)
-and HTML (for interactive viewing).
+models over a 24-hour period. The charts are saved as both PNG (for
+documentation) and HTML (for interactive viewing).
 """
 
 import os
-from typing import Dict, List
+from typing import Dict
 
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -35,17 +35,15 @@ def create_occupancy_models() -> Dict[str, object]:
   )
 
   # Randomized Arrival/Departure Occupancy
-  models['Randomized Arrival/Departure'] = (
-      RandomizedArrivalDepartureOccupancy(
-          zone_assignment=10,
-          earliest_expected_arrival_hour=8,
-          latest_expected_arrival_hour=10,
-          earliest_expected_departure_hour=16,
-          latest_expected_departure_hour=18,
-          time_step_sec=300,  # 5 minutes
-          seed=42,
-          time_zone='US/Pacific',
-      )
+  models['Randomized Arrival/Departure'] = RandomizedArrivalDepartureOccupancy(
+      zone_assignment=10,
+      earliest_expected_arrival_hour=8,
+      latest_expected_arrival_hour=10,
+      earliest_expected_departure_hour=16,
+      latest_expected_departure_hour=18,
+      time_step_sec=300,  # 5 minutes
+      seed=42,
+      time_zone='US/Pacific',
   )
 
   # LIGHTSWITCH Occupancy (Stochastic)
@@ -106,17 +104,9 @@ def generate_occupancy_data(
     for i in range(len(timestamps) - 1):
       interval_start = timestamps[i]
       interval_end = timestamps[i + 1]
-      try:
-        occupancy = model.average_zone_occupancy(
-            zone_id, interval_start, interval_end
-        )
-        occupancies.append(occupancy)
-      except Exception as e:
-        print(
-            f'Error calculating occupancy for {model_name} at'
-            f' {interval_start}: {e}'
-        )
-        occupancies.append(0.0)
+      occupancies.append(
+          model.average_zone_occupancy(zone_id, interval_start, interval_end)
+      )
 
     data[model_name] = occupancies
 
@@ -135,8 +125,6 @@ def create_matplotlib_plot(df: pd.DataFrame, output_path: str):
   plt.figure(figsize=(14, 7))
 
   for column in df.columns:
-    # Convert timestamps to local time strings for x-axis
-    times = df.index.strftime('%H:%M')
     plt.plot(range(len(df)), df[column], label=column, linewidth=2)
 
   plt.xlabel('Time of Day (Pacific Time)', fontsize=12)
@@ -183,8 +171,7 @@ def create_plotly_plot(df: pd.DataFrame, output_path: str):
   fig.update_layout(
       title={
           'text': (
-              'Occupancy Model Comparison - 24 Hour Period (5-Minute'
-              ' Intervals)'
+              'Occupancy Model Comparison - 24 Hour Period (5-Minute Intervals)'
           ),
           'x': 0.5,
           'xanchor': 'center',
@@ -204,7 +191,7 @@ def create_plotly_plot(df: pd.DataFrame, output_path: str):
       dtick=7200000,  # 2 hours in milliseconds
   )
 
-  fig.write_html(output_path)
+  fig.write_html(output_path, include_plotlyjs='cdn')
   print(f'Saved HTML plot to: {output_path}')
 
 
@@ -238,7 +225,7 @@ def main():
   print('Creating plotly plot...')
   create_plotly_plot(df, html_output)
 
-  print('\\nComparison charts generated successfully!')
+  print('\nComparison charts generated successfully!')
   print(f'PNG: {png_output}')
   print(f'HTML: {html_output}')
 

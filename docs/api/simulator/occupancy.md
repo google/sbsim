@@ -1,16 +1,20 @@
 # Occupancy Models
 
-This page documents all occupancy models available in the `smart_control.simulator.occupancy` module.
+This page documents all occupancy models available in the
+`smart_control.simulator.occupancy` module.
 
 ## Model Comparison
 
-The following chart compares the behavior of all occupancy models over a 24-hour period with 5-minute intervals:
+The following chart compares the behavior of all occupancy models over a 24-hour
+period with 5-minute intervals:
 
 ![Occupancy Model Comparison](../../assets/images/occupancy_comparison.png)
 
-For an interactive version of this chart, see the [interactive occupancy comparison plot](../../assets/plots/occupancy_comparison.html).
+For an interactive version of this chart, see the
+[interactive occupancy comparison plot](../../assets/plots/occupancy_comparison.html).
 
 The comparison script can be run with:
+
 ```bash
 python -m smart_control.simulator.occupancy.compare
 ```
