@@ -398,6 +398,17 @@ def get_oriented_conductivity_tensors(
 
   The conductivity is split by sides of the CV, top, bottom, left and right.
 
+  Note on the horizontal orientation: the heat balance pairs the left-edge
+  tensor with `shift_tensor_left`, which is the neighbour at column `j + 1`,
+  and the right-edge tensor with the neighbour at column `j - 1`. But
+  `classify_cv` labels a CV `LEFT` when the neighbour it is MISSING sits at
+  column `j - 1`. The zero for a horizontal boundary CV therefore has to be
+  written into the opposite tensor from the one its label names, or it closes
+  the CV's interior-facing face and leaves the exterior-facing one conducting
+  straight into the CV that is pinned at the ambient temperature. The vertical
+  direction needs no such swap: `top` is paired with `shift_tensor_down`, the
+  neighbour at row `i - 1`, which is the row `classify_cv` also calls TOP.
+
   Args:
     conductivity: conductivity of the CV itself.
     boundary_cv_mapping: mapping that contains the coordinates of boundary CVs
@@ -417,25 +428,25 @@ def get_oriented_conductivity_tensors(
         if cv_type.edge == CVEdgeOrientationType.TOP:
           k_top_edge[i][j] = 0.0
         if cv_type.edge == CVEdgeOrientationType.LEFT:
-          k_left_edge[i][j] = 0.0
-        if cv_type.edge == CVEdgeOrientationType.RIGHT:
           k_right_edge[i][j] = 0.0
+        if cv_type.edge == CVEdgeOrientationType.RIGHT:
+          k_left_edge[i][j] = 0.0
         if cv_type.edge == CVEdgeOrientationType.BOTTOM:
           k_bottom_edge[i][j] = 0.0
 
       if cv_type.boundary == CVBoundaryType.CORNER:
         if cv_type.corner == CVCornerOrientationType.TOP_LEFT:
           k_top_edge[i][j] = 0.0
-          k_left_edge[i][j] = 0.0
+          k_right_edge[i][j] = 0.0
         if cv_type.corner == CVCornerOrientationType.TOP_RIGHT:
           k_top_edge[i][j] = 0.0
-          k_right_edge[i][j] = 0.0
+          k_left_edge[i][j] = 0.0
         if cv_type.corner == CVCornerOrientationType.BOTTOM_LEFT:
           k_bottom_edge[i][j] = 0.0
-          k_left_edge[i][j] = 0.0
+          k_right_edge[i][j] = 0.0
         if cv_type.corner == CVCornerOrientationType.BOTTOM_RIGHT:
           k_bottom_edge[i][j] = 0.0
-          k_right_edge[i][j] = 0.0
+          k_left_edge[i][j] = 0.0
 
   t_k_left_edge = tf.convert_to_tensor(k_left_edge, dtype=tf.float32)
   t_k_right_edge = tf.convert_to_tensor(k_right_edge, dtype=tf.float32)
@@ -474,6 +485,151 @@ def shift_tensor_down(
 ) -> tf.Tensor:
   t_down = tf.pad(x, [[1, 0], [0, 0]], constant_values=padding_value)
   return tf.boolean_mask(t_down, [True] * x.shape[0] + [False], axis=0)
+
+
+def _half_cell_resistances(
+    conductivity: np.ndarray, u: np.ndarray, v: np.ndarray
+) -> tuple[np.ndarray, np.ndarray]:
+  """Returns the conduction resistance from a CV centre to each of its faces.
+
+  Args:
+    conductivity: conductivity of each CV in W/(m K). Non-conducting CVs (the
+      exterior) carry zero and get a zero resistance, which the callers read as
+      "this CV does not participate".
+    u: CV extent along x in m.
+    v: CV extent along y in m.
+
+  Returns:
+    Resistances in m^2 K/W towards a left/right face and towards a top/bottom
+    face, both of the same shape as `conductivity`.
+  """
+  solid = conductivity > 0.0
+  r_half_u = np.divide(0.5 * u, conductivity, out=np.zeros_like(u), where=solid)
+  r_half_v = np.divide(0.5 * v, conductivity, out=np.zeros_like(v), where=solid)
+  return r_half_u, r_half_v
+
+
+def get_interface_conductance_tensors(
+    oriented_conductivities: tuple[tf.Tensor, tf.Tensor, tf.Tensor, tf.Tensor],
+    conductivity: np.ndarray,
+    t_u: tf.Tensor,
+    t_v: tf.Tensor,
+) -> tuple[tf.Tensor, tf.Tensor, tf.Tensor, tf.Tensor]:
+  """Returns flux-conservative conductances for each face of every CV.
+
+  Conduction across a face is a property of the face, not of either CV that
+  touches it: whatever one side gives up, the other has to take in. Building
+  the coefficient from a single CV's own conductivity over its own full width
+  breaks that as soon as the two CVs differ, because each side then computes a
+  different flux for the same face. The conservative coefficient is the series
+  resistance of the two half cells that meet there,
+
+      g = 1 / (d_i / k_i + d_j / k_j)   [W/(m^2 K)]
+
+  with d the distance from a CV centre to the shared face. For a uniform
+  material on a uniform grid this reduces to k / d_i, so homogeneous regions
+  are unchanged; it differs where the material or the cell size does, which is
+  what makes an air-to-wall interface, or a non-uniform mesh, come out right.
+
+  Faces that `get_oriented_conductivity_tensors` has already switched off stay
+  off, so the topology of the stencil is not altered here.
+
+  Args:
+    oriented_conductivities: left, right, top and bottom conductivity tensors
+      from `get_oriented_conductivity_tensors`, used as the face mask.
+    conductivity: conductivity of each CV in W/(m K).
+    t_u: CV extent along x in m.
+    t_v: CV extent along y in m.
+
+  Returns:
+    Face conductances in W/(m^2 K) for the left, right, top and bottom faces.
+  """
+  u = np.asarray(t_u.numpy(), dtype=np.float32)
+  v = np.asarray(t_v.numpy(), dtype=np.float32)
+  conductivity = np.asarray(conductivity, dtype=np.float32)
+  r_half_u, r_half_v = _half_cell_resistances(conductivity, u, v)
+
+  def face(t_k_edge, r_self, shift_fn) -> tf.Tensor:
+    """Returns one directional face conductance."""
+    r_neighbour = shift_fn(
+        tf.convert_to_tensor(r_self, dtype=tf.float32), padding_value=0.0
+    ).numpy()
+    r_total = r_self + r_neighbour
+    # A face is open only where the stencil already had it open and where the
+    # neighbour conducts at all.
+    active = (t_k_edge.numpy() > 0.0) & (r_neighbour > 0.0) & (r_total > 0.0)
+    conductance = np.zeros_like(r_total)
+    np.divide(1.0, r_total, out=conductance, where=active)
+    conductance[~active] = 0.0
+    return tf.convert_to_tensor(conductance, dtype=tf.float32)
+
+  # Each face conductance is paired with the shift that produces the neighbour
+  # temperature it multiplies in the heat balance.
+  k_left, k_right, k_top, k_bottom = oriented_conductivities
+  return (
+      face(k_left, r_half_u, shift_tensor_left),
+      face(k_right, r_half_u, shift_tensor_right),
+      face(k_top, r_half_v, shift_tensor_down),
+      face(k_bottom, r_half_v, shift_tensor_up),
+  )
+
+
+def get_exterior_surface_conductance_tensors(
+    convection_coefficient_air: float,
+    shape: tuple[int, int],
+    boundary_cv_mapping: BoundaryCVMapping,
+    conductivity: np.ndarray,
+    t_u: tf.Tensor,
+    t_v: tf.Tensor,
+) -> tuple[tf.Tensor, tf.Tensor, tf.Tensor, tf.Tensor]:
+  """Returns surface conductances that include the outer half cell.
+
+  Handing the film coefficient to the heat balance on its own places the
+  boundary CV's node on the exterior surface, which discards the conduction
+  resistance of its outer half cell. Putting the two in series restores it,
+
+      g = 1 / (d_i / k_i + 1 / h)   [W/(m^2 K)]
+
+  Args:
+    convection_coefficient_air: outside air convection coefficient in
+      W/(m^2 K).
+    shape: tensor shape, identical to the other tensors.
+    boundary_cv_mapping: dict of boundary CVs.
+    conductivity: conductivity of each CV in W/(m K).
+    t_u: CV extent along x in m.
+    t_v: CV extent along y in m.
+
+  Returns:
+    Surface conductances in W/(m^2 K) for the left, right, top and bottom
+    faces, zero away from the boundary.
+  """
+  oriented_films = get_oriented_convection_coefficient_tensors(
+      convection_coefficient_air, shape, boundary_cv_mapping
+  )
+  u = np.asarray(t_u.numpy(), dtype=np.float32)
+  v = np.asarray(t_v.numpy(), dtype=np.float32)
+  r_half_u, r_half_v = _half_cell_resistances(
+      np.asarray(conductivity, dtype=np.float32), u, v
+  )
+
+  def surface(t_h, r_self) -> tf.Tensor:
+    """Returns the film in series with the CV's outer half cell."""
+    h = t_h.numpy()
+    active = h > 0.0
+    r_film = np.zeros_like(h)
+    np.divide(1.0, h, out=r_film, where=active)
+    conductance = np.zeros_like(h)
+    np.divide(1.0, r_self + r_film, out=conductance, where=active)
+    conductance[~active] = 0.0
+    return tf.convert_to_tensor(conductance, dtype=tf.float32)
+
+  h_left, h_right, h_top, h_bottom = oriented_films
+  return (
+      surface(h_left, r_half_u),
+      surface(h_right, r_half_u),
+      surface(h_top, r_half_v),
+      surface(h_bottom, r_half_v),
+  )
 
 
 def apply_exterior_temps(
@@ -541,13 +697,34 @@ class TFSimulator(simulator.SimulatorFlexibleGeometries):
         self.building.temp.shape,
     )
 
+    # The surface conductances only change when the weather-driven film
+    # coefficient does, so they are cached on it.
+    self._exterior_conductance_cache: dict[
+        float, tuple[tf.Tensor, tf.Tensor, tf.Tensor, tf.Tensor]
+    ] = {}
+
+    oriented_conductivities = get_oriented_conductivity_tensors(
+        self.building.conductivity, self._boundary_cv_mapping
+    )
     (
         self._t_conductivity_left_edge,
         self._t_conductivity_right_edge,
         self._t_conductivity_top_edge,
         self._t_conductivity_bottom_edge,
-    ) = get_oriented_conductivity_tensors(
-        self.building.conductivity, self._boundary_cv_mapping
+    ) = oriented_conductivities
+
+    # Conduction across a face is a property of the face, so it is built from
+    # the two half cells that meet there rather than from either CV alone.
+    (
+        self._t_face_conductance_left,
+        self._t_face_conductance_right,
+        self._t_face_conductance_top,
+        self._t_face_conductance_bottom,
+    ) = get_interface_conductance_tensors(
+        oriented_conductivities,
+        self.building.conductivity,
+        self._t_u,
+        self._t_v,
     )
     # radiative heat transfer addition
     self.include_radiative_heat_transfer = (
@@ -559,6 +736,33 @@ class TFSimulator(simulator.SimulatorFlexibleGeometries):
     self.include_interior_mass = building.include_interior_mass
     if self.include_interior_mass:
       self._initialize_interior_mass_tensors(building)
+
+  def _get_exterior_surface_conductances(
+      self, convection_coefficient: float
+  ) -> tuple[tf.Tensor, tf.Tensor, tf.Tensor, tf.Tensor]:
+    """Returns the cached surface conductances for a film coefficient.
+
+    `update_temperature_estimates` runs once per relaxation sweep, so these are
+    cached on the coefficient that produced them rather than rebuilt each time.
+
+    Args:
+      convection_coefficient: outside air convection coefficient in W/(m^2 K).
+
+    Returns:
+      Surface conductances for the left, right, top and bottom faces.
+    """
+    cached = self._exterior_conductance_cache.get(convection_coefficient)
+    if cached is None:
+      cached = get_exterior_surface_conductance_tensors(
+          convection_coefficient,
+          self.building.temp.shape,
+          self._boundary_cv_mapping,
+          self.building.conductivity,
+          self._t_u,
+          self._t_v,
+      )
+      self._exterior_conductance_cache[convection_coefficient] = cached
+    return cached
 
   def _get_tensor_exterior_mask(
       self, building: building_py.Building
@@ -1040,11 +1244,7 @@ class TFSimulator(simulator.SimulatorFlexibleGeometries):
         t_convection_right_edge,
         t_convection_top_edge,
         t_convection_bottom_edge,
-    ) = get_oriented_convection_coefficient_tensors(
-        convection_coefficient,
-        self.building.temp.shape,
-        self._boundary_cv_mapping,
-    )
+    ) = self._get_exterior_surface_conductances(convection_coefficient)
 
     # Create shifted tensor to be able to evaluate neighbors in the equation.
     t_temp_left, t_temp_right, t_temp_above, t_temp_below = _get_neighbor_temps(
@@ -1061,11 +1261,12 @@ class TFSimulator(simulator.SimulatorFlexibleGeometries):
     t_uz = tf.scalar_mul(t_z, self._t_u)
     t_vz = tf.scalar_mul(t_z, self._t_v)
 
-    # Calculate the denominator terms.
-    t_k1_div_u = tf.math.divide(self._t_conductivity_left_edge, self._t_u)
-    t_k3_div_u = tf.math.divide(self._t_conductivity_right_edge, self._t_u)
-    t_k2_div_v = tf.math.divide(self._t_conductivity_bottom_edge, self._t_v)
-    t_k4_div_v = tf.math.divide(self._t_conductivity_top_edge, self._t_v)
+    # Face conductances, already reduced from the two half cells that meet at
+    # each face, so they enter the balance directly.
+    t_k1_div_u = self._t_face_conductance_left
+    t_k3_div_u = self._t_face_conductance_right
+    t_k2_div_v = self._t_face_conductance_bottom
+    t_k4_div_v = self._t_face_conductance_top
 
     t_denom = _get_denominator(
         t_k1_div_u,
