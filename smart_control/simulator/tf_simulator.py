@@ -398,17 +398,6 @@ def get_oriented_conductivity_tensors(
 
   The conductivity is split by sides of the CV, top, bottom, left and right.
 
-  Note on the horizontal orientation: the heat balance pairs the left-edge
-  tensor with `shift_tensor_left`, which is the neighbour at column `j + 1`,
-  and the right-edge tensor with the neighbour at column `j - 1`. But
-  `classify_cv` labels a CV `LEFT` when the neighbour it is MISSING sits at
-  column `j - 1`. The zero for a horizontal boundary CV therefore has to be
-  written into the opposite tensor from the one its label names, or it closes
-  the CV's interior-facing face and leaves the exterior-facing one conducting
-  straight into the CV that is pinned at the ambient temperature. The vertical
-  direction needs no such swap: `top` is paired with `shift_tensor_down`, the
-  neighbour at row `i - 1`, which is the row `classify_cv` also calls TOP.
-
   Args:
     conductivity: conductivity of the CV itself.
     boundary_cv_mapping: mapping that contains the coordinates of boundary CVs
@@ -428,25 +417,25 @@ def get_oriented_conductivity_tensors(
         if cv_type.edge == CVEdgeOrientationType.TOP:
           k_top_edge[i][j] = 0.0
         if cv_type.edge == CVEdgeOrientationType.LEFT:
-          k_right_edge[i][j] = 0.0
-        if cv_type.edge == CVEdgeOrientationType.RIGHT:
           k_left_edge[i][j] = 0.0
+        if cv_type.edge == CVEdgeOrientationType.RIGHT:
+          k_right_edge[i][j] = 0.0
         if cv_type.edge == CVEdgeOrientationType.BOTTOM:
           k_bottom_edge[i][j] = 0.0
 
       if cv_type.boundary == CVBoundaryType.CORNER:
         if cv_type.corner == CVCornerOrientationType.TOP_LEFT:
           k_top_edge[i][j] = 0.0
-          k_right_edge[i][j] = 0.0
+          k_left_edge[i][j] = 0.0
         if cv_type.corner == CVCornerOrientationType.TOP_RIGHT:
           k_top_edge[i][j] = 0.0
-          k_left_edge[i][j] = 0.0
+          k_right_edge[i][j] = 0.0
         if cv_type.corner == CVCornerOrientationType.BOTTOM_LEFT:
           k_bottom_edge[i][j] = 0.0
-          k_right_edge[i][j] = 0.0
+          k_left_edge[i][j] = 0.0
         if cv_type.corner == CVCornerOrientationType.BOTTOM_RIGHT:
           k_bottom_edge[i][j] = 0.0
-          k_left_edge[i][j] = 0.0
+          k_right_edge[i][j] = 0.0
 
   t_k_left_edge = tf.convert_to_tensor(k_left_edge, dtype=tf.float32)
   t_k_right_edge = tf.convert_to_tensor(k_right_edge, dtype=tf.float32)
@@ -515,7 +504,7 @@ def get_interface_conductance_tensors(
     t_u: tf.Tensor,
     t_v: tf.Tensor,
 ) -> tuple[tf.Tensor, tf.Tensor, tf.Tensor, tf.Tensor]:
-  """Returns flux-conservative conductances for each face of every CV.
+  r"""Returns flux-conservative conductances for each face of every CV.
 
   Conduction across a face is a property of the face, not of either CV that
   touches it: whatever one side gives up, the other has to take in. Building
@@ -530,6 +519,13 @@ def get_interface_conductance_tensors(
   material on a uniform grid this reduces to k / d_i, so homogeneous regions
   are unchanged; it differs where the material or the cell size does, which is
   what makes an air-to-wall interface, or a non-uniform mesh, come out right.
+
+  The heat balance multiplies these by the owner CV's own face area ($Vz$ or
+  $Uz$), but two CVs only touch over the narrower of their widths,
+  $A_f = \min(w_P, w_{N_f})\,z$. Where a half-width boundary CV meets a
+  full-width CV (e.g. at a reentrant corner) the two would otherwise claim
+  different contact areas, so the conductance is scaled by
+  $\min(w_P, w_{N_f}) / w_P$ to make the product the same from either side.
 
   Faces that `get_oriented_conductivity_tensors` has already switched off stay
   off, so the topology of the stencil is not altered here.
@@ -549,10 +545,13 @@ def get_interface_conductance_tensors(
   conductivity = np.asarray(conductivity, dtype=np.float32)
   r_half_u, r_half_v = _half_cell_resistances(conductivity, u, v)
 
-  def face(t_k_edge, r_self, shift_fn) -> tf.Tensor:
+  def face(t_k_edge, r_self, w_self, shift_fn) -> tf.Tensor:
     """Returns one directional face conductance."""
     r_neighbour = shift_fn(
         tf.convert_to_tensor(r_self, dtype=tf.float32), padding_value=0.0
+    ).numpy()
+    w_neighbour = shift_fn(
+        tf.convert_to_tensor(w_self, dtype=tf.float32), padding_value=0.0
     ).numpy()
     r_total = r_self + r_neighbour
     # A face is open only where the stencil already had it open and where the
@@ -560,17 +559,21 @@ def get_interface_conductance_tensors(
     active = (t_k_edge.numpy() > 0.0) & (r_neighbour > 0.0) & (r_total > 0.0)
     conductance = np.zeros_like(r_total)
     np.divide(1.0, r_total, out=conductance, where=active)
+    # Scale to the shared width, so that multiplying by the owner's own face
+    # area gives the area both CVs actually share.
+    conductance *= np.minimum(w_self, w_neighbour) / w_self
     conductance[~active] = 0.0
     return tf.convert_to_tensor(conductance, dtype=tf.float32)
 
   # Each face conductance is paired with the shift that produces the neighbour
-  # temperature it multiplies in the heat balance.
+  # temperature it multiplies in the heat balance. A left/right face has the
+  # width v (area Vz) and a top/bottom face the width u (area Uz).
   k_left, k_right, k_top, k_bottom = oriented_conductivities
   return (
-      face(k_left, r_half_u, shift_tensor_left),
-      face(k_right, r_half_u, shift_tensor_right),
-      face(k_top, r_half_v, shift_tensor_down),
-      face(k_bottom, r_half_v, shift_tensor_up),
+      face(k_left, r_half_u, v, shift_tensor_right),
+      face(k_right, r_half_u, v, shift_tensor_left),
+      face(k_top, r_half_v, u, shift_tensor_down),
+      face(k_bottom, r_half_v, u, shift_tensor_up),
   )
 
 
@@ -923,40 +926,132 @@ class TFSimulator(simulator.SimulatorFlexibleGeometries):
     coupling is:
 
     $$\begin{multline}
-      T = \left[Q_x + Vz\left[K_1U^{-1}T_1 + H_1T_\infty + K_3U^{-1}T_3 +
-        H_3T_\infty\right] \right. \\
-      \left. + Uz\left[K_2V^{-1}T_2 + H_2T_\infty + K_4V^{-1}T_4 +
-        H_4T_\infty\right] \right. \\
+      T = \left[Q_x + Vz\left[\Gamma_1T_1 + \Gamma_{\infty,1}T_\infty +
+        \Gamma_3T_3 + \Gamma_{\infty,3}T_\infty\right] \right. \\
+      \left. + Uz\left[\Gamma_2T_2 + \Gamma_{\infty,2}T_\infty + \Gamma_4T_4 +
+        \Gamma_{\infty,4}T_\infty\right] \right. \\
       \left. + K_{\text{mass}}UVz^{-1}T_{\text{mass}} + Q_{\text{lwx}} +
         \frac{C\rho UVz}{\Delta t}T^{(-)}\right] \\
-      \cdot \left[Vz\left[K_1U^{-1} + H_1 + K_3U^{-1} + H_3\right] +
-        Uz\left[K_2V^{-1} + H_2 + K_4V^{-1} + H_4\right] \right. \\
+      \cdot \left[Vz\left[\Gamma_1 + \Gamma_{\infty,1} + \Gamma_3 +
+        \Gamma_{\infty,3}\right] +
+        Uz\left[\Gamma_2 + \Gamma_{\infty,2} + \Gamma_4 +
+        \Gamma_{\infty,4}\right] \right. \\
       \left. + K_{\text{mass}}UVz^{-1} +
         \frac{C\rho UVz}{\Delta t}\right]^{-1}
       \end{multline}$$
 
-    where the shifted temperature tensors represent neighboring CVs:
-    - $T_1 = \text{shift}(T, \text{LEFT})$
-    - $T_2 = \text{shift}(T, \text{DOWN})$
-    - $T_3 = \text{shift}(T, \text{RIGHT})$
-    - $T_4 = \text{shift}(T, \text{UP})$
+    The interior face conductances are the series resistance of the two half
+    cells that meet at the face (`get_interface_conductance_tensors`), scaled
+    to the width both CVs share:
+
+    $$\Gamma_{1,3} = \left(\frac{U}{2K} + \frac{U_{1,3}}{2K_{1,3}}\right)^{-1}
+      \frac{\min(V, V_{1,3})}{V}, \qquad
+      \Gamma_{2,4} = \left(\frac{V}{2K} + \frac{V_{2,4}}{2K_{2,4}}\right)^{-1}
+      \frac{\min(U, U_{2,4})}{U}$$
+
+    When does $\min(\cdot)$ matter? Only at a reentrant corner. Everywhere
+    else the two CVs sharing a face have the same width along it:
+
+    ```text
+      convex corner: min() not needed      reentrant corner: min() needed
+
+         E   E   E   E                      E   E   E   E   E
+         E   2 - 3 - 3                      E   E   E   N - 4
+         E   |   |   |                      E   E   E   |   |
+         E   3 - 4 - 4                      3 - 3 - 3 - P - 4
+
+      2-3 along a wall: dx/2 / dx/2            P-N:  dx / dx/2
+      3-4 behind it:    dx   / dx              P-3:  dx / dx/2
+
+      E: exterior CV (T_amb)    2: corner CV (2 neighbors, 1/4 volume)
+      3: edge CV (1/2 volume)   4: interior CV (4 neighbors, full size)
+      N: edge CV truncated on its left    P: interior CV, full width
+    ```
+
+    A boundary CV is truncated only toward the ambient, so along a wall
+    both edge CVs (or the corner and its edge) are half width, and across the
+    wall the edge CV and the interior CV behind it are both full width. At a
+    reentrant corner the exterior CV that truncates $N$ is only a diagonal
+    neighbor of $P$, so $P$ stays a full interior CV while $N$ and the edge CV
+    to its left are half width. Zoomed in (`....` = cut-away half):
+
+    ```text
+           +---------+----+----+
+           |    E    |....| N  |      ====  shared, width dx/2
+           +---------+~~~~+====+      ~~~~  P's face with no CV behind it
+           |.........~         |
+           +---------#    P    |      #     shared, width dx/2
+           |    3    #         |
+           +---------+---------+
+    ```
+
+    Seen from $P$ the face is $\delta_x z$, seen from $N$ it is
+    $\delta_x z / 2$: without $\min(\cdot)$ the two disagree by 2x on the heat
+    crossing it and energy is created or destroyed there. With it both use
+    $\delta_x z / 2$. On a rectangular building $\min(w_P, w_N) = w_P$ on
+    every face; the sb1 floor plan has about 1,200 such faces out of 2
+    million.
+
+    The `~` halves of $P$'s faces belong to no face conductance and $P$ has no
+    ambient conductance, so they are adiabatic, although the building outline
+    physically passes there. This is a geometric approximation, not a
+    conservation error: drawing the two exterior walls through $P$ would cut
+    $P$ to a 3/4 L-shaped CV with the same shared areas ($\delta_x z / 2$ to
+    $N$ and to the edge CV, $\delta_x z$ to the two interior CVs) but a 1/4
+    smaller volume and two exterior half faces instead of adiabatic ones
+    (about 2.5% of the envelope conductance on sb1). One $(u, v)$ pair per CV
+    cannot describe that L shape, which is why $P$ keeps its full size and
+    $\min(\cdot)$ supplies the shared width face by face.
+
+    In the tensors, $\Gamma_f$ is multiplied by the CV's own face area ($Vz$
+    or $Uz$), so it carries the factor $\min(w_P, w_N)/w_P$ to turn that into
+    the shared area.
+
+    The exterior face conductances put the film in series with the outer
+    half cell (`get_exterior_surface_conductance_tensors`):
+
+    $$\Gamma_{\infty,1,3} = \left(\frac{1}{H} + \frac{U}{2K}\right)^{-1},
+      \qquad
+      \Gamma_{\infty,2,4} = \left(\frac{1}{H} + \frac{V}{2K}\right)^{-1}$$
+
+    $\Gamma_f$ is zero on a face that opens onto the ambient and
+    $\Gamma_{\infty,f}$ is zero on a face with a neighbor, so every face is
+    counted exactly once. These replace the former owner-cell $K_fU^{-1}$ and
+    bare film $H_f$, which made the two CVs sharing a face disagree on its
+    flux wherever the materials differ.
+
+    The shifted temperature tensors represent the neighboring CVs that each
+    conductance couples to. The pairing follows `classify_cv`, which calls a
+    CV LEFT when its $(i, j - 1)$ neighbor is missing and TOP when its
+    $(i - 1, j)$ neighbor is missing:
+
+    - $T_1$ = `shift_tensor_right(T)`, the left neighbor $(i, j - 1)$
+    - $T_2$ = `shift_tensor_up(T)`, the bottom neighbor $(i + 1, j)$
+    - $T_3$ = `shift_tensor_left(T)`, the right neighbor $(i, j + 1)$
+    - $T_4$ = `shift_tensor_down(T)`, the top neighbor $(i - 1, j)$
 
     Nomenclature and Units:
     -----------------------
     - $T$: Air temperature tensor at new time step [K]
     - $T^{(-)}$: Air temperature tensor at previous time step [K]
     - $T_1, T_2, T_3, T_4$: Temperature tensors of neighboring CVs
-      (left, down, right, up) [K]
+      (left, bottom, right, top) [K]
     - $T_{\text{mass}}$: Interior mass temperature tensor [K]
     - $T_\infty$: Ambient temperature (scalar) [K]
     - $Q_x$: External heat source tensor [$\mathrm{W}$]
-    - $Q_{\text{lwx}}$: Longwave radiative exchange tensor [$\mathrm{W}$]
-    - $K_1, K_2, K_3, K_4$: Thermal conductivity tensors for left, down,
-      right, up faces [$\mathrm{W/(m \cdot K)}$]
+    - $Q_{\text{lwx}} = q_{\text{lwx}} \delta_x z$: Longwave radiative exchange
+      tensor, the flux $q_{\text{lwx}}$ [$\mathrm{W/m^2}$] over the exposed
+      wall face [$\mathrm{W}$]
+    - $\Gamma_1, \Gamma_2, \Gamma_3, \Gamma_4$: Interior face conductance
+      tensors for the faces paired with $T_1 \dots T_4$
+      [$\mathrm{W/(m^2 \cdot K)}$]
+    - $\Gamma_{\infty,1}, \dots, \Gamma_{\infty,4}$: Exterior face conductance
+      tensors [$\mathrm{W/(m^2 \cdot K)}$]
+    - $K$, $K_f$: Conductivity tensor of the CV and of its neighbor across
+      face $f$ [$\mathrm{W/(m \cdot K)}$]
+    - $H$: Exterior convection coefficient [$\mathrm{W/(m^2 \cdot K)}$]
     - $K_{\text{mass}}$: Interior mass conductivity tensor
       [$\mathrm{W/(m \cdot K)}$]
-    - $H_1, H_2, H_3, H_4$: Convection coefficient tensors for boundary CVs
-      [$\mathrm{W/(m^2 \cdot K)}$]
     - $U, V$: CV dimensions in x and y directions [$\mathrm{m}$]
     - $z$: CV height (floor height) [$\mathrm{m}$]
     - $C$: Specific heat capacity tensor [$\mathrm{J/(kg \cdot K)}$]
@@ -965,7 +1060,9 @@ class TFSimulator(simulator.SimulatorFlexibleGeometries):
 
     References:
     -----------
-    - Equation 22 derived in go/smart-buildings-simulator-design
+    - Equation 22 derived in go/smart-buildings-simulator-design, with the
+      owner-cell $K_fU^{-1}$ and bare film $H_f$ replaced by the series
+      conductances $\Gamma_f$ and $\Gamma_{\infty,f}$
 
     Args:
       temperature_estimates: Current temperature estimate for each CV, will be
@@ -1062,9 +1159,16 @@ class TFSimulator(simulator.SimulatorFlexibleGeometries):
       """Creates left, right, up, down neighbor temp matrices."""
 
       # Create shifted tensor to be able to evaluate neighbors in the equation.
-      t_temp_left = shift_tensor_left(t_temp, padding_value=ambient_temperature)
+      # shift_tensor_right moves column j - 1 into column j, so it holds the
+      # left neighbor, and shift_tensor_left holds the right neighbor. This
+      # matches `classify_cv`, which calls a CV LEFT when its j - 1 neighbor
+      # is missing, and therefore the faces zeroed by
+      # `get_oriented_conductivity_tensors`.
+      t_temp_left = shift_tensor_right(
+          t_temp, padding_value=ambient_temperature
+      )
 
-      t_temp_right = shift_tensor_right(
+      t_temp_right = shift_tensor_left(
           t_temp, padding_value=ambient_temperature
       )
 
@@ -1207,6 +1311,14 @@ class TFSimulator(simulator.SimulatorFlexibleGeometries):
             self.building.lwx_index[self.building.lwx_index >= 0],
         )
         nt4 = tf.tensor_scatter_nd_update(nt4, indices, updates)
+        # The exchange is a heat flux in W/m^2; the balance is in W, so it is
+        # applied over the exposed wall face of area delta_x * z, as in
+        # `Simulator._get_interior_cv_temp_estimate`.
+        t_face_area = tf.scalar_mul(
+            t_z,
+            tf.constant(self.building.cv_size_cm / 100.0, dtype=tf.float32),
+        )
+        nt4 = tf.scalar_mul(t_face_area, nt4)
 
       # Add interior mass coupling term: K_mass * U * V / Z * T_mass
       nt5 = tf.zeros_like(t_temp_minus)
