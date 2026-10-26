@@ -80,6 +80,28 @@ def get_active_setpoint(
     return series.loc[prior_events[-1]]
 
 
+_HOURS_IN_DAY = 24
+
+
+def local_schedule_time(hod: float, utc_offset: pd.Timedelta) -> pd.Timedelta:
+  """Converts a UTC hour of day into the local time of day used by schedules.
+
+  A negative UTC offset pushes the early UTC hours before midnight (UTC hour 0
+  at -07:00 is -7 hours). Schedule events start between 0 and 24 hours, so
+  without wrapping, those times match no event and the lookup falls back to the
+  last event of the day, switching to the evening setpoints early.
+
+  Args:
+    hod: Hour of day of the simulator timestamp, in UTC, from 0 to 24.
+    utc_offset: Offset of the building's local time zone from UTC.
+
+  Returns:
+    The local time since midnight, from 0 up to but excluding 24 hours.
+  """
+  local = pd.Timedelta(hod, unit='hour') + utc_offset
+  return local % pd.Timedelta(_HOURS_IN_DAY, unit='hour')
+
+
 class SchedulePolicy(tf_policy.TFPolicy):
   """Policy that selects actions based on time-dependent schedules."""
 
@@ -152,9 +174,7 @@ class SchedulePolicy(tf_policy.TFPolicy):
     hod = to_hod(hod_sin, hod_cos)
 
     # Create timestamp
-    timestamp = (
-        pd.Timedelta(hod, unit='hour') + self.local_start_time.utcoffset()
-    )
+    timestamp = local_schedule_time(hod, self.local_start_time.utcoffset())
 
     # Use appropriate schedule based on day type
     schedule = self.weekday_schedule if dow < 5 else self.weekend_schedule
