@@ -617,11 +617,15 @@ class SimulatorTest(parameterized.TestCase):
         start_timestamp,
     )
 
-    temperature_estimates, _ = simulator.update_temperature_estimates(
-        temperature_estimates,
-        ambient_temperature=210.0,
-        convection_coefficient=12.0,
-    )
+    # Two sweeps, because a single sweep does not reach a CV buried inside the
+    # exterior wall: its faces conduct through half a cell of insulation on
+    # either side, so the ambient only reaches it through its neighbors.
+    for _ in range(2):
+      temperature_estimates, _ = simulator.update_temperature_estimates(
+          temperature_estimates,
+          ambient_temperature=210.0,
+          convection_coefficient=12.0,
+      )
 
     for x in range(temperature_estimates.shape[0]):
       for y in range(temperature_estimates.shape[1]):
@@ -666,9 +670,9 @@ class SimulatorTest(parameterized.TestCase):
     )
     time_step_sec = 3000.0
     hvac = self._create_small_hvac()
-    convergence_threshold = 0.01
+    convergence_threshold = 0.00001
     iteration_limit = 100
-    iteration_warning = 5
+    iteration_warning = 2
     start_timestamp = pd.Timestamp('2012-12-21')
 
     building = self._create_small_building(initial_temp=292.0)
@@ -699,7 +703,7 @@ class SimulatorTest(parameterized.TestCase):
         [
             x
             for x in logs.output
-            if x.endswith('Step 4, not converged in 5 steps, max_delta = 0.029')
+            if x.endswith('Step 1, not converged in 2 steps, max_delta = 0.067')
         ],
         1,
     )
@@ -710,9 +714,9 @@ class SimulatorTest(parameterized.TestCase):
     )
     time_step_sec = 3000.0
     hvac = self._create_small_hvac()
-    convergence_threshold = 0.01
-    iteration_limit = 5
-    iteration_warning = 3
+    convergence_threshold = 0.05
+    iteration_limit = 2
+    iteration_warning = 1
     start_timestamp = pd.Timestamp('2012-12-21')
 
     building = self._create_small_building(initial_temp=292.0)
@@ -742,7 +746,7 @@ class SimulatorTest(parameterized.TestCase):
         [
             x
             for x in logs.output
-            if x.endswith('Max iteration count reached, max_delta = 0.029')
+            if x.endswith('Max iteration count reached, max_delta = 0.067')
         ],
         1,
     )

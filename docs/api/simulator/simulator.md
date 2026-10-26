@@ -21,3 +21,5 @@
 ::: smart_control.simulator.stochastic_convection_simulator
 
 ::: smart_control.simulator.tf_simulator
+
+::: smart_control.simulator.scipy_solver
