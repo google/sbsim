@@ -49,26 +49,26 @@ class SmartDeviceTest(absltest.TestCase):
   def test_device_id(self):
     heater = self.heater_class()
 
-    self.assertEqual(heater.device_id(), 'heater_id')
+    self.assertEqual(heater.device_id, 'heater_id')
 
   def test_zone_id(self):
     heater = self.heater_class()
 
-    self.assertEqual(heater.zone_id(), 'zone_id')
+    self.assertEqual(heater.zone_id, 'zone_id')
 
   def test_observable_field_names(self):
     heater = self.heater_class()
 
     self.assertSameElements(
-        heater.observable_field_names(),
-        ['obs_temp', 'obs_heat_setting', 'obs_seconds_active', 'obs_bad'],
+      heater.observable_field_names,
+      ['obs_temp', 'obs_heat_setting', 'obs_seconds_active', 'obs_bad'],
     )
 
   def test_action_field_names(self):
     heater = self.heater_class()
 
     self.assertSameElements(
-        heater.action_field_names(), ['act_heat_setting', 'act_bad']
+      heater.action_field_names, ['act_heat_setting', 'act_bad']
     )
 
   def test_observable_type(self):
@@ -136,7 +136,7 @@ class SmartDeviceTest(absltest.TestCase):
   def test_device_type(self):
     heater = self.heater_class()
 
-    device_type = heater.device_type()
+    device_type = heater.device_type
 
     self.assertEqual(
         device_type, smart_control_building_pb2.DeviceInfo.DeviceType.OTHER
