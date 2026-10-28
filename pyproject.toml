@@ -49,6 +49,7 @@ pylint-per-file-ignores = "^1.4.0"
 pyrefly = "^1.2.0"
 mdformat = "^1.0.0"
 mdformat-mkdocs = "^5.3.0"
+plotly = "^5.24"
 
 [tool.poetry.group.docs.dependencies]
 mkdocs = "^1.6.1"
