@@ -271,13 +271,30 @@ def create_baseline_schedule_policy(
       tz=DEFAULT_TIME_ZONE
   )
 
+  # The policy writes its action array in action_sequence order, and the
+  # environment reads that array in its own action order (devices in
+  # building order, setpoints sorted within a device; for SB1: supply
+  # water, then air heating).
+  # action_normalizers is built in that same order, so derive the sequence
+  # from it instead of hard-coding it.
+  scheduled_setpoints = [
+      (DeviceType.AC, 'supply_air_heating_temperature_setpoint'),
+      (DeviceType.HWS, 'supply_water_setpoint'),
+  ]
+  action_sequence = []
+  for action_name in env.action_normalizers:
+    matches = [s for s in scheduled_setpoints if action_name.endswith(s[1])]
+    if len(matches) != 1:
+      raise ValueError(
+          'The baseline schedule has no unique setpoint for action'
+          f' {action_name}.'
+      )
+    action_sequence.append(matches[0])
+
   baseline_schedule_policy = SchedulePolicy(
       time_step_spec=time_step_spec,
       action_spec=action_spec,
-      action_sequence=[
-          (DeviceType.AC, 'supply_air_heating_temperature_setpoint'),
-          (DeviceType.HWS, 'supply_water_setpoint'),
-      ],
+      action_sequence=action_sequence,
       weekday_schedule=weekday_schedule_events,
       weekend_schedule=weekend_holiday_schedule_events,
       action_normalizers=env.action_normalizers,
