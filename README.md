@@ -56,17 +56,8 @@ the code locally.
 
 ## Docker
 
-A container image is published to the GitHub Container Registry with each
-release, so the notebooks and scripts can be run without installing the
-dependencies locally:
-
-```bash
-docker pull ghcr.io/google/sbsim:latest
-docker run --rm -p 8888:8888 ghcr.io/google/sbsim:latest
-```
-
-The image starts a Jupyter notebook server on port 8888. For the local
-development setup, see the [Setup Guide](docs/setup.md).
+The [Docker Setup Guide](docs/setup/docker.md) explains how to run the image
+published to the GitHub Container Registry or build the image locally.
 
 ## Contributing
 
