@@ -64,9 +64,10 @@ published to the GitHub Container Registry or build the image locally.
 The [Contributor's Guide](docs/contributing.md) provides more information on how
 to contribute to this repository.
 
-We appreciate contributions and interest from the community! Please note that our 
-team maintains this repository alongside active internal Google project commitments, 
-so pull request reviews may take anywhere from a few days to a couple of weeks.
-We review PRs as maintainer bandwidth allows. Thank you for your patience and support!
+We appreciate contributions and interest from the community! Please note that
+our team maintains this repository alongside active internal Google project
+commitments, so pull request reviews may take anywhere from a few days to a
+couple of weeks. We review PRs as maintainer bandwidth allows. Thank you for
+your patience and support!
 
 ## [License](LICENSE)
