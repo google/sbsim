@@ -9,6 +9,9 @@ the image locally from source.
 
 ## Run the Published Image
 
+Docker Desktop or Docker Engine must be installed first; see
+[Prerequisites](#prerequisites) below.
+
 A container image is published to the GitHub Container Registry each time a
 release is published. Pull the latest image:
 
@@ -46,8 +49,9 @@ docker pull --platform linux/amd64 ghcr.io/google/sbsim:1.2.3
 > pulls. If it is private, authenticate first with `docker login ghcr.io` using
 > a GitHub personal access token that has the `read:packages` scope.
 
-The `docker exec` and cleanup commands in the local build section below work the
-same way for the published image.
+To open a shell in the running container, use the same `docker exec` commands as
+in the [local build section](#exec-into-the-running-container) below. To remove
+the published image, run `docker rmi ghcr.io/google/sbsim:latest`.
 
 ## Build the Image Locally
 
