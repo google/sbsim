@@ -1,10 +1,65 @@
 # Docker Setup Guide
 
+The repository's `Dockerfile` defines a pre-configured environment
+(`linux/amd64`) for running the notebooks and scripts without installing the
+dependencies on the host machine.
+
+You can either run the image published to the GitHub Container Registry or build
+the image locally from source.
+
+## Run the Published Image
+
+Docker Desktop or Docker Engine must be installed first; see
+[Prerequisites](#prerequisites) below.
+
+A container image is published to the GitHub Container Registry each time a
+release is published. Pull the latest image:
+
+```bash
+docker pull --platform linux/amd64 ghcr.io/google/sbsim:latest
+```
+
+Run the container:
+
+```bash
+docker run -d \
+  --name sbsim-container \
+  --platform linux/amd64 \
+  -p 8888:8888 \
+  ghcr.io/google/sbsim:latest
+```
+
+The image starts a Jupyter notebook server on port 8888 with token
+authentication disabled (as configured by the `Dockerfile`). Open your browser
+at:
+
+```
+http://localhost:8888
+```
+
+Images are tagged with `latest` and the release tag. For semantic version tags
+(for example `v1.2.3`), the `1.2.3` and `1.2` tags are also published. Pin a
+specific tag instead of `latest` when you need a reproducible environment:
+
+```bash
+docker pull --platform linux/amd64 ghcr.io/google/sbsim:1.2.3
+```
+
+> **Note:** The GitHub Container Registry package must be public for anonymous
+> pulls. If it is private, authenticate first with `docker login ghcr.io` using
+> a GitHub personal access token that has the `read:packages` scope.
+
+To open a shell in the running container, use the same `docker exec` commands as
+in the [local build section](#exec-into-the-running-container) below. To remove
+the published image, run `docker rmi ghcr.io/google/sbsim:latest`.
+
+## Build the Image Locally
+
 To get the repository set up on **non-Linux** environments (e.g. macOS on Apple
 Silicon), use the pre-configured Docker environment (`linux/amd64`) defined in
 the `Dockerfile`.
 
-## 1. Prerequisites
+### Prerequisites
 
 1. **Docker Desktop**: Download and install from
     [docker.com](https://www.docker.com/products/docker-desktop).
@@ -27,9 +82,7 @@ If `hello-world` succeeds, you're ready to proceed.
 > workloads may crash or hang due to resource constraints. For heavy TF
 > workloads, consider using a native Linux environment or cloud-based compute.
 
-______________________________________________________________________
-
-## 2. Build the Docker Image
+### Build the Docker Image
 
 From the project root (where `Dockerfile` lives), run:
 
@@ -51,9 +104,7 @@ Confirm the image exists:
 docker images sbsim:latest
 ```
 
-______________________________________________________________________
-
-## 3. Run the Container in Detached Mode
+### Run the Container in Detached Mode
 
 We recommend running the container _detached_ so you can open shells, run tests,
 and launch Jupyter without tying up your terminal:
@@ -69,7 +120,7 @@ docker run -d \
 > **Note:** This mounts your local code into `/workspace` in the container,
 > enabling live edits.
 
-### 3.1 Access Jupyter
+### Access Jupyter
 
 Open your browser at:
 
@@ -84,9 +135,7 @@ deprecation warning for `NotebookApp.token`, you can instead use:
 jupyter notebook --no-browser --ServerApp.token=''
 ```
 
-______________________________________________________________________
-
-## 4. Exec into the Running Container
+### Exec into the Running Container
 
 To run commands inside the live container:
 
@@ -122,9 +171,7 @@ docker exec sbsim-container poetry run pytest -q
 docker exec sbsim-container python --version
 ```
 
-______________________________________________________________________
-
-## 5. Stop & Clean Up
+### Stop and Clean Up
 
 ```bash
 # Stop the container
@@ -137,9 +184,7 @@ docker rm sbsim-container
 docker rmi sbsim:latest
 ```
 
-______________________________________________________________________
-
-## 6. Troubleshooting
+### Troubleshooting
 
 - **Daemon not running**: If you see `Cannot connect to the Docker daemon`, open
     Docker Desktop or run:
