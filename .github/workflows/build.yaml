@@ -48,8 +48,12 @@ jobs:
         sudo apt update
         sudo apt install -y protobuf-compiler ffmpeg
 
+    # Homebrew no longer ships bottles for Intel Macs, so installing these there
+    # means compiling ffmpeg and its dependencies from source, which takes about
+    # an hour and then fails. The steps below use neither tool: the generated
+    # proto modules are checked in, and mediapy only calls ffmpeg to encode videos.
     - name: Install system dependencies (on Mac)
-      if: runner.os == 'macOS'
+      if: runner.os == 'macOS' && runner.arch == 'ARM64'
       run: |
         brew update
         brew install protobuf@21 ffmpeg
