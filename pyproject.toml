@@ -38,6 +38,7 @@ typing-extensions = "^4.12.2"
 importlib-resources = { version = "*", python = "<3.11" }
 python-dotenv = "^1.1.0"
 pvlib = "0.13.1"
+mkdocs-panzoom-plugin = "^0.5.2"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.3.5"

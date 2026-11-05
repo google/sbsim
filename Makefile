@@ -1,7 +1,7 @@
 # NOTE: you have to use tabs (not spaces) to define commands in the Makefile
 
 # these are commands to be run, not files to be created:
-.PHONY: venv-activate docs docs-build docs-quiet mdformat pyink isort pylint lint test
+.PHONY: venv-activate docs docs-build docs-quiet mdformat pyink isort pylint lint test uml
 
 #
 # ENVIRONMENT
@@ -59,8 +59,5 @@ docs-build:
 #
 
 uml:
-	@echo "--- Generating UML class diagram ---"
-	pyreverse -o mmd -k -p smart_control smart_control/
+	pyreverse -o mmd -k -p smart_control $$(find smart_control -type f -name "*.py" ! -name "*_test.py")
 	sed -i '/^classDiagram/a\    direction LR' classes_smart_control.mmd
-	mermaidx -i classes_smart_control.mmd -o docs/images/class_diagram.svg
-	# rm -f classes_smart_control.mmd packages_smart_control.mmd
