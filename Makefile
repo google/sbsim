@@ -60,4 +60,5 @@ docs-build:
 
 uml:
 	pyreverse -o mmd -k -p smart_control -d docs/uml $$(find smart_control -type f -name "*.py" ! -name "*_test.py")
+	rm -f docs/uml/packages_smart_control.mmd
 	sed -i '/^classDiagram/a\    direction LR' docs/uml/classes_smart_control.mmd
