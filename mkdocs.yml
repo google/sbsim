@@ -124,6 +124,7 @@ markdown_extensions:
       custom_fences:
         - name: mermaid
           class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
 
   # MATHJAX EQUATIONS CONFIG, PART 1 OF 2
   # https://mrkeo.github.io/reference/mathjax/
@@ -140,8 +141,10 @@ extra_javascript:
 
 plugins:
   - search
-
-  - autorefs # enables linking to other methods (maybe not working?)
+  - panzoom:
+      full_screen: true
+      hint_location: "top"
+      key: "none"
 
   #
   # API DOCS
