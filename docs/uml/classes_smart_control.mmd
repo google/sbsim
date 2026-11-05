@@ -1,0 +1,291 @@
+classDiagram
+    direction LR
+  class ActionConfig {
+  }
+  class AirHandler {
+  }
+  class AttributeInfo {
+  }
+  class BaseActionNormalizer {
+  }
+  class BaseBuilding {
+  }
+  class BaseConvectionSimulator {
+  }
+  class BaseEnergyCost {
+  }
+  class BaseLearningAlgorithm {
+  }
+  class BaseObservationNormalizer {
+  }
+  class BaseOccupancy {
+  }
+  class BaseReader {
+  }
+  class BaseReducedSequence {
+  }
+  class BaseReducer {
+  }
+  class BaseRewardFunction {
+  }
+  class BaseRunCommandPredictor {
+  }
+  class BaseSetpointEnergyCarbonRewardFunction {
+  }
+  class BaseSimulatorBuilding {
+  }
+  class BaseWeatherController {
+  }
+  class BaseWriter {
+  }
+  class BaseWriterFactory {
+  }
+  class Boiler {
+  }
+  class BoundedActionNormalizer {
+  }
+  class Building {
+  }
+  class BuildingDataset {
+  }
+  class BuildingDatasetPartition {
+  }
+  class BuildingImageGenerator {
+  }
+  class BuildingInfo {
+  }
+  class BuildingRenderer {
+  }
+  class CVBoundaryType {
+  }
+  class CVCornerOrientationType {
+  }
+  class CVEdgeOrientationType {
+  }
+  class CVPositionType {
+  }
+  class CVType {
+  }
+  class CompositeObserver {
+  }
+  class DefaultExteriorWallMaterialProperties {
+  }
+  class DefaultExteriorWallRadiationProperties {
+  }
+  class DefaultInsideAirMaterialProperties {
+  }
+  class DefaultInsideAirRadiationProperties {
+  }
+  class DefaultInsideWallMaterialProperties {
+  }
+  class DefaultInsideWallRadiationProperties {
+  }
+  class DeviceType {
+  }
+  class ElectricityEnergyCost {
+  }
+  class EnhancedOccupancy {
+  }
+  class Environment {
+  }
+  class ExteriorRadiationData {
+  }
+  class FloorPlanBasedBuilding {
+  }
+  class FloorPlanBasedHvac {
+  }
+  class HistogramReducedSequence {
+  }
+  class HistogramReducer {
+  }
+  class Hvac {
+  }
+  class IdentityReducedSequence {
+  }
+  class IdentityReducer {
+  }
+  class IrradianceComponents {
+  }
+  class LIGHTSWITCHOccupancy {
+  }
+  class MaterialProperties {
+  }
+  class MinuteLevelZoneOccupant {
+  }
+  class Mode {
+  }
+  class NaturalGasEnergyCost {
+  }
+  class Observer {
+  }
+  class OccupancyStateEnum {
+  }
+  class OccupancyStateEnum {
+  }
+  class OccupancyStateEnum {
+  }
+  class PrintStatusObserver {
+  }
+  class ProtoReader {
+  }
+  class ProtoWriter {
+  }
+  class ProtoWriterFactory {
+  }
+  class RadiationProperties {
+  }
+  class RandomForestLearningAlgorithm {
+  }
+  class RandomizedArrivalDepartureOccupancy {
+  }
+  class Readers {
+  }
+  class RealBuildingTemperatureArrayGenerator {
+  }
+  class RejectionSimulatorBuilding {
+  }
+  class RenderingObserver {
+  }
+  class ReplayBufferManager {
+  }
+  class ReplayWeatherController {
+  }
+  class RunCommandPredictor {
+  }
+  class ScheduleEvent {
+  }
+  class SchedulePolicy {
+  }
+  class SetpointEnergyCarbonRegretFunction {
+  }
+  class SetpointEnergyCarbonRewardFunction {
+  }
+  class SetpointSchedule {
+  }
+  class SimpleBuilding {
+  }
+  class SimpleRewardFunction {
+  }
+  class Simulator {
+  }
+  class SimulatorBuilding {
+  }
+  class SimulatorBuildingTestBase {
+  }
+  class SimulatorFlexibleGeometries {
+  }
+  class SmartDevice {
+  }
+  class SolarRadiation {
+  }
+  class StandardScoreObservationNormalizer {
+  }
+  class StatsReducedSequence {
+  }
+  class StatsReducer {
+  }
+  class StepFunctionOccupancy {
+  }
+  class StochasticConvectionSimulator {
+  }
+  class TFSimulator {
+  }
+  class TestReader {
+  }
+  class Thermostat {
+  }
+  class TimeIntervalEnum {
+  }
+  class Vav {
+  }
+  class VisualLogger {
+  }
+  class WeatherController {
+  }
+  class WorkerType {
+  }
+  class ZoneOccupant {
+  }
+  class ZoneOccupant {
+  }
+  class _TanhNormalProjectionNetworkWrapper {
+  }
+  SimpleBuilding --|> BaseBuilding
+  SimpleRewardFunction --|> BaseRewardFunction
+  CompositeObserver --|> Observer
+  PrintStatusObserver --|> Observer
+  RenderingObserver --|> Observer
+  BaseSetpointEnergyCarbonRewardFunction --|> BaseRewardFunction
+  ElectricityEnergyCost --|> BaseEnergyCost
+  NaturalGasEnergyCost --|> BaseEnergyCost
+  SetpointEnergyCarbonRegretFunction --|> BaseSetpointEnergyCarbonRewardFunction
+  SetpointEnergyCarbonRewardFunction --|> BaseSetpointEnergyCarbonRewardFunction
+  AirHandler --|> SmartDevice
+  Boiler --|> SmartDevice
+  Building --|> BaseSimulatorBuilding
+  DefaultExteriorWallMaterialProperties --|> MaterialProperties
+  DefaultExteriorWallRadiationProperties --|> RadiationProperties
+  DefaultInsideAirMaterialProperties --|> MaterialProperties
+  DefaultInsideAirRadiationProperties --|> RadiationProperties
+  DefaultInsideWallMaterialProperties --|> MaterialProperties
+  DefaultInsideWallRadiationProperties --|> RadiationProperties
+  FloorPlanBasedBuilding --|> BaseSimulatorBuilding
+  EnhancedOccupancy --|> BaseOccupancy
+  RandomizedArrivalDepartureOccupancy --|> BaseOccupancy
+  RejectionSimulatorBuilding --|> BaseBuilding
+  SimulatorBuilding --|> BaseBuilding
+  SimulatorFlexibleGeometries --|> Simulator
+  StepFunctionOccupancy --|> BaseOccupancy
+  StochasticConvectionSimulator --|> BaseConvectionSimulator
+  LIGHTSWITCHOccupancy --|> BaseOccupancy
+  TFSimulator --|> SimulatorFlexibleGeometries
+  Vav --|> SmartDevice
+  ReplayWeatherController --|> BaseWeatherController
+  WeatherController --|> BaseWeatherController
+  BoundedActionNormalizer --|> BaseActionNormalizer
+  ProtoReader --|> BaseReader
+  ProtoWriter --|> BaseWriter
+  ProtoWriterFactory --|> BaseWriterFactory
+  HistogramReducer --|> BaseReducer
+  HistogramReducedSequence --|> BaseReducedSequence
+  StandardScoreObservationNormalizer --|> BaseObservationNormalizer
+  IdentityReducer --|> BaseReducer
+  IdentityReducedSequence --|> BaseReducedSequence
+  StatsReducer --|> BaseReducer
+  StatsReducedSequence --|> BaseReducedSequence
+  RandomForestLearningAlgorithm --|> BaseLearningAlgorithm
+  RunCommandPredictor --|> BaseRunCommandPredictor
+  TestReader --|> BaseReader
+  DeviceType --* ScheduleEvent : device
+  BuildingInfo --* SolarRadiation : building_info
+  IrradianceComponents --* ExteriorRadiationData : irradiance
+  StepFunctionOccupancy --* SimulatorBuildingTestBase : occupancy
+  VisualLogger --* SimulatorFlexibleGeometries : _log_and_plotter
+  BuildingDataset --o BuildingDatasetPartition : ds
+  BaseBuilding --o Environment : building
+  BaseBuilding --o RejectionSimulatorBuilding : _base_building
+  BaseEnergyCost --o SetpointEnergyCarbonRegretFunction : _electricity_energy_cost
+  BaseEnergyCost --o SetpointEnergyCarbonRegretFunction : _natural_gas_energy_cost
+  BaseEnergyCost --o SetpointEnergyCarbonRewardFunction : _electricity_energy_cost
+  BaseEnergyCost --o SetpointEnergyCarbonRewardFunction : _natural_gas_energy_cost
+  BaseObservationNormalizer --o Environment : _observation_normalizer
+  BaseOccupancy --o SimulatorBuilding : _occupancy
+  BaseRewardFunction --o Environment : reward_function
+  AirHandler --o Hvac : _air_handler
+  AirHandler --o FloorPlanBasedHvac : _air_handler
+  Boiler --o Hvac : _boiler
+  Boiler --o FloorPlanBasedHvac : _boiler
+  Boiler --o Vav : _boiler
+  Building --o Simulator : building
+  FloorPlanBasedBuilding --o SimulatorFlexibleGeometries : building
+  WorkerType --o MinuteLevelZoneOccupant : worker_type
+  Hvac --o Simulator : _hvac
+  FloorPlanBasedHvac --o SimulatorFlexibleGeometries : _hvac
+  SetpointSchedule --o Hvac : _schedule
+  SetpointSchedule --o FloorPlanBasedHvac : _schedule
+  SetpointSchedule --o Thermostat : _setpoint_schedule
+  CVPositionType --o CVType : position
+  Thermostat --o Vav : _init_thermostat
+  WeatherController --o Simulator : _weather_controller
+  BuildingRenderer --o VisualLogger : _renderer
+  BaseLearningAlgorithm --o RunCommandPredictor : _learning_algo
