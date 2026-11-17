@@ -80,6 +80,7 @@ nav:
     - 'Contributing': contributing.md
     - 'Documentation Site': docs-site.md
   - 'API Reference':
+    - 'Architecture': uml/uml.md
     - api/config.md
     - 'Dataset':
       - api/dataset/dataset.md
