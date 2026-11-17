@@ -30,6 +30,17 @@ WEATHER_CSV_FILEPATH: Final[str] = os.path.join(
 )
 
 
+def seconds_to_rads(seconds_in_day: int) -> float:
+  """Returns radians corresponding to number of second in the day.
+
+  Args:
+    seconds_in_day: Seconds that have passed so far in the day.
+  """
+  return (seconds_in_day / _SECONDS_IN_A_DAY) * (
+      _MAX_RADIANS - _MIN_RADIANS
+  ) + _MIN_RADIANS
+
+
 @gin.configurable
 class BaseWeatherController(metaclass=abc.ABCMeta):
   """Represents the weather on any specific time."""
@@ -78,16 +89,6 @@ class WeatherController(BaseWeatherController):
             f'Low temp cannot be greater than high temp for special day: {day}.'
         )
 
-  def seconds_to_rads(self, seconds_in_day: int) -> float:
-    """Returns radians corresponding to number of second in the day.
-
-    Args:
-      seconds_in_day: Seconds that have passed so far in the day.
-    """
-    return (seconds_in_day / _SECONDS_IN_A_DAY) * (
-        _MAX_RADIANS - _MIN_RADIANS
-    ) + _MIN_RADIANS
-
   def get_current_temp(self, timestamp: pd.Timestamp) -> float:
     """Returns current temperature in K.
 
@@ -116,7 +117,7 @@ class WeatherController(BaseWeatherController):
     seconds_in_day = (
         timestamp - pd.Timestamp(timestamp.date())
     ).total_seconds()
-    rad = self.seconds_to_rads(seconds_in_day)
+    rad = seconds_to_rads(seconds_in_day)
     temp = 0.5 * (math.sin(rad) + 1) * (high - low) + low
     return temp
 
