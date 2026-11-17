@@ -54,6 +54,11 @@ instructions linked below.
 The [Setup Guide](docs/setup.md) provides all the information you need to run
 the code locally.
 
+## Docker
+
+The [Docker Setup Guide](docs/setup/docker.md) explains how to run the image
+published to the GitHub Container Registry or build the image locally.
+
 ## Contributing
 
 The [Contributor's Guide](docs/contributing.md) provides more information on how
