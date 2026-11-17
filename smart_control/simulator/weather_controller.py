@@ -30,6 +30,17 @@ WEATHER_CSV_FILEPATH: Final[str] = os.path.join(
 )
 
 
+def seconds_to_rads(seconds_in_day: int) -> float:
+  """Returns radians corresponding to number of second in the day.
+
+  Args:
+    seconds_in_day: Seconds that have passed so far in the day.
+  """
+  return (seconds_in_day / _SECONDS_IN_A_DAY) * (
+      _MAX_RADIANS - _MIN_RADIANS
+  ) + _MIN_RADIANS
+
+
 @gin.configurable
 class BaseWeatherController(metaclass=abc.ABCMeta):
   """Represents the weather on any specific time."""
@@ -78,16 +89,6 @@ class WeatherController(BaseWeatherController):
             f'Low temp cannot be greater than high temp for special day: {day}.'
         )
 
-  def seconds_to_rads(self, seconds_in_day: int) -> float:
-    """Returns radians corresponding to number of second in the day.
-
-    Args:
-      seconds_in_day: Seconds that have passed so far in the day.
-    """
-    return (seconds_in_day / _SECONDS_IN_A_DAY) * (
-        _MAX_RADIANS - _MIN_RADIANS
-    ) + _MIN_RADIANS
-
   def get_current_temp(self, timestamp: pd.Timestamp) -> float:
     """Returns current temperature in K.
 
@@ -116,7 +117,7 @@ class WeatherController(BaseWeatherController):
     seconds_in_day = (
         timestamp - pd.Timestamp(timestamp.date())
     ).total_seconds()
-    rad = self.seconds_to_rads(seconds_in_day)
+    rad = seconds_to_rads(seconds_in_day)
     temp = 0.5 * (math.sin(rad) + 1) * (high - low) + low
     return temp
 
@@ -231,20 +232,10 @@ class ReplayWeatherController(BaseWeatherController):
     """Returns the timestamps of the weather data, as seconds since epoch."""
     return self.weather_df.index
 
-  @property
-  def temps_f(self) -> pd.Series:
-    """Returns the temperatures in Fahrenheit of the weather data."""
-    return self.weather_df['TempF']
-
-  @property
-  def humidities(self) -> pd.Series:
-    """Returns the humidities of the weather data."""
-    return self.weather_df[self.humidity_column]
-
   def _get_interpolated_value(
-      self, timestamp: pd.Timestamp, values: pd.Series
+      self, timestamp: pd.Timestamp, column_name: str
   ) -> float:
-    """Helper to get interpolated value from a given series.
+    """Helper to get interpolated value from a given weather_df column.
 
     The timestamp need not exactly appear in the weather data, but should be
     within the range of the data.
@@ -257,10 +248,10 @@ class ReplayWeatherController(BaseWeatherController):
         timestamp is timezone naive, it will be localized to UTC. This allows
         for accurate comparisons against the min and max timestamps, as well as
         the epoch, which are always timezone aware (in UTC).
-      values: Pandas series to interpolate from.
+      column_name: Name of the column in weather_df to interpolate from.
 
     Returns:
-      The interpolated value from the series at the given timestamp.
+      The interpolated value from the named column at the given timestamp.
     """
     # convert timestamp to UTC to enable proper comparisons:
     if timestamp.tzname() is not None:
@@ -282,17 +273,18 @@ class ReplayWeatherController(BaseWeatherController):
       )
 
     time_in_seconds = (timestamp - _EPOCH).total_seconds()
+    values = self.weather_df[column_name]
     return np.interp(time_in_seconds, self.times_in_seconds, values)
 
   def get_current_temp(self, timestamp: pd.Timestamp) -> float:
     """For a given timestamp, returns the current temperature in Kelvin."""
     return utils.fahrenheit_to_kelvin(
-        self._get_interpolated_value(timestamp, self.temps_f)
+        self._get_interpolated_value(timestamp, 'TempF')
     )
 
   def get_current_humidity(self, timestamp: pd.Timestamp) -> float:
     """For a given timestamp, returns the current humidity level in percent."""
-    return self._get_interpolated_value(timestamp, self.humidities)
+    return self._get_interpolated_value(timestamp, self.humidity_column)
 
   # pylint: disable=unused-argument
   def get_air_convection_coefficient(self, timestamp: pd.Timestamp) -> float:
