@@ -8,6 +8,7 @@ on:
       - copybara_push
     paths:
     - "smart_control/**/*.py"
+    - "!smart_control/**/*_test.py"
     - "Makefile"
 
 permissions:
