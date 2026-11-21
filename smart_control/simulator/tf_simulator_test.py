@@ -12,6 +12,7 @@ from smart_control.simulator import air_handler as air_handler_py
 from smart_control.simulator import boiler as boiler_py
 from smart_control.simulator import building as building_py
 from smart_control.simulator import hvac_floorplan_based as floorplan_hvac_py
+from smart_control.simulator import scipy_solver as scipy_solver_py
 from smart_control.simulator import setpoint_schedule
 from smart_control.simulator import simulator_flexible_floor_plan as simulator_py
 from smart_control.simulator import tf_simulator as tf_simulator_py
@@ -790,314 +791,364 @@ class TFSimulatorTest(absltest.TestCase):
     )
     self.assertTrue(result)
 
-  def test_compare_temperature_estimates_iterative_approach(self):
-    """Tests that the temperature estimates from TFSimulator match those from
-    SimulatorFlexibleGeometries when using radiative heat transfer.
+  def _run_simulators_for_comparison(
+      self,
+      include_radiative_heat_transfer,
+      include_interior_mass,
+      convergence_threshold,
+      iteration_limit,
+  ):
+    """Runs one time step with each solver, each on its own building.
 
-    Creates two simulators with identical buildings, HVAC and parameters:
-    1. A SimulatorFlexibleGeometries instance (baseline)
-    2. A TFSimulator instance (under test)
+    Every solver gets a fresh, identical building: sharing one would let the
+    second solver start from the first one's result and compare an array with
+    itself. ScipySolverSimulator solves each linearized balance directly, so
+    with a tight threshold it is the reference the two relaxation solvers are
+    checked against; its spread from them also tells whether
+    `convergence_threshold` is tight enough.
 
-    Runs one timestep on both and verifies their temperature arrays match
-      exactly.
-    This validates that TFSimulator's radiative heat transfer calculations
-      produce the same results as the original implementation.
+    Args:
+      include_radiative_heat_transfer: Whether to enable interior longwave.
+      include_interior_mass: Whether to enable interior mass.
+      convergence_threshold: Threshold for the two relaxation solvers.
+      iteration_limit: Iteration limit for the two relaxation solvers.
+
+    Returns:
+      Dict from solver name to its converged simulator.
     """
-    weather_controller = mock.create_autospec(
-        weather_controller_py.WeatherController
-    )
-    time_step_sec = 300.0
-    convergence_threshold = 1e-3
-    iteration_limit = 300
-    iteration_warning = 30
-    start_timestamp = pd.Timestamp("2012-12-21")
+    fixture = FlexibleFloorplanSimulatorTest()
+    simulators = {}
+    for name, simulator_class, threshold in (
+        (
+            "simulator",
+            simulator_py.SimulatorFlexibleGeometries,
+            convergence_threshold,
+        ),
+        ("tf", tf_simulator_py.TFSimulator, convergence_threshold),
+        ("scipy", scipy_solver_py.ScipySolverSimulator, 1e-8),
+    ):
+      if include_interior_mass:
+        _, building = fixture._create_simulator_and_building(
+            convergence_threshold=threshold,
+            initial_temp=292.0,
+            iteration_limit=iteration_limit,
+            include_interior_mass=True,
+            include_radiative_heat_transfer=include_radiative_heat_transfer,
+        )
+      else:
+        building = fixture._create_small_building(
+            initial_temp=292.0,
+            include_radiative_heat_transfer=include_radiative_heat_transfer,
+            include_interior_mass=False,
+        )
+      simulator = simulator_class(
+          building,
+          fixture._create_small_hvac(),
+          mock.create_autospec(weather_controller_py.WeatherController),
+          300.0,
+          threshold,
+          iteration_limit,
+          iteration_limit,
+          pd.Timestamp("2012-12-21"),
+      )
+      converged = simulator.finite_differences_timestep(
+          ambient_temperature=315.0, convection_coefficient=12.0
+      )
+      self.assertTrue(converged, msg=f"{name} did not converge")
+      simulators[name] = simulator
+    return simulators
 
-    # Create baseline simulator
-    simulator = FlexibleFloorplanSimulatorTest()
-    simulator_hvac = simulator._create_small_hvac()
-    simulator_building = simulator._create_small_building(
-        initial_temp=292.0,
+  def _assert_temperatures_match(self, simulators, air_atol, mass_atol=None):
+    """Checks both relaxation solvers against the direct solve."""
+    reference = simulators["scipy"].building
+    for name in ("simulator", "tf"):
+      building = simulators[name].building
+      with self.subTest(f"Air CV temperatures match ({name} vs scipy)"):
+        np.testing.assert_allclose(
+            building.temp, reference.temp, rtol=0, atol=air_atol
+        )
+      if mass_atol is not None:
+        with self.subTest(
+            f"Interior mass temperatures match ({name} vs scipy)"
+        ):
+          np.testing.assert_allclose(
+              building.interior_mass_temp,
+              reference.interior_mass_temp,
+              rtol=0,
+              atol=mass_atol,
+          )
+
+  def test_compare_temperature_estimates_iterative_approach(self):
+    """Tests that SimulatorFlexibleGeometries, TFSimulator and
+    ScipySolverSimulator agree on one time step without radiation or mass.
+
+    All three solve the same finite volume balance with the same series
+    half-cell conductances. The direct sparse solve is the reference; the
+    tolerance covers the convergence threshold and TFSimulator's float32.
+    """
+    simulators = self._run_simulators_for_comparison(
         include_radiative_heat_transfer=False,
         include_interior_mass=False,
+        convergence_threshold=1e-3,
+        iteration_limit=300,
     )
-    simulator_simulator = simulator_py.SimulatorFlexibleGeometries(
-        simulator_building,
-        simulator_hvac,
-        weather_controller,
-        time_step_sec,
-        convergence_threshold,
-        iteration_limit,
-        iteration_warning,
-        start_timestamp,
-    )
-    simulator_result = simulator_simulator.finite_differences_timestep(
-        ambient_temperature=315.0, convection_coefficient=12.0
-    )
+    self._assert_temperatures_match(simulators, air_atol=5e-3)
 
-    building = simulator_building  # self._create_test_building_radiative()
-
-    tf_simulator = tf_simulator_py.TFSimulator(
-        building,
-        simulator_hvac,
-        weather_controller,
-        time_step_sec,
-        convergence_threshold,
-        iteration_limit,
-        iteration_warning,
-        start_timestamp,
-    )
-
-    result = tf_simulator.finite_differences_timestep(
-        ambient_temperature=315.0, convection_coefficient=12.0
-    )
-
-    self.assertTrue(result)
-    self.assertTrue(simulator_result)
-    with self.subTest("CV temperatures match"):
-      assert_array_almost_equal(
-          tf_simulator.building.temp, simulator_simulator.building.temp
-      )
+    # Interior faces cancel in pairs only if both CVs use the same
+    # conductance, so over the whole building the heat stored in the step
+    # must equal the heat taken from the ambient.
+    with self.subTest("Energy is conserved (scipy)"):
+      simulator = simulators["scipy"]
+      building = simulator.building
+      z = building.floor_height_cm / 100.0
+      stored = 0.0
+      from_ambient = 0.0
+      for i in range(building.temp.shape[0]):
+        for j in range(building.temp.shape[1]):
+          neighbors = building.neighbors[i][j]
+          if len(neighbors) <= 1:
+            continue
+          u, v = simulator._get_cv_dimensions((i, j))  # pylint: disable=protected-access
+          stored += (
+              building.density[i][j]
+              * building.heat_capacity[i][j]
+              * u
+              * v
+              * z
+              * (building.temp[i][j] - 292.0)
+              / 300.0
+          )
+          conductance = simulator._get_ambient_conductance((i, j), 12.0)  # pylint: disable=protected-access
+          for ni, nj in neighbors:
+            if len(building.neighbors[ni][nj]) <= 1:
+              conductance += simulator._get_face_conductance((i, j), (ni, nj))  # pylint: disable=protected-access
+          from_ambient += conductance * (315.0 - building.temp[i][j])
+      self.assertGreater(stored, 0.0)
+      self.assertAlmostEqual(stored, from_ambient, delta=abs(stored) * 1e-6)
 
   def test_compare_temperature_estimates_iterative_approach_with_lwx(self):
-    """Tests that the temperature estimates from TFSimulator match those from
-    SimulatorFlexibleGeometries when using lwx (interior radiative heat
+    """Tests that the three solvers agree with lwx (interior radiative heat
     exchange).
 
-    Creates two simulators with identical buildings, HVAC and parameters:
-    1. A SimulatorFlexibleGeometries instance (baseline)
-    2. A TFSimulator instance (under test)
-
-    Runs one timestep on both and verifies their temperature arrays match
-      exactly.
-    This validates that TFSimulator's radiative heat transfer calculations
-      produce the same results as the original implementation.
+    The radiative exchange is lagged by one iteration in every solver, so the
+    relaxation solvers need a tighter threshold here to reach the direct
+    solve; at 1e-3 they stop about 0.03 K short.
     """
-    weather_controller = mock.create_autospec(
-        weather_controller_py.WeatherController
+    simulators = self._run_simulators_for_comparison(
+        include_radiative_heat_transfer=True,
+        include_interior_mass=False,
+        convergence_threshold=1e-5,
+        iteration_limit=1000,
     )
-    time_step_sec = 300.0
-    convergence_threshold = 1e-3
-    iteration_limit = 300
-    iteration_warning = 30
-    start_timestamp = pd.Timestamp("2012-12-21")
-
-    # Create baseline simulator
-    simulator = FlexibleFloorplanSimulatorTest()
-    simulator_hvac = simulator._create_small_hvac()
-    simulator_building = simulator._create_small_building(
-        initial_temp=292.0, include_radiative_heat_transfer=True
-    )
-
-    simulator_simulator = simulator_py.SimulatorFlexibleGeometries(
-        simulator_building,
-        simulator_hvac,
-        weather_controller,
-        time_step_sec,
-        convergence_threshold,
-        iteration_limit,
-        iteration_warning,
-        start_timestamp,
-    )
-    simulator_result = simulator_simulator.finite_differences_timestep(
-        ambient_temperature=315.0, convection_coefficient=12.0
-    )
-
-    building = simulator_building
-
-    tf_simulator = tf_simulator_py.TFSimulator(
-        building,
-        simulator_hvac,
-        weather_controller,
-        time_step_sec,
-        convergence_threshold,
-        iteration_limit,
-        iteration_warning,
-        start_timestamp,
-    )
-
-    result = tf_simulator.finite_differences_timestep(
-        ambient_temperature=315.0, convection_coefficient=12.0
-    )
-
-    self.assertTrue(result)
-    self.assertTrue(simulator_result)
-    with self.subTest("CV temperatures match"):
-      assert_array_almost_equal(
-          tf_simulator.building.temp, simulator_simulator.building.temp
-      )
+    self._assert_temperatures_match(simulators, air_atol=1e-2)
 
   def test_compare_temperature_estimates_iterative_approach_with_interior_mass(self):  # pylint: disable=line-too-long
-    """Tests that temperature estimates from TFSimulator match those from
-    SimulatorFlexibleGeometries when using interior mass heat transfer
+    """Tests that the three solvers agree with interior mass heat transfer.
 
-    Creates two simulators with identical buildings, HVAC and parameters:
-    1. A SimulatorFlexibleGeometries instance (baseline/iterative approach)
-    2. A TFSimulator instance (tensor approach under test)
-
-    Runs one timestep on both and verifies their temperature arrays match
-     exactly, including both air CV temperatures and interior mass temperatures.
-    This validates that TFSimulator's interior mass heat transfer calculations
-     produce the same results as the original iterative implementation.
+    The interior mass node is re-solved every iteration from the previous
+    time step's mass temperature, so all three converge to the same coupled
+    air/mass balance.
     """
-    weather_controller = mock.create_autospec(
-        weather_controller_py.WeatherController
-    )
-    time_step_sec = 300.0
-    convergence_threshold = 1e-3
-    iteration_limit = 300
-    iteration_warning = 30
-    start_timestamp = pd.Timestamp("2012-12-21")
-
-    # Create baseline simulator with interior mass
-    simulator = FlexibleFloorplanSimulatorTest()
-    simulator_hvac = simulator._create_small_hvac()
-
-    _, simulator_building = simulator._create_simulator_and_building(
-        convergence_threshold=0.001,
-        initial_temp=292.0,
-        iteration_limit=100,
-        include_interior_mass=True,
+    simulators = self._run_simulators_for_comparison(
         include_radiative_heat_transfer=False,
+        include_interior_mass=True,
+        convergence_threshold=1e-3,
+        iteration_limit=300,
     )
-    simulator_simulator = simulator_py.SimulatorFlexibleGeometries(
-        simulator_building,
-        simulator_hvac,
-        weather_controller,
-        time_step_sec,
-        convergence_threshold,
-        iteration_limit,
-        iteration_warning,
-        start_timestamp,
-    )
-
-    # Create TFSimulator with the same building
-    building = simulator_building
-    tf_simulator = tf_simulator_py.TFSimulator(
-        building,
-        simulator_hvac,
-        weather_controller,
-        time_step_sec,
-        convergence_threshold,
-        iteration_limit,
-        iteration_warning,
-        start_timestamp,
-    )
-
-    result = tf_simulator.finite_differences_timestep(
-        ambient_temperature=315.0, convection_coefficient=12.0
-    )
-
-    simulator_result = simulator_simulator.finite_differences_timestep(
-        ambient_temperature=315.0, convection_coefficient=12.0
-    )
-
-    self.assertTrue(result)
-    self.assertTrue(simulator_result)
-
-    # Compare air CV temperatures
-    with self.subTest("Air CV temperatures match"):
-      assert_array_almost_equal(
-          tf_simulator.building.temp,
-          simulator_simulator.building.temp,
-          decimal=5,
-      )
-
-    # Compare interior mass temperatures
-    with self.subTest("Interior mass temperatures match"):
-      assert_array_almost_equal(
-          tf_simulator.building.interior_mass_temp,
-          simulator_simulator.building.interior_mass_temp,
-          decimal=5,
-      )
+    self._assert_temperatures_match(simulators, air_atol=1e-4, mass_atol=1e-6)
 
   def test_compare_temperature_estimates_iterative_approach_with_interior_mass_and_lwx(self):  # pylint: disable=line-too-long
-    """Tests that temperature estimates from TFSimulator match those from
-    SimulatorFlexibleGeometries when using interior mass heat transfer
-    and lwx (interior radiative heat exchange).
+    """Tests that the three solvers agree with interior mass and lwx.
 
-    Creates two simulators with identical buildings, HVAC and parameters:
-    1. A SimulatorFlexibleGeometries instance (baseline/iterative approach)
-    2. A TFSimulator instance (tensor approach under test)
-
-    Runs one timestep on both and verifies their temperature arrays match
-     exactly, including both air CV temperatures and interior mass temperatures.
-    This validates that TFSimulator's interior mass heat transfer calculations
-     produce the same results as the original iterative implementation.
-     Note that interior mass convergence can be slow (due to the large thermal
-      mass and small conductivity), so setting a too low convergence threshold
-      may cause the test to fail.
+    Point relaxation converges slowly here: the room air is coupled to the
+    walls only through half a cell of insulation, and the lagged radiative
+    exchange adds an outer iteration on top. The threshold is relaxed to keep
+    the test fast, and the tolerance is set from the measured distance to the
+    direct solve at that threshold (about 0.13 K for TFSimulator).
     """
-    weather_controller = mock.create_autospec(
-        weather_controller_py.WeatherController
-    )
-    time_step_sec = 300.0
-    convergence_threshold = 1e-3
-    iteration_limit = 500
-    iteration_warning = 30
-    start_timestamp = pd.Timestamp("2012-12-21")
-
-    # Create baseline simulator with interior mass
-    simulator = FlexibleFloorplanSimulatorTest()
-    simulator_hvac = simulator._create_small_hvac()
-
-    _, simulator_building = simulator._create_simulator_and_building(
-        convergence_threshold=0.001,
-        initial_temp=292.0,
-        iteration_limit=100,
-        include_interior_mass=True,
+    simulators = self._run_simulators_for_comparison(
         include_radiative_heat_transfer=True,
+        include_interior_mass=True,
+        convergence_threshold=3e-4,
+        iteration_limit=6000,
+    )
+    self._assert_temperatures_match(simulators, air_atol=0.2, mass_atol=1e-4)
+
+  ## Part 3: Tests that pin the conduction stencil rather than the
+  ## implementation.
+  ##
+  ## The defect these cover was invisible to every other test in this file:
+  ## an air-to-wall face whose two sides computed different fluxes, which
+  ## destroys energy at every such interface while still producing temperature
+  ## fields that look plausible.
+
+  def _create_square_zone_building(self, cv_cm: float, wall_cv: int):
+    """Returns one square zone wrapped in `wall_cv` control volumes of wall."""
+    room_m = 6.0
+    rows = int(round(room_m / (cv_cm / 100.0)))
+    pad = wall_cv + 1
+    n = rows + 2 * pad
+    plan = np.full((n, n), 2, dtype=int)
+    plan[1:-1, 1:-1] = 1
+    plan[pad:-pad, pad:-pad] = 0
+
+    wall = building_py.MaterialProperties(
+        conductivity=0.05, heat_capacity=700.0, density=1.0
+    )
+    return building_py.FloorPlanBasedBuilding(
+        cv_size_cm=cv_cm,
+        floor_height_cm=300.0,
+        initial_temp=293.15,
+        inside_air_properties=building_py.MaterialProperties(
+            conductivity=50.0, heat_capacity=1006.0, density=1.2
+        ),
+        inside_wall_properties=wall,
+        building_exterior_properties=wall,
+        floor_plan=plan,
+        zone_map=plan.copy(),
+        buffer_from_walls=0,
     )
 
-    simulator_simulator = simulator_py.SimulatorFlexibleGeometries(
-        simulator_building,
-        simulator_hvac,
-        weather_controller,
-        time_step_sec,
-        convergence_threshold,
-        iteration_limit,
-        iteration_warning,
-        start_timestamp,
+  def _create_square_zone_simulator(self, building, **kwargs):
+    """Returns a simulator for `building` with the HVAC effectively off."""
+    zones = [
+        zone
+        for zone in building._room_dict  # pylint: disable=protected-access
+        if isinstance(zone, str) and zone.startswith("room_")
+    ]
+    hvac = floorplan_hvac_py.FloorPlanBasedHvac(
+        air_handler=air_handler_py.AirHandler(0.3, 270.0, 288.0, 20000.0, 0.8),
+        boiler=boiler_py.Boiler(350.0, 3.0, 0.6, "boiler_id"),
+        schedule=setpoint_schedule.SetpointSchedule(
+            morning_start_hour=9,
+            evening_start_hour=18,
+            comfort_temp_window=(200.0, 400.0),
+            eco_temp_window=(200.0, 400.0),
+            holidays=set(),
+        ),
+        vav_max_air_flow_rate=1e-9,
+        vav_reheat_max_water_flow_rate=0.02,
+        zone_identifier=zones,
+    )
+    return tf_simulator_py.TFSimulator(
+        building=building,
+        hvac=hvac,
+        weather_controller=weather_controller_py.WeatherController(
+            273.15, 273.15, convection_coefficient=100.0
+        ),
+        time_step_sec=60.0,
+        convergence_threshold=0.01,
+        iteration_limit=200,
+        iteration_warning=10**9,
+        start_timestamp=pd.Timestamp("2012-12-21"),
+        **kwargs,
     )
 
-    # Create TFSimulator with the same building
-    building = simulator_building
-    tf_simulator = tf_simulator_py.TFSimulator(
-        building,
-        simulator_hvac,
-        weather_controller,
-        time_step_sec,
-        convergence_threshold,
-        iteration_limit,
-        iteration_warning,
-        start_timestamp,
+  def test_face_conductances_are_flux_conservative(self):
+    """Both CVs sharing a face have to agree on the conductance across it."""
+    building = self._create_square_zone_building(cv_cm=10.0, wall_cv=2)
+    simulator = self._create_square_zone_simulator(building)
+
+    # Faces onto an exterior CV are carried by the surface film and those CVs
+    # are pinned at the ambient temperature, so only interior faces have two
+    # sides that have to agree.
+    interior = ~simulator._t_exerior_temps_mask.numpy()  # pylint: disable=protected-access
+
+    # The right-edge tensor of a CV and the left-edge tensor of the CV at
+    # j + 1 describe the same face, so they have to carry the same value.
+    left = simulator._t_face_conductance_left.numpy()  # pylint: disable=protected-access
+    right = simulator._t_face_conductance_right.numpy()  # pylint: disable=protected-access
+    horizontal = interior[:, :-1] & interior[:, 1:]
+    assert_array_almost_equal(
+        right[:, :-1][horizontal], left[:, 1:][horizontal], decimal=6
     )
 
-    result = tf_simulator.finite_differences_timestep(
-        ambient_temperature=315.0, convection_coefficient=12.0
+    top = simulator._t_face_conductance_top.numpy()  # pylint: disable=protected-access
+    bottom = simulator._t_face_conductance_bottom.numpy()  # pylint: disable=protected-access
+    vertical = interior[1:, :] & interior[:-1, :]
+    assert_array_almost_equal(
+        top[1:, :][vertical], bottom[:-1, :][vertical], decimal=6
     )
 
-    simulator_result = simulator_simulator.finite_differences_timestep(
-        ambient_temperature=315.0, convection_coefficient=12.0
+  def test_face_conductance_matches_series_resistance(self):
+    """An air-to-wall face is the series of the two half cells, not either k."""
+    building = self._create_square_zone_building(cv_cm=10.0, wall_cv=2)
+    simulator = self._create_square_zone_simulator(building)
+    plan = np.asarray(building.floor_plan)
+
+    # Walk one row to the first air CV that has a wall CV on its left.
+    row = plan.shape[0] // 2
+    air_columns = np.nonzero(plan[row] == 0)[0]
+    column = int(air_columns[0])
+    self.assertEqual(plan[row][column - 1], 1)
+
+    half_cm = building.cv_size_cm / 100.0 / 2.0
+    expected = 1.0 / (half_cm / 50.0 + half_cm / 0.05)
+    conductance = simulator._t_face_conductance_left.numpy()[row][column]  # pylint: disable=protected-access
+    self.assertAlmostEqual(conductance, expected, delta=expected * 1e-4)
+
+    # The shipped formula, this CV's own k over its own width, is three orders
+    # of magnitude away from that.
+    self.assertGreater(50.0 / (2.0 * half_cm) / conductance, 100.0)
+
+  def test_face_conductances_match_iterative_simulator(self):
+    """The tensor and per-CV paths build the same conductance for every face.
+
+    The tensors carry the face conductance per unit of the owner's own face
+    area, so multiplying by Vz (left/right) or Uz (top/bottom) gives the W/K
+    that `Simulator._get_face_conductance` returns. The floor plan is L-shaped
+    so that it has a reentrant corner, where a half-width edge CV meets a full
+    interior CV and only the narrower width is shared.
+    """
+    wall_cv = 2
+    square = self._create_square_zone_building(cv_cm=20.0, wall_cv=wall_cv)
+    plan = np.asarray(square.floor_plan).copy()
+    # Cut a notch out of the top-left corner and wrap it in wall.
+    notch = wall_cv + 4
+    region = plan[: notch + wall_cv, : notch + wall_cv]
+    region[region == 0] = 1
+    plan[:notch, :notch] = 2
+    wall = building_py.MaterialProperties(
+        conductivity=0.05, heat_capacity=700.0, density=1.0
     )
+    building = building_py.FloorPlanBasedBuilding(
+        cv_size_cm=20.0,
+        floor_height_cm=300.0,
+        initial_temp=293.15,
+        inside_air_properties=building_py.MaterialProperties(
+            conductivity=50.0, heat_capacity=1006.0, density=1.2
+        ),
+        inside_wall_properties=wall,
+        building_exterior_properties=wall,
+        floor_plan=plan,
+        zone_map=plan.copy(),
+        buffer_from_walls=0,
+    )
+    simulator = self._create_square_zone_simulator(building)
+    # The notch puts a full-width CV next to half-width edge CVs.
+    self.assertEqual(len(building.neighbors[notch][notch]), 4)
+    self.assertEqual(len(building.neighbors[notch - 1][notch]), 3)
+    z = building.floor_height_cm / 100.0
+    u = simulator._t_u.numpy()  # pylint: disable=protected-access
+    v = simulator._t_v.numpy()  # pylint: disable=protected-access
+    face_tensors = {
+        (0, -1): simulator._t_face_conductance_left.numpy() * v * z,  # pylint: disable=protected-access
+        (0, 1): simulator._t_face_conductance_right.numpy() * v * z,  # pylint: disable=protected-access
+        (-1, 0): simulator._t_face_conductance_top.numpy() * u * z,  # pylint: disable=protected-access
+        (1, 0): simulator._t_face_conductance_bottom.numpy() * u * z,  # pylint: disable=protected-access
+    }
 
-    self.assertTrue(result)
-    self.assertTrue(simulator_result)
-
-    # Compare air CV temperatures
-    with self.subTest("Air CV temperatures match"):
-      assert_array_almost_equal(
-          tf_simulator.building.temp,
-          simulator_simulator.building.temp,
-          decimal=5,
-      )
-
-    # Compare interior mass temperatures
-    with self.subTest("Interior mass temperatures match"):
-      assert_array_almost_equal(
-          tf_simulator.building.interior_mass_temp,
-          simulator_simulator.building.interior_mass_temp,
-          decimal=5,
-      )
+    rows, cols = building.temp.shape
+    for i in range(rows):
+      for j in range(cols):
+        if len(building.neighbors[i][j]) <= 1:
+          continue
+        for ni, nj in building.neighbors[i][j]:
+          if len(building.neighbors[ni][nj]) <= 1:
+            continue
+          expected = simulator._get_face_conductance((i, j), (ni, nj))  # pylint: disable=protected-access
+          actual = face_tensors[(ni - i, nj - j)][i][j]
+          self.assertAlmostEqual(actual, expected, delta=expected * 1e-5)
 
 
 if __name__ == "__main__":

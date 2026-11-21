@@ -1786,10 +1786,21 @@ class FlexibleFloorplanSimulatorTest(parameterized.TestCase):
 
   def test_interior_mass_convergence_with_lwx(self):
     """Test that simulation with interior mass converges with LWX
-    (longwave interior radiative heat transfer)."""
+    (longwave interior radiative heat transfer).
+
+    Point relaxation needs many sweeps here: with the series half-cell
+    conductances an air CV is coupled to the walls around it only through half
+    a cell of insulation, so the room air is not anchored to anything and the
+    sweeps have to carry information across the whole room. The iteration
+    limit is sized for that.
+
+    The original threshold is kept; it takes about 1,400 sweeps to reach it.
+    How close the converged field is to the exact answer is checked against
+    the direct solve in `tf_simulator_test.TFSimulatorTest`.
+    """
     simulator, _ = self._create_simulator_and_building(
         convergence_threshold=0.001,
-        iteration_limit=100,
+        iteration_limit=1500,
         include_interior_mass=True,
         include_radiative_heat_transfer=True,
     )
