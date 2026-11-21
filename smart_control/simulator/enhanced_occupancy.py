@@ -14,6 +14,7 @@ using different worker types.
 
 import datetime
 import enum
+import hashlib
 from typing import Dict, Union
 
 from absl import logging
@@ -24,9 +25,15 @@ import pandas as pd
 from smart_control.models.base_occupancy import BaseOccupancy
 from smart_control.utils import conversion_utils
 
-# Seeds for np.random.RandomState must be integers in [0, 2**32 - 1].
-# We use modulo SEED_MOD_32 to constrain hashes into this valid range.
-SEED_MOD_32 = 2**32
+
+def _stable_seed(*parts: object) -> int:
+  """Returns a repeatable 32-bit seed for the supplied values."""
+  digest = hashlib.sha256()
+  for part in parts:
+    encoded_part = str(part).encode("utf-8")
+    digest.update(len(encoded_part).to_bytes(8, byteorder="big"))
+    digest.update(encoded_part)
+  return int.from_bytes(digest.digest()[:4], byteorder="big")
 
 
 class OccupancyStateEnum(enum.Enum):
@@ -176,9 +183,7 @@ class MinuteLevelZoneOccupant:
     if date_key in self.daily_cache:
       return self.daily_cache[date_key]
 
-    day_seed = hash(str(date_key) + str(self.occupant_id) + "daily_params") % (
-        SEED_MOD_32
-    )
+    day_seed = _stable_seed(date_key, self.occupant_id, "daily_params")
     day_random_state = np.random.RandomState(day_seed)
 
     arrival = self._sample_event_time(
@@ -233,7 +238,7 @@ class MinuteLevelZoneOccupant:
       return True
 
     elif self.worker_type == WorkerType.WEEKEND_OCCASIONAL:
-      seed = hash(str(date_key) + str(self.occupant_id)) % SEED_MOD_32
+      seed = _stable_seed(date_key, self.occupant_id, "weekend_work")
       random_state = np.random.RandomState(seed)
       work_today = random_state.rand() < self.weekend_work_prob
       self.daily_work_cache[date_key] = work_today
@@ -368,7 +373,7 @@ class EnhancedOccupancy(BaseOccupancy):
       self._zone_occupants[zone_id] = []
       for i in range(self._zone_assignment):
         worker_random_state = np.random.RandomState(
-            hash(f"{zone_id}_{i}") % SEED_MOD_32
+            _stable_seed(zone_id, i, "worker_type")
         )
         u = worker_random_state.rand()
         if u < self._weekend_regular_pct:
@@ -382,7 +387,7 @@ class EnhancedOccupancy(BaseOccupancy):
           weekend_prob = 0.0
 
         occupant_random_state = np.random.RandomState(
-            (hash(f"{zone_id}_{i}_behaviour") % SEED_MOD_32)
+            _stable_seed(zone_id, i, "behaviour")
         )
 
         self._zone_occupants[zone_id].append(
