@@ -60,15 +60,15 @@ class SmartDeviceTest(absltest.TestCase):
     heater = self.heater_class()
 
     self.assertSameElements(
-      heater.observable_field_names,
-      ['obs_temp', 'obs_heat_setting', 'obs_seconds_active', 'obs_bad'],
+        heater.observable_field_names,
+        ['obs_temp', 'obs_heat_setting', 'obs_seconds_active', 'obs_bad'],
     )
 
   def test_action_field_names(self):
     heater = self.heater_class()
 
     self.assertSameElements(
-      heater.action_field_names, ['act_heat_setting', 'act_bad']
+        heater.action_field_names, ['act_heat_setting', 'act_bad']
     )
 
   def test_observable_type(self):
