@@ -52,11 +52,13 @@ jobs:
     # means compiling ffmpeg and its dependencies from source, which takes about
     # an hour and then fails. The steps below use neither tool: the generated
     # proto modules are checked in, and mediapy only calls ffmpeg to encode videos.
+    # protoc isn't installed on any Mac runner: Homebrew has disabled the
+    # versioned protobuf@21 formula, and `brew install protobuf@21` now fails.
     - name: Install system dependencies (on Mac)
       if: runner.os == 'macOS' && runner.arch == 'ARM64'
       run: |
         brew update
-        brew install protobuf@21 ffmpeg
+        brew install ffmpeg
 
     - name: Install Python dependencies
       run: |
