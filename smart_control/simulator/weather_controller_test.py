@@ -151,6 +151,24 @@ class ReplayWeatherControllerTest(parameterized.TestCase):
     )
     self.assertRaises(ValueError, weather_fn)
 
+  def test_get_interpolated_value_by_column_name(self):
+    timestamp = pd.Timestamp('2023-07-01 03:00:01+00:00')
+    
+    # Test temperature interpolation by column name
+    temp_f = self.controller._get_interpolated_value('TempF', timestamp)
+    expected_temp_k = 298.1500
+    expected_temp_f = (expected_temp_k - 273.15) * 9/5 + 32
+    self.assertAlmostEqual(temp_f, expected_temp_f, places=5)
+
+    # Test humidity interpolation by column name
+    humidity = self.controller._get_interpolated_value('Humidity', timestamp)
+    self.assertAlmostEqual(humidity, 65.0, places=5)
+
+  def test_get_interpolated_value_invalid_column(self):
+    timestamp = pd.Timestamp('2023-07-01 03:00:01+00:00')
+    with self.assertRaises(ValueError):
+      self.controller._get_interpolated_value('InvalidColumn', timestamp)
+
 
 class MoffettReplayWeatherControllerTest(parameterized.TestCase):
   """Tests for ReplayWeatherController using real weather data."""
