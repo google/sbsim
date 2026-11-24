@@ -241,26 +241,42 @@ class ReplayWeatherController(BaseWeatherController):
     """Returns the humidities of the weather data."""
     return self.weather_df[self.humidity_column]
 
+  def _get_column_values(self, column_name: str) -> np.ndarray:
+    """Extracts the requested column from the stored weather DataFrame.
+
+    Args:
+      column_name: Name of the column to extract.
+
+    Returns:
+      Numpy array of values from the specified column.
+
+    Raises:
+      ValueError: If the column name is not found in the DataFrame.
+    """
+    if column_name not in self.weather_df.columns:
+      raise ValueError(f'Column {column_name} not found in weather data.')
+    return self.weather_df[column_name].values
+
   def _get_interpolated_value(
-      self, timestamp: pd.Timestamp, values: pd.Series
+      self, column_name: str, timestamp: pd.Timestamp
   ) -> float:
-    """Helper to get interpolated value from a given series.
+    """Helper to get interpolated value from a given column.
 
     The timestamp need not exactly appear in the weather data, but should be
     within the range of the data.
     If there is no exact match, linear interpolation is used to estimate the
-    temperature between the nearest timestamps.
+    value between the nearest timestamps.
 
     Args:
-      timestamp: Pandas timestamp to get temperature for interpolation. If the
+      column_name: Name of the column to interpolate from.
+      timestamp: Pandas timestamp to get value for interpolation. If the
         timestamp is timezone aware, it will be converted to UTC. If the
         timestamp is timezone naive, it will be localized to UTC. This allows
         for accurate comparisons against the min and max timestamps, as well as
         the epoch, which are always timezone aware (in UTC).
-      values: Pandas series to interpolate from.
 
     Returns:
-      The interpolated value from the series at the given timestamp.
+      The interpolated value from the column at the given timestamp.
     """
     # convert timestamp to UTC to enable proper comparisons:
     if timestamp.tzname() is not None:
@@ -281,18 +297,19 @@ class ReplayWeatherController(BaseWeatherController):
           f' latest timestamp {self.max_time}.'
       )
 
+    values = self._get_column_values(column_name)
     time_in_seconds = (timestamp - _EPOCH).total_seconds()
     return np.interp(time_in_seconds, self.times_in_seconds, values)
 
   def get_current_temp(self, timestamp: pd.Timestamp) -> float:
     """For a given timestamp, returns the current temperature in Kelvin."""
     return utils.fahrenheit_to_kelvin(
-        self._get_interpolated_value(timestamp, self.temps_f)
+        self._get_interpolated_value('TempF', timestamp)
     )
 
   def get_current_humidity(self, timestamp: pd.Timestamp) -> float:
     """For a given timestamp, returns the current humidity level in percent."""
-    return self._get_interpolated_value(timestamp, self.humidities)
+    return self._get_interpolated_value(self.humidity_column, timestamp)
 
   # pylint: disable=unused-argument
   def get_air_convection_coefficient(self, timestamp: pd.Timestamp) -> float:
