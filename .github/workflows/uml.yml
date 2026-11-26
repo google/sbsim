@@ -1,0 +1,48 @@
+name: UML Diagram Check
+
+on:
+  pull_request:
+    branches:
+      - master
+      - main
+      - copybara_push
+    paths:
+    - "smart_control/**/*.py"
+    - "!smart_control/**/*_test.py"
+    - "Makefile"
+
+permissions:
+  contents: read
+
+jobs:
+  uml:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Set up Python
+        uses: actions/setup-python@7f4fc3e22c37d6ff65e88745f38bd3157c663f7c # v4
+        with:
+          python-version: "3.11"
+
+      - name: Install Poetry
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install poetry==2.1.2
+
+      - name: Install dependencies
+        run: poetry install --with dev,docs
+
+      - name: Generate UML diagram
+        run: poetry run make uml
+
+      - name: Check generated diagram
+        run: |
+          if ! git diff --exit-code docs/uml/classes_smart_control.mmd; then
+            echo "::error::The UML class diagram is outdated. Please run 'poetry run make uml' and commit the updated file: docs/uml/classes_smart_control.mmd"
+            exit 1
+          fi
+
+          echo "UML class diagram is up to date."
